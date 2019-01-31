@@ -218,7 +218,7 @@ public class JavaDateMathParser implements DateMathParser {
         DateTimeFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
         try {
             if (timeZone == null) {
-                return DateFormatters.toZonedDateTime(formatter.parse(value)).toInstant();
+                return DateFormatters.from(formatter.parse(value)).toInstant();
             } else {
                 TemporalAccessor accessor = formatter.parse(value);
                 ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);
@@ -226,7 +226,7 @@ public class JavaDateMathParser implements DateMathParser {
                     timeZone = zoneId;
                 }
 
-                return DateFormatters.toZonedDateTime(accessor).withZoneSameLocal(timeZone).toInstant();
+                return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();
             }
         } catch (DateTimeParseException e) {
             throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]: [{}]",

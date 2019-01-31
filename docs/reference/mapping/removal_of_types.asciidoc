@@ -606,5 +606,5 @@ PUT index-2-01
 
 In case of implicit index creation, because of documents that get indexed in
 an index that doesn't exist yet, the template is always honored. This is
-usually not a problem due to the fact that typless index calls work on typed
+usually not a problem due to the fact that typeless index calls work on typed
 indices.

@@ -20,11 +20,13 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 
-import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.Year;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -1550,105 +1552,91 @@ public class DateFormatters {
             dateTimeFormatters.toArray(new DateTimeFormatter[0]));
     }
 
-    private static final ZonedDateTime EPOCH_ZONED_DATE_TIME = Instant.EPOCH.atZone(ZoneOffset.UTC);
+    private static final LocalDate LOCALDATE_EPOCH = LocalDate.of(1970, 1, 1);
 
-    public static ZonedDateTime toZonedDateTime(TemporalAccessor accessor) {
-        return toZonedDateTime(accessor, EPOCH_ZONED_DATE_TIME);
-    }
-
-    public static ZonedDateTime toZonedDateTime(TemporalAccessor accessor, ZonedDateTime defaults) {
-        try {
-            return ZonedDateTime.from(accessor);
-        } catch (DateTimeException e ) {
+    /**
+     * Convert a temporal accessor to a zoned date time object - as performant as possible.
+     * The .from() methods from the JDK are throwing exceptions when for example ZonedDateTime.from(accessor)
+     * or Instant.from(accessor). This results in a huge performance penalty and should be prevented
+     * This method prevents exceptions by querying the accessor for certain capabilities
+     * and then act on it accordingly
+     *
+     * This action assumes that we can reliably fall back to some defaults if not all parts of a
+     * zoned date time are set
+     *
+     * - If a zoned date time is passed, it is returned
+     * - If no timezone is found, ZoneOffset.UTC is used
+     * - If we find a time and a date, converting to a ZonedDateTime is straight forward,
+     *   no defaults will be applied
+     * - If an accessor only containing of seconds and nanos is found (like epoch_millis/second)
+     *   an Instant is created out of that, that becomes a ZonedDateTime with a time zone
+     * - If no time is given, the start of the day is used
+     * - If no month of the year is found, the first day of the year is used
+     * - If an iso based weekyear is found, but not week is specified, the first monday
+     *   of the new year is chosen (reataining BWC to joda time)
+     * - If an iso based weekyear is found and an iso based weekyear week, the start
+     *   of the day is used
+     *
+     * @param accessor The accessor returned from a parser
+     *
+     * @return The converted zoned date time
+     */
+    public static ZonedDateTime from(TemporalAccessor accessor) {
+        if (accessor instanceof ZonedDateTime) {
+            return (ZonedDateTime) accessor;
         }
 
-        ZonedDateTime result = defaults;
+        ZoneId zoneId = accessor.query(TemporalQueries.zone());
+        if (zoneId == null) {
+            zoneId = ZoneOffset.UTC;
+        }
+        
+        LocalDate localDate = accessor.query(TemporalQueries.localDate());
+        LocalTime localTime = accessor.query(TemporalQueries.localTime());
+        boolean isLocalDateSet = localDate != null;
+        boolean isLocalTimeSet = localTime != null;
 
-        // special case epoch seconds
-        if (accessor.isSupported(ChronoField.INSTANT_SECONDS)) {
-            result = result.with(ChronoField.INSTANT_SECONDS, accessor.getLong(ChronoField.INSTANT_SECONDS));
-            if (accessor.isSupported(ChronoField.NANO_OF_SECOND)) {
-                result = result.with(ChronoField.NANO_OF_SECOND, accessor.getLong(ChronoField.NANO_OF_SECOND));
+        // the first two cases are the most common, so this allows us to exit early when parsing dates
+        if (isLocalDateSet && isLocalTimeSet) {
+            return of(localDate, localTime, zoneId);
+        } else if (accessor.isSupported(ChronoField.INSTANT_SECONDS) && accessor.isSupported(NANO_OF_SECOND)) {
+            return Instant.from(accessor).atZone(zoneId);
+        } else if (isLocalDateSet) {
+            return localDate.atStartOfDay(zoneId);
+        } else if (isLocalTimeSet) {
+            return of(LOCALDATE_EPOCH, localTime, zoneId);
+        } else if (accessor.isSupported(ChronoField.YEAR)) {
+            if (accessor.isSupported(MONTH_OF_YEAR)) {
+                return getFirstOfMonth(accessor).atStartOfDay(zoneId);
+            } else {
+                return Year.of(accessor.get(ChronoField.YEAR)).atDay(1).atStartOfDay(zoneId);
             }
-            return result;
-        }
-
-        // try to set current year
-        if (accessor.isSupported(ChronoField.YEAR)) {
-            result = result.with(ChronoField.YEAR, accessor.getLong(ChronoField.YEAR));
-        } else if (accessor.isSupported(ChronoField.YEAR_OF_ERA)) {
-            result = result.with(ChronoField.YEAR_OF_ERA, accessor.getLong(ChronoField.YEAR_OF_ERA));
         } else if (accessor.isSupported(WeekFields.ISO.weekBasedYear())) {
             if (accessor.isSupported(WeekFields.ISO.weekOfWeekBasedYear())) {
-                return LocalDate.from(result)
-                    .with(WeekFields.ISO.weekBasedYear(), accessor.getLong(WeekFields.ISO.weekBasedYear()))
-                    .withDayOfMonth(1) // makes this compatible with joda
+                return Year.of(accessor.get(WeekFields.ISO.weekBasedYear()))
+                    .atDay(1)
                     .with(WeekFields.ISO.weekOfWeekBasedYear(), accessor.getLong(WeekFields.ISO.weekOfWeekBasedYear()))
-                    .atStartOfDay(ZoneOffset.UTC);
+                    .atStartOfDay(zoneId);
             } else {
-                return LocalDate.from(result)
-                    .with(WeekFields.ISO.weekBasedYear(), accessor.getLong(WeekFields.ISO.weekBasedYear()))
-                    // this exists solely to be BWC compatible with joda
-//                    .with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY))
+                return Year.of(accessor.get(WeekFields.ISO.weekBasedYear()))
+                    .atDay(1)
                     .with(TemporalAdjusters.firstInMonth(DayOfWeek.MONDAY))
-                    .atStartOfDay(defaults.getZone());
-//                return result.withHour(0).withMinute(0).withSecond(0)
-//                    .with(WeekFields.ISO.weekBasedYear(), 0)
-//                    .with(WeekFields.ISO.weekBasedYear(), accessor.getLong(WeekFields.ISO.weekBasedYear()));
-//                return ((ZonedDateTime) tmp).with(WeekFields.ISO.weekOfWeekBasedYear(), 1);
+                    .atStartOfDay(zoneId);
             }
-        } else if (accessor.isSupported(IsoFields.WEEK_BASED_YEAR)) {
-            // special case weekbased year
-            result = result.with(IsoFields.WEEK_BASED_YEAR, accessor.getLong(IsoFields.WEEK_BASED_YEAR));
-            if (accessor.isSupported(IsoFields.WEEK_OF_WEEK_BASED_YEAR)) {
-                result = result.with(IsoFields.WEEK_OF_WEEK_BASED_YEAR, accessor.getLong(IsoFields.WEEK_OF_WEEK_BASED_YEAR));
-            }
-            return result;
         }
 
-        // month
-        if (accessor.isSupported(ChronoField.MONTH_OF_YEAR)) {
-            result = result.with(ChronoField.MONTH_OF_YEAR, accessor.getLong(ChronoField.MONTH_OF_YEAR));
-        }
+        // we should not reach this piece of code, everything being parsed we should be able to
+        // convert to a zoned date time! If not, we have to extend the above methods
+        throw new IllegalArgumentException("temporal accessor [" + accessor + "] cannot be converted to zoned date time");
+    }
 
-        // day of month
-        if (accessor.isSupported(ChronoField.DAY_OF_MONTH)) {
-            result = result.with(ChronoField.DAY_OF_MONTH, accessor.getLong(ChronoField.DAY_OF_MONTH));
-        }
+    @SuppressForbidden(reason = "ZonedDateTime.of is fine here")
+    private static ZonedDateTime of(LocalDate localDate, LocalTime localTime, ZoneId zoneId) {
+        return ZonedDateTime.of(localDate, localTime, zoneId);
+    }
 
-        // hour
-        if (accessor.isSupported(ChronoField.HOUR_OF_DAY)) {
-            result = result.with(ChronoField.HOUR_OF_DAY, accessor.getLong(ChronoField.HOUR_OF_DAY));
-        }
-
-        // minute
-        if (accessor.isSupported(ChronoField.MINUTE_OF_HOUR)) {
-            result = result.with(ChronoField.MINUTE_OF_HOUR, accessor.getLong(ChronoField.MINUTE_OF_HOUR));
-        }
-
-        // second
-        if (accessor.isSupported(ChronoField.SECOND_OF_MINUTE)) {
-            result = result.with(ChronoField.SECOND_OF_MINUTE, accessor.getLong(ChronoField.SECOND_OF_MINUTE));
-        }
-
-        if (accessor.isSupported(ChronoField.OFFSET_SECONDS)) {
-            result = result.withZoneSameLocal(ZoneOffset.ofTotalSeconds(accessor.get(ChronoField.OFFSET_SECONDS)));
-        }
-
-        // millis
-        if (accessor.isSupported(ChronoField.MILLI_OF_SECOND)) {
-            result = result.with(ChronoField.MILLI_OF_SECOND, accessor.getLong(ChronoField.MILLI_OF_SECOND));
-        }
-
-        if (accessor.isSupported(ChronoField.NANO_OF_SECOND)) {
-            result = result.with(ChronoField.NANO_OF_SECOND, accessor.getLong(ChronoField.NANO_OF_SECOND));
-        }
-
-        ZoneId zoneOffset = accessor.query(TemporalQueries.zone());
-        if (zoneOffset != null) {
-            result = result.withZoneSameLocal(zoneOffset);
-        }
-
-        return result;
+    @SuppressForbidden(reason = "LocalDate.of is fine here")
+    private static LocalDate getFirstOfMonth(TemporalAccessor accessor) {
+        return LocalDate.of(accessor.get(ChronoField.YEAR), accessor.get(MONTH_OF_YEAR), 1);
     }
 }

@@ -44,7 +44,6 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:
@@ -100,7 +99,6 @@
   - do:
       index:
         index:   test
-        type:    test
         id:      1
         body:    { "text": "test" }
   - do:
@@ -174,7 +172,6 @@
   - do:
       index:
         index:  test
-        type:   test
         id:     1
         body:   { age: 23 }
   - do:
@@ -301,7 +298,6 @@
   - do:
       index:
         index:   source
-        type:    foo
         id:      1
         body:    { "text": "test" }
   - do:

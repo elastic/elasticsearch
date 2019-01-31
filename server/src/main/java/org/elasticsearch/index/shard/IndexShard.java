@@ -108,6 +108,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
@@ -198,8 +199,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
-    protected volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
-    protected volatile long operationPrimaryTerm;
+    private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
+    private volatile long operationPrimaryTerm;
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     final EngineFactory engineFactory;
 
@@ -1893,6 +1894,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Collection<RetentionLease> getRetentionLeases() {
         verifyNotClosed();
         return replicationTracker.getRetentionLeases();
+    }
+
+    public RetentionLeaseStats getRetentionLeaseStats() {
+        verifyNotClosed();
+        return new RetentionLeaseStats(getRetentionLeases());
     }
 
     /**

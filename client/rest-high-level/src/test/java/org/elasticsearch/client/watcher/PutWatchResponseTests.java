@@ -41,14 +41,18 @@ public class PutWatchResponseTests extends ESTestCase {
         return builder.startObject()
             .field("_id", response.getId())
             .field("_version", response.getVersion())
+            .field("_seq_no", response.getSeqNo())
+            .field("_primary_term", response.getPrimaryTerm())
             .field("created", response.isCreated())
             .endObject();
     }
 
     private static PutWatchResponse createTestInstance() {
         String id = randomAlphaOfLength(10);
+        long seqNo = randomNonNegativeLong();
+        long primaryTerm = randomLongBetween(1, 200);
         long version = randomLongBetween(1, 10);
         boolean created = randomBoolean();
-        return new PutWatchResponse(id, version, created);
+        return new PutWatchResponse(id, version, seqNo, primaryTerm, created);
     }
 }

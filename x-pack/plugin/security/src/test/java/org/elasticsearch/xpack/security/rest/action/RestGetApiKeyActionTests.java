@@ -118,7 +118,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
 
             final RestResponse restResponse = responseSetOnce.get();
             assertNotNull(restResponse);
-            assertThat(restResponse.status(), (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK));
+            assertThat(restResponse.status(),
+                    (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK));
             final GetApiKeyResponse actual = GetApiKeyResponse
                     .fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
             if (replyEmptyResponse) {

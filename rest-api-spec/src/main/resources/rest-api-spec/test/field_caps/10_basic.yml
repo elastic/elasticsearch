@@ -15,6 +15,10 @@ setup:
                     type:     double
                   geo:
                     type:     geo_point
+                  date:
+                    type:     date
+                  date_nanos:
+                    type:     date_nanos
                   object:
                     type: object
                     properties:
@@ -47,6 +51,10 @@ setup:
                     type:     keyword
                   number:
                     type:     double
+                  date:
+                    type:     date
+                  date_nanos:
+                    type:     date_nanos
                   geo:
                     type:     geo_point
                   object:
@@ -80,6 +88,10 @@ setup:
                     type:     keyword
                   number:
                     type:     long
+                  date:
+                    type:     date
+                  date_nanos:
+                    type:     date_nanos
                   geo:
                     type:     keyword
                   object:
@@ -107,7 +119,7 @@ setup:
   - do:
       field_caps:
         index: 'test1,test2,test3'
-        fields: [text, keyword, number, geo]
+        fields: [text, keyword, number, date, date_nanos, geo]
 
   - match: {fields.text.text.searchable:                true}
   - match: {fields.text.text.aggregatable:              false}
@@ -129,6 +141,16 @@ setup:
   - match: {fields.number.long.indices:                 ["test3"]}
   - is_false: fields.number.long.non_searchable_indices
   - is_false: fields.number.long.non_aggregatable_indices
+  - match: {fields.date.date.searchable:                true}
+  - match: {fields.date.date.aggregatable:              true}
+  - is_false: fields.date.date.indices
+  - is_false: fields.date.date.non_searchable_indices
+  - is_false: fields.date.date.non_aggregatable_indices
+  - match: {fields.date_nanos.date_nanos.searchable:                true}
+  - match: {fields.date_nanos.date_nanos.aggregatable:              true}
+  - is_false: fields.date_nanos.date_nanos.indices
+  - is_false: fields.date_nanos.date_nanos.non_searchable_indices
+  - is_false: fields.date_nanos.date_nanos.non_aggregatable_indices
   - match: {fields.geo.geo_point.searchable:            true}
   - match: {fields.geo.geo_point.aggregatable:          true}
   - match: {fields.geo.geo_point.indices:               ["test1", "test2"]}

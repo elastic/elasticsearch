@@ -62,8 +62,15 @@ public class RetentionLeases implements Writeable {
         return version;
     }
 
+    /**
+     * Checks if this retention leases collection supersedes the specified retention leases collection. A retention leases collection
+     * supersedes another retention leases collection if its primary term is higher, or if for equal primary terms its version is higher
+     *
+     * @param that the retention leases collection to test against
+     * @return true if this retention leases collection supercedes the specified retention lease collection, otherwise false
+     */
     public boolean supersedes(final RetentionLeases that) {
-        return primaryTerm() > that.primaryTerm() || primaryTerm() <= that.primaryTerm() && version() > that.version();
+        return primaryTerm() > that.primaryTerm() || primaryTerm() == that.primaryTerm() && version() > that.version();
     }
 
     private final Map<String, RetentionLease> leases;

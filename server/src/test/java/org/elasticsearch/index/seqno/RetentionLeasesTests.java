@@ -22,6 +22,7 @@ package org.elasticsearch.index.seqno;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
@@ -53,6 +54,25 @@ public class RetentionLeasesTests extends ESTestCase {
         } else {
             assertThat(decodedRetentionLeases.leases(), containsInAnyOrder(retentionLeases.toArray(new RetentionLease[0])));
         }
+    }
+
+    public void testSupersedesByPrimaryTerm() {
+        final long lowerPrimaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final RetentionLeases left = new RetentionLeases(lowerPrimaryTerm, randomLongBetween(1, Long.MAX_VALUE), Collections.emptyList());
+        final long higherPrimaryTerm = randomLongBetween(lowerPrimaryTerm + 1, Long.MAX_VALUE);
+        final RetentionLeases right = new RetentionLeases(higherPrimaryTerm, randomLongBetween(1, Long.MAX_VALUE), Collections.emptyList());
+        assertTrue(right.supersedes(left));
+        assertFalse(left.supersedes(right));
+    }
+
+    public void testSupersedesByVersion() {
+        final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final long lowerVersion = randomLongBetween(1, Long.MAX_VALUE);
+        final long higherVersion = randomLongBetween(lowerVersion + 1, Long.MAX_VALUE);
+        final RetentionLeases left = new RetentionLeases(primaryTerm, lowerVersion, Collections.emptyList());
+        final RetentionLeases right = new RetentionLeases(primaryTerm, higherVersion, Collections.emptyList());
+        assertTrue(right.supersedes(left));
+        assertFalse(left.supersedes(right));
     }
 
 }

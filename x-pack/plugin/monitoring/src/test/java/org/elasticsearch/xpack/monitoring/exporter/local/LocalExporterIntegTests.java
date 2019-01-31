@@ -255,7 +255,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 .get("xpack.monitoring.exporters._local.index.name.time_format");
         assertEquals(indexTimeFormat, customTimeFormat);
         if (customTimeFormat == null) {
-            customTimeFormat = "YYYY.MM.dd";
+            customTimeFormat = "yyyy.MM.dd";
         }
 
         DateFormatter dateParser = DateFormatter.forPattern("strict_date_time");

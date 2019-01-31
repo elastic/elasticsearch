@@ -95,7 +95,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         final long timestamp = ZonedDateTime.of(2017, 8, 3, 13, 47, 58,
             0, ZoneOffset.UTC).toInstant().toEpochMilli();
 
-        DateFormatter formatter = DateFormatter.forPattern("YYYY.MM.dd").withZone(ZoneOffset.UTC);
+        DateFormatter formatter = DateFormatter.forPattern("yyyy.MM.dd").withZone(ZoneOffset.UTC);
         assertThat(indexName(formatter, MonitoredSystem.ES, timestamp),
                 equalTo(".monitoring-es-" + TEMPLATE_VERSION + "-2017.08.03"));
         assertThat(indexName(formatter, MonitoredSystem.KIBANA, timestamp),
@@ -105,7 +105,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
                 equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017.08.03"));
 
-        formatter = DateFormatter.forPattern("YYYY-dd-MM-HH.mm.ss").withZone(ZoneOffset.UTC);
+        formatter = DateFormatter.forPattern("yyyy-dd-MM-HH.mm.ss").withZone(ZoneOffset.UTC);
         assertThat(indexName(formatter, MonitoredSystem.ES, timestamp),
                 equalTo(".monitoring-es-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
         assertThat(indexName(formatter, MonitoredSystem.KIBANA, timestamp),

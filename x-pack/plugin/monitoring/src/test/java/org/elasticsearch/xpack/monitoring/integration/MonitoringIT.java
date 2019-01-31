@@ -278,7 +278,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         assertThat(((Number) source.get("interval_ms")).longValue(), equalTo(interval.getMillis()));
 
-        DateFormatter formatter = DateFormatter.forPattern("YYYY.MM.dd");
+        DateFormatter formatter = DateFormatter.forPattern("yyyy.MM.dd");
         long isoTimestamp = Instant.from(DateFormatter.forPattern("strict_date_time").parse(timestamp)).toEpochMilli();
         String isoDateTime = MonitoringTemplateUtils.indexName(formatter.withZone(ZoneOffset.UTC), expectedSystem, isoTimestamp);
         assertThat(index, equalTo(isoDateTime));

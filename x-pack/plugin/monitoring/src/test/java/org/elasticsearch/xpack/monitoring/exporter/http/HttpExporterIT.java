@@ -354,7 +354,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                                remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         MockRequest recordedRequest = assertBulk(webServer);
 
-        DateFormatter formatter = DateFormatter.forPattern("YYYY.MM.dd").withZone(ZoneOffset.UTC);
+        DateFormatter formatter = DateFormatter.forPattern("yyyy.MM.dd").withZone(ZoneOffset.UTC);
         String indexName = indexName(formatter, doc.getSystem(), doc.getTimestamp());
 
         byte[] bytes = recordedRequest.getBody().getBytes(StandardCharsets.UTF_8);
@@ -363,7 +363,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         Map<String, Object> index = (Map<String, Object>) data.get("index");
         assertThat(index.get("_index"), equalTo(indexName));
 
-        String newTimeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM");
+        String newTimeFormat = randomFrom("yy", "yyyy", "yyyy.MM", "yyyy-MM", "MM.yyyy", "MM");
 
         final Settings newSettings = Settings.builder()
                 .put(settings)

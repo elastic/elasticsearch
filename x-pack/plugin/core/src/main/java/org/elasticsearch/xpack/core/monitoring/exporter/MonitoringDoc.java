@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
@@ -17,6 +18,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Objects;
 
 /**
@@ -24,6 +26,7 @@ import java.util.Objects;
  */
 public abstract class MonitoringDoc implements ToXContentObject {
 
+    private final static DateFormatter dateTimeFormatter = DateFormatter.forPattern("strict_date_time");
     private final String cluster;
     private final long timestamp;
     private final long intervalMillis;
@@ -123,7 +126,9 @@ public abstract class MonitoringDoc implements ToXContentObject {
      * @return a string representing the timestamp
      */
     public static String toUTC(final long timestamp) {
-        return Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC).toString();
+        ZonedDateTime zonedDateTime = Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC);
+        return dateTimeFormatter.format(zonedDateTime);
+
     }
 
     /**

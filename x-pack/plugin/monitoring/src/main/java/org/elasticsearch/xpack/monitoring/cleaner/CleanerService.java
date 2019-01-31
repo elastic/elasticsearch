@@ -193,7 +193,7 @@ public class CleanerService extends AbstractLifecycleComponent {
          */
         @Override
         protected void onAfterInLifecycle() {
-            ZonedDateTime start = ZonedDateTime.now(Clock.systemDefaultZone());
+            ZonedDateTime start = ZonedDateTime.now(Clock.systemUTC());
             TimeValue delay = executionScheduler.nextExecutionDelay(start);
 
             logger.debug("scheduling next execution in [{}] seconds", delay.seconds());

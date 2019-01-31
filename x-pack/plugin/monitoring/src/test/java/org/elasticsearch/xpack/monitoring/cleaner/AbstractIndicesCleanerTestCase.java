@@ -25,6 +25,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTestCase {
 
     static Integer INDEX_TEMPLATE_VERSION = null;
+    static DateFormatter dateFormatter = DateFormatter.forPattern("yyyy.MM.dd").withZone(ZoneOffset.UTC);
 
     public void testNothingToDelete() throws Exception {
         internalCluster().startNode();
@@ -196,8 +197,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
      * Creates a watcher history index from the specified version.
      */
     protected void createWatcherHistoryIndex(final ZonedDateTime creationDate, final String version) {
-        DateFormatter formatter = DateFormatter.forPattern("YYYY.MM.dd").withZone(ZoneOffset.UTC);
-        final String index = ".watcher-history-" + version + "-" + formatter.format(creationDate);
+        final String index = ".watcher-history-" + version + "-" + dateFormatter.format(creationDate);
 
         createIndex(index, creationDate);
     }
@@ -213,8 +213,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
      * Creates a monitoring timestamped index using a given template version.
      */
     protected void createTimestampedIndex(ZonedDateTime creationDate, String version) {
-        DateFormatter formatter = DateFormatter.forPattern("YYYY.MM.dd").withZone(ZoneOffset.UTC);
-        final String index = ".monitoring-es-" + version + "-" + formatter.format(creationDate);
+        final String index = ".monitoring-es-" + version + "-" + dateFormatter.format(creationDate);
         createIndex(index, creationDate);
     }
 

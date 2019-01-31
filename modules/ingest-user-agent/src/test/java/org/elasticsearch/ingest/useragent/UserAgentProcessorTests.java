@@ -103,16 +103,13 @@ public class UserAgentProcessorTests extends ESTestCase {
         Map<String, Object> target = (Map<String, Object>) data.get("target_field");
 
         assertThat(target.get("name"), is("Chrome"));
-        assertThat(target.get("major"), is("33"));
-        assertThat(target.get("minor"), is("0"));
-        assertThat(target.get("patch"), is("1750"));
-        assertNull(target.get("build"));
+        assertThat(target.get("version"), is("33.0.1750"));
 
-        assertThat(target.get("os"), is("Mac OS X 10.9.2"));
-        assertThat(target.get("os_name"), is("Mac OS X"));
-        assertThat(target.get("os_major"), is("10"));
-        assertThat(target.get("os_minor"), is("9"));
-
+        Map<String, String> os = new HashMap<>();
+        os.put("name", "Mac OS X");
+        os.put("version", "10.9.2");
+        os.put("full", "Mac OS X 10.9.2");
+        assertThat(target.get("os"), is(os));
         assertThat(target.get("device"), is("Other"));
     }
 
@@ -131,15 +128,13 @@ public class UserAgentProcessorTests extends ESTestCase {
         Map<String, Object> target = (Map<String, Object>) data.get("target_field");
 
         assertThat(target.get("name"), is("Android"));
-        assertThat(target.get("major"), is("3"));
-        assertThat(target.get("minor"), is("0"));
-        assertNull(target.get("patch"));
-        assertNull(target.get("build"));
+        assertThat(target.get("version"), is("3.0"));
 
-        assertThat(target.get("os"), is("Android 3.0"));
-        assertThat(target.get("os_name"), is("Android"));
-        assertThat(target.get("os_major"), is("3"));
-        assertThat(target.get("os_minor"), is("0"));
+        Map<String, String> os = new HashMap<>();
+        os.put("name", "Android");
+        os.put("version", "3.0");
+        os.put("full", "Android 3.0");
+        assertThat(target.get("os"), is(os));
 
         assertThat(target.get("device"), is("Motorola Xoom"));
     }
@@ -158,15 +153,9 @@ public class UserAgentProcessorTests extends ESTestCase {
         Map<String, Object> target = (Map<String, Object>) data.get("target_field");
 
         assertThat(target.get("name"), is("EasouSpider"));
-        assertNull(target.get("major"));
-        assertNull(target.get("minor"));
-        assertNull(target.get("patch"));
-        assertNull(target.get("build"));
 
-        assertThat(target.get("os"), is("Other"));
-        assertThat(target.get("os_name"), is("Other"));
-        assertNull(target.get("os_major"));
-        assertNull(target.get("os_minor"));
+        assertNull(target.get("version"));
+        assertNull(target.get("os"));
 
         assertThat(target.get("device"), is("Spider"));
     }
@@ -190,10 +179,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         assertNull(target.get("patch"));
         assertNull(target.get("build"));
 
-        assertThat(target.get("os"), is("Other"));
-        assertThat(target.get("os_name"), is("Other"));
-        assertNull(target.get("os_major"));
-        assertNull(target.get("os_minor"));
+        assertNull(target.get("os"));
 
         assertThat(target.get("device"), is("Other"));
     }

@@ -255,7 +255,7 @@ This is an example of the output:
           "index": {
             "response": {
               "index": "test",
-              "type": "test2",
+              "type": "_doc",
               "version": 1,
               "created": true,
               "result": "created",

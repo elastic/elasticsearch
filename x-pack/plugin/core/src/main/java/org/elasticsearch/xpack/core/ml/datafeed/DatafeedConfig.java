@@ -665,7 +665,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
         }
 
-        void setQuery(Map<String, Object> query) {
+        public void setQuery(Map<String, Object> query) {
             this.query = ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName());
         }
 

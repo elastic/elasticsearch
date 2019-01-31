@@ -77,7 +77,6 @@ for (Version version : bwcVersions.wireCompatible) {
       dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
       clusterName = 'rolling-upgrade'
       otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
-      minimumMasterNodes = { 2 }
       autoSetInitialMasterNodes = false
       /* Override the data directory so the new node always gets the node we
       * just stopped's data directory. */

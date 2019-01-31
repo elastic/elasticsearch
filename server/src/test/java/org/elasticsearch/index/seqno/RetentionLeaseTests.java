@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -52,7 +51,7 @@ public class RetentionLeaseTests extends ESTestCase {
     }
 
     public void testRetainingSequenceNumberOutOfRange() {
-        final long retainingSequenceNumber = randomLongBetween(Long.MIN_VALUE, UNASSIGNED_SEQ_NO - 1);
+        final long retainingSequenceNumber = randomLongBetween(Long.MIN_VALUE, -1);
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new RetentionLease("id", retainingSequenceNumber, randomNonNegativeLong(), "source"));
@@ -65,7 +64,7 @@ public class RetentionLeaseTests extends ESTestCase {
         final long timestamp = randomLongBetween(Long.MIN_VALUE, -1);
         final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new RetentionLease("id", randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE), timestamp, "source"));
+                () -> new RetentionLease("id", randomNonNegativeLong(), timestamp, "source"));
         assertThat(e, hasToString(containsString("retention lease timestamp [" + timestamp + "] out of range")));
     }
 
@@ -86,7 +85,7 @@ public class RetentionLeaseTests extends ESTestCase {
 
     public void testRetentionLeaseSerialization() throws IOException {
         final String id = randomAlphaOfLength(8);
-        final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+        final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
         final long timestamp = randomNonNegativeLong();
         final String source = randomAlphaOfLength(8);
         final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);

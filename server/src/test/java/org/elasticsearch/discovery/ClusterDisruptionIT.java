@@ -22,12 +22,14 @@ package org.elasticsearch.discovery;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -316,10 +318,10 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
-        service.localShardFailed(failedShard, "simulated", new CorruptIndexException("simulated", (String) null), new
-            ShardStateAction.Listener() {
+        service.localShardFailed(failedShard, "simulated", new CorruptIndexException("simulated", (String) null),
+            new ActionListener<Void>() {
                 @Override
-                public void onSuccess() {
+                public void onResponse(final Void aVoid) {
                     success.set(true);
                     latch.countDown();
                 }
@@ -375,6 +377,33 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         ensureGreen("index");
         assertTrue(client().prepareGet("index", "_doc", "1").get().isExists());
+    }
+
+    public void testCannotJoinIfMasterLostDataFolder() throws Exception {
+        String masterNode = internalCluster().startMasterOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+
+        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public boolean clearData(String nodeName) {
+                return true;
+            }
+
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder().put(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeName).build();
+            }
+
+            @Override
+            public boolean validateClusterForming() {
+                return false;
+            }
+        });
+
+        assertFalse(internalCluster().client(masterNode).admin().cluster().prepareHealth().get().isTimedOut());
+        assertTrue(internalCluster().client(masterNode).admin().cluster().prepareHealth().setWaitForNodes("2").setTimeout("2s").get()
+            .isTimedOut());
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode)); // otherwise we will fail during clean-up
     }
 
     /**

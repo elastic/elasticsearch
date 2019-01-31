@@ -128,7 +128,7 @@ final class SoftDeletesPolicy {
             // calculate the minimum sequence number to retain based on retention leases
             retentionLeases = retentionLeasesSupplier.get();
             final long minimumRetainingSequenceNumber = retentionLeases
-                    .retentionLeases()
+                    .leases()
                     .stream()
                     .mapToLong(RetentionLease::retainingSequenceNumber)
                     .min()

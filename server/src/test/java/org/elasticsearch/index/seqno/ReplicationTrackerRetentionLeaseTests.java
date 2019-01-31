@@ -56,6 +56,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 new ShardId("test", "_na", 0),
                 allocationId.getId(),
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                randomNonNegativeLong(),
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
@@ -91,6 +92,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 new ShardId("test", "_na", 0),
                 allocationId.getId(),
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                randomNonNegativeLong(),
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
@@ -99,7 +101,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                     assertFalse(Thread.holdsLock(reference.get()));
                     invoked.set(true);
                     assertThat(
-                            leases.retentionLeases()
+                            leases.leases()
                                     .stream()
                                     .collect(Collectors.toMap(RetentionLease::id, RetentionLease::retainingSequenceNumber)),
                             equalTo(retentionLeases));
@@ -148,6 +150,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 new ShardId("test", "_na", 0),
                 allocationId.getId(),
                 IndexSettingsModule.newIndexSettings("test", settings),
+                randomNonNegativeLong(),
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 currentTimeMillis::get,
@@ -161,7 +164,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
         }
         final long[] retainingSequenceNumbers = new long[1];
-        retainingSequenceNumbers[0] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+        retainingSequenceNumbers[0] = randomLongBetween(0, Long.MAX_VALUE);
         if (primaryMode) {
             replicationTracker.addRetentionLease("0", retainingSequenceNumbers[0], "test-0", ActionListener.wrap(() -> {}));
         } else {
@@ -174,8 +177,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
             assertThat(retentionLeases.version(), equalTo(1L));
-            assertThat(retentionLeases.retentionLeases(), hasSize(1));
-            final RetentionLease retentionLease = retentionLeases.retentionLeases().iterator().next();
+            assertThat(retentionLeases.leases(), hasSize(1));
+            final RetentionLease retentionLease = retentionLeases.leases().iterator().next();
             assertThat(retentionLease.timestamp(), equalTo(currentTimeMillis.get()));
             assertRetentionLeases(replicationTracker, 1, retainingSequenceNumbers, currentTimeMillis::get, 1, primaryMode);
         }
@@ -195,8 +198,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
             assertThat(retentionLeases.version(), equalTo(2L));
-            assertThat(retentionLeases.retentionLeases(), hasSize(1));
-            final RetentionLease retentionLease = retentionLeases.retentionLeases().iterator().next();
+            assertThat(retentionLeases.leases(), hasSize(1));
+            final RetentionLease retentionLease = retentionLeases.leases().iterator().next();
             assertThat(retentionLease.timestamp(), equalTo(currentTimeMillis.get()));
             assertRetentionLeases(replicationTracker, 1, retainingSequenceNumbers, currentTimeMillis::get, 2, primaryMode);
         }
@@ -226,6 +229,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 new ShardId("test", "_na", 0),
                 allocationId.getId(),
                 IndexSettingsModule.newIndexSettings("test", settings),
+                randomNonNegativeLong(),
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 currentTimeMillis::get,
@@ -234,7 +238,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                     assertFalse(Thread.holdsLock(reference.get()));
                     invoked.set(true);
                     assertThat(
-                            leases.retentionLeases()
+                            leases.leases()
                                     .stream()
                                     .collect(Collectors.toMap(RetentionLease::id, ReplicationTrackerRetentionLeaseTests::toTuple)),
                             equalTo(retentionLeases));
@@ -287,7 +291,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             assertThat(current.version(), equalTo(version));
             // the current leases should equal our tracking map
             assertThat(
-                    current.retentionLeases()
+                    current.leases()
                             .stream()
                             .collect(Collectors.toMap(RetentionLease::id, ReplicationTrackerRetentionLeaseTests::toTuple)),
                     equalTo(retentionLeases));
@@ -303,6 +307,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 new ShardId("test", "_na", 0),
                 allocationId.getId(),
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                randomNonNegativeLong(),
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
@@ -332,12 +337,12 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         }
         assertThat(replicationTracker.getRetentionLeases().version(), equalTo(version));
         if (length == 0) {
-            assertThat(replicationTracker.getRetentionLeases().retentionLeases(), empty());
+            assertThat(replicationTracker.getRetentionLeases().leases(), empty());
         } else {
             final RetentionLeases expected = retentionLeasesCollection.get(length - 1);
             assertThat(
-                    replicationTracker.getRetentionLeases().retentionLeases(),
-                    contains(expected.retentionLeases().toArray(new RetentionLease[0])));
+                    replicationTracker.getRetentionLeases().leases(),
+                    contains(expected.leases().toArray(new RetentionLease[0])));
         }
     }
 
@@ -355,7 +360,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
         assertThat(retentionLeases.version(), equalTo(version));
         final Map<String, RetentionLease> idToRetentionLease = new HashMap<>();
-        for (final RetentionLease retentionLease : retentionLeases.retentionLeases()) {
+        for (final RetentionLease retentionLease : retentionLeases.leases()) {
             idToRetentionLease.put(retentionLease.id(), retentionLease);
         }
 

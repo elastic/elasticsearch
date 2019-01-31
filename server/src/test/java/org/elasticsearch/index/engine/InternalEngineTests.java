@@ -1378,6 +1378,38 @@ public class InternalEngineTests extends EngineTestCase {
 
     }
 
+    public void testGetIfSeqNoIfPrimaryTerm() throws IOException {
+        final BiFunction<String, Engine.SearcherScope, Searcher> searcherFactory = engine::acquireSearcher;
+
+        ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
+        Engine.Index create = new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED);
+        Engine.IndexResult indexResult = engine.index(create);
+        if (randomBoolean()) {
+            engine.refresh("test");
+        }
+        if (randomBoolean()) {
+            engine.flush();
+        }
+        try (Engine.GetResult get = engine.get(
+            new Engine.Get(true, true, doc.type(), doc.id(), create.uid())
+                .setIfSeqNo(indexResult.getSeqNo()).setIfPrimaryTerm(primaryTerm.get()),
+            searcherFactory)) {
+            assertEquals(indexResult.getSeqNo(), get.docIdAndVersion().seqNo);
+        }
+
+        expectThrows(VersionConflictEngineException.class, () -> engine.get(new Engine.Get(true, false, doc.type(), doc.id(), create.uid())
+                .setIfSeqNo(indexResult.getSeqNo() + 1).setIfPrimaryTerm(primaryTerm.get()),
+            searcherFactory));
+
+        expectThrows(VersionConflictEngineException.class, () -> engine.get(new Engine.Get(true, false, doc.type(), doc.id(), create.uid())
+                .setIfSeqNo(indexResult.getSeqNo()).setIfPrimaryTerm(primaryTerm.get() + 1),
+            searcherFactory));
+
+        expectThrows(VersionConflictEngineException.class, () -> engine.get(new Engine.Get(true, false, doc.type(), doc.id(), create.uid())
+                .setIfSeqNo(indexResult.getSeqNo() + 1).setIfPrimaryTerm(primaryTerm.get() + 1),
+            searcherFactory));
+    }
+
     public void testVersioningNewIndex() throws IOException {
         ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
         Engine.Index index = indexForDoc(doc);
@@ -5300,7 +5332,7 @@ public class InternalEngineTests extends EngineTestCase {
                 final List<RetentionLease> leases = new ArrayList<>(length);
                 for (int i = 0; i < length; i++) {
                     final String id = randomAlphaOfLength(8);
-                    final long retainingSequenceNumber = randomLongBetween(0L, Math.max(0L, globalCheckpoint.get()));
+                    final long retainingSequenceNumber = randomLongBetween(0, Math.max(0, globalCheckpoint.get()));
                     final long timestamp = randomLongBetween(0L, Long.MAX_VALUE);
                     final String source = randomAlphaOfLength(8);
                     leases.add(new RetentionLease(id, retainingSequenceNumber, timestamp, source));
@@ -5320,7 +5352,7 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(Engine.MIN_RETAINED_SEQNO)),
                     equalTo(engine.getMinRetainedSeqNo()));
                 final RetentionLeases leases = leasesHolder.get();
-                if (leases.retentionLeases().isEmpty()) {
+                if (leases.leases().isEmpty()) {
                     assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES), equalTo(""));
                 } else {
                     assertThat(

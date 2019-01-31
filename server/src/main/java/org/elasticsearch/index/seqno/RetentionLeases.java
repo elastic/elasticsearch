@@ -50,15 +50,15 @@ public class RetentionLeases implements Writeable {
         return version;
     }
 
-    private final Collection<RetentionLease> retentionLeases;
+    private final Collection<RetentionLease> leases;
 
     /**
      * The underlying collection of retention leases
      *
      * @return the retention leases
      */
-    public Collection<RetentionLease> retentionLeases() {
-        return retentionLeases;
+    public Collection<RetentionLease> leases() {
+        return leases;
     }
 
     /**
@@ -70,16 +70,16 @@ public class RetentionLeases implements Writeable {
     /**
      * Constructs a new retention lease collection with the specified version and underlying collection of retention leases.
      *
-     * @param version         the version of this retention lease collection
-     * @param retentionLeases the retention leases
+     * @param version the version of this retention lease collection
+     * @param leases  the retention leases
      */
-    public RetentionLeases(final long version, final Collection<RetentionLease> retentionLeases) {
+    public RetentionLeases(final long version, final Collection<RetentionLease> leases) {
         if (version < 0) {
             throw new IllegalArgumentException("version must be non-negative but was [" + version + "]");
         }
-        Objects.requireNonNull(retentionLeases);
+        Objects.requireNonNull(leases);
         this.version = version;
-        this.retentionLeases = Collections.unmodifiableCollection(new ArrayList<>(retentionLeases));
+        this.leases = Collections.unmodifiableCollection(new ArrayList<>(leases));
     }
 
     /**
@@ -91,7 +91,7 @@ public class RetentionLeases implements Writeable {
      */
     public RetentionLeases(final StreamInput in) throws IOException {
         version = in.readVLong();
-        retentionLeases = in.readList(RetentionLease::new);
+        leases = in.readList(RetentionLease::new);
     }
 
     /**
@@ -104,7 +104,7 @@ public class RetentionLeases implements Writeable {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeVLong(version);
-        out.writeCollection(retentionLeases);
+        out.writeCollection(leases);
     }
 
     /**
@@ -121,7 +121,7 @@ public class RetentionLeases implements Writeable {
                 Locale.ROOT,
                 "version:%d;%s",
                 retentionLeases.version(),
-                retentionLeases.retentionLeases().stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(",")));
+                retentionLeases.leases().stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(",")));
     }
 
     /**
@@ -157,7 +157,7 @@ public class RetentionLeases implements Writeable {
     public String toString() {
         return "RetentionLeases{" +
                 "version=" + version +
-                ", retentionLeases=" + retentionLeases +
+                ", leases=" + leases +
                 '}';
     }
 

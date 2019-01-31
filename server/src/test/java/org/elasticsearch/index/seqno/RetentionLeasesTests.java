@@ -27,7 +27,6 @@ import java.util.List;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.*;
 
 public class RetentionLeasesTests extends ESTestCase {
 
@@ -47,9 +46,9 @@ public class RetentionLeasesTests extends ESTestCase {
                 RetentionLeases.decodeRetentionLeases(RetentionLeases.encodeRetentionLeases(new RetentionLeases(version, retentionLeases)));
         assertThat(decodedRetentionLeases.version(), equalTo(version));
         if (length == 0) {
-            assertThat(decodedRetentionLeases.retentionLeases(), empty());
+            assertThat(decodedRetentionLeases.leases(), empty());
         } else {
-            assertThat(decodedRetentionLeases.retentionLeases(), contains(retentionLeases.toArray(new RetentionLease[0])));
+            assertThat(decodedRetentionLeases.leases(), contains(retentionLeases.toArray(new RetentionLease[0])));
         }
     }
 

@@ -114,8 +114,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public Boolean allowPartialSearchResults() {
-                    return null;
+                public boolean allowPartialSearchResults() {
+                    return true;
                 }
 
                 @Override

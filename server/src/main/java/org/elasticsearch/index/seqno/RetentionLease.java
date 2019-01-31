@@ -25,8 +25,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -99,7 +102,7 @@ public final class RetentionLease implements Writeable {
             // retention lease IDs can not contain these characters because they are used in encoding retention leases
             throw new IllegalArgumentException("retention lease ID can not contain any of [:;,] but was [" + id + "]");
         }
-        if (retainingSequenceNumber < SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (retainingSequenceNumber < 0) {
             throw new IllegalArgumentException("retention lease retaining sequence number [" + retainingSequenceNumber + "] out of range");
         }
         if (timestamp < 0) {
@@ -209,6 +212,16 @@ public final class RetentionLease implements Writeable {
                 ", timestamp=" + timestamp +
                 ", source='" + source + '\'' +
                 '}';
+    }
+
+    /**
+     * A utility method to convert a retention lease collection to a map from retention lease ID to retention lease.
+     *
+     * @param retentionLeases the retention lease collection
+     * @return the map from retention lease ID to retention lease
+     */
+    static Map<String, RetentionLease> toMap(final RetentionLeases retentionLeases) {
+        return retentionLeases.leases().stream().collect(Collectors.toMap(RetentionLease::id, Function.identity()));
     }
 
 }

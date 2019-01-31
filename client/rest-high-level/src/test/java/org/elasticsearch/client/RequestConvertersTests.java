@@ -1239,7 +1239,7 @@ public class RequestConvertersTests extends ESTestCase {
             requests.add(searchRequest);
         };
         MultiSearchRequest.readMultiLineFormat(new BytesArray(EntityUtils.toByteArray(request.getEntity())),
-                REQUEST_BODY_CONTENT_TYPE.xContent(), consumer, null, multiSearchRequest.indicesOptions(), null, null, null,
+                REQUEST_BODY_CONTENT_TYPE.xContent(), consumer, null, multiSearchRequest.indicesOptions(), null, null, null, null,
                 xContentRegistry(), true);
         assertEquals(requests, multiSearchRequest.requests());
     }
@@ -1862,6 +1862,10 @@ public class RequestConvertersTests extends ESTestCase {
             searchRequest.scroll(randomTimeValue());
             expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
         }
+        if (randomBoolean()) {
+            searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+        }
+        expectedParams.put("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
     }
 
     static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,

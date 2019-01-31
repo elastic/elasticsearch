@@ -70,7 +70,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "HTTP Enabled setting removed",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#remove-http-enabled",
-            "nodes with http.enabled set: [node_check]");
+            "nodes with http.enabled set: ");
         assertSettingsAndIssue("http.enabled", Boolean.toString(randomBoolean()), expected);
     }
 
@@ -79,7 +79,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "Audit log node info settings renamed",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#audit-logfile-local-node-info",
-            "nodes with audit log settings that have been renamed: [node_check]");
+            "nodes with audit log settings that have been renamed: ");
         assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_host_address", Boolean.toString(randomBoolean()), expected);
         assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_host_name", Boolean.toString(randomBoolean()), expected);
         assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_name", Boolean.toString(randomBoolean()), expected);
@@ -88,7 +88,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testAuditIndexSettingsCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL, "Audit index output type removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" + "#remove-audit-index-output",
-                "nodes with audit index output type settings: [node_check]");
+                "nodes with audit index output type settings: ");
         assertSettingsAndIssue("xpack.security.audit.outputs", randomFrom("[index]", "[\"index\", \"logfile\"]"), expected);
         assertSettingsAndIssue("xpack.security.audit.index.events.emit_request_body", Boolean.toString(randomBoolean()), expected);
         assertSettingsAndIssue("xpack.security.audit.index.client.xpack.security.transport.ssl.enabled", Boolean.toString(randomBoolean()),
@@ -106,7 +106,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "Index thread pool removed in favor of combined write thread pool",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_index_thread_pool",
-            "nodes with index thread pool settings: [node_check]");
+            "nodes with index thread pool settings: ");
         assertSettingsAndIssue("thread_pool.index.size", Integer.toString(randomIntBetween(1, 20000)), expected);
         assertSettingsAndIssue("thread_pool.index.queue_size", Integer.toString(randomIntBetween(1, 20000)), expected);
     }
@@ -116,7 +116,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "Bulk thread pool renamed to write thread pool",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#write-thread-pool-fallback",
-            "nodes with bulk thread pool settings: [node_check]");
+            "nodes with bulk thread pool settings: ");
         assertSettingsAndIssue("thread_pool.bulk.size", Integer.toString(randomIntBetween(1, 20000)), expected);
         assertSettingsAndIssue("thread_pool.bulk.queue_size", Integer.toString(randomIntBetween(1, 20000)), expected);
     }
@@ -126,21 +126,21 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "Watcher notification accounts' authentication settings must be defined securely",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
                         + "#watcher-notifications-account-settings",
-                "nodes which have insecure notification account settings are: [node_check]");
+                "nodes which have insecure notification account settings are: ");
         assertSettingsAndIssue("xpack.notification.email.account." + randomAlphaOfLength(4) + ".smtp.password", randomAlphaOfLength(4),
                 expected);
         expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Watcher notification accounts' authentication settings must be defined securely",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
                         + "#watcher-notifications-account-settings",
-                "nodes which have insecure notification account settings are: [node_check]");
+                "nodes which have insecure notification account settings are: ");
         assertSettingsAndIssue("xpack.notification.hipchat.account." + randomAlphaOfLength(4) + ".auth_token", randomAlphaOfLength(4),
                 expected);
         expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Watcher notification accounts' authentication settings must be defined securely",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
                         + "#watcher-notifications-account-settings",
-                "nodes which have insecure notification account settings are: [node_check]");
+                "nodes which have insecure notification account settings are: ");
         assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".url", randomAlphaOfLength(4), expected);
         assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".user", randomAlphaOfLength(4), expected);
         assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".password", randomAlphaOfLength(4), expected);
@@ -148,14 +148,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "Watcher notification accounts' authentication settings must be defined securely",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
                         + "#watcher-notifications-account-settings",
-                "nodes which have insecure notification account settings are: [node_check]");
+                "nodes which have insecure notification account settings are: ");
         assertSettingsAndIssue("xpack.notification.pagerduty.account." + randomAlphaOfLength(4) + ".service_api_key",
                 randomAlphaOfLength(4), expected);
         expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Watcher notification accounts' authentication settings must be defined securely",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
                         + "#watcher-notifications-account-settings",
-                "nodes which have insecure notification account settings are: [node_check]");
+                "nodes which have insecure notification account settings are: ");
         assertSettingsAndIssue("xpack.notification.slack.account." + randomAlphaOfLength(4) + ".url", randomAlphaOfLength(4), expected);
     }
 
@@ -165,7 +165,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "Tribe Node removed in favor of Cross Cluster Search",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_tribe_node_removed",
-            "nodes with tribe node settings: [node_check]");
+            "nodes with tribe node settings: ");
         assertSettingsAndIssue(tribeSetting, randomAlphaOfLength(5), expected);
     }
 
@@ -176,7 +176,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "Security realm settings structure changed",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#include-realm-type-in-setting",
-            "nodes have authentication realm configuration which must be updated at time of upgrade to 7.0: [node_check]");
+            "nodes have authentication realm configuration which must be updated at time of upgrade to 7.0: ");
         assertSettingsAndIssue(authRealmType, randomAlphaOfLength(5), expected);
     }
 
@@ -185,7 +185,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "HTTP pipelining setting removed as pipelining is now mandatory",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#remove-http-pipelining-setting",
-            "nodes with http.pipelining set: [node_check]");
+            "nodes with http.pipelining set: ");
         assertSettingsAndIssue("http.pipelining", Boolean.toString(randomBoolean()), expected);
     }
 
@@ -233,7 +233,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "Discovery configuration is required in production mode",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_discovery_configuration_is_required_in_production",
-                "nodes which do not have discovery configured: [node_check]");
+                "nodes which do not have discovery configured: ");
             List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(nodeInfos, nodeStats));
             assertEquals(singletonList(expected), issues);
         }
@@ -251,7 +251,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "Azure Repository settings changed",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_azure_repository_plugin",
-            "nodes with repository-azure installed: [node_check]");
+            "nodes with repository-azure installed: ");
         assertSettingsAndIssue("foo", "bar", expected);
     }
 
@@ -266,7 +266,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "GCS Repository settings changed",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_google_cloud_storage_repository_plugin",
-            "nodes with repository-gcs installed: [node_check]");
+            "nodes with repository-gcs installed: ");
         assertSettingsAndIssue("foo", "bar", expected);
     }
 
@@ -281,7 +281,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "File-based discovery is no longer a plugin and uses a different path",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_file_based_discovery_plugin",
-            "nodes with discovery-file installed: [node_check]");
+            "nodes with discovery-file installed: ");
         assertSettingsAndIssue("foo", "bar", expected);
     }
 
@@ -290,7 +290,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "Default TLS/SSL settings have been removed",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#tls-setting-fallback",
-            "Nodes with default TLS/SSL settings: [node_check]");
+            "Nodes with default TLS/SSL settings: ");
         assertSettingsAndIssue("xpack.ssl.keystore.path", randomAlphaOfLength(8), expected);
         assertSettingsAndIssue("xpack.ssl.truststore.password", randomAlphaOfLengthBetween(2, 12), expected);
         assertSettingsAndIssue("xpack.ssl.certificate_authorities",

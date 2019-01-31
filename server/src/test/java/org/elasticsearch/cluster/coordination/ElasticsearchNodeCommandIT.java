@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
@@ -188,7 +187,6 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     public void testBootstrapNotBootstrappedCluster() throws Exception {
         internalCluster().startNode(
                 Settings.builder()
-                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
                         .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                         .build());
         assertBusy(() -> {
@@ -206,7 +204,6 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     public void testDetachNotBootstrappedCluster() throws Exception {
         internalCluster().startNode(
                 Settings.builder()
-                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
                         .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                         .build());
         assertBusy(() -> {
@@ -223,9 +220,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
     public void testBootstrapNoManifestFile() throws IOException {
         bootstrapNodeId = 1;
-        internalCluster().startNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomDataNode();
@@ -237,9 +232,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
     public void testDetachNoManifestFile() throws IOException {
         bootstrapNodeId = 1;
-        internalCluster().startNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomDataNode();
@@ -251,9 +244,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
     public void testBootstrapNoMetaData() throws IOException {
         bootstrapNodeId = 1;
-        internalCluster().startNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomDataNode();
@@ -266,9 +257,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
     public void testDetachNoMetaData() throws IOException {
         bootstrapNodeId = 1;
-        internalCluster().startNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomDataNode();
@@ -281,9 +270,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
     public void testBootstrapAbortedByUser() throws IOException {
         bootstrapNodeId = 1;
-        internalCluster().startNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startNode();
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
 
@@ -293,9 +280,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
     public void testDetachAbortedByUser() throws IOException {
         bootstrapNodeId = 1;
-        internalCluster().startNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startNode();
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
 
@@ -310,19 +295,15 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         logger.info("--> start 1st master-eligible node");
         masterNodes.add(internalCluster().startMasterOnlyNode(Settings.builder()
                 .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
                 .build())); // node ordinal 0
 
         logger.info("--> start one data-only node");
         String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
                 .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s")
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
                 .build()); // node ordinal 1
 
         logger.info("--> start 2nd and 3rd master-eligible nodes and bootstrap");
-        masterNodes.addAll(internalCluster().startMasterOnlyNodes(2, Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build())); // node ordinals 2 and 3
+        masterNodes.addAll(internalCluster().startMasterOnlyNodes(2)); // node ordinals 2 and 3
 
         logger.info("--> create index test");
         createIndex("test");
@@ -355,17 +336,13 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
                         metaData.coordinationMetaData().term(), metaData.version())));
 
         logger.info("--> start 1st master-eligible node");
-        internalCluster().startMasterOnlyNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startMasterOnlyNode();
 
         logger.info("--> detach-cluster on data-only node");
         detachCluster(environment, 1, false);
 
         logger.info("--> start data-only node");
-        String dataNode2 = internalCluster().startDataOnlyNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        String dataNode2 = internalCluster().startDataOnlyNode();
 
         logger.info("--> ensure there is no NO_MASTER_BLOCK and unsafe-bootstrap is reflected in cluster state");
         assertBusy(() -> {
@@ -383,9 +360,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         detachCluster(environment, 3, false);
 
         logger.info("--> start 2nd and 3rd master-eligible nodes and ensure 4 nodes stable cluster");
-        internalCluster().startMasterOnlyNodes(2, Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startMasterOnlyNodes(2);
         ensureStableCluster(4);
     }
 
@@ -393,14 +368,10 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         bootstrapNodeId = 1;
 
         logger.info("--> start mixed data and master-eligible node and bootstrap cluster");
-        String masterNode = internalCluster().startNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build()); // node ordinal 0
+        String masterNode = internalCluster().startNode(); // node ordinal 0
 
         logger.info("--> start data-only node and ensure 2 nodes stable cluster");
-        String dataNode = internalCluster().startDataOnlyNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build()); // node ordinal 1
+        String dataNode = internalCluster().startDataOnlyNode(); // node ordinal 1
         ensureStableCluster(2);
 
         logger.info("--> index 1 doc and ensure index is green");
@@ -425,9 +396,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         });
 
         logger.info("--> start data-only only node and ensure 2 nodes stable cluster");
-        internalCluster().startDataOnlyNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
         logger.info("--> verify that the dangling index exists and has green status");
@@ -442,9 +411,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {
         bootstrapNodeId = 1;
-        internalCluster().startMasterOnlyNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startMasterOnlyNode();
         internalCluster().stopCurrentMasterNode();
 
         final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
@@ -453,7 +420,6 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         String node = internalCluster().startMasterOnlyNode(Settings.builder()
                 // give the cluster 2 seconds to elect the master (it should not)
                 .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "2s")
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
                 .build());
 
         ClusterState state = internalCluster().client().admin().cluster().prepareState().setLocal(true)
@@ -465,9 +431,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
     public void testCanRunUnsafeBootstrapAfterErroneousDetachWithoutLoosingMetaData() throws Exception {
         bootstrapNodeId = 1;
-        internalCluster().startMasterOnlyNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startMasterOnlyNode();
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
                 Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb"));
         internalCluster().client().admin().cluster().updateSettings(req).get();
@@ -482,9 +446,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         detachCluster(environment);
         unsafeBootstrap(environment);
 
-        internalCluster().startMasterOnlyNode(Settings.builder()
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.MAX_VALUE)
-                .build());
+        internalCluster().startMasterOnlyNode();
         ensureStableCluster(1);
 
         state = internalCluster().client().admin().cluster().prepareState().execute().actionGet().getState();

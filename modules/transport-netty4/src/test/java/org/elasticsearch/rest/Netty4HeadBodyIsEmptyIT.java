@@ -73,22 +73,20 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         headTestCase("/test", singletonMap("pretty", "true"), greaterThan(0));
     }
 
-    @Override
-    protected boolean getStrictDeprecationMode() {
-        // Remove this override when we remove the reference to types below
-        return false;
-    }
-
     public void testTypeExists() throws IOException {
         createTestDoc();
-        headTestCase("/test/_mapping/_doc", emptyMap(), greaterThan(0));
-        headTestCase("/test/_mapping/_doc", singletonMap("pretty", "true"), greaterThan(0));
+        headTestCase("/test/_mapping/_doc", emptyMap(), OK.getStatus(), greaterThan(0),
+                "Type exists requests are deprecated, as types have been deprecated.");
+        headTestCase("/test/_mapping/_doc", singletonMap("pretty", "true"), OK.getStatus(), greaterThan(0),
+                "Type exists requests are deprecated, as types have been deprecated.");
     }
 
     public void testTypeDoesNotExist() throws IOException {
         createTestDoc();
-        headTestCase("/test/_mapping/does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
-        headTestCase("/text/_mapping/_doc,does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
+        headTestCase("/test/_mapping/does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0),
+                "Type exists requests are deprecated, as types have been deprecated.");
+        headTestCase("/text/_mapping/test,does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0),
+                "Type exists requests are deprecated, as types have been deprecated.");
     }
 
     public void testAliasExists() throws IOException {
@@ -193,11 +191,13 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             final String url,
             final Map<String, String> params,
             final int expectedStatusCode,
-            final Matcher<Integer> matcher) throws IOException {
+            final Matcher<Integer> matcher,
+            final String... expectedWarnings) throws IOException {
         Request request = new Request("HEAD", url);
         for (Map.Entry<String, String> param : params.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }
+        request.setOptions(expectWarnings(expectedWarnings));
         Response response = client().performRequest(request);
         assertEquals(expectedStatusCode, response.getStatusLine().getStatusCode());
         assertThat(Integer.valueOf(response.getHeader("Content-Length")), matcher);

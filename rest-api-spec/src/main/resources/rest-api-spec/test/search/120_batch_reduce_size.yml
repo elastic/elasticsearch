@@ -1,16 +1,16 @@
 setup:
   - do:
       indices.create:
+          include_type_name: false
           index: test_1
           body:
             settings:
               number_of_shards: 5
               number_of_replicas: 0
             mappings:
-              test:
-                properties:
-                  str:
-                     type: keyword
+              properties:
+                str:
+                   type: keyword
 
 ---
 "batched_reduce_size lower limit":
@@ -27,21 +27,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "str" : "abc" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "str": "abc" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "str": "bcd" }
   - do:
@@ -62,5 +59,3 @@ setup:
   - match: { aggregations.str_terms.buckets.1.key: "bcd" }
   - is_false: aggregations.str_terms.buckets.1.key_as_string
   - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
-
-

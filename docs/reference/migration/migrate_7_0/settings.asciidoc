@@ -198,3 +198,9 @@ could have lead to dropping audit events while the operations on the system
 were allowed to continue as usual. The recommended replacement is the
 use of the `logfile` audit output type and using other components from the
 Elastic Stack to handle the indexing part.
+
+[float]
+[[ingest-user-agent-ecs-always]]
+==== Ingest User Agent processor always uses `ecs` output format
+The deprecated `ecs` setting for the user agent ingest processor has been
+removed. https://github.com/elastic/ecs[ECS] format is now the default.

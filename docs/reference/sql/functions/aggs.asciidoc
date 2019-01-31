@@ -205,8 +205,8 @@ include-tagged::{sql-specs}/docs.csv-spec[firstValueWithTwoArgsAndGroupBy]
 [NOTE]
 `FIRST` cannot be used in a HAVING clause.
 [NOTE]
-`FIRST` cannot be used with columns of type <<text, `text`>> unless <<fielddata, `fielddata`>> is enabled or the field
-is also <<before-enabling-fielddata,saved as a keyword>>.
+`FIRST` cannot be used with columns of type <<text, `text`>> unless
+the field is also <<before-enabling-fielddata,saved as a keyword>>.
 
 [[sql-functions-aggs-last]]
 ===== `LAST/LAST_VALUE`
@@ -300,8 +300,8 @@ include-tagged::{sql-specs}/docs.csv-spec[lastValueWithTwoArgsAndGroupBy]
 [NOTE]
 `LAST` cannot be used in `HAVING` clause.
 [NOTE]
-`LAST` cannot be used with columns of type <<text, `text`>> unless <<fielddata, `fielddata`>> is enabled or the field
-is also <<before-enabling-fielddata,`saved as a keyword`>>.
+`LAST` cannot be used with columns of type <<text, `text`>> unless
+the field is also <<before-enabling-fielddata,`saved as a keyword`>>.
 
 [[sql-functions-aggs-max]]
 ===== `MAX`

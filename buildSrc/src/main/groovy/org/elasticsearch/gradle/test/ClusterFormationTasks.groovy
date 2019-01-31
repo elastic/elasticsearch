@@ -671,6 +671,8 @@ class ClusterFormationTasks {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 exec.executable 'cmd'
                 exec.args '/C', 'call'
+                // force JAVA_HOME to *not* be set
+                exec.environment.remove('JAVA_HOME')
                 // On Windows the comma character is considered a parameter separator:
                 // argument are wrapped in an ExecArgWrapper that escapes commas
                 exec.args execArgs.collect { a -> new EscapeCommaWrapper(arg: a) }
@@ -684,7 +686,8 @@ class ClusterFormationTasks {
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
-            ant.exec(executable: node.executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
+            ant.exec(executable: node.executable, spawn: node.config.daemonize, newenvironment: true,
+                     dir: node.cwd, taskname: 'elasticsearch') {
                 node.env.each { key, value -> env(key: key, value: value) }
                 node.args.each { arg(value: it) }
             }
@@ -971,9 +974,9 @@ class ClusterFormationTasks {
     /** Find the current OS */
     static String getOs() {
         String os = "linux"
-        if (Os.FAMILY_WINDOWS) {
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             os = "windows"
-        } else if (Os.FAMILY_MAC) {
+        } else if (Os.isFamily(Os.FAMILY_MAC)) {
             os = "darwin"
         }
         return os

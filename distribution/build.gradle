@@ -375,6 +375,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     jdkFiles = { platform ->
       copySpec {
         from project(':distribution').tasks.getByName("extract${platform.capitalize()}Jdk")
+        eachFile { FileCopyDetails details ->
+          if (details.relativePath.segments[-2] == 'bin') {
+            details.mode = 0755
+          }
+        }
       }
     }
   }

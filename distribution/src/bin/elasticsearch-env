@@ -39,11 +39,16 @@ ES_CLASSPATH="$ES_HOME/lib/*"
 if [ -x "$JAVA_HOME/bin/java" ]; then
   JAVA="$JAVA_HOME/bin/java"
 else
-  JAVA="$ES_HOME/jdk/bin/java"
+  if [ -x "$ES_HOME/jdk/bin/java" ]; then
+    JAVA="$ES_HOME/jdk/bin/java"
+  else
+    # OSX has a different structure
+    JAVA="$ES_HOME/jdk/Contents/Home/bin/java"
+  fi
 fi
 
 if [ ! -x "$JAVA" ]; then
-  echo "could not find java in JAVA_HOME or bundled in $ES_HOME/jdk" >&2
+  echo "could not find java in JAVA_HOME or bundled at $JAVA" >&2
   exit 1
 fi
 

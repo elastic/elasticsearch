@@ -23,7 +23,6 @@ import com.sun.jna.Native
 import com.sun.jna.WString
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Version
-import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 
 import java.nio.file.Files
@@ -240,11 +239,6 @@ class NodeInfo {
         return Native.toString(shortPath).substring(4)
     }
 
-    /** Return the java home used by this node. */
-    String getJavaHome() {
-        return javaVersion == null ? project.runtimeJavaHome : project.javaVersions.get(javaVersion)
-    }
-
     /** Returns debug string for the command that started this node. */
     String getCommandString() {
         String esCommandString = "\nNode ${nodeNum} configuration:\n"
@@ -252,7 +246,6 @@ class NodeInfo {
         esCommandString += "|  cwd: ${cwd}\n"
         esCommandString += "|  command: ${executable} ${args.join(' ')}\n"
         esCommandString += '|  environment:\n'
-        esCommandString += "|    JAVA_HOME: ${javaHome}\n"
         env.each { k, v -> esCommandString += "|    ${k}: ${v}\n" }
         if (config.daemonize) {
             esCommandString += "|\n|  [${wrapperScript.name}]\n"

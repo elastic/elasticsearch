@@ -102,7 +102,13 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderYellow("index1");
 
-        final int firstBatchNumDocs = randomIntBetween(800, 1200);
+        final int firstBatchNumDocs;
+        // Sometimes we want to index a lot of documents to ensure that the recovery works with larger files
+        if (rarely()) {
+            firstBatchNumDocs = randomIntBetween(1800, 2000);
+        } else {
+            firstBatchNumDocs = randomIntBetween(10, 64);
+        }
         final int flushPoint = (int) (firstBatchNumDocs * 0.75);
 
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
@@ -116,9 +122,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
         bulkRequestBuilder.get();
 
-        leaderClient().admin().indices().prepareFlush("index1").setForce(true).setWaitIfOngoing(true).get();
+        leaderClient().admin().indices().prepareFlush("index1").setWaitIfOngoing(true).get();
 
-        // Index some docs after the flush that will be recovered in the normal index following operations
+        // Index some docs after the flush that might be recovered in the normal index following operations
         for (int i = flushPoint; i < firstBatchNumDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
             leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();

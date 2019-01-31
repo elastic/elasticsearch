@@ -238,6 +238,7 @@ setup:
 
   - do:
       indices.get_mapping: {}
+
   - do:
       search:
         rest_total_hits_as_int: true

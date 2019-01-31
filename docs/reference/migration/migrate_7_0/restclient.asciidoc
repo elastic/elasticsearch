@@ -21,3 +21,11 @@ The Cluster Health API used to default to `shards` level to ease migration
 from transport client that doesn't support the `level` parameter and always
 returns information including indices and shards details. The level default
 value has been aligned with the Elasticsearch default level: `cluster`.
+
+=== Low-level REST client changes
+
+[float]
+==== Support for `maxRetryTimeout` removed from RestClient
+
+`RestClient` and `RestClientBuilder` no longer support the `maxRetryTimeout`
+setting.

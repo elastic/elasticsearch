@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xpack.dataframe.transforms.AbstractSerializingDataFrameTestCase;
+import org.elasticsearch.xpack.dataframe.transforms.MockDeprecatedAggregationBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -104,6 +105,15 @@ public class AggregationConfigTests extends AbstractSerializingDataFrameTestCase
         // strict throws
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             expectThrows(NamedObjectNotFoundException.class, () -> AggregationConfig.fromXContent(parser, false));
+        }
+    }
+
+    public void testDeprecation() throws IOException {
+        String source = "{\"dep_agg\": {\"" + MockDeprecatedAggregationBuilder.NAME + "\" : {}}}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            AggregationConfig agg = AggregationConfig.fromXContent(parser, false);
+            assertTrue(agg.isValid());
+            assertWarnings(MockDeprecatedAggregationBuilder.DEPRECATION_MESSAGE);
         }
     }
 

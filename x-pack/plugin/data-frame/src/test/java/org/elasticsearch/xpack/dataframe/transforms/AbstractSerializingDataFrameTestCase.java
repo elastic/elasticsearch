@@ -14,6 +14,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
@@ -38,10 +40,14 @@ public abstract class AbstractSerializingDataFrameTestCase<T extends ToXContent 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MockDeprecatedQueryBuilder.NAME,
                 MockDeprecatedQueryBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(AggregationBuilder.class, MockDeprecatedAggregationBuilder.NAME,
+                MockDeprecatedAggregationBuilder::new));
 
         List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class,
                 new ParseField(MockDeprecatedQueryBuilder.NAME), (p, c) -> MockDeprecatedQueryBuilder.fromXContent(p)));
+        namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class,
+                new ParseField(MockDeprecatedAggregationBuilder.NAME), (p, c) -> MockDeprecatedAggregationBuilder.fromXContent(p)));
 
         namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
         namedXContentRegistry = new NamedXContentRegistry(namedXContents);

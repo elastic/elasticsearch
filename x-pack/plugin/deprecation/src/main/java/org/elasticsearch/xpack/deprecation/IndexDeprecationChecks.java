@@ -110,7 +110,7 @@ public class IndexDeprecationChecks {
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html" +
                         "#_indices_created_before_7_0",
                     "The .tasks index was created before version 6.0 and cannot be opened in 7.0. " +
-                        "You must delete this index and allow it to be re-created by Elasticsearch. If you wish to preserve task history, " +
+                        "You must delete this index and allow it to be re-created by Elasticsearch. If you wish to preserve task history, "+
                         "reindex this index to a new index before deleting it.");
             }
             if ((mappingCount == 2 && !hasDefaultMapping)

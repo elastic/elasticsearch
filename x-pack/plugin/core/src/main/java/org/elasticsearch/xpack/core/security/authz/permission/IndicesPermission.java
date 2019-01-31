@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
@@ -45,8 +44,6 @@ import static java.util.Collections.unmodifiableSet;
 public final class IndicesPermission {
 
     public static final IndicesPermission NONE = new IndicesPermission();
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndicesPermission.class));
 
     private final ConcurrentMap<String, Predicate<String>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
@@ -151,11 +148,9 @@ public final class IndicesPermission {
 
         for (String indexOrAlias : requestedIndicesOrAliases) {
             boolean granted = false;
-            boolean existingAlias = false;
             Set<String> concreteIndices = new HashSet<>();
             AliasOrIndex aliasOrIndex = allAliasesAndIndices.get(indexOrAlias);
             if (aliasOrIndex != null) {
-                existingAlias = aliasOrIndex.isAlias();
                 for (IndexMetaData indexMetaData : aliasOrIndex.getIndices()) {
                     concreteIndices.add(indexMetaData.getIndex().getName());
                 }
@@ -164,12 +159,6 @@ public final class IndicesPermission {
             for (Group group : groups) {
                 if (group.check(action, indexOrAlias)) {
                     granted = true;
-                    if (existingAlias) {
-                        deprecationLogger.deprecatedAndMaybeLog("permission-over-aliases",
-                                "Granting privileges over an alias and hence granting privileges over all the indices it points to"
-                                        + " is deprecated and will be removed in a future version of Elasticsearch."
-                                        + " Instead define permissions exclusively on indices or index patterns.");
-                    }
                     for (String index : concreteIndices) {
                         Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());
                         fieldPermissionsByIndex.put(indexOrAlias, fieldPermissions);

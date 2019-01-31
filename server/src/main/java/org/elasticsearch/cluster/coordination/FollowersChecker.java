@@ -374,9 +374,10 @@ public class FollowersChecker {
                 public void run() {
                     synchronized (mutex) {
                         if (running() == false) {
-                            logger.debug("{} condition no longer applies, not marking faulty", discoveryNode);
+                            logger.trace("{} no longer running, not marking faulty", FollowerChecker.this);
                             return;
                         }
+                        logger.debug("{} marking node as faulty", FollowerChecker.this);
                         faultyNodes.add(discoveryNode);
                         followerCheckers.remove(discoveryNode);
                     }

@@ -557,8 +557,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert leaderNode.isMasterNode() : leaderNode + " became a leader but is not master-eligible";
 
-        logger.debug("{}: coordinator becoming FOLLOWER of [{}] in term {} (was {}, lastKnownLeader was [{}])",
-            method, leaderNode, getCurrentTerm(), mode, lastKnownLeader);
+        if (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) {
+            logger.trace("{}: coordinator remaining FOLLOWER of [{}] in term {}",
+                method, leaderNode, getCurrentTerm());
+        } else {
+            logger.debug("{}: coordinator becoming FOLLOWER of [{}] in term {} (was {}, lastKnownLeader was [{}])",
+                method, leaderNode, getCurrentTerm(), mode, lastKnownLeader);
+        }
 
         final boolean restartLeaderChecker = (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) == false;
 

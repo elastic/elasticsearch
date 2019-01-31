@@ -95,13 +95,21 @@ public class FieldSortIT extends ESIntegTestCase {
 
         static Double sortDoubleScript(Map<String, Object> vars) {
             Map<?, ?> doc = (Map) vars.get("doc");
-            Double index = ((Number) ((ScriptDocValues<?>) doc.get("number")).get(0)).doubleValue();
-            return index;
+            ScriptDocValues<?> values = (ScriptDocValues<?>) doc.get("number");
+            if(values.size() == 0) {
+                return null;
+            }
+            Number index = ((Number) values.get(0));
+            return index.doubleValue();
         }
 
         static String sortStringScript(Map<String, Object> vars) {
             Map<?, ?> doc = (Map) vars.get("doc");
-            String value = ((String) ((ScriptDocValues<?>) doc.get("keyword")).get(0));
+            ScriptDocValues<?> values = (ScriptDocValues<?>) doc.get("keyword");
+            if(values.size() == 0) {
+                return null;
+            }
+            String value = ((String) values.get(0));
             return value;
         }
     }
@@ -1637,5 +1645,95 @@ public class FieldSortIT extends ESIntegTestCase {
         assertEquals(42.0, hits.getAt(0).getSortValues()[0]);
         assertEquals(100.2, hits.getAt(1).getSortValues()[0]);
         assertEquals(120.3, hits.getAt(2).getSortValues()[0]);
+    }
+
+    public void testScriptHandlesNullValue() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type1",
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type1")
+                .startObject("properties")
+                .startObject("keyword")
+                .field("type", "keyword")
+                .endObject()
+                .startObject("number")
+                .field("type", "float")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+            .field("id", "1")
+            .field("keyword", "aaa")
+            .field("number", 1.0)
+            .endObject()).get();
+
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+            .field("id", "2")
+            .field("keyword", "bbb")
+            .nullField("number")
+            .endObject()).get();
+
+        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+            .field("id", "3")
+            .nullField("keyword")
+            .field("number", 3.0)
+            .endObject()).get();
+
+        refresh();
+
+        Script script = new Script(ScriptType.INLINE, NAME, "doc['number'].value", Collections.emptyMap());
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.scriptSort(script, ScriptSortBuilder.ScriptSortType.NUMBER).missing("_first"))
+            .get();
+
+        assertNoFailures(searchResponse);
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+
+        script = new Script(ScriptType.INLINE, NAME, "doc['number'].value", Collections.emptyMap());
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.scriptSort(script, ScriptSortBuilder.ScriptSortType.NUMBER).missing("_last"))
+            .get();
+
+        assertNoFailures(searchResponse);
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
+
+        script = new Script(ScriptType.INLINE, NAME, "doc['keyword'].value", Collections.emptyMap());
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.scriptSort(script, ScriptSortBuilder.ScriptSortType.STRING).missing("_last"))
+            .get();
+
+        assertNoFailures(searchResponse);
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
+
+        script = new Script(ScriptType.INLINE, NAME, "doc['keyword'].value", Collections.emptyMap());
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.scriptSort(script, ScriptSortBuilder.ScriptSortType.STRING).missing("_first"))
+            .get();
+
+        assertNoFailures(searchResponse);
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("2"));
     }
 }

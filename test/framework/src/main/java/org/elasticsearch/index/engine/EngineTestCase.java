@@ -149,7 +149,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Path primaryTranslogDir;
     protected Path replicaTranslogDir;
     // A default primary term is used by engine instances created in this test.
-    protected AtomicLong primaryTerm = new AtomicLong();
+    protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(0L);
 
     protected static void assertVisibleCount(Engine engine, int numDocs) throws IOException {
         assertVisibleCount(engine, numDocs, true);
@@ -642,7 +642,7 @@ public abstract class EngineTestCase extends ESTestCase {
             final CircuitBreakerService breakerService) {
         final IndexWriterConfig iwc = newIndexWriterConfig();
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        final Engine.EventListener listener = new Engine.EventListener() {}; // we don't need to notify anybody in this test
+        final Engine.EventListener eventListener = new Engine.EventListener() {}; // we don't need to notify anybody in this test
         final List<ReferenceManager.RefreshListener> extRefreshListenerList =
                 externalRefreshListener == null ? emptyList() : Collections.singletonList(externalRefreshListener);
         final List<ReferenceManager.RefreshListener> intRefreshListenerList =
@@ -652,7 +652,14 @@ public abstract class EngineTestCase extends ESTestCase {
         if (maybeGlobalCheckpointSupplier == null) {
             assert maybeRetentionLeasesSupplier == null;
             final ReplicationTracker replicationTracker = new ReplicationTracker(
-                    shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED, update -> {}, () -> 0L);
+                    shardId,
+                    allocationId.getId(),
+                    indexSettings,
+                    randomNonNegativeLong(),
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    update -> {},
+                    () -> 0L,
+                    (leases, listener) -> {});
             globalCheckpointSupplier = replicationTracker;
             retentionLeasesSupplier = replicationTracker::getRetentionLeases;
         } else {
@@ -671,7 +678,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 iwc.getAnalyzer(),
                 iwc.getSimilarity(),
                 new CodecService(null, logger),
-                listener,
+                eventListener,
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
                 translogConfig,
@@ -682,7 +689,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 breakerService,
                 globalCheckpointSupplier,
                 retentionLeasesSupplier,
-                primaryTerm::get,
+                primaryTerm,
                 tombstoneDocSupplier());
     }
 
@@ -1093,5 +1100,26 @@ public abstract class EngineTestCase extends ESTestCase {
         assert engine instanceof InternalEngine : "only InternalEngines have translogs, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;
         return internalEngine.getTranslog();
+    }
+
+    public static final class PrimaryTermSupplier implements LongSupplier {
+        private final AtomicLong term;
+
+        PrimaryTermSupplier(long initialTerm) {
+            this.term = new AtomicLong(initialTerm);
+        }
+
+        public long get() {
+            return term.get();
+        }
+
+        public void set(long newTerm) {
+            this.term.set(newTerm);
+        }
+
+        @Override
+        public long getAsLong() {
+            return get();
+        }
     }
 }

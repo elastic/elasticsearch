@@ -107,6 +107,7 @@ final class DefaultSearchContext extends SearchContext {
     private ScrollContext scrollContext;
     private boolean explain;
     private boolean version = false; // by default, we don't return versions
+    private boolean seqAndPrimaryTerm = false;
     private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
@@ -718,6 +719,16 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void version(boolean version) {
         this.version = version;
+    }
+
+    @Override
+    public boolean seqNoAndPrimaryTerm() {
+        return seqAndPrimaryTerm;
+    }
+
+    @Override
+    public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        this.seqAndPrimaryTerm = seqNoAndPrimaryTerm;
     }
 
     @Override

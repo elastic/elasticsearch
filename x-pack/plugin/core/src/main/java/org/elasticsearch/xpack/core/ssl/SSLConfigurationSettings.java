@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import javax.net.ssl.TrustManagerFactory;
-
 import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.Collection;
@@ -62,7 +61,7 @@ public class SSLConfigurationSettings {
     public static final Setting<List<String>> CIPHERS_SETTING_PROFILES =  Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.cipher_suites", CIPHERS_SETTING_TEMPLATE);
 
-    private static final Function<String,Setting<List<String>>> SUPPORTED_PROTOCOLS_TEMPLATE = key ->  Setting.listSetting(key,
+    static final Function<String, Setting<List<String>>> SUPPORTED_PROTOCOLS_TEMPLATE = key -> Setting.listSetting(key,
             Collections.emptyList(), Function.identity(), propertiesFromKey(key));
     public static final Setting<List<String>> SUPPORTED_PROTOCOLS_PROFILES = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.supported_protocols", SUPPORTED_PROTOCOLS_TEMPLATE) ;

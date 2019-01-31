@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.document.XLatLonShape;
+import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.geo.Line;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.geo.Rectangle;
@@ -429,16 +429,16 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     private Query getVectorQueryFromShape(QueryShardContext context, Object queryShape) {
         Query geoQuery;
         if (queryShape instanceof Line[]) {
-            geoQuery = XLatLonShape.newLineQuery(fieldName(), relation.getLuceneRelation(), (Line[]) queryShape);
+            geoQuery = LatLonShape.newLineQuery(fieldName(), relation.getLuceneRelation(), (Line[]) queryShape);
         } else if (queryShape instanceof Polygon[]) {
-            geoQuery = XLatLonShape.newPolygonQuery(fieldName(), relation.getLuceneRelation(), (Polygon[]) queryShape);
+            geoQuery = LatLonShape.newPolygonQuery(fieldName(), relation.getLuceneRelation(), (Polygon[]) queryShape);
         } else if (queryShape instanceof Line) {
-            geoQuery = XLatLonShape.newLineQuery(fieldName(), relation.getLuceneRelation(), (Line) queryShape);
+            geoQuery = LatLonShape.newLineQuery(fieldName(), relation.getLuceneRelation(), (Line) queryShape);
         } else if (queryShape instanceof Polygon) {
-            geoQuery = XLatLonShape.newPolygonQuery(fieldName(), relation.getLuceneRelation(), (Polygon) queryShape);
+            geoQuery = LatLonShape.newPolygonQuery(fieldName(), relation.getLuceneRelation(), (Polygon) queryShape);
         } else if (queryShape instanceof Rectangle) {
             Rectangle r = (Rectangle) queryShape;
-            geoQuery = XLatLonShape.newBoxQuery(fieldName(), relation.getLuceneRelation(),
+            geoQuery = LatLonShape.newBoxQuery(fieldName(), relation.getLuceneRelation(),
                 r.minLat, r.maxLat, r.minLon, r.maxLon);
         } else if (queryShape instanceof double[][]) {
             // note: we decompose point queries into a bounding box query with min values == max values
@@ -457,7 +457,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                         + "But found length " + pt.length + " for field [" + fieldName + "]");
                 }
             }
-            return XLatLonShape.newBoxQuery(fieldName, relation.getLuceneRelation(), pt[1], pt[1], pt[0], pt[0]);
+            return LatLonShape.newBoxQuery(fieldName, relation.getLuceneRelation(), pt[1], pt[1], pt[0], pt[0]);
         } else if (queryShape instanceof Object[]) {
             geoQuery = createGeometryCollectionQuery(context, (Object[]) queryShape);
         } else {

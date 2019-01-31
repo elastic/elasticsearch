@@ -115,16 +115,16 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     public void testMetadataVersion() {
         createIndex("index-1");
         createIndex("index-2");
-        long metadataVersion = client().admin().cluster().prepareState().get().getState().metaData().version();
-        assertThat(metadataVersion, greaterThan(0L));
+        long baselineVersion = client().admin().cluster().prepareState().get().getState().metaData().version();
+        assertThat(baselineVersion, greaterThan(0L));
         assertThat(client().admin().cluster().prepareState().setIndices("index-1").get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            greaterThanOrEqualTo(baselineVersion));
         assertThat(client().admin().cluster().prepareState().setIndices("index-2").get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            greaterThanOrEqualTo(baselineVersion));
         assertThat(client().admin().cluster().prepareState().setIndices("*").get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            greaterThanOrEqualTo(baselineVersion));
         assertThat(client().admin().cluster().prepareState().setIndices("not-found").get().getState().metaData().version(),
-            equalTo(metadataVersion));
+            greaterThanOrEqualTo(baselineVersion));
         assertThat(client().admin().cluster().prepareState().clear().setMetaData(false).get().getState().metaData().version(),
             equalTo(0L));
     }

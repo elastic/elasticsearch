@@ -252,3 +252,5 @@ goto:eof
 
 endlocal
 endlocal
+
+exit /b %ERRORLEVEL%

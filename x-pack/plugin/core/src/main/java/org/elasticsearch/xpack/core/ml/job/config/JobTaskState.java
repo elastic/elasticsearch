@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +22,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class JobTaskState implements PersistentTaskState {
 
@@ -27,9 +30,11 @@ public class JobTaskState implements PersistentTaskState {
 
     private static ParseField STATE = new ParseField("state");
     private static ParseField ALLOCATION_ID = new ParseField("allocation_id");
+    private static ParseField REASON = new ParseField("reason");
 
     private static final ConstructingObjectParser<JobTaskState, Void> PARSER =
-            new ConstructingObjectParser<>(NAME, true, args -> new JobTaskState((JobState) args[0], (Long) args[1]));
+            new ConstructingObjectParser<>(NAME, true,
+                    args -> new JobTaskState((JobState) args[0], (Long) args[1], (String) args[2]));
 
     static {
         PARSER.declareField(constructorArg(), p -> {
@@ -39,6 +44,7 @@ public class JobTaskState implements PersistentTaskState {
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, STATE, ObjectParser.ValueType.STRING);
         PARSER.declareLong(constructorArg(), ALLOCATION_ID);
+        PARSER.declareString(optionalConstructorArg(), REASON);
     }
 
     public static JobTaskState fromXContent(XContentParser parser) {
@@ -51,19 +57,31 @@ public class JobTaskState implements PersistentTaskState {
 
     private final JobState state;
     private final long allocationId;
+    private final String reason;
 
-    public JobTaskState(JobState state, long allocationId) {
+    public JobTaskState(JobState state, long allocationId, @Nullable String reason) {
         this.state = Objects.requireNonNull(state);
         this.allocationId = allocationId;
+        this.reason = reason;
     }
 
     public JobTaskState(StreamInput in) throws IOException {
         state = JobState.fromStream(in);
         allocationId = in.readLong();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            reason = in.readOptionalString();
+        } else {
+            reason = null;
+        }
     }
 
     public JobState getState() {
         return state;
+    }
+
+    @Nullable
+    public String getReason() {
+        return reason;
     }
 
     /**
@@ -90,6 +108,9 @@ public class JobTaskState implements PersistentTaskState {
     public void writeTo(StreamOutput out) throws IOException {
         state.writeTo(out);
         out.writeLong(allocationId);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeOptionalString(reason);
+        }
     }
 
     @Override
@@ -102,6 +123,9 @@ public class JobTaskState implements PersistentTaskState {
         builder.startObject();
         builder.field(STATE.getPreferredName(), state.value());
         builder.field(ALLOCATION_ID.getPreferredName(), allocationId);
+        if (reason != null) {
+            builder.field(REASON.getPreferredName(), reason);
+        }
         builder.endObject();
         return builder;
     }
@@ -112,11 +136,12 @@ public class JobTaskState implements PersistentTaskState {
         if (o == null || getClass() != o.getClass()) return false;
         JobTaskState that = (JobTaskState) o;
         return state == that.state &&
-                Objects.equals(allocationId, that.allocationId);
+                Objects.equals(allocationId, that.allocationId) &&
+                Objects.equals(reason, that.reason);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(state, allocationId);
+        return Objects.hash(state, allocationId, reason);
     }
 }

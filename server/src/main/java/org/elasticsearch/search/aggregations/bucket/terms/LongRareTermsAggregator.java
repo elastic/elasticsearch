@@ -94,7 +94,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                                     if (termCount == 0) {
                                         // Brand new term, save into map
                                         map.put(val, 1L);
-                                        circuitBreakerConsumer.accept(16L); // 8 bytes for key, 8 for value
+                                        addRequestCircuitBreakerBytes(16L);// 8 bytes for key, 8 for value
 
                                         long bucketOrdinal = bucketOrds.add(val);
                                         if (bucketOrdinal < 0) { // already seen
@@ -124,7 +124,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                                             map.remove(val);
                                             bloom.put(val);
                                             numDeleted += 1;
-                                            circuitBreakerConsumer.accept(-16L); // 8 bytes for key, 8 for value
+                                            addRequestCircuitBreakerBytes(-16L); // 8 bytes for key, 8 for value
 
                                             if (numDeleted > GC_THRESHOLD) {
                                                 gcDeletedEntries(numDeleted);

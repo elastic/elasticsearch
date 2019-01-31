@@ -52,7 +52,6 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
     protected final DocValueFormat format;
     protected final T valuesSource;
     protected final U includeExclude;
-    protected final Consumer<Long> circuitBreakerConsumer;
 
 
     AbstractRareTermsAggregator(String name, AggregatorFactories factories, SearchContext context,
@@ -68,7 +67,6 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
         this.format = format;
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
-        this. circuitBreakerConsumer = this::addRequestCircuitBreakerBytes;
         String scoringAgg = subAggsNeedScore();
         String nestedAgg = descendsFromNestedAggregator(parent);
         if (scoringAgg != null && nestedAgg != null) {

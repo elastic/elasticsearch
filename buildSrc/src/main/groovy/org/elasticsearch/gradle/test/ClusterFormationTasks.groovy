@@ -373,18 +373,15 @@ class ClusterFormationTasks {
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
-                'node.attr.testattr'           : 'test'
+                'node.attr.testattr'           : 'test',
+                // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
+                'discovery.initial_state_timeout' : '0s'
         ]
         int minimumMasterNodes = node.config.minimumMasterNodes.call()
-        if (minimumMasterNodes > 0) {
+        if (node.nodeVersion.before("7.0.0") && minimumMasterNodes > 0) {
             esConfig['discovery.zen.minimum_master_nodes'] = minimumMasterNodes
         }
-        if (minimumMasterNodes > 1) {
-            // don't wait for state.. just start up quickly
-            // this will also allow new and old nodes in the BWC case to become the master
-            esConfig['discovery.initial_state_timeout'] = '0s'
-        }
-        if (esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {
+        if (node.nodeVersion.before("7.0.0") && esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {
             // If a node decides to become master based on partial information from the pinging, don't let it hang for 30 seconds to correct
             // its mistake. Instead, only wait 5s to do another round of pinging.
             // This is necessary since we use 30s as the default timeout in REST requests waiting for cluster formation

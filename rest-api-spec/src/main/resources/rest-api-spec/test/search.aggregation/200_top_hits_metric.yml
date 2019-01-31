@@ -1,21 +1,20 @@
 setup:
   - do:
       indices.create:
+        include_type_name: false
         index: my-index
         body:
           settings:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            doc:
-              properties:
-                users:
-                  type: nested
+            properties:
+              users:
+                type: nested
 
   - do:
       index:
         index:  my-index
-        type:   doc
         id:     1
         refresh: true
         body: |
@@ -36,7 +35,6 @@ setup:
   - do:
       index:
         index:  my-index
-        type:   doc
         id:     2
         refresh: true
         body: |

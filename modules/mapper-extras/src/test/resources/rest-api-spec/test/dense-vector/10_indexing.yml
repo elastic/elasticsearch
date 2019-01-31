@@ -5,15 +5,15 @@ setup:
 
   - do:
       indices.create:
+        include_type_name: false
         index: test-index
         body:
           settings:
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                my_dense_vector:
-                   type: dense_vector
+            properties:
+              my_dense_vector:
+                 type: dense_vector
 
 
 ---
@@ -21,7 +21,6 @@ setup:
   - do:
       index:
         index: test-index
-        type: _doc
         id: 1
         body:
           my_dense_vector: [1.5, -10, 3455, 345452.4545]

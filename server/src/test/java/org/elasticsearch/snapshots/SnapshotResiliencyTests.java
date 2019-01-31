@@ -156,7 +156,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
-public class SnapshotsServiceTests extends ESTestCase {
+public class SnapshotResiliencyTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
 
@@ -381,8 +381,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                                             .execute(ActionListener.wrap(() -> {
                                                                 testClusterNodes.randomDataNodeSafe().client.admin().cluster()
                                                                     .deleteSnapshot(
-                                                                        new DeleteSnapshotRequest(repoName, snapshotName),
-                                                                        ActionListener.noop());
+                                                                        new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
                                                                 createdSnapshot.set(true);
                                                             }));
                                                         scheduleNow(
@@ -390,7 +389,7 @@ public class SnapshotsServiceTests extends ESTestCase {
                                                                 new ClusterRerouteRequest().add(
                                                                     new AllocateEmptyPrimaryAllocationCommand(
                                                                         index, shardRouting.shardId().id(), otherNode.node.getName(), true)
-                                                                ), ActionListener.noop()));
+                                                                ), noopListener()));
                                                     } else {
                                                         scheduleSoon(this);
                                                     }
@@ -535,6 +534,18 @@ public class SnapshotsServiceTests extends ESTestCase {
             @Override
             public void onFailure(final Exception e) {
                 throw new AssertionError(e);
+            }
+        };
+    }
+
+    private static <T> ActionListener<T> noopListener() {
+        return new ActionListener<T>() {
+            @Override
+            public void onResponse(final T t) {
+            }
+
+            @Override
+            public void onFailure(final Exception e) {
             }
         };
     }

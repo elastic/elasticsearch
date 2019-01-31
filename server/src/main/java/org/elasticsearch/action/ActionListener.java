@@ -32,21 +32,6 @@ import java.util.function.Consumer;
  * A listener for action responses or failures.
  */
 public interface ActionListener<Response> {
-
-    /**
-     * ActionListener that does nothing.
-     * @see #noop()
-     */
-    ActionListener<?> NOOP = new ActionListener() {
-        @Override
-        public void onResponse(Object response) {
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-        }
-    };
-
     /**
      * Handle action response. This response may constitute a failure or a
      * success but it is up to the listener to make that decision.
@@ -57,16 +42,6 @@ public interface ActionListener<Response> {
      * A failure caused by an exception at some phase of the task.
      */
     void onFailure(Exception e);
-
-    /**
-     * Returns an ActionListener that does nothing.
-     * @param <Response> the type of the response
-     * @return ActionListener that does nothing
-     */
-    @SuppressWarnings("unchecked")
-    static <Response> ActionListener<Response> noop() {
-        return (ActionListener<Response>) NOOP;
-    }
 
     /**
      * Creates a listener that listens for a response (or failure) and executes the

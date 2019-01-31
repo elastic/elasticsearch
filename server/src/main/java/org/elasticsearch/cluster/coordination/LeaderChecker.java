@@ -301,7 +301,7 @@ public class LeaderChecker {
 
         private void scheduleNextWakeUp() {
             logger.trace("scheduling next check of {} for [{}] = {}", leader, LEADER_CHECK_INTERVAL_SETTING.getKey(), leaderCheckInterval);
-            transportService.getThreadPool().schedule(leaderCheckInterval, Names.SAME, new Runnable() {
+            transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {
                     handleWakeUp();
@@ -311,7 +311,7 @@ public class LeaderChecker {
                 public String toString() {
                     return "scheduled check of leader " + leader;
                 }
-            });
+            }, leaderCheckInterval, Names.SAME);
         }
     }
 

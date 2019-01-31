@@ -39,6 +39,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -76,9 +77,9 @@ import static org.elasticsearch.action.search.SearchResponse.Clusters;
 //from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
 //cluster response would have the fetch results.
 final class SearchResponseMerger {
-    private final int from;
-    private final int size;
-    private final int trackTotalHitsUpTo;
+    final int from;
+    final int size;
+    final int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
     private final Function<Boolean, ReduceContext> reduceContextFunction;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
@@ -98,7 +99,12 @@ final class SearchResponseMerger {
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
     void add(SearchResponse searchResponse) {
+        assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
         searchResponses.add(searchResponse);
+    }
+
+    int numResponses() {
+        return searchResponses.size();
     }
 
     /**
@@ -106,7 +112,15 @@ final class SearchResponseMerger {
      * so that all responses are merged into a single one.
      */
     SearchResponse getMergedResponse(Clusters clusters) {
-        assert searchResponses.size() > 1;
+        //if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
+        //we end up calling merge without anything to merge, we just return an empty search response
+        if (searchResponses.size() == 0) {
+            SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
+            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits,
+                InternalAggregations.EMPTY, null, null, false, null, 0);
+            return new SearchResponse(internalSearchResponse, null, 0, 0, 0, searchTimeProvider.buildTookInMillis(),
+                ShardSearchFailure.EMPTY_ARRAY, clusters);
+        }
         int totalShards = 0;
         int skippedShards = 0;
         int successfulShards = 0;
@@ -115,7 +129,7 @@ final class SearchResponseMerger {
         List<ShardSearchFailure> failures = new ArrayList<>();
         Map<String, ProfileShardResult> profileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
-        Map<ShardId, Integer> shards = new TreeMap<>();
+        Map<ShardIdAndClusterAlias, Integer> shards = new TreeMap<>();
         List<TopDocs> topDocsList = new ArrayList<>(searchResponses.size());
         Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<>();
         Boolean trackTotalHits = null;
@@ -171,10 +185,11 @@ final class SearchResponseMerger {
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
         InternalAggregations reducedAggs = InternalAggregations.reduce(aggs, reduceContextFunction.apply(true));
         ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+        SearchProfileShardResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         //make failures ordering consistent with ordinary search and CCS
         Arrays.sort(shardFailures, FAILURES_COMPARATOR);
-        InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, reducedAggs, suggest,
-            new SearchProfileShardResults(profileResults), topDocsStats.timedOut, topDocsStats.terminatedEarly, numReducePhases);
+        InternalSearchResponse response = new InternalSearchResponse(mergedSearchHits, reducedAggs, suggest, profileShardResults,
+            topDocsStats.timedOut, topDocsStats.terminatedEarly, numReducePhases);
         long tookInMillis = searchTimeProvider.buildTookInMillis();
         return new SearchResponse(response, null, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters);
     }
@@ -210,7 +225,7 @@ final class SearchResponseMerger {
         }
     };
 
-    private static TopDocs searchHitsToTopDocs(SearchHits searchHits, TotalHits totalHits, Map<ShardId, Integer> shards) {
+    private static TopDocs searchHitsToTopDocs(SearchHits searchHits, TotalHits totalHits, Map<ShardIdAndClusterAlias, Integer> shards) {
         SearchHit[] hits = searchHits.getHits();
         ScoreDoc[] scoreDocs = new ScoreDoc[hits.length];
         final TopDocs topDocs;
@@ -228,7 +243,8 @@ final class SearchResponseMerger {
 
         for (int i = 0; i < hits.length; i++) {
             SearchHit hit = hits[i];
-            ShardId shardId = hit.getShard().getShardId();
+            SearchShardTarget shard = hit.getShard();
+            ShardIdAndClusterAlias shardId = new ShardIdAndClusterAlias(shard.getShardId(), shard.getClusterAlias());
             shards.putIfAbsent(shardId, null);
             final SortField[] sortFields = searchHits.getSortFields();
             final Object[] sortValues;
@@ -246,18 +262,21 @@ final class SearchResponseMerger {
         return topDocs;
     }
 
-    private static void setShardIndex(Map<ShardId, Integer> shards, List<TopDocs> topDocsList) {
-        int shardIndex = 0;
-        for (Map.Entry<ShardId, Integer> shard : shards.entrySet()) {
-            shard.setValue(shardIndex++);
+    private static void setShardIndex(Map<ShardIdAndClusterAlias, Integer> shards, List<TopDocs> topDocsList) {
+        {
+            //assign a different shardIndex to each shard, based on their shardId natural ordering and their cluster alias
+            int shardIndex = 0;
+            for (Map.Entry<ShardIdAndClusterAlias, Integer> shard : shards.entrySet()) {
+                shard.setValue(shardIndex++);
+            }
         }
-        //and go through all the scoreDocs from each cluster and set their corresponding shardIndex
+        //go through all the scoreDocs from each cluster and set their corresponding shardIndex
         for (TopDocs topDocs : topDocsList) {
             for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                 FieldDocAndSearchHit fieldDocAndSearchHit = (FieldDocAndSearchHit) scoreDoc;
-                //When hits come from the indices with same names on multiple clusters and same shard identifier, we rely on such indices
-                //to have a different uuid across multiple clusters. That's how they will get a different shardIndex.
-                ShardId shardId = fieldDocAndSearchHit.searchHit.getShard().getShardId();
+                SearchShardTarget shard = fieldDocAndSearchHit.searchHit.getShard();
+                ShardIdAndClusterAlias shardId = new ShardIdAndClusterAlias(shard.getShardId(), shard.getClusterAlias());
+                assert shards.containsKey(shardId);
                 fieldDocAndSearchHit.shardIndex = shards.get(shardId);
             }
         }
@@ -292,6 +311,60 @@ final class SearchResponseMerger {
         FieldDocAndSearchHit(int doc, float score, Object[] fields, SearchHit searchHit) {
             super(doc, score, fields);
             this.searchHit = searchHit;
+        }
+    }
+
+    /**
+     * This class is used instead of plain {@link ShardId} to support the scenario where the same remote cluster is registered twice using
+     * different aliases. In that case searching across the same cluster twice would make an assertion in lucene fail
+     * (see TopDocs#tieBreakLessThan line 86). Generally, indices with same names on different clusters have different index uuids which
+     * make their ShardIds different, which is not the case if the index is really the same one from the same cluster, in which case we
+     * need to look at the cluster alias and make sure to assign a different shardIndex based on that.
+     */
+    private static final class ShardIdAndClusterAlias implements Comparable<ShardIdAndClusterAlias> {
+        private final ShardId shardId;
+        private final String clusterAlias;
+
+        ShardIdAndClusterAlias(ShardId shardId, String clusterAlias) {
+            this.shardId = shardId;
+            this.clusterAlias = clusterAlias;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            ShardIdAndClusterAlias that = (ShardIdAndClusterAlias) o;
+            return shardId.equals(that.shardId) &&
+                clusterAlias.equals(that.clusterAlias);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(shardId, clusterAlias);
+        }
+
+        @Override
+        public int compareTo(ShardIdAndClusterAlias o) {
+            int shardIdCompareTo = shardId.compareTo(o.shardId);
+            if (shardIdCompareTo != 0) {
+                return shardIdCompareTo;
+            }
+            int clusterAliasCompareTo = clusterAlias.compareTo(o.clusterAlias);
+            if (clusterAliasCompareTo != 0) {
+                //TODO we may want to fix this, CCS returns remote results before local ones (TransportSearchAction#mergeShardsIterators)
+                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    return 1;
+                }
+                if (o.clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    return -1;
+                }
+            }
+            return clusterAliasCompareTo;
         }
     }
 }

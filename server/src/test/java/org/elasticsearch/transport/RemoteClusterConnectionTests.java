@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -29,6 +30,10 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -47,6 +52,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.mocksocket.MockServerSocket;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -129,6 +138,24 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
                             knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
                     }
+                });
+            newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new,
+                (request, channel, task) -> {
+                    if ("index_not_found".equals(request.preference())) {
+                        channel.sendResponse(new IndexNotFoundException("index"));
+                        return;
+                    }
+                    SearchHits searchHits;
+                    if ("null_target".equals(request.preference())) {
+                        searchHits = new SearchHits(new SearchHit[] {new SearchHit(0)}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1F);
+                    } else {
+                        searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
+                    }
+                    InternalSearchResponse response = new InternalSearchResponse(searchHits,
+                        InternalAggregations.EMPTY, null, null, false, null, 1);
+                    SearchResponse searchResponse = new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY);
+                    channel.sendResponse(searchResponse);
                 });
             newService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,
                 (request, channel, task) -> {

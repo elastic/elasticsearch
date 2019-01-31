@@ -86,7 +86,7 @@ public class AuthorizationService {
     public static final String ROLE_NAMES_KEY = "_effective_role_names";
 
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
-        ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
+            ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
 
     private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
     private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";

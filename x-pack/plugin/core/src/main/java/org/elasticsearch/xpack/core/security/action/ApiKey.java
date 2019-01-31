@@ -6,15 +6,21 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * API key information
@@ -132,9 +138,27 @@ public final class ApiKey implements ToXContentObject, Writeable {
                 && Objects.equals(realm, other.realm);
     }
 
+    static ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", args -> {
+        return new ApiKey((String) args[0], (String) args[1], Instant.ofEpochMilli((Long) args[2]),
+                (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]), (Boolean) args[4], (String) args[5], (String) args[6]);
+    });
+    static {
+        PARSER.declareString(constructorArg(), new ParseField("name"));
+        PARSER.declareString(constructorArg(), new ParseField("id"));
+        PARSER.declareLong(constructorArg(), new ParseField("creation"));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField("expiration"));
+        PARSER.declareBoolean(constructorArg(), new ParseField("invalidated"));
+        PARSER.declareString(constructorArg(), new ParseField("username"));
+        PARSER.declareString(constructorArg(), new ParseField("realm"));
+    }
+
+    public static ApiKey fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
     @Override
     public String toString() {
-        return "ApiKeyInfo [name=" + name + ", id=" + id + ", creation=" + creation + ", expiration=" + expiration + ", invalidated="
+        return "ApiKey [name=" + name + ", id=" + id + ", creation=" + creation + ", expiration=" + expiration + ", invalidated="
                 + invalidated + ", username=" + username + ", realm=" + realm + "]";
     }
 

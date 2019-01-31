@@ -67,5 +67,4 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
         return "xpack_security_invalidate_api_key";
     }
 
-
 }

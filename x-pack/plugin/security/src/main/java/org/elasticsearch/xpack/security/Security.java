@@ -188,6 +188,7 @@ import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestCreateApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.RestGetApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.RestInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
@@ -766,7 +767,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestPutPrivilegesAction(settings, restController, getLicenseState()),
                 new RestDeletePrivilegesAction(settings, restController, getLicenseState()),
                 new RestCreateApiKeyAction(settings, restController, getLicenseState()),
-                new RestInvalidateApiKeyAction(settings, restController, getLicenseState())
+                new RestInvalidateApiKeyAction(settings, restController, getLicenseState()),
+                new RestGetApiKeyAction(settings, restController, getLicenseState())
         );
     }
 

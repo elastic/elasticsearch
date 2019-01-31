@@ -30,9 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -61,14 +59,13 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
         super.tearDown();
         terminate(threadPool);
     }
-    
+
     public void testInvalidateApiKey() throws Exception {
         final String json1 = "{ \"realm_name\" : \"realm-1\", \"username\": \"user-x\" }";
         final String json2 = "{ \"realm_name\" : \"realm-1\" }";
         final String json3 = "{ \"username\": \"user-x\" }";
         final String json4 = "{ \"id\" : \"api-key-id-1\" }";
         final String json5 = "{ \"name\" : \"api-key-name-1\" }";
-        final List<String> jsons = Arrays.asList(json1, json2, json3, json4, json5);
         final String json = randomFrom(json1, json2, json3, json4, json5);
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                 .withContent(new BytesArray(json), XContentType.JSON).build();

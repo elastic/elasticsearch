@@ -57,7 +57,7 @@ public class WatcherDateTimeUtils {
     }
 
     public static ZonedDateTime parseDate(String format, ZoneId timeZone) {
-        ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(dateTimeFormatter.parse(format));
+        ZonedDateTime zonedDateTime = DateFormatters.from(dateTimeFormatter.parse(format));
         return timeZone != null ? zonedDateTime.withZoneSameInstant(timeZone) : zonedDateTime;
     }
 

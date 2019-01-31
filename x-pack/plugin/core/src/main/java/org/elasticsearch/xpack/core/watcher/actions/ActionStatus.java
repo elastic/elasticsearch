@@ -261,7 +261,7 @@ public class ActionStatus implements ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = DateFormatters.toZonedDateTime(dateTimeFormatter.parse(parser.text()));
+                    timestamp = DateFormatters.from(dateTimeFormatter.parse(parser.text()));
                 } else if (Field.ACK_STATUS_STATE.match(currentFieldName, parser.getDeprecationHandler())) {
                     state = State.valueOf(parser.text().toUpperCase(Locale.ROOT));
                 } else {
@@ -363,7 +363,7 @@ public class ActionStatus implements ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = DateFormatters.toZonedDateTime(dateTimeFormatter.parse(parser.text()));
+                    timestamp = DateFormatters.from(dateTimeFormatter.parse(parser.text()));
                 } else if (Field.EXECUTION_SUCCESSFUL.match(currentFieldName, parser.getDeprecationHandler())) {
                     successful = parser.booleanValue();
                 } else if (Field.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -459,7 +459,7 @@ public class ActionStatus implements ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timestamp = DateFormatters.toZonedDateTime(dateTimeFormatter.parse(parser.text()));
+                    timestamp = DateFormatters.from(dateTimeFormatter.parse(parser.text()));
                 } else if (Field.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
                     reason = parser.text();
                 } else {

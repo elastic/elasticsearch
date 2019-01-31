@@ -410,6 +410,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-put-privileges>>
 * <<{upid}-delete-privileges>>
 * <<{upid}-create-api-key>>
+* <<{upid}-invalidate-api-key>>
 
 include::security/put-user.asciidoc[]
 include::security/get-users.asciidoc[]
@@ -435,6 +436,7 @@ include::security/create-token.asciidoc[]
 include::security/invalidate-token.asciidoc[]
 include::security/put-privileges.asciidoc[]
 include::security/create-api-key.asciidoc[]
+include::security/invalidate-api-key.asciidoc[]
 
 == Watcher APIs
 

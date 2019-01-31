@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 
+import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -35,7 +38,7 @@ public final class LimitedRole extends Role {
 
     @Override
     public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData,
-            FieldPermissionsCache fieldPermissionsCache) {
+                                          FieldPermissionsCache fieldPermissionsCache) {
         IndicesAccessControl indicesAccessControl = super.authorize(action, requestedIndicesOrAliases, metaData, fieldPermissionsCache);
         IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(action, requestedIndicesOrAliases, metaData,
                 fieldPermissionsCache);
@@ -44,9 +47,10 @@ public final class LimitedRole extends Role {
     }
 
     /**
-     * @return A predicate that will match all the indices that this role and
-     * the scoped by role has the privilege for executing the given action on.
+     * @return A predicate that will match all the indices that this role and the limited by role has the privilege for executing the given
+     * action on.
      */
+    @Override
     public Predicate<String> allowedIndicesMatcher(String action) {
         Predicate<String> predicate = indices().allowedIndicesMatcher(action);
         predicate = predicate.and(limitedBy.indices().allowedIndicesMatcher(action));
@@ -54,8 +58,7 @@ public final class LimitedRole extends Role {
     }
 
     /**
-     * Check if indices permissions allow for the given action,
-     * also checks whether the scoped by role allows the given actions
+     * Check if indices permissions allow for the given action, also checks whether the limited by role allows the given actions
      *
      * @param action indices action
      * @return {@code true} if action is allowed else returns {@code false}
@@ -66,15 +69,72 @@ public final class LimitedRole extends Role {
     }
 
     /**
-     * Check if cluster permissions allow for the given action,
-     * also checks whether the scoped by role allows the given actions
+     * For given index patterns and index privileges determines allowed privileges and creates an instance of {@link ResourcePrivilegesMap}
+     * holding a map of resource to {@link ResourcePrivileges} where resource is index pattern and the map of index privilege to whether it
+     * is allowed or not.<br>
+     * This one takes intersection of resource privileges with the resource privileges from the limited-by role.
+     *
+     * @param checkForIndexPatterns check permission grants for the set of index patterns
+     * @param allowRestrictedIndices if {@code true} then checks permission grants even for restricted indices by index matching
+     * @param checkForPrivileges check permission grants for the set of index privileges
+     * @return an instance of {@link ResourcePrivilegesMap}
+     */
+    @Override
+    public ResourcePrivilegesMap checkIndicesPrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
+                                                        Set<String> checkForPrivileges) {
+        ResourcePrivilegesMap resourcePrivilegesMap = super.indices().checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices,
+                checkForPrivileges);
+        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.indices().checkResourcePrivileges(checkForIndexPatterns,
+                allowRestrictedIndices, checkForPrivileges);
+        return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
+    }
+
+    /**
+     * Check if cluster permissions allow for the given action, also checks whether the limited by role allows the given actions
      *
      * @param action cluster action
      * @param request {@link TransportRequest}
      * @return {@code true} if action is allowed else returns {@code false}
      */
+    @Override
     public boolean checkClusterAction(String action, TransportRequest request) {
         return super.checkClusterAction(action, request) && limitedBy.checkClusterAction(action, request);
+    }
+
+    /**
+     * Check if cluster permissions grants the given cluster privilege, also checks whether the limited by role grants the given cluster
+     * privilege
+     *
+     * @param clusterPrivilege cluster privilege
+     * @return {@code true} if cluster privilege is allowed else returns {@code false}
+     */
+    @Override
+    public boolean grants(ClusterPrivilege clusterPrivilege) {
+        return super.grants(clusterPrivilege) && limitedBy.grants(clusterPrivilege);
+    }
+
+    /**
+     * For a given application, checks for the privileges for resources and returns an instance of {@link ResourcePrivilegesMap} holding a
+     * map of resource to {@link ResourcePrivileges} where the resource is application resource and the map of application privilege to
+     * whether it is allowed or not.<br>
+     * This one takes intersection of resource privileges with the resource privileges from the limited-by role.
+     *
+     * @param applicationName checks privileges for the provided application name
+     * @param checkForResources check permission grants for the set of resources
+     * @param checkForPrivilegeNames check permission grants for the set of privilege names
+     * @param storedPrivileges stored {@link ApplicationPrivilegeDescriptor} for an application against which the access checks are
+     * performed
+     * @return an instance of {@link ResourcePrivilegesMap}
+     */
+    @Override
+    public ResourcePrivilegesMap checkApplicationResourcePrivileges(final String applicationName, Set<String> checkForResources,
+                                                                    Set<String> checkForPrivilegeNames,
+                                                                    Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
+        ResourcePrivilegesMap resourcePrivilegesMap = super.application().checkResourcePrivileges(applicationName, checkForResources,
+                checkForPrivilegeNames, storedPrivileges);
+        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.application().checkResourcePrivileges(applicationName,
+                checkForResources, checkForPrivilegeNames, storedPrivileges);
+        return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
     }
 
     /**

@@ -118,13 +118,9 @@ include-tagged::{sql-specs}/docs.csv-spec[aggCountDistinct]
 
 .Synopsis:
 [source, sql]
---------------------------------------------------
-FIRST(field_name<1>)
-FIRST_VALUE(field_name<1>)
-
-FIRST(field_name<1>, ordering_field_name<2>)
-FIRST_VALUE(field_name<1>, ordering_field_name<2>)
---------------------------------------------------
+----------------------------------------------
+FIRST(field_name<1>[, ordering_field_name]<2>)
+----------------------------------------------
 
 *Input*:
 
@@ -199,6 +195,13 @@ include-tagged::{sql-specs}/docs.csv-spec[firstWithTwoArgs]
 include-tagged::{sql-specs}/docs.csv-spec[firstWithTwoArgsAndGroupBy]
 ---------------------------------------------------------------------
 
+`FIRST_VALUE` is a name alias and can be used instead of `FIRST`, e.g.:
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[firstValueWithTwoArgsAndGroupBy]
+--------------------------------------------------------------------------
+
 [NOTE]
 `FIRST` cannot be used in a HAVING clause.
 
@@ -208,11 +211,7 @@ include-tagged::{sql-specs}/docs.csv-spec[firstWithTwoArgsAndGroupBy]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LAST(field_name<1>)
-LAST_VALUE(field_name<1>)
-
-LAST(field_name<1>, ordering_field_name<2>)
-LAST_VALUE(field_name<1>, ordering_field_name<2>)
+LAST(field_name<1>[, ordering_field_name]<2>)
 --------------------------------------------------
 
 *Input*:
@@ -287,6 +286,13 @@ include-tagged::{sql-specs}/docs.csv-spec[lastWithTwoArgs]
 --------------------------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[lastWithTwoArgsAndGroupBy]
 --------------------------------------------------------------------
+
+`LAST_VALUE` is a name alias and can be used instead of `LAST`, e.g.:
+
+["source","sql",subs="attributes,macros"]
+-------------------------------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[lastValueWithTwoArgsAndGroupBy]
+-------------------------------------------------------------------------
 
 [NOTE]
 `LAST` cannot be used in `HAVING` clause.

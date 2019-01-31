@@ -1056,6 +1056,20 @@ M             |   Remzi
 // end::firstWithTwoArgsAndGroupBy
 ;
 
+firstValueWithTwoArgsAndGroupBy
+schema::gender:s|FIRST_VALUE(first_name, birth_date):s
+// tag::firstValueWithTwoArgsAndGroupBy
+SELECT gender, FIRST_VALUE(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+    gender    |   FIRST_VALUE(first_name, birth_date)
+--------------+--------------------------------------
+null          |   Lillian
+F             |   Sumant
+M             |   Remzi
+
+// end::firstValueWithTwoArgsAndGroupBy
+;
+
 lastWithOneArg
 schema::LAST(first_name):s
 // tag::lastWithOneArg
@@ -1109,6 +1123,21 @@ M          |   Hilari
 
 // end::lastWithTwoArgsAndGroupBy
 ;
+
+lastValueWithTwoArgsAndGroupBy
+schema::gender:s|LAST_VALUE(first_name, birth_date):s
+// tag::lastValueWithTwoArgsAndGroupBy
+SELECT gender, LAST_VALUE(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender  |   LAST_VALUE(first_name, birth_date)
+-----------+-------------------------------------
+null       |   Eberhardt
+F          |   Valdiodio
+M          |   Hilari
+
+// end::lastValueWithTwoArgsAndGroupBy
+;
+
 
 aggMax
 // tag::aggMax

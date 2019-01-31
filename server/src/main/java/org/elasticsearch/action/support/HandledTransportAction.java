@@ -43,6 +43,12 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     }
 
     protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService,
+                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                     Supplier<Request> request, String executor) {
+        this(settings, actionName, true, threadPool, transportService, actionFilters, indexNameExpressionResolver, request, executor);
+    }
+
+    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService,
                                      ActionFilters actionFilters, Writeable.Reader<Request> requestReader,
                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         this(settings, actionName, true, threadPool, transportService, actionFilters, requestReader, indexNameExpressionResolver);
@@ -51,8 +57,15 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker, ThreadPool threadPool,
                                      TransportService transportService, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
+        this(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+            request, ThreadPool.Names.SAME);
+    }
+
+    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker, ThreadPool threadPool,
+                                     TransportService transportService, ActionFilters actionFilters,
+                                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request, String executor) {
         super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
-        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, false, canTripCircuitBreaker,
+        transportService.registerRequestHandler(actionName, request, executor, false, canTripCircuitBreaker,
             new TransportHandler());
     }
 

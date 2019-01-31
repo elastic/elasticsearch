@@ -5,10 +5,9 @@
         index: test
         body:
           mappings:
-            place:
-              properties:
-                name:
-                  type: keyword
+            properties:
+              name:
+                type: keyword
   - do:
       index:
         index:   test

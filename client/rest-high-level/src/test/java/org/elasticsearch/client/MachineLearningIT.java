@@ -20,7 +20,6 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -28,6 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
@@ -84,6 +84,7 @@ import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
+import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -113,6 +114,7 @@ import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -527,7 +529,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index and docs
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -601,7 +612,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // create the job and the datafeed
@@ -665,7 +685,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // create the job and the datafeed
@@ -734,7 +763,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index and docs
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("_doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -791,7 +829,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexId = jobId + "-data";
         // Set up the index and docs
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexId);
-        createIndexRequest.mapping("_doc", "timestamp", "type=date,format=epoch_millis", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                    .field("format", "epoch_millis")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -1566,5 +1614,31 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertEquals(Collections.singletonList("UNIX_MS"), structure.getJodaTimestampFormats());
         assertEquals("timestamp", structure.getTimestampField());
         assertFalse(structure.needClientTimezone());
+    }
+
+    public void testEnableUpgradeMode() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        MlInfoResponse mlInfoResponse = machineLearningClient.getMlInfo(new MlInfoRequest(), RequestOptions.DEFAULT);
+        assertThat(mlInfoResponse.getInfo().get("upgrade_mode"), equalTo(false));
+
+        AcknowledgedResponse setUpgrademodeResponse = execute(new SetUpgradeModeRequest(true),
+            machineLearningClient::setUpgradeMode,
+            machineLearningClient::setUpgradeModeAsync);
+
+        assertThat(setUpgrademodeResponse.isAcknowledged(), is(true));
+
+
+        mlInfoResponse = machineLearningClient.getMlInfo(new MlInfoRequest(), RequestOptions.DEFAULT);
+        assertThat(mlInfoResponse.getInfo().get("upgrade_mode"), equalTo(true));
+
+        setUpgrademodeResponse = execute(new SetUpgradeModeRequest(false),
+            machineLearningClient::setUpgradeMode,
+            machineLearningClient::setUpgradeModeAsync);
+
+        assertThat(setUpgrademodeResponse.isAcknowledged(), is(true));
+
+        mlInfoResponse = machineLearningClient.getMlInfo(new MlInfoRequest(), RequestOptions.DEFAULT);
+        assertThat(mlInfoResponse.getInfo().get("upgrade_mode"), equalTo(false));
     }
 }

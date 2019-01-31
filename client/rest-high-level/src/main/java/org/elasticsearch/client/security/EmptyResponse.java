@@ -26,7 +26,9 @@ import java.io.IOException;
 
 /**
  * Response for a request which simply returns an empty object.
+   @deprecated Use a boolean instead of this class
  */
+@Deprecated
 public final class EmptyResponse {
 
     private static final ObjectParser<EmptyResponse, Void> PARSER = new ObjectParser<>("empty_response", false, EmptyResponse::new);

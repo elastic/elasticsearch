@@ -22,6 +22,8 @@ package org.elasticsearch.index.seqno;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -31,10 +33,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -87,6 +92,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *   computation from that point on.
      */
     volatile boolean primaryMode;
+
+    /**
+     * The current operation primary term. Management of this value is done through {@link IndexShard} and must only be done when safe. See
+     * {@link #setOperationPrimaryTerm(long)}.
+     */
+    private volatile long operationPrimaryTerm;
 
     /**
      * Boolean flag that indicates if a relocation handoff is in progress. A handoff is started by calling {@link #startRelocationHandoff}
@@ -143,6 +154,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private final LongSupplier currentTimeMillisSupplier;
 
     /**
+     * A callback when a new retention lease is created or an existing retention lease expires. In practice, this callback invokes the
+     * retention lease sync action, to sync retention leases to replicas.
+     */
+    private final BiConsumer<Collection<RetentionLease>, ActionListener<ReplicationResponse>> onSyncRetentionLeases;
+
+    /**
      * This set contains allocation IDs for which there is a thread actively waiting for the local checkpoint to advance to at least the
      * current global checkpoint.
      */
@@ -155,34 +172,108 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     private final Map<String, RetentionLease> retentionLeases = new HashMap<>();
 
-    /**
-     * Get all non-expired retention leases tracker on this shard. An unmodifiable copy of the retention leases is returned.
-     *
-     * @return the retention leases
-     */
-    public synchronized Collection<RetentionLease> getRetentionLeases() {
-        final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
-        final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
-        final Collection<RetentionLease> nonExpiredRetentionLeases = retentionLeases
-                .values()
-                .stream()
-                .filter(retentionLease -> currentTimeMillis - retentionLease.timestamp() <= retentionLeaseMillis)
-                .collect(Collectors.toList());
-        retentionLeases.clear();
-        retentionLeases.putAll(nonExpiredRetentionLeases.stream().collect(Collectors.toMap(RetentionLease::id, lease -> lease)));
-        return Collections.unmodifiableCollection(nonExpiredRetentionLeases);
+    private Collection<RetentionLease> copyRetentionLeases() {
+        assert Thread.holdsLock(this);
+        return Collections.unmodifiableCollection(new ArrayList<>(retentionLeases.values()));
     }
 
     /**
-     * Adds a new or updates an existing retention lease.
+     * Get all non-expired retention leases tracked on this shard. An unmodifiable copy of the retention leases is returned. Note that only
+     * the primary shard calculates which leases are expired, and if any have expired, syncs the retention leases to any replicas.
+     *
+     * @return the retention leases
+     */
+    public Collection<RetentionLease> getRetentionLeases() {
+        final boolean wasPrimaryMode;
+        final Collection<RetentionLease> nonExpiredRetentionLeases;
+        synchronized (this) {
+            if (primaryMode) {
+                // the primary calculates the non-expired retention leases and syncs them to replicas
+                final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
+                final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
+                final Collection<RetentionLease> expiredRetentionLeases = retentionLeases
+                        .values()
+                        .stream()
+                        .filter(retentionLease -> currentTimeMillis - retentionLease.timestamp() > retentionLeaseMillis)
+                        .collect(Collectors.toList());
+                if (expiredRetentionLeases.isEmpty()) {
+                    // early out as no retention leases have expired
+                    return copyRetentionLeases();
+                }
+                // clean up the expired retention leases
+                for (final RetentionLease expiredRetentionLease : expiredRetentionLeases) {
+                    retentionLeases.remove(expiredRetentionLease.id());
+                }
+            }
+            /*
+             * At this point, we were either in primary mode and have updated the non-expired retention leases into the tracking map, or
+             * we were in replica mode and merely need to copy the existing retention leases since a replica does not calculate the
+             * non-expired retention leases, instead receiving them on syncs from the primary.
+             */
+            wasPrimaryMode = primaryMode;
+            nonExpiredRetentionLeases = copyRetentionLeases();
+        }
+        if (wasPrimaryMode) {
+            onSyncRetentionLeases.accept(nonExpiredRetentionLeases, ActionListener.wrap(() -> {}));
+        }
+        return nonExpiredRetentionLeases;
+    }
+
+    /**
+     * Adds a new retention lease.
      *
      * @param id                      the identifier of the retention lease
      * @param retainingSequenceNumber the retaining sequence number
      * @param source                  the source of the retention lease
+     * @param listener                the callback when the retention lease is successfully added and synced to replicas
+     * @return the new retention lease
+     * @throws IllegalArgumentException if the specified retention lease already exists
      */
-    public synchronized void addOrUpdateRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
+    public RetentionLease addRetentionLease(
+            final String id,
+            final long retainingSequenceNumber,
+            final String source,
+            final ActionListener<ReplicationResponse> listener) {
+        Objects.requireNonNull(listener);
+        final RetentionLease retentionLease;
+        final Collection<RetentionLease> currentRetentionLeases;
+        synchronized (this) {
+            assert primaryMode;
+            if (retentionLeases.containsKey(id)) {
+                throw new IllegalArgumentException("retention lease with ID [" + id + "] already exists");
+            }
+            retentionLease = new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
+            retentionLeases.put(id, retentionLease);
+            currentRetentionLeases = copyRetentionLeases();
+        }
+        onSyncRetentionLeases.accept(currentRetentionLeases, listener);
+        return retentionLease;
+    }
+
+    /**
+     * Renews an existing retention lease.
+     *
+     * @param id                      the identifier of the retention lease
+     * @param retainingSequenceNumber the retaining sequence number
+     * @param source                  the source of the retention lease
+     * @return the renewed retention lease
+     * @throws IllegalArgumentException if the specified retention lease does not exist
+     */
+    public synchronized RetentionLease renewRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
         assert primaryMode;
-        retentionLeases.put(id, new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source));
+        if (retentionLeases.containsKey(id) == false) {
+            throw new IllegalArgumentException("retention lease with ID [" + id + "] does not exist");
+        }
+        final RetentionLease retentionLease =
+                new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
+        final RetentionLease existingRetentionLease = retentionLeases.put(id, retentionLease);
+        assert existingRetentionLease != null;
+        assert existingRetentionLease.retainingSequenceNumber() <= retentionLease.retainingSequenceNumber() :
+                "retention lease renewal for [" + id + "]"
+                        + " from [" + source + "]"
+                        + " renewed a lower retaining sequence number [" + retentionLease.retainingSequenceNumber() + "]"
+                        + " than the current lease retaining sequence number [" + existingRetentionLease.retainingSequenceNumber() + "]";
+        return retentionLease;
     }
 
     /**
@@ -325,6 +416,25 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
+     * Returns the current operation primary term.
+     *
+     * @return the primary term
+     */
+    public long getOperationPrimaryTerm() {
+        return operationPrimaryTerm;
+    }
+
+    /**
+     * Sets the current operation primary term. This method should be invoked only when no other operations are possible on the shard. That
+     * is, either from the constructor of {@link IndexShard} or while holding all permits on the {@link IndexShard} instance.
+     *
+     * @param operationPrimaryTerm the new operation primary term
+     */
+    public void setOperationPrimaryTerm(final long operationPrimaryTerm) {
+        this.operationPrimaryTerm = operationPrimaryTerm;
+    }
+
+    /**
      * Returns whether the replication tracker has relocated away to another shard copy.
      */
     public boolean isRelocated() {
@@ -440,28 +550,34 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * Initialize the global checkpoint service. The specified global checkpoint should be set to the last known global checkpoint, or
      * {@link SequenceNumbers#UNASSIGNED_SEQ_NO}.
      *
-     * @param shardId          the shard ID
-     * @param allocationId     the allocation ID
-     * @param indexSettings    the index settings
-     * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
+     * @param shardId               the shard ID
+     * @param allocationId          the allocation ID
+     * @param indexSettings         the index settings
+     * @param operationPrimaryTerm  the current primary term
+     * @param globalCheckpoint      the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
+     * @param onSyncRetentionLeases a callback when a new retention lease is created or an existing retention lease expires
      */
     public ReplicationTracker(
             final ShardId shardId,
             final String allocationId,
             final IndexSettings indexSettings,
+            final long operationPrimaryTerm,
             final long globalCheckpoint,
             final LongConsumer onGlobalCheckpointUpdated,
-            final LongSupplier currentTimeMillisSupplier) {
+            final LongSupplier currentTimeMillisSupplier,
+            final BiConsumer<Collection<RetentionLease>, ActionListener<ReplicationResponse>> onSyncRetentionLeases) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;
         this.primaryMode = false;
+        this.operationPrimaryTerm = operationPrimaryTerm;
         this.handoffInProgress = false;
         this.appliedClusterStateVersion = -1L;
         this.checkpoints = new HashMap<>(1 + indexSettings.getNumberOfReplicas());
         checkpoints.put(allocationId, new CheckpointState(SequenceNumbers.UNASSIGNED_SEQ_NO, globalCheckpoint, false, false));
         this.onGlobalCheckpointUpdated = Objects.requireNonNull(onGlobalCheckpointUpdated);
         this.currentTimeMillisSupplier = Objects.requireNonNull(currentTimeMillisSupplier);
+        this.onSyncRetentionLeases = Objects.requireNonNull(onSyncRetentionLeases);
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;

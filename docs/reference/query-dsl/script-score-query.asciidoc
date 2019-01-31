@@ -52,13 +52,13 @@ that can help you with scoring. We suggest you to use them instead of
 rewriting equivalent functions of your own, as these functions try
 to be the most efficient by using the internal mechanisms.
 
-===== rational
-`rational(value,k) = value/(k + value)`
+===== saturation
+`saturation(value,k) = value/(k + value)`
 
 [source,js]
 --------------------------------------------------
 "script" : {
-    "source" : "rational(doc['likes'].value, 1)"
+    "source" : "saturation(doc['likes'].value, 1)"
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -78,21 +78,22 @@ to be the most efficient by using the internal mechanisms.
 [[random-functions]]
 ===== Random functions
 There are two predefined ways to produce random values:
+`randomNotReproducible` and `randomReproducible`.
 
-1. `randomNotReproducible()` uses `java.util.Random` class
+`randomNotReproducible()` uses `java.util.Random` class
 to generate a random value of the type `long`.
 The generated values are not reproducible between requests' invocations.
 
-    [source,js]
-    --------------------------------------------------
-    "script" : {
-        "source" : "randomNotReproducible()"
-    }
-    --------------------------------------------------
-    // NOTCONSOLE
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "randomNotReproducible()"
+}
+--------------------------------------------------
+// NOTCONSOLE
 
 
-2. `randomReproducible(String seedValue, int seed)` produces
+`randomReproducible(String seedValue, int seed)` produces
 reproducible random values of type `long`. This function requires
 more computational time and memory than the non-reproducible version.
 
@@ -102,13 +103,13 @@ in the memory. For example, values of the document's `_seq_no` field
 is a good candidate, as documents on the same shard have unique values
 for the `_seq_no` field.
 
-    [source,js]
-    --------------------------------------------------
-    "script" : {
-        "source" : "randomReproducible(Long.toString(doc['_seq_no'].value), 100)"
-    }
-    --------------------------------------------------
-    // NOTCONSOLE
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "randomReproducible(Long.toString(doc['_seq_no'].value), 100)"
+}
+--------------------------------------------------
+// NOTCONSOLE
 
 
 A drawback of using `_seq_no` is that generated values change if
@@ -121,13 +122,13 @@ you can use a field with unique values across shards,
 such as  `_id`, but watch out for the memory usage as all
 these unique values need to be loaded into memory.
 
-    [source,js]
-    --------------------------------------------------
-    "script" : {
-        "source" : "randomReproducible(doc['_id'].value, 100)"
-    }
-    --------------------------------------------------
-    // NOTCONSOLE
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "randomReproducible(doc['_id'].value, 100)"
+}
+--------------------------------------------------
+// NOTCONSOLE
 
 
 [[decay-functions]]
@@ -152,7 +153,7 @@ You can read more about decay functions
 }
 --------------------------------------------------
 // NOTCONSOLE
-<1> Use `params` to compile a script only once for different values of parameters
+<1> Using `params` allows to compile the script only once, even if params change.
 
 
 ===== Decay functions for geo fields
@@ -210,7 +211,7 @@ There are faster alternative query types that can efficiently skip
 non-competitive hits:
 
 * If you want to boost documents on some static fields, use
- <<query-dsl-feature-query, Feature Query>>.
+ <<query-dsl-rank-feature-query, Rank Feature Query>>.
 
 
 ==== Transition from Function Score Query

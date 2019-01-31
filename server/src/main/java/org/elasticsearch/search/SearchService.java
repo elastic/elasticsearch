@@ -148,6 +148,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT =
         Setting.intSetting("search.max_open_scroll_context", 500, 0, Property.Dynamic, Property.NodeScope);
 
+    public static final int DEFAULT_SIZE = 10;
+    public static final int DEFAULT_FROM = 0;
 
     private final ThreadPool threadPool;
 
@@ -606,10 +608,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             // if the from and size are still not set, default them
             if (context.from() == -1) {
-                context.from(0);
+                context.from(DEFAULT_FROM);
             }
             if (context.size() == -1) {
-                context.size(10);
+                context.size(DEFAULT_SIZE);
             }
 
             // pre process
@@ -775,10 +777,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         context.trackScores(source.trackScores());
-        if (source.trackTotalHits() == false && context.scrollContext() != null) {
+        if (source.trackTotalHitsUpTo() != null
+                && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
+                && context.scrollContext() != null) {
             throw new SearchContextException(context, "disabling [track_total_hits] is not allowed in a scroll context");
         }
-        context.trackTotalHitsUpTo(source.trackTotalHitsUpTo());
+        if (source.trackTotalHitsUpTo() != null) {
+            context.trackTotalHitsUpTo(source.trackTotalHitsUpTo());
+        }
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
         }

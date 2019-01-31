@@ -7,16 +7,15 @@ setup:
 
  - do:
       indices.create:
+          include_type_name: false
           index: test_1
           body:
             mappings:
-              test:
-                _source: { enabled: false }
+              _source: { enabled: false }
 
  - do:
       index:
           index:   test_1
-          type:    test
           id:      1
           body:    { foo: bar }
 

@@ -1969,7 +1969,7 @@ public final class InternalTestCluster extends TestCluster {
      * Indexing starts from 0.
      * If {@link #bootstrapMasterNodeIndex} is -1 (default), this method does nothing.
      */
-    protected List<Settings> bootstrapMasterNodeWithSpecifiedIndex(List<Settings> allNodesSettings) {
+    private List<Settings> bootstrapMasterNodeWithSpecifiedIndex(List<Settings> allNodesSettings) {
         if (getBootstrapMasterNodeIndex() == -1) { // fast-path
             return allNodesSettings;
         }

@@ -74,17 +74,6 @@ public class ActionStatus implements ToXContentObject {
     }
 
     @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("ActionStatus{");
-        sb.append("ackStatus=").append(ackStatus);
-        sb.append(", lastExecution=").append(lastExecution);
-        sb.append(", lastSuccessfulExecution=").append(lastSuccessfulExecution);
-        sb.append(", lastThrottle=").append(lastThrottle);
-        sb.append('}');
-        return sb.toString();
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(ackStatus, lastExecution, lastSuccessfulExecution, lastThrottle);
     }

@@ -52,7 +52,7 @@ public class GeoTileUtilsTests extends ESTestCase {
      * A few hardcoded lat/lng/zoom hashing expectations
      */
     public void testLongEncode() {
-        assertEquals(0, longEncode(0, 0, 0));
+        assertEquals(0x0000000000000000L, longEncode(0, 0, 0));
         assertEquals(0x3C00095540001CA5L, longEncode(30, 70, 15));
         assertEquals(0x77FFFF4580000000L, longEncode(179.999, 89.999, 29));
         assertEquals(0x740000BA7FFFFFFFL, longEncode(-179.999, -89.999, 29));
@@ -65,6 +65,12 @@ public class GeoTileUtilsTests extends ESTestCase {
         assertEquals(0x6411BD6BA0A98359L, longEncode(999.787079,51.830093, 25));
         assertEquals(0x751BD6BBCA983596L, longEncode(999.787079,51.830093, 29));
         assertEquals(0x77CF880A20000000L, longEncode(-557.039740,-632.103969, 29));
+        assertEquals(0x7624FA4FA0000000L, longEncode(13,88, 29));
+        assertEquals(0x7624FA4FBFFFFFFFL, longEncode(13,-88, 29));
+        assertEquals(0x0400000020000000L, longEncode(13,89, 1));
+        assertEquals(0x0400000020000001L, longEncode(13,-89, 1));
+        assertEquals(0x0400000020000000L, longEncode(13,95, 1));
+        assertEquals(0x0400000020000001L, longEncode(13,-95, 1));
 
         expectThrows(IllegalArgumentException.class, () -> longEncode(0, 0, -1));
         expectThrows(IllegalArgumentException.class, () -> longEncode(-1, 0, MAX_ZOOM + 1));
@@ -121,6 +127,15 @@ public class GeoTileUtilsTests extends ESTestCase {
         assertStrCodec(0x0C00000060000000L, "3/3/0", 3);
         assertStrCodec(0x71127D27C8ACA67AL, "28/143911230/145532538", 28);
         assertStrCodec(0x4C0077776003A9ACL, "19/244667/240044", 19);
+        assertStrCodec(0x140000024000000EL, "5/18/14", 5);
+        assertStrCodec(0x6436F96B60000000L, "25/28822363/0", 25);
+        assertStrCodec(0x6411BD6BA0A98359L, "25/9300829/11109209", 25);
+        assertStrCodec(0x751BD6BBCA983596L, "29/148813278/177747350", 29);
+        assertStrCodec(0x77CF880A20000000L, "29/511459409/0", 29);
+        assertStrCodec(0x7624FA4FA0000000L, "29/287822461/0", 29);
+        assertStrCodec(0x7624FA4FBFFFFFFFL, "29/287822461/536870911", 29);
+        assertStrCodec(0x0400000020000000L, "1/1/0", 1);
+        assertStrCodec(0x0400000020000001L, "1/1/1", 1);
 
         expectThrows(IllegalArgumentException.class, () -> stringEncode(-1L));
         expectThrows(IllegalArgumentException.class, () -> stringEncode(0x7800000000000000L)); // z=30

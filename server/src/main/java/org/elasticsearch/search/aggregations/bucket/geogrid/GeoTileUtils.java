@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
@@ -37,7 +38,9 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
  *   bits 29..57 -- X tile index (0..2^zoom)
  *   bits  0..28 -- Y tile index (0..2^zoom)
  */
-class GeoTileUtils {
+final class GeoTileUtils {
+
+    private GeoTileUtils() {}
 
     /**
      * Largest number of tiles (precision) to use.
@@ -171,7 +174,8 @@ class GeoTileUtils {
     private static int validateZXY(int zoom, int xTile, int yTile) {
         final int tiles = 1 << checkPrecisionRange(zoom);
         if (xTile < 0 || yTile < 0 || xTile >= tiles || yTile >= tiles) {
-            throw new IllegalArgumentException("hash-tile");
+            throw new IllegalArgumentException(String.format(
+                Locale.ROOT, "Zoom/X/Y combination is not valid: %d/%d/%d", zoom, xTile, yTile));
         }
         return tiles;
     }

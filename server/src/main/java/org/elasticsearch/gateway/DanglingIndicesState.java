@@ -57,7 +57,6 @@ public class DanglingIndicesState implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(DanglingIndicesState.class);
 
-    private final Settings settings;
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
     private final LocalAllocateDangledIndices allocateDangledIndices;
@@ -67,11 +66,13 @@ public class DanglingIndicesState implements ClusterStateListener {
     @Inject
     public DanglingIndicesState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
                                 LocalAllocateDangledIndices allocateDangledIndices, ClusterService clusterService) {
-        this.settings = settings;
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
-        clusterService.addListener(this);
+        if (DiscoveryNode.isDataNode(settings)
+            || DiscoveryNode.isMasterNode(settings)) {
+            clusterService.addListener(this);
+        }
     }
 
     /**
@@ -136,12 +137,8 @@ public class DanglingIndicesState implements ClusterStateListener {
             final List<IndexMetaData> indexMetaDataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
             Map<Index, IndexMetaData> newIndices = new HashMap<>(indexMetaDataList.size());
             final IndexGraveyard graveyard = metaData.indexGraveyard();
-            boolean coordinatingOnly = DiscoveryNode.isDataNode(settings) == false
-                && DiscoveryNode.isMasterNode(settings) == false;
             for (IndexMetaData indexMetaData : indexMetaDataList) {
-                if (coordinatingOnly) {
-                    logger.warn("[{}] dangling index ignored for non-data, non-master node", indexMetaData.getIndex());
-                } else if (metaData.hasIndex(indexMetaData.getIndex().getName())) {
+                if (metaData.hasIndex(indexMetaData.getIndex().getName())) {
                     logger.warn("[{}] can not be imported as a dangling index, as index with same name already exists in cluster metadata",
                         indexMetaData.getIndex());
                 } else if (graveyard.containsIndex(indexMetaData.getIndex())) {

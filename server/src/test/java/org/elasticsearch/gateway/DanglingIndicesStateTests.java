@@ -37,7 +37,10 @@ import java.nio.file.StandardCopyOption;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class DanglingIndicesStateTests extends ESTestCase {
 
@@ -160,7 +163,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
         }
     }
 
-    public void testDanglingIndicesIgnoredWhenObsolete() throws IOException {
+    public void testDanglingIndicesDisabledForCoordinatorOnly() throws IOException {
         Settings noDataNoMasterSettings = Settings.builder()
             .put(Node.NODE_DATA_SETTING.getKey(), false)
             .put(Node.NODE_MASTER_SETTING.getKey(), false)
@@ -174,30 +177,23 @@ public class DanglingIndicesStateTests extends ESTestCase {
             .put(Node.NODE_MASTER_SETTING.getKey(), false)
             .build();
 
-        verifyDanglingIndicesIgnoredWhenObsolete(noDataNoMasterSettings, 0,
+        verifyDanglingIndicesDisabled(noDataNoMasterSettings, 0,
             "node.data=false and node.master=false nodes should not detect any dangling indices");
-        verifyDanglingIndicesIgnoredWhenObsolete(noDataSettings, 1,
+        verifyDanglingIndicesDisabled(noDataSettings, 1,
             "node.data=false and node.master=true nodes should detect dangling indices");
-        verifyDanglingIndicesIgnoredWhenObsolete(noMasterSettings, 1,
+        verifyDanglingIndicesDisabled(noMasterSettings, 1,
             "node.data=true and node.master=false nodes should detect dangling indices");
         // also validated by #testDanglingIndicesDiscovery, included for completeness.
-        verifyDanglingIndicesIgnoredWhenObsolete(Settings.EMPTY, 1,
+        verifyDanglingIndicesDisabled(Settings.EMPTY, 1,
             "node.data=true and node.master=true nodes should detect dangling indices");
     }
 
-    private void verifyDanglingIndicesIgnoredWhenObsolete(Settings settings, int expected, String reason) throws IOException {
+    private void verifyDanglingIndicesDisabled(Settings settings, int expected, String reason) throws IOException {
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
-            DanglingIndicesState danglingState = createDanglingIndicesState(env, metaStateService, settings);
-
-            final Settings.Builder testIndexSettings = Settings.builder().put(indexSettings)
-                .put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
-            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(testIndexSettings).build();
-            metaStateService.writeIndex("test_write", dangledIndex);
-
-            assertThat(reason,
-                danglingState.findNewDanglingIndices(MetaData.builder().build()).size(),
-                equalTo(expected));
+            ClusterService clusterService = mock(ClusterService.class);
+            new DanglingIndicesState(settings, env, metaStateService, null, clusterService);
+            verify(clusterService, times(expected)).addListener(any());
         }
     }
 

@@ -976,7 +976,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     new ListenableFuture<>(), ackListener, publishListener);
                 currentPublication = Optional.of(publication);
 
-                transportService.getThreadPool().schedule(publishTimeout, Names.GENERIC, new Runnable() {
+                transportService.getThreadPool().schedule(new Runnable() {
                     @Override
                     public void run() {
                         synchronized (mutex) {
@@ -988,7 +988,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     public String toString() {
                         return "scheduled timeout for " + publication;
                     }
-                });
+                }, publishTimeout, Names.GENERIC);
 
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
                 leaderChecker.setCurrentNodes(publishNodes);

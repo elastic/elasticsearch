@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
 
 import javax.mail.internet.AddressException;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -134,7 +133,7 @@ public final class WatcherTestUtils {
                 null,
                 new ArrayList<>(),
                 null,
-                new WatchStatus(new DateTime(0, UTC), emptyMap()), 1L);
+                new WatchStatus(new DateTime(0, UTC), emptyMap()), 1L, 1L);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(),
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
@@ -181,7 +180,7 @@ public final class WatcherTestUtils {
                 new TimeValue(0),
                 actions,
                 Collections.singletonMap("foo", "bar"),
-                new WatchStatus(now, statuses), 1L);
+                new WatchStatus(now, statuses), 1L, 1L);
     }
 
     public static SearchType getRandomSupportedSearchType() {

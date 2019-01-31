@@ -495,7 +495,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             @Override
             public void append(LogEvent event) {
                 if (event.getLevel() == Level.WARN
-                    && event.getMessage().getFormattedMessage().endsWith(", this should be cleaned up (will refuse to start in 7.0). Beware of data-loss.")) {
+                    && event.getMessage().getFormattedMessage()
+                    .endsWith(", this should be cleaned up (will refuse to start in 7.0). Beware of data-loss.")) {
                     throw new LoggingException(new IllegalStateException(event.getMessage().getFormattedMessage()));
                 }
             }

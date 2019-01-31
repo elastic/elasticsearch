@@ -56,7 +56,7 @@ public final class IndicesPermission {
         this.groups = groups;
     }
 
-    static Predicate<String> indexMatcher(Collection<String> indices) {
+    public static Predicate<String> indexMatcher(Collection<String> indices) {
         Set<String> exactMatch = new HashSet<>();
         List<String> nonExactMatch = new ArrayList<>();
         for (String indexPattern : indices) {

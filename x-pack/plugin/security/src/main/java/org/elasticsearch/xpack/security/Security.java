@@ -174,6 +174,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorPreprocessor;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
@@ -430,9 +431,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         for (SecurityExtension extension : securityExtensions) {
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
-        final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
-            reservedRolesStore, privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState());
+        final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
+                privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(),
+                new DeprecationRoleDescriptorPreprocessor(client, logger));
         securityIndex.get().addIndexStateListener(allRolesStore::onSecurityIndexStateChange);
+
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);

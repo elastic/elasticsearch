@@ -40,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -96,7 +97,6 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37963")
     public void testRetentionLeasesSyncOnExpiration() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
@@ -157,7 +157,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
                     if (currentRetentionLeases.isEmpty()) {
                         assertThat(replica.getRetentionLeases(), empty());
                     } else {
-                        assertThat(replica.getRetentionLeases(), contains(currentRetentionLeases.toArray(new RetentionLease[0])));
+                        assertThat(replica.getRetentionLeases(), containsInAnyOrder(currentRetentionLeases.toArray(new RetentionLease[0])));
                     }
                 }
             });

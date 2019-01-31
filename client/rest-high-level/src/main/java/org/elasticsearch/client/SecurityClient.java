@@ -42,6 +42,8 @@ import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetApiKeyRequest;
+import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetPrivilegesResponse;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
@@ -883,6 +885,36 @@ public final class SecurityClient {
             final ActionListener<CreateApiKeyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::createApiKey, options,
                 CreateApiKeyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retrieve API Key(s) information.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to retrieve api key(s)
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create api key call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetApiKeyResponse getApiKey(final GetApiKeyRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getApiKey, options,
+                GetApiKeyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieve API Key(s) information.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to retrieve api key(s)
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getApiKeyAsync(final GetApiKeyRequest request, final RequestOptions options,
+            final ActionListener<GetApiKeyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getApiKey, options,
+                GetApiKeyResponse::fromXContent, listener, emptySet());
     }
 
     /**

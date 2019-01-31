@@ -1,0 +1,67 @@
+--
+:api: get-api-key
+:request: GetApiKeyRequest
+:response: GetApiKeyResponse
+--
+
+[id="{upid}-{api}"]
+=== Get API Key information API
+
+API Key(s) information can be retrieved using this API.
+
+[id="{upid}-{api}-request"]
+==== Invalidate API Key Request
+The +{request}+ supports retrieving API key information of
+
+. A specific API key
+
+. All API keys for a specific realm
+
+. All API keys for a specific user
+
+. All API keys for a specific user in a specific realm
+
+===== Specific API key by API key id
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-api-key-id-request]
+--------------------------------------------------
+
+===== Specific API key by API key name
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-api-key-name-request]
+--------------------------------------------------
+
+===== All API keys for realm
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-realm-api-keys-request]
+--------------------------------------------------
+
+===== All API keys for user
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-user-api-keys-request]
+--------------------------------------------------
+
+===== All API key for user in realm
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-user-realm-api-keys-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get API Key information API Response
+
+The returned +{response}+ contains the information regarding the API keys that were
+requested.
+
+`api_keys`:: Available using `getApiKeyInfos` list of API keys that were retrieved for this request.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

@@ -93,7 +93,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                         } else {
                             logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
                         }
-                        IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, OperationMode.RUNNING);
+                        IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
                         newState.metaData(MetaData.builder(currentState.getMetaData())
                                 .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
                         return newState.build();

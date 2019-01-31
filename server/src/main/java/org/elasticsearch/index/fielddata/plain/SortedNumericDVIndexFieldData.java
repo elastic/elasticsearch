@@ -31,7 +31,6 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -47,9 +46,6 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Predicate;
 
 /**
  * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}

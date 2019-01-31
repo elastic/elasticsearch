@@ -121,6 +121,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             } else {
                 final RetentionLeases retentionLeases = new RetentionLeases(
                         1,
+                        1,
                         Collections.singleton(new RetentionLease("0", retainingSequenceNumbers[0], currentTimeMillis.get(), "test-0")));
                 indexShard.updateRetentionLeasesOnReplica(retentionLeases);
             }
@@ -141,6 +142,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
                 indexShard.renewRetentionLease("0", retainingSequenceNumbers[0], "test-0");
             } else {
                 final RetentionLeases retentionLeases = new RetentionLeases(
+                        1,
                         2,
                         Collections.singleton(new RetentionLease("0", retainingSequenceNumbers[0], currentTimeMillis.get(), "test-0")));
                 indexShard.updateRetentionLeasesOnReplica(retentionLeases);

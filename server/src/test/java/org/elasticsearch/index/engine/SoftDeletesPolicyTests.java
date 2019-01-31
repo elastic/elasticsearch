@@ -59,7 +59,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
                     for (int i = 0; i < retainingSequenceNumbers.length; i++) {
                         leases.add(new RetentionLease(Integer.toString(i), retainingSequenceNumbers[i].get(), 0L, "test"));
                     }
-                    return new RetentionLeases(1, leases);
+                    return new RetentionLeases(1, 1, leases);
                 };
         long safeCommitCheckpoint = globalCheckpoint.get();
         SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, between(1, 10000), retainedOps, retentionLeasesSupplier);

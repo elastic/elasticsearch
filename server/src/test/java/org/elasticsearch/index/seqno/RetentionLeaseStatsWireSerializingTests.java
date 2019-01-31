@@ -30,6 +30,7 @@ public class RetentionLeaseStatsWireSerializingTests extends AbstractWireSeriali
 
     @Override
     protected RetentionLeaseStats createTestInstance() {
+        final long primaryTerm = randomNonNegativeLong();
         final long version = randomNonNegativeLong();
         final int length = randomIntBetween(0, 8);
         final Collection<RetentionLease> leases;
@@ -45,7 +46,7 @@ public class RetentionLeaseStatsWireSerializingTests extends AbstractWireSeriali
                 leases.add(new RetentionLease(id, retainingSequenceNumber, timestamp, source));
             }
         }
-        return new RetentionLeaseStats(new RetentionLeases(version, leases));
+        return new RetentionLeaseStats(new RetentionLeases(primaryTerm, version, leases));
     }
 
     @Override

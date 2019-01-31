@@ -101,18 +101,15 @@ public class RetentionLeases implements Writeable {
      * Represents an empty an un-versioned retention lease collection. This is used when no retention lease collection is found in the
      * commit point
      */
-    public static RetentionLeases EMPTY = new RetentionLeases(0, Collections.emptyList());
+    public static RetentionLeases EMPTY = new RetentionLeases(0, 0, Collections.emptyList());
 
     /**
      * Constructs a new retention lease collection with the specified version and underlying collection of retention leases.
      *
+     * @param primaryTerm the primary term under which this retention lease collection was created
      * @param version the version of this retention lease collection
      * @param leases  the retention leases
      */
-    public RetentionLeases(final long version, final Collection<RetentionLease> leases) {
-        this(0, version, leases);
-    }
-
     public RetentionLeases(final long primaryTerm, final long version, final Collection<RetentionLease> leases) {
         if (primaryTerm < 0) {
             throw new IllegalArgumentException("primary term must be non-negative but was [" + primaryTerm + "]");
@@ -188,7 +185,7 @@ public class RetentionLeases implements Writeable {
         final int secondSemicolon = encodedRetentionLeases.indexOf(";", firstSemicolon + 1);
         final long version = Long.parseLong(encodedRetentionLeases.substring(firstSemicolon + 1 + "version:".length(), secondSemicolon));
         final Collection<RetentionLease> retentionLeases;
-        if (firstSemicolon + 1 == encodedRetentionLeases.length()) {
+        if (secondSemicolon + 1 == encodedRetentionLeases.length()) {
             retentionLeases = Collections.emptyList();
         } else {
             assert Arrays.stream(encodedRetentionLeases.substring(secondSemicolon + 1).split(","))
@@ -200,6 +197,21 @@ public class RetentionLeases implements Writeable {
         }
 
         return new RetentionLeases(primaryTerm, version, retentionLeases);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final RetentionLeases that = (RetentionLeases) o;
+        return primaryTerm == that.primaryTerm &&
+                version == that.version &&
+                Objects.equals(leases, that.leases);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(primaryTerm, version, leases);
     }
 
     @Override

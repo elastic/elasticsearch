@@ -170,6 +170,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         } else {
             final RetentionLeases retentionLeases = new RetentionLeases(
                     1,
+                    1,
                     Collections.singleton(new RetentionLease("0", retainingSequenceNumbers[0], currentTimeMillis.get(), "test-0")));
             replicationTracker.updateRetentionLeasesOnReplica(retentionLeases);
         }
@@ -190,6 +191,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             replicationTracker.renewRetentionLease("0", retainingSequenceNumbers[0], "test-0");
         } else {
             final RetentionLeases retentionLeases = new RetentionLeases(
+                    1,
                     2,
                     Collections.singleton(new RetentionLease("0", retainingSequenceNumbers[0], currentTimeMillis.get(), "test-0")));
             replicationTracker.updateRetentionLeasesOnReplica(retentionLeases);
@@ -301,6 +303,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         assertThat(replicationTracker.getRetentionLeases().version(), equalTo(version));
     }
 
+    // TODO: update this test
     public void testReplicaIgnoresOlderRetentionLeasesVersion() {
         final AllocationId allocationId = AllocationId.newInitializing();
         final ReplicationTracker replicationTracker = new ReplicationTracker(
@@ -328,7 +331,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                         new RetentionLease(i + "-" + j, randomNonNegativeLong(), randomNonNegativeLong(), randomAlphaOfLength(8)));
                 version++;
             }
-            retentionLeasesCollection.add(new RetentionLeases(version, retentionLeases));
+            retentionLeasesCollection.add(new RetentionLeases(1, version, retentionLeases));
         }
 
         Collections.shuffle(retentionLeasesCollection, random());

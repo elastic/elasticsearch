@@ -5304,7 +5304,8 @@ public class InternalEngineTests extends EngineTestCase {
         final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        final AtomicLong retentionLeasesVersion = new AtomicLong(0);
+        final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final AtomicLong retentionLeasesVersion = new AtomicLong();
         final AtomicReference<RetentionLeases> leasesHolder = new AtomicReference<>(RetentionLeases.EMPTY);
         final List<Engine.Operation> operations = generateSingleDocHistory(true,
             randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 10, 300, "2");
@@ -5337,7 +5338,7 @@ public class InternalEngineTests extends EngineTestCase {
                     final String source = randomAlphaOfLength(8);
                     leases.add(new RetentionLease(id, retainingSequenceNumber, timestamp, source));
                 }
-                leasesHolder.set(new RetentionLeases(retentionLeasesVersion.get(), leases));
+                leasesHolder.set(new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), leases));
             }
             if (rarely()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));

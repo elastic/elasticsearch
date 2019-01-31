@@ -25,12 +25,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RetentionLeasesTests extends ESTestCase {
 
     public void testRetentionLeasesEncoding() {
+        final long primaryTerm = randomNonNegativeLong();
         final long version = randomNonNegativeLong();
         final int length = randomIntBetween(0, 8);
         final List<RetentionLease> retentionLeases = new ArrayList<>(length);
@@ -43,12 +45,13 @@ public class RetentionLeasesTests extends ESTestCase {
             retentionLeases.add(retentionLease);
         }
         final RetentionLeases decodedRetentionLeases =
-                RetentionLeases.decodeRetentionLeases(RetentionLeases.encodeRetentionLeases(new RetentionLeases(version, retentionLeases)));
+                RetentionLeases.decodeRetentionLeases(
+                        RetentionLeases.encodeRetentionLeases(new RetentionLeases(primaryTerm, version, retentionLeases)));
         assertThat(decodedRetentionLeases.version(), equalTo(version));
         if (length == 0) {
             assertThat(decodedRetentionLeases.leases(), empty());
         } else {
-            assertThat(decodedRetentionLeases.leases(), contains(retentionLeases.toArray(new RetentionLease[0])));
+            assertThat(decodedRetentionLeases.leases(), containsInAnyOrder(retentionLeases.toArray(new RetentionLease[0])));
         }
     }
 

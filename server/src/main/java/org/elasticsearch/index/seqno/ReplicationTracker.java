@@ -190,16 +190,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 // the primary calculates the non-expired retention leases and syncs them to replicas
                 final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
                 final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
-                final Map<Boolean, List<RetentionLease>> partition = retentionLeases
+                final Map<Boolean, List<RetentionLease>> partitionByExpiration = retentionLeases
                         .leases()
                         .stream()
                         .collect(Collectors.groupingBy(lease -> currentTimeMillis - lease.timestamp() > retentionLeaseMillis));
-                if (partition.get(true) == null) {
+                if (partitionByExpiration.get(true) == null) {
                     // early out as no retention leases have expired
                     return retentionLeases;
                 }
                 final Collection<RetentionLease> nonExpiredLeases =
-                        partition.get(false) != null ? partition.get(false) : Collections.emptyList();
+                        partitionByExpiration.get(false) != null ? partitionByExpiration.get(false) : Collections.emptyList();
                 retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
             }
             /*

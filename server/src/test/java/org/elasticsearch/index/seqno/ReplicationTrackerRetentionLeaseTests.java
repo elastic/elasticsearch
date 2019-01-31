@@ -95,7 +95,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
 
     public void testAddRetentionLeaseCausesRetentionLeaseSync() {
         final AllocationId allocationId = AllocationId.newInitializing();
-        final Map<String, Long> retentionLeases = new HashMap<>();
+        final Map<String, Long> retainingSequenceNumbers = new HashMap<>();
         final AtomicBoolean invoked = new AtomicBoolean();
         final AtomicReference<ReplicationTracker> reference = new AtomicReference<>();
         final ReplicationTracker replicationTracker = new ReplicationTracker(
@@ -114,7 +114,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                             leases.leases()
                                     .stream()
                                     .collect(Collectors.toMap(RetentionLease::id, RetentionLease::retainingSequenceNumber)),
-                            equalTo(retentionLeases));
+                            equalTo(retainingSequenceNumbers));
                 });
         reference.set(replicationTracker);
         replicationTracker.updateFromMaster(
@@ -128,7 +128,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         for (int i = 0; i < length; i++) {
             final String id = randomAlphaOfLength(8);
             final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-            retentionLeases.put(id, retainingSequenceNumber);
+            retainingSequenceNumbers.put(id, retainingSequenceNumber);
             replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test", ActionListener.wrap(() -> {}));
             // assert that the new retention lease callback was invoked
             assertTrue(invoked.get());
@@ -336,16 +336,16 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         long version = 0;
         for (int i = 0; i < length; i++) {
             final int innerLength = randomIntBetween(0, 8);
-            final Collection<RetentionLease> retentionLeases = new ArrayList<>();
+            final Collection<RetentionLease> leases = new ArrayList<>();
             for (int j = 0; j < innerLength; j++) {
-                retentionLeases.add(
+                leases.add(
                         new RetentionLease(i + "-" + j, randomNonNegativeLong(), randomNonNegativeLong(), randomAlphaOfLength(8)));
                 version++;
             }
             if (rarely()) {
                 primaryTerm++;
             }
-            retentionLeasesCollection.add(new RetentionLeases(primaryTerm, version, retentionLeases));
+            retentionLeasesCollection.add(new RetentionLeases(primaryTerm, version, leases));
         }
         final Collection<RetentionLease> expectedLeases;
         if (length == 0 || retentionLeasesCollection.get(length - 1).leases().isEmpty()) {

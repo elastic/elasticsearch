@@ -191,19 +191,19 @@ public class RetentionLeases implements Writeable {
         final long primaryTerm = Long.parseLong(encodedRetentionLeases.substring("primary_term:".length(), firstSemicolon));
         final int secondSemicolon = encodedRetentionLeases.indexOf(";", firstSemicolon + 1);
         final long version = Long.parseLong(encodedRetentionLeases.substring(firstSemicolon + 1 + "version:".length(), secondSemicolon));
-        final Collection<RetentionLease> retentionLeases;
+        final Collection<RetentionLease> leases;
         if (secondSemicolon + 1 == encodedRetentionLeases.length()) {
-            retentionLeases = Collections.emptyList();
+            leases = Collections.emptyList();
         } else {
             assert Arrays.stream(encodedRetentionLeases.substring(secondSemicolon + 1).split(","))
                     .allMatch(s -> s.matches("id:[^:;,]+;retaining_seq_no:\\d+;timestamp:\\d+;source:[^:;,]+"))
                     : encodedRetentionLeases;
-            retentionLeases = Arrays.stream(encodedRetentionLeases.substring(secondSemicolon + 1).split(","))
+            leases = Arrays.stream(encodedRetentionLeases.substring(secondSemicolon + 1).split(","))
                     .map(RetentionLease::decodeRetentionLease)
                     .collect(Collectors.toList());
         }
 
-        return new RetentionLeases(primaryTerm, version, retentionLeases);
+        return new RetentionLeases(primaryTerm, version, leases);
     }
 
     @Override

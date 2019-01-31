@@ -5306,14 +5306,14 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         final AtomicLong retentionLeasesVersion = new AtomicLong();
-        final AtomicReference<RetentionLeases> leasesHolder = new AtomicReference<>(RetentionLeases.EMPTY);
+        final AtomicReference<RetentionLeases> retentionLeasesHolder = new AtomicReference<>(RetentionLeases.EMPTY);
         final List<Engine.Operation> operations = generateSingleDocHistory(true,
             randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 10, 300, "2");
         Randomness.shuffle(operations);
         Set<Long> existingSeqNos = new HashSet<>();
         store = createStore();
         engine = createEngine(
-                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get, leasesHolder::get));
+                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get, retentionLeasesHolder::get));
         assertThat(engine.getMinRetainedSeqNo(), equalTo(0L));
         long lastMinRetainedSeqNo = engine.getMinRetainedSeqNo();
         for (Engine.Operation op : operations) {
@@ -5338,7 +5338,7 @@ public class InternalEngineTests extends EngineTestCase {
                     final String source = randomAlphaOfLength(8);
                     leases.add(new RetentionLease(id, retainingSequenceNumber, timestamp, source));
                 }
-                leasesHolder.set(new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), leases));
+                retentionLeasesHolder.set(new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), leases));
             }
             if (rarely()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
@@ -5352,7 +5352,7 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.flush(true, true);
                 assertThat(Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(Engine.MIN_RETAINED_SEQNO)),
                     equalTo(engine.getMinRetainedSeqNo()));
-                final RetentionLeases leases = leasesHolder.get();
+                final RetentionLeases leases = retentionLeasesHolder.get();
                 if (leases.leases().isEmpty()) {
                     assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES), equalTo(""));
                 } else {

@@ -21,6 +21,7 @@ package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -30,7 +31,30 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+
 public class LifecycleManagementStatusResponseTests extends ESTestCase {
+
+    public void testFromXContent() throws IOException {
+        xContentTester(this::createParser,
+            LifecycleManagementStatusResponseTests::createTestInstance,
+            LifecycleManagementStatusResponseTests::toXContent,
+            LifecycleManagementStatusResponse::fromXContent)
+            .supportsUnknownFields(true)
+            .assertToXContentEquivalence(false)
+            .test();
+    }
+
+    private static XContentBuilder toXContent(LifecycleManagementStatusResponse response, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field("operation_mode", response.getOperationMode());
+        builder.endObject();
+        return builder;
+    }
+
+    private static LifecycleManagementStatusResponse createTestInstance() {
+        return new LifecycleManagementStatusResponse(randomFrom(OperationMode.values()).name());
+    }
 
     public void testAllValidStatuses() {
         EnumSet.allOf(OperationMode.class)

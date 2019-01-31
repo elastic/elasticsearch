@@ -22,24 +22,19 @@ package org.elasticsearch.action.search;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSelector;
-import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.fielddata.plain.SortedNanosecondsNumericSortField;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -61,14 +56,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -76,7 +69,6 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -109,7 +101,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             size = first.get().queryResult().size();
         }
         int accumulatedLength = Math.min(queryResultSize, getTotalQueryHits(results));
-        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(true, false, results.asList(), null,
+        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(true, results.asList(), null,
             new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE), from, size).scoreDocs;
         for (Suggest.Suggestion<?> suggestion : reducedSuggest(results)) {
             int suggestionSize = suggestion.getEntries().get(0).getOptions().size();
@@ -133,14 +125,12 @@ public class SearchPhaseControllerTests extends ESTestCase {
             size = first.get().queryResult().size();
         }
         SearchPhaseController.TopDocsStats topDocsStats = new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-        ScoreDoc[] sortedDocs =
-            SearchPhaseController.sortDocs(ignoreFrom, false, results.asList(), null, topDocsStats, from, size).scoreDocs;
+        ScoreDoc[] sortedDocs = SearchPhaseController.sortDocs(ignoreFrom, results.asList(), null, topDocsStats, from, size).scoreDocs;
 
         results = generateSeededQueryResults(randomSeed, nShards, Collections.emptyList(), queryResultSize,
             useConstantScore);
         SearchPhaseController.TopDocsStats topDocsStats2 = new SearchPhaseController.TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-        ScoreDoc[] sortedDocs2 =
-            SearchPhaseController.sortDocs(ignoreFrom, false, results.asList(), null, topDocsStats2, from, size).scoreDocs;
+        ScoreDoc[] sortedDocs2 = SearchPhaseController.sortDocs(ignoreFrom, results.asList(), null, topDocsStats2, from, size).scoreDocs;
         assertEquals(sortedDocs.length, sortedDocs2.length);
         for (int i = 0; i < sortedDocs.length; i++) {
             assertEquals(sortedDocs[i].doc, sortedDocs2[i].doc);
@@ -173,7 +163,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false);
         for (int trackTotalHits : new int[] {SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE}) {
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase =
-                searchPhaseController.reducedQueryPhase(queryResults.asList(), false, false, trackTotalHits, true);
+                searchPhaseController.reducedQueryPhase(queryResults.asList(), false, trackTotalHits, true);
             AtomicArray<SearchPhaseResult> fetchResults = generateFetchResults(nShards,
                 reducedQueryPhase.sortedTopDocs.scoreDocs, reducedQueryPhase.suggest);
             InternalSearchResponse mergedResponse = searchPhaseController.merge(false,
@@ -214,8 +204,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     private static AtomicArray<SearchPhaseResult> generateQueryResults(int nShards,
-                                                                List<CompletionSuggestion> suggestions,
-                                                                int searchHitsSize, boolean useConstantScore) {
+                                                                       List<CompletionSuggestion> suggestions,
+                                                                       int searchHitsSize, boolean useConstantScore) {
         AtomicArray<SearchPhaseResult> queryResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
             String clusterAlias = randomBoolean() ? null : "remote";
@@ -333,7 +323,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         QuerySearchResult result = new QuerySearchResult(0, new SearchShardTarget("node", new ShardId("a", "b", 0),
             null, OriginalIndices.NONE));
         result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-                new DocValueFormat[0]);
+            new DocValueFormat[0]);
         InternalAggregations aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", 1.0D, DocValueFormat.RAW,
             Collections.emptyList(), Collections.emptyMap())));
         result.aggregations(aggs);
@@ -342,7 +332,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
         result = new QuerySearchResult(1, new SearchShardTarget("node", new ShardId("a", "b", 0), null, OriginalIndices.NONE));
         result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-                new DocValueFormat[0]);
+            new DocValueFormat[0]);
         aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", 3.0D, DocValueFormat.RAW,
             Collections.emptyList(), Collections.emptyMap())));
         result.aggregations(aggs);
@@ -351,7 +341,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
         result = new QuerySearchResult(1, new SearchShardTarget("node", new ShardId("a", "b", 0), null, OriginalIndices.NONE));
         result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-                new DocValueFormat[0]);
+            new DocValueFormat[0]);
         aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", 2.0D, DocValueFormat.RAW,
             Collections.emptyList(), Collections.emptyMap())));
         result.aggregations(aggs);
@@ -402,7 +392,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 QuerySearchResult result = new QuerySearchResult(id, new SearchShardTarget("node", new ShardId("a", "b", id),
                     null, OriginalIndices.NONE));
                 result.topDocs(new TopDocsAndMaxScore(
-                    new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] {new ScoreDoc(0, number)}), number),
+                        new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] {new ScoreDoc(0, number)}), number),
                     new DocValueFormat[0]);
                 InternalAggregations aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", (double) number,
                     DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap())));
@@ -446,7 +436,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             QuerySearchResult result = new QuerySearchResult(i, new SearchShardTarget("node", new ShardId("a", "b", i),
                 null, OriginalIndices.NONE));
             result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), number),
-                    new DocValueFormat[0]);
+                new DocValueFormat[0]);
             InternalAggregations aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", (double) number,
                 DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap())));
             result.aggregations(aggs);
@@ -484,7 +474,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             QuerySearchResult result = new QuerySearchResult(i, new SearchShardTarget("node", new ShardId("a", "b", i),
                 null, OriginalIndices.NONE));
             result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                    new ScoreDoc[] {new ScoreDoc(0, number)}), number), new DocValueFormat[0]);
+                new ScoreDoc[] {new ScoreDoc(0, number)}), number), new DocValueFormat[0]);
             result.setShardIndex(i);
             result.size(1);
             consumer.consumeResult(result);
@@ -556,7 +546,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 docs[j] = new ScoreDoc(0, score--);
             }
             result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(3, TotalHits.Relation.EQUAL_TO), docs), docs[0].score),
-                    new DocValueFormat[0]);
+                new DocValueFormat[0]);
             result.setShardIndex(i);
             result.size(5);
             result.from(5);
@@ -649,129 +639,5 @@ public class SearchPhaseControllerTests extends ESTestCase {
         assertEquals(SortField.Type.STRING, reduce.sortedTopDocs.sortFields[0].getType());
         assertEquals("field", reduce.sortedTopDocs.collapseField);
         assertArrayEquals(collapseValues, reduce.sortedTopDocs.collapseValues);
-    }
-
-    public void testTransformNanoToMilli() {
-        SortField nanosecondsNumericSortField =
-            new SortedNanosecondsNumericSortField("timestamp", randomBoolean(), SortedNumericSelector.Type.MAX);
-        SortField regularSortField = new SortedNumericSortField("timestamp", SortField.Type.LONG);
-
-        long dateAsNanos = randomLong();
-
-        FieldDoc[] nsFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ dateAsNanos }) };
-        SortField[] nsSortFields = {nanosecondsNumericSortField};
-        TopFieldDocs firstTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), nsFieldDocs, nsSortFields);
-
-        FieldDoc[] msFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ 1 }) };
-        SortField[] msSortFields = {regularSortField};
-        TopFieldDocs secondTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), msFieldDocs, msSortFields);
-
-        final TopFieldDocs[] docs;
-        if (randomBoolean()) {
-            docs = new TopFieldDocs[]{firstTopDocs, secondTopDocs};
-        } else {
-            docs = new TopFieldDocs[]{secondTopDocs, firstTopDocs};
-        }
-
-        Sort sort = new Sort(randomFrom(nanosecondsNumericSortField, regularSortField));
-        SearchPhaseController.transformNanoToMilli(docs, sort, false, false);
-
-        assertThat(nsFieldDocs[0].fields[0], instanceOf(Long.class));
-        assertThat(nsFieldDocs[0].fields[0], is(TimeUnit.NANOSECONDS.toMillis(dateAsNanos)));
-        assertThat(sort.getSort()[0], is(regularSortField));
-    }
-
-    // if there is only one type of fields, make sure the sort field is overwritten properly
-    public void testTransformNanoToMilliSortFieldIsSetCorrectly() {
-        boolean nanoSecondsOnly = randomBoolean();
-
-        SortField nanosecondsNumericSortField =
-            new SortedNanosecondsNumericSortField("timestamp", randomBoolean(), SortedNumericSelector.Type.MAX);
-        SortField regularSortField = new SortedNumericSortField("timestamp", SortField.Type.LONG);
-
-        // nanoseconds only
-        final TopFieldDocs[] docs;
-        final Sort sort;
-
-        if (nanoSecondsOnly) {
-            FieldDoc[] firstFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ randomLong() }) };
-            SortField[] firstSortFields = {nanosecondsNumericSortField};
-            TopFieldDocs firstTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), firstFieldDocs, firstSortFields);
-
-            FieldDoc[] secondFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ randomLong() }) };
-            SortField[] secondSortFields = {nanosecondsNumericSortField};
-            TopFieldDocs secondTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), secondFieldDocs, secondSortFields);
-
-            docs = new TopFieldDocs[]{firstTopDocs, secondTopDocs};
-            sort = new Sort(regularSortField);
-        // numeric sort only
-        } else {
-            FieldDoc[] firstFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ randomLong() }) };
-            SortField[] firstSortFields = {regularSortField};
-            TopFieldDocs firstTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), firstFieldDocs, firstSortFields);
-
-            FieldDoc[] secondFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ randomLong() }) };
-            SortField[] secondSortFields = {regularSortField};
-            TopFieldDocs secondTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), secondFieldDocs, secondSortFields);
-
-            docs = new TopFieldDocs[]{firstTopDocs, secondTopDocs};
-            sort = new Sort(nanosecondsNumericSortField);
-        }
-
-        SearchPhaseController.transformNanoToMilli(docs, sort, false, false);
-
-        if (nanoSecondsOnly) {
-            assertThat(sort.getSort()[0], is(nanosecondsNumericSortField));
-        } else {
-            assertThat(sort.getSort()[0], is(regularSortField));
-        }
-    }
-
-    public void testTransformNanoToMilliMixedModeWithScrollSearch() {
-        final TopFieldDocs[] docs = createTopFieldsWithNanosAndMillis();
-        List<SortField> sortFields = Arrays.stream(docs).map(d -> d.fields[0]).collect(Collectors.toList());
-        Sort sort = new Sort(randomFrom(sortFields));
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> SearchPhaseController.transformNanoToMilli(docs, sort, false, true));
-
-        assertThat(e.getMessage(),
-            is("scrolling across indices with a sort on date and date_nanos field mappings on the same field is not supported"));
-    }
-
-    public void testTransformNanoToMilliMixedModeWithSearchAfter() {
-        final TopFieldDocs[] docs = createTopFieldsWithNanosAndMillis();
-        List<SortField> sortFields = Arrays.stream(docs).map(d -> d.fields[0]).collect(Collectors.toList());
-        Sort sort = new Sort(randomFrom(sortFields));
-
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> SearchPhaseController.transformNanoToMilli(docs, sort, true, false));
-
-        assertThat(e.getMessage(),
-            is("search_after across indices with a sort on date and date_nanos field mappings on the same field is not supported"));
-    }
-
-    private TopFieldDocs[] createTopFieldsWithNanosAndMillis() {
-        SortField nanosecondsNumericSortField =
-            new SortedNanosecondsNumericSortField("timestamp", randomBoolean(), SortedNumericSelector.Type.MAX);
-        SortField regularSortField = new SortedNumericSortField("timestamp", SortField.Type.LONG);
-
-        long dateAsNanos = randomLong();
-
-        FieldDoc[] nsFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ dateAsNanos }) };
-        SortField[] nsSortFields = {nanosecondsNumericSortField};
-        TopFieldDocs firstTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), nsFieldDocs, nsSortFields);
-
-        FieldDoc[] msFieldDocs = { new FieldDoc(0, Float.NaN, new Object[]{ 1 }) };
-        SortField[] msSortFields = {regularSortField};
-        TopFieldDocs secondTopDocs = new TopFieldDocs(new TotalHits(1, Relation.EQUAL_TO), msFieldDocs, msSortFields);
-
-        final TopFieldDocs[] docs;
-        if (randomBoolean()) {
-            docs = new TopFieldDocs[]{firstTopDocs, secondTopDocs};
-        } else {
-            docs = new TopFieldDocs[]{secondTopDocs, firstTopDocs};
-        }
-
-        return docs;
     }
 }

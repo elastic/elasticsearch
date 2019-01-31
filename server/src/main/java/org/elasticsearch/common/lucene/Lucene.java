@@ -95,7 +95,6 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedNanosecondsNumericSortField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.io.IOException;
@@ -559,18 +558,7 @@ public class Lucene {
         Object missingValue = readMissingValue(in);
         boolean reverse = in.readBoolean();
 
-        boolean isNanoseconds = false;
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
-            isNanoseconds = in.readBoolean();
-        }
-
-        SortField sortField;
-        if (isNanoseconds) {
-            sortField = new SortedNanosecondsNumericSortField(field, reverse);
-        } else {
-            sortField = new SortField(field, sortType, reverse);
-        }
-
+        SortField sortField = new SortField(field, sortType, reverse);
         if (missingValue != null) {
             sortField.setMissingValue(missingValue);
         }
@@ -582,20 +570,12 @@ public class Lucene {
     }
 
     public static void writeSortField(StreamOutput out, SortField sortField) throws IOException {
-        boolean isNanoSecondSortField = false;
         if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
             // for geo sorting, we replace the SortField with a SortField that assumes a double field.
             // this works since the SortField is only used for merging top docs
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
             newSortField.setMissingValue(sortField.getMissingValue());
             sortField = newSortField;
-        } else if (sortField.getClass() == SortedNanosecondsNumericSortField.class) {
-            SortField newSortField = new SortField(sortField.getField(),
-                ((SortedNumericSortField) sortField).getNumericType(),
-                sortField.getReverse());
-            newSortField.setMissingValue(sortField.getMissingValue());
-            sortField = newSortField;
-            isNanoSecondSortField = true;
         } else if (sortField.getClass() == SortedSetSortField.class) {
             // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
             // It works because the sort field is only used to merge results from different shards.
@@ -631,9 +611,6 @@ public class Lucene {
             writeMissingValue(out, sortField.getMissingValue());
         }
         out.writeBoolean(sortField.getReverse());
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
-            out.writeBoolean(isNanoSecondSortField);
-        }
     }
 
     private static Number readExplanationValue(StreamInput in) throws IOException {

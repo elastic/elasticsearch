@@ -8,22 +8,7 @@ setup:
           index: date_ns
           body:
             settings:
-              number_of_shards: 5
-              number_of_replicas: 0
-            mappings:
-              doc:
-                properties:
-                  date:
-                    type: date_nanos
-                  field:
-                    type: long
-
-  - do:
-      indices.create:
-          index: date_ns_2
-          body:
-            settings:
-              number_of_shards: 5
+              number_of_shards: 3
               number_of_replicas: 0
             mappings:
               doc:
@@ -38,7 +23,7 @@ setup:
           index: date_ms
           body:
             settings:
-              number_of_shards: 5
+              number_of_shards: 3
               number_of_replicas: 0
             mappings:
               doc:
@@ -55,10 +40,10 @@ setup:
       bulk:
         refresh: true
         body:
-          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_1" } }'
+          - '{ "index" : { "_index" : "date_ns", "_id" : "first" } }'
           # millis [1540815132987] to nanos [1540815132987654321]
           - '{"date" : "2018-10-29T12:12:12.123456789Z", "field" : 1 }'
-          - '{ "index" : { "_index" : "date_ns_2", "_id" : "date_ns_2" } }'
+          - '{ "index" : { "_index" : "date_ns", "_id" : "second" } }'
           # millis [1540815132123] to nanos [1540815132123456789]
           - '{"date" : "2018-10-29T12:12:12.987654321Z", "field" : 2 }'
 
@@ -71,9 +56,9 @@ setup:
 
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ns_2" }
+  - match: { hits.hits.0._id: "second" }
   - match: { hits.hits.0.sort: [1540815132987654321] }
-  - match: { hits.hits.1._id: "date_ns_1" }
+  - match: { hits.hits.1._id: "first" }
   - match: { hits.hits.1.sort: [1540815132123456789] }
 
   - do:
@@ -85,313 +70,10 @@ setup:
 
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ns_1" }
+  - match: { hits.hits.0._id: "first" }
   - match: { hits.hits.0.sort: [1540815132123456789] }
-  - match: { hits.hits.1._id: "date_ns_2" }
+  - match: { hits.hits.1._id: "second" }
   - match: { hits.hits.1.sort: [1540815132987654321] }
-
-
----
-"test sorting with date empty index":
-
-  - do:
-      bulk:
-        refresh: true
-        body:
-          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_1" } }'
-          # millis [1540815132987] to nanos [1540815132987654321]
-          - '{"date" : "2018-10-29T12:12:12.123456789Z", "field" : 1 }'
-          - '{ "index" : { "_index" : "date_ns_2", "_id" : "date_ns_2" } }'
-          # millis [1540815132123] to nanos [1540815132123456789]
-          - '{"date" : "2018-10-29T12:12:12.987654321Z", "field" : 2 }'
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          sort: [ { "date": "desc" } ]
-
-  - match: { hits.total: 2 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ns_2" }
-  - match: { hits.hits.0.sort: [1540815132987654321] }
-  - match: { hits.hits.1._id: "date_ns_1" }
-  - match: { hits.hits.1.sort: [1540815132123456789] }
-
-
----
-"test sorting with date and date_nanos types":
-
-  - do:
-      bulk:
-        refresh: true
-        body:
-          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_1" } }'
-          # millis [1540815132987] to nanos [1540815132987654321]
-          - '{"date" : "2018-10-29T12:12:12.123456789Z", "field" : 1 }'
-          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_1" } }'
-          - '{"date" : "2018-10-29T12:12:12.987Z" }'
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          sort: [ { "date": "desc" } ]
-
-  # sort values are now converted to milliseconds
-  - match: { hits.total: 2 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ms_1" }
-  - match: { hits.hits.0.sort: [1540815132987] }
-  - match: { hits.hits.1._id: "date_ns_1" }
-  - match: { hits.hits.1.sort: [1540815132123] }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          sort: [ { "date": "asc" } ]
-
-  # sort values are now converted to milliseconds
-  - match: { hits.total: 2 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ns_1" }
-  - match: { hits.hits.0.sort: [1540815132123] }
-  - match: { hits.hits.1._id: "date_ms_1" }
-  - match: { hits.hits.1.sort: [1540815132987] }
-
-
----
-"test sorting with date and date_nanos types and other sort values":
-
-  - do:
-      bulk:
-        refresh: true
-        body:
-          # millis [1540815132987] to nanos [1540815132987654321]
-          # millis [1540815132123] to nanos [1540815132123456789]
-          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_1" } }'
-          - '{"date" : "2018-10-29T12:12:12.123456789Z", "field" : 1 }'
-          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_2" } }'
-          - '{"date" : "2018-10-29T12:12:12.123456789Z", "field" : 2 }'
-          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_3" } }'
-          - '{"date" : "2018-10-29T12:12:12.123456789Z", "field" : 3 }'
-          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_1" } }'
-          - '{"date" : "2018-10-29T12:12:12.987Z", "field" : 1 }'
-          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_2" } }'
-          - '{"date" : "2018-10-29T12:12:12.987Z", "field" : 2 }'
-          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_3" } }'
-          - '{"date" : "2018-10-29T12:12:12.987Z", "field" : 3 }'
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          sort: [ {"field": "desc"}, { "date": "desc" } ]
-
-  - match: { hits.total: 6 }
-  - length: { hits.hits: 6 }
-  - match: { hits.hits.0._id: "date_ms_3" }
-  - match: { hits.hits.1._id: "date_ns_3" }
-  - match: { hits.hits.2._id: "date_ms_2" }
-  - match: { hits.hits.3._id: "date_ns_2" }
-  - match: { hits.hits.4._id: "date_ms_1" }
-  - match: { hits.hits.5._id: "date_ns_1" }
-  - match: { hits.hits.0.sort: [3, 1540815132987] }
-  - match: { hits.hits.1.sort: [3, 1540815132123] }
-  - match: { hits.hits.2.sort: [2, 1540815132987] }
-  - match: { hits.hits.3.sort: [2, 1540815132123] }
-  - match: { hits.hits.4.sort: [1, 1540815132987] }
-  - match: { hits.hits.5.sort: [1, 1540815132123] }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          sort: [ {"field": "desc"}, { "date": "asc" } ]
-
-  - match: { hits.total: 6 }
-  - length: { hits.hits: 6 }
-  - match: { hits.hits.0._id: "date_ns_3" }
-  - match: { hits.hits.1._id: "date_ms_3" }
-  - match: { hits.hits.2._id: "date_ns_2" }
-  - match: { hits.hits.3._id: "date_ms_2" }
-  - match: { hits.hits.4._id: "date_ns_1" }
-  - match: { hits.hits.5._id: "date_ms_1" }
-  - match: { hits.hits.0.sort: [3, 1540815132123] }
-  - match: { hits.hits.1.sort: [3, 1540815132987] }
-  - match: { hits.hits.2.sort: [2, 1540815132123] }
-  - match: { hits.hits.3.sort: [2, 1540815132987] }
-  - match: { hits.hits.4.sort: [1, 1540815132123] }
-  - match: { hits.hits.5.sort: [1, 1540815132987] }
-
-
----
-"test sorting with range query and date and date_nanos types":
-
-  - do:
-      bulk:
-        refresh: true
-        body:
-          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_1" } }'
-          - '{"date" : "2018-10-28T12:12:12.123456789Z", "field" : 1 }'
-          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_2" } }'
-          - '{"date" : "2018-10-29T12:12:12.123456789Z", "field" : 2 }'
-          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_3" } }'
-          - '{"date" : "2018-10-30T12:12:12.123456789Z", "field" : 3 }'
-          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_1" } }'
-          - '{"date" : "2018-10-28T12:12:12.987Z", "field" : 1 }'
-          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_2" } }'
-          - '{"date" : "2018-10-29T12:12:12.987Z", "field" : 2 }'
-          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_3" } }'
-          - '{"date" : "2018-10-30T12:12:12.987Z", "field" : 3 }'
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          query:
-            range:
-              date:
-                gte: "2018-10-29"
-                lt: "2018-10-30"
-          sort: [ { "date": "desc" } ]
-
-  - match: { hits.total: 2 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ms_2" }
-  - match: { hits.hits.1._id: "date_ns_2" }
-  - match: { hits.hits.0.sort: [1540815132987] }
-  - match: { hits.hits.1.sort: [1540815132123] }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          query:
-            range:
-              date:
-                gte: "2018-10-29"
-                lt: "2018-10-30"
-          sort: [ { "date": "asc" } ]
-
-  - match: { hits.total: 2 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ns_2" }
-  - match: { hits.hits.1._id: "date_ms_2" }
-  - match: { hits.hits.0.sort: [1540815132123] }
-  - match: { hits.hits.1.sort: [1540815132987] }
-
-
----
-"test pagination with date and date_nanos types":
-
-  - do:
-      bulk:
-        refresh: true
-        body:
-          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_1" } }'
-          - '{"date" : "2018-10-28T12:12:12.123456789Z", "field" : 1 }'
-          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_2" } }'
-          - '{"date" : "2018-10-29T12:12:12.123456789Z", "field" : 2 }'
-          - '{ "index" : { "_index" : "date_ns", "_id" : "date_ns_3" } }'
-          - '{"date" : "2018-10-30T12:12:12.123456789Z", "field" : 3 }'
-          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_1" } }'
-          - '{"date" : "2018-10-28T12:12:12.987Z", "field" : 1 }'
-          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_2" } }'
-          - '{"date" : "2018-10-29T12:12:12.987Z", "field" : 2 }'
-          - '{ "index" : { "_index" : "date_ms", "_id" : "date_ms_3" } }'
-          - '{"date" : "2018-10-30T12:12:12.987Z", "field" : 3 }'
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          size: 2
-          sort: [ { "date": "asc" } ]
-
-  - match: { hits.total: 6 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ns_1" }
-  - match: { hits.hits.1._id: "date_ms_1" }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          size: 2
-          from: 2
-          sort: [ { "date": "asc" } ]
-
-  - match: { hits.total: 6 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ns_2" }
-  - match: { hits.hits.1._id: "date_ms_2" }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          size: 2
-          from: 4
-          sort: [ { "date": "asc" } ]
-
-  - match: { hits.total: 6 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ns_3" }
-  - match: { hits.hits.1._id: "date_ms_3" }
-
-  # same with descending sorting
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          size: 2
-          sort: [ { "date": "desc" } ]
-
-  - match: { hits.total: 6 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ms_3" }
-  - match: { hits.hits.1._id: "date_ns_3" }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          size: 2
-          from: 2
-          sort: [ { "date": "desc" } ]
-
-  - match: { hits.total: 6 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ms_2" }
-  - match: { hits.hits.1._id: "date_ns_2" }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: date*
-        body:
-          size: 2
-          from: 4
-          sort: [ { "date": "desc" } ]
-
-  - match: { hits.total: 6 }
-  - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ms_1" }
-  - match: { hits.hits.1._id: "date_ns_1" }
 
 
 ---
@@ -416,7 +98,7 @@ setup:
 
 
 ---
-"doc value fields are in milliseconds":
+"doc value fields are working as expected across date and date_nanos fields":
 
   - do:
       bulk:
@@ -433,19 +115,19 @@ setup:
         index: date*
         body:
           # TODO once #37829 is merged we can add epoch_millis back as a parser
-          #docvalue_fields: [ { "field": "date", "format" : "use_field_mapping" }, { "field": "date", "format": "epoch_millis" }, { "field" : "date", "format": "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSZ" }  ]
-          docvalue_fields: [ { "field" : "date", "format" : "use_field_mapping" }, { "field" : "date", "format": "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSX" }  ]
+          #docvalue_fields: [ { "field": "date", "format" : "strict_date_optional_time" }, { "field": "date", "format": "epoch_millis" }, { "field" : "date", "format": "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSZ" }  ]
+          docvalue_fields: [ { "field" : "date", "format" : "strict_date_optional_time" }, { "field" : "date", "format": "uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSSX" }  ]
           sort: [ { "date": "desc" } ]
 
   - match: { hits.total: 2 }
   - length: { hits.hits: 2 }
-  - match: { hits.hits.0._id: "date_ms_1" }
-  - match: { hits.hits.1._id: "date_ns_1" }
+  - match: { hits.hits.0._id: "date_ns_1" }
+  - match: { hits.hits.1._id: "date_ms_1" }
   # TODO once #37829 is merged we can add epoch_millis back as a parser
   #- match: { hits.hits.0.fields.date: [ "2018-10-29T12:12:12.987Z", "1540815132987", "2018-10-29T12:12:12.987000000Z" ] }
   #- match: { hits.hits.1.fields.date: [ "2018-10-29T12:12:12.123", "1540815132123", "2018-10-29T12:12:12.123456789Z" ] }
-  - match: { hits.hits.0.fields.date: [ "2018-10-29T12:12:12.987Z", "2018-10-29T12:12:12.987000000Z" ] }
-  - match: { hits.hits.1.fields.date: [ "2018-10-29T12:12:12.123Z", "2018-10-29T12:12:12.123456789Z" ] }
+  - match: { hits.hits.0.fields.date: [ "2018-10-29T12:12:12.123Z", "2018-10-29T12:12:12.123456789Z" ] }
+  - match: { hits.hits.1.fields.date: [ "2018-10-29T12:12:12.987Z", "2018-10-29T12:12:12.987000000Z" ] }
 
 ---
 "date histogram aggregation with date and date_nanos mapping":

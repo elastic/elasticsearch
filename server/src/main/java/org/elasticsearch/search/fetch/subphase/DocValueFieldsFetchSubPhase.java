@@ -103,19 +103,15 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                     isNanosecond = false;
                 }
                 final DocValueFormat format;
-                if (fieldAndFormat.format == null) {
-                    format = null;
+                String formatDesc = fieldAndFormat.format;
+                if (Objects.equals(formatDesc, USE_DEFAULT_FORMAT)) {
+                    // TODO: Remove in 8.x
+                    formatDesc = null;
+                }
+                if (isNanosecond) {
+                    format = withNanosecondResolution(fieldType.docValueFormat(formatDesc, null));
                 } else {
-                    String formatDesc = fieldAndFormat.format;
-                    if (Objects.equals(formatDesc, USE_DEFAULT_FORMAT)) {
-                        // TODO: Remove in 8.x
-                        formatDesc = null;
-                    }
-                    if (isNanosecond) {
-                        format = withNanosecondResolution(fieldType.docValueFormat(formatDesc, null));
-                    } else {
-                        format = fieldType.docValueFormat(formatDesc, null);
-                    }
+                    format = fieldType.docValueFormat(formatDesc, null);
                 }
                 LeafReaderContext subReaderContext = null;
                 AtomicFieldData data = null;

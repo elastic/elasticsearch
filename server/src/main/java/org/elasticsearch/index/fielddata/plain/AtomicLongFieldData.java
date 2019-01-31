@@ -56,8 +56,27 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
     public final ScriptDocValues<?> getLegacyFieldValues() {
         switch (numericType) {
             case DATE:
+                final ScriptDocValues.Dates dv = new ScriptDocValues.Dates(getLongValues(), false);
+                return new ScriptDocValues<DateTime>() {
+
+                    @Override
+                    public int size() {
+                        return dv.size();
+                    }
+
+                    @Override
+                    public DateTime get(int index) {
+                        JodaCompatibleZonedDateTime dt = dv.get(index);
+                        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.UTC);
+                    }
+
+                    @Override
+                    public void setNextDocId(int docId) throws IOException {
+                        dv.setNextDocId(docId);
+                    }
+                };
             case DATE_NANOSECONDS:
-                final ScriptDocValues.Dates realDV = new ScriptDocValues.Dates(getLongValues());
+                final ScriptDocValues.Dates realDV = new ScriptDocValues.Dates(getLongValues(), true);
                 return new ScriptDocValues<DateTime>() {
 
                     @Override
@@ -86,8 +105,10 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
         switch (numericType) {
         // for now, dates and nanoseconds are treated the same, which also means, that the precision is only on millisecond level
         case DATE:
+            return new ScriptDocValues.Dates(getLongValues(), false);
         case DATE_NANOSECONDS:
-            return new ScriptDocValues.Dates(getLongValues());
+            assert this instanceof SortedNumericDVIndexFieldData.NanoSecondFieldData;
+            return new ScriptDocValues.Dates(((SortedNumericDVIndexFieldData.NanoSecondFieldData) this).getLongValuesAsNanos(), true);
         case BOOLEAN:
             return new ScriptDocValues.Booleans(getLongValues());
         default:

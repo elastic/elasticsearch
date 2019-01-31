@@ -541,8 +541,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+            final String prefixFieldName = slop > 0
+                ? null
+                : prefixFieldType.name();
             return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions,
-                prefixFieldType.name(), prefixFieldType::termLengthWithinBounds);
+                prefixFieldName, prefixFieldType::termLengthWithinBounds);
         }
 
         @Override

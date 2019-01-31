@@ -1192,12 +1192,12 @@ public abstract class TransportReplicationAction<
             onSuccess.run();
         }
 
-        protected final ShardStateAction.Listener createShardActionListener(final Runnable onSuccess,
+        protected final ActionListener<Void> createShardActionListener(final Runnable onSuccess,
                                                                             final Consumer<Exception> onPrimaryDemoted,
                                                                             final Consumer<Exception> onIgnoredFailure) {
-            return new ShardStateAction.Listener() {
+            return new ActionListener<Void>() {
                 @Override
-                public void onSuccess() {
+                public void onResponse(Void aVoid) {
                     onSuccess.run();
                 }
 

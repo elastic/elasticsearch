@@ -53,6 +53,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 new ShardId("test", "_na", 0),
                 allocationId.getId(),
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                randomNonNegativeLong(),
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
@@ -88,6 +89,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 new ShardId("test", "_na", 0),
                 allocationId.getId(),
                 IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                randomNonNegativeLong(),
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 () -> 0L,
@@ -143,6 +145,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 new ShardId("test", "_na", 0),
                 allocationId.getId(),
                 IndexSettingsModule.newIndexSettings("test", settings),
+                randomNonNegativeLong(),
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 currentTimeMillis::get,
@@ -156,7 +159,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
         }
         final long[] retainingSequenceNumbers = new long[1];
-        retainingSequenceNumbers[0] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+        retainingSequenceNumbers[0] = randomLongBetween(0, Long.MAX_VALUE);
         if (primaryMode) {
             replicationTracker.addRetentionLease("0", retainingSequenceNumbers[0], "test-0", ActionListener.wrap(() -> {}));
         } else {
@@ -215,6 +218,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 new ShardId("test", "_na", 0),
                 allocationId.getId(),
                 IndexSettingsModule.newIndexSettings("test", settings),
+                randomNonNegativeLong(),
                 UNASSIGNED_SEQ_NO,
                 value -> {},
                 currentTimeMillis::get,

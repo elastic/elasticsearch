@@ -37,14 +37,12 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         body: {bytes_source_field: "1kb"}
 
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
@@ -52,14 +50,12 @@ teardown:
   - do:
       index:
         index: test_alias
-        type: test
         id: 2
         body: {bytes_source_field: "1kb"}
 
   - do:
       get:
         index: test
-        type: test
         id: 2
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
@@ -67,7 +63,6 @@ teardown:
   - do:
       update:
         index: test
-        type: test
         id: 3
         body:
           script:
@@ -77,7 +72,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 3
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
@@ -85,7 +79,6 @@ teardown:
   - do:
       update:
         index: test
-        type: test
         id: 4
         body:
           script:
@@ -96,7 +89,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 4
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
@@ -104,7 +96,6 @@ teardown:
   - do:
       update:
         index: test
-        type: test
         id: 5
         body:
           doc: { "bytes_source_field":"1kb" }
@@ -112,7 +103,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 5
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.bytes_target_field: 1024 }
@@ -123,20 +113,20 @@ teardown:
       bulk:
         refresh: true
         body: |
-          {"update":{"_id":"6","_index":"test","_type":"test"}}
+          {"update":{"_id":"6","_index":"test"}}
           {"script":"ctx._source.ran_script = true","upsert":{"bytes_source_field":"1kb"}}
-          {"update":{"_id":"7","_index":"test","_type":"test"}}
+          {"update":{"_id":"7","_index":"test"}}
           {"doc":{"bytes_source_field":"2kb"}, "doc_as_upsert":true}
-          {"update":{"_id":"8","_index":"test","_type":"test"}}
+          {"update":{"_id":"8","_index":"test"}}
           {"script": "ctx._source.ran_script = true","upsert":{"bytes_source_field":"3kb"}, "scripted_upsert" : true}
 
   - do:
       mget:
         body:
           docs:
-          - { _index: "test", _type: "_doc", _id: "6" }
-          - { _index: "test", _type: "_doc", _id: "7" }
-          - { _index: "test", _type: "_doc", _id: "8" }
+          - { _index: "test", _id: "6" }
+          - { _index: "test", _id: "7" }
+          - { _index: "test", _id: "8" }
   - match: { docs.0._index: "test" }
   - match: { docs.0._id: "6" }
   - match: { docs.0._source.bytes_source_field: "1kb" }
@@ -156,15 +146,13 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 9
         pipeline: "_none"
         body: {bytes_source_field: "1kb"}
-        
+
   - do:
       get:
         index: test
-        type: test
         id: 9
   - match: { _source.bytes_source_field: "1kb" }
   - is_false: _source.bytes_target_field
@@ -173,7 +161,6 @@ teardown:
       catch:  bad_request
       index:
         index: test
-        type: test
         id: 10
         pipeline: ""
         body: {bytes_source_field: "1kb"}

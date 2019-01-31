@@ -35,7 +35,7 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
         assertTrue(fetch.fetchSource());
         assertArrayEquals(new String[] { "data" }, fetch.includes());
         assertEquals(
-                singletonList(new DocValueFieldsContext.FieldAndFormat("count", DocValueFieldsContext.USE_DEFAULT_FORMAT)),
+                singletonList(new DocValueFieldsContext.FieldAndFormat("count", null)),
                 source.docValueFields());
         assertEquals(singletonList(SortBuilders.fieldSort("count").missing("_last").unmappedType("long")), source.sorts());
     }

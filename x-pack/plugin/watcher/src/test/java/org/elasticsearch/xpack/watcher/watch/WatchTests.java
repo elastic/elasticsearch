@@ -246,8 +246,10 @@ public class WatchTests extends ESTestCase {
             }
         };
 
-        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        Clock fixedClock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
+
         ClockMock clock = ClockMock.frozen();
+        ZonedDateTime now = Instant.ofEpochMilli(fixedClock.millis()).atZone(ZoneOffset.UTC);
         clock.setTime(now);
 
         List<ActionWrapper> actions = randomActions();
@@ -260,7 +262,7 @@ public class WatchTests extends ESTestCase {
         WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, clock);
         XContentBuilder builder = jsonBuilder().startObject().startObject("trigger").endObject().field("status", watchStatus).endObject();
         Watch watch = watchParser.parse("foo", true, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L);
-        assertThat(watch.status().state().getTimestamp().toInstant(), is(clock.millis()));
+        assertThat(watch.status().state().getTimestamp().toInstant().toEpochMilli(), is(clock.millis()));
         for (ActionWrapper action : actions) {
             assertThat(watch.status().actionStatus(action.id()), is(actionsStatuses.get(action.id())));
         }

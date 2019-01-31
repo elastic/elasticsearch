@@ -74,6 +74,17 @@ public class ActionStatus implements ToXContentObject {
     }
 
     @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("ActionStatus{");
+        sb.append("ackStatus=").append(ackStatus);
+        sb.append(", lastExecution=").append(lastExecution);
+        sb.append(", lastSuccessfulExecution=").append(lastSuccessfulExecution);
+        sb.append(", lastThrottle=").append(lastThrottle);
+        sb.append('}');
+        return sb.toString();
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(ackStatus, lastExecution, lastSuccessfulExecution, lastThrottle);
     }
@@ -216,7 +227,7 @@ public class ActionStatus implements ToXContentObject {
         private final State state;
 
         public AckStatus(ZonedDateTime timestamp, State state) {
-            this.timestamp = timestamp.withZoneSameInstant(ZoneOffset.UTC);
+            this.timestamp = timestamp;
             this.state = state;
         }
 
@@ -286,7 +297,7 @@ public class ActionStatus implements ToXContentObject {
         }
 
         static AckStatus readFrom(StreamInput in) throws IOException {
-            ZonedDateTime timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.readLong()), ZoneOffset.UTC);
+            ZonedDateTime timestamp = Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC);
             State state = State.resolve(in.readByte());
             return new AckStatus(timestamp, state);
         }

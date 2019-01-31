@@ -112,7 +112,6 @@ public class WatchParser {
     private Watch parse(String id, boolean includeStatus, boolean withSecrets, BytesReference source, ZonedDateTime now,
                         XContentType xContentType, boolean allowRedactedPasswords, long sourceSeqNo, long sourcePrimaryTerm)
         throws IOException {
-
         if (logger.isTraceEnabled()) {
             logger.trace("parsing watch [{}] ", source.utf8ToString());
         }

@@ -1668,9 +1668,9 @@ public class FieldSortIT extends ESIntegTestCase {
             for (int i = 0; i < 3; i++) {
                 assertThat(hits.getAt(i).getSortValues()[0].getClass(), equalTo(Long.class));
             }
-            assertEquals(12l, hits.getAt(0).getSortValues()[0]);
-            assertEquals(12l, hits.getAt(1).getSortValues()[0]);
-            assertEquals(12l, hits.getAt(2).getSortValues()[0]);
+            assertEquals(12L, hits.getAt(0).getSortValues()[0]);
+            assertEquals(12L, hits.getAt(1).getSortValues()[0]);
+            assertEquals(12L, hits.getAt(2).getSortValues()[0]);
         }
 
         {
@@ -1684,9 +1684,9 @@ public class FieldSortIT extends ESIntegTestCase {
             for (int i = 0; i < 3; i++) {
                 assertThat(hits.getAt(i).getSortValues()[0].getClass(), equalTo(Double.class));
             }
-            assertEquals(12d, hits.getAt(0).getSortValues()[0]);
-            assertEquals(12.1d, (double) hits.getAt(1).getSortValues()[0], 0.001f);
-            assertEquals(12.6d, hits.getAt(2).getSortValues()[0]);
+            assertEquals(12D, hits.getAt(0).getSortValues()[0]);
+            assertEquals(12.1D, (double) hits.getAt(1).getSortValues()[0], 0.001f);
+            assertEquals(12.6D, hits.getAt(2).getSortValues()[0]);
         }
     }
 

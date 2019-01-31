@@ -131,11 +131,15 @@ public class MockScriptEngine implements ScriptEngine {
                 public NumberSortScript newInstance(final LeafReaderContext ctx) {
                     return new NumberSortScript(parameters, lookup, ctx) {
                         @Override
-                        public double execute() {
+                        public Double execute() {
                             Map<String, Object> vars = new HashMap<>(parameters);
                             vars.put("params", parameters);
                             vars.put("doc", getDoc());
-                            return ((Number) script.apply(vars)).doubleValue();
+                            Number ret = (Number) script.apply(vars);
+                            if(ret == null) {
+                                return null;
+                            }
+                            return ret.doubleValue();
                         }
                     };
                 }
@@ -154,7 +158,11 @@ public class MockScriptEngine implements ScriptEngine {
                     Map<String, Object> vars = new HashMap<>(parameters);
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
-                    return String.valueOf(script.apply(vars));
+                    Object ret = script.apply(vars);
+                    if(ret == null) {
+                        return null;
+                    }
+                    return String.valueOf(ret);
                 }
             };
             return context.factoryClazz.cast(factory);

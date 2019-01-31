@@ -37,7 +37,7 @@ public abstract class NumberSortScript extends AbstractSortScript {
         super();
     }
 
-    public abstract double execute();
+    public abstract Double execute();
 
     /**
      * A factory to construct {@link NumberSortScript} instances.

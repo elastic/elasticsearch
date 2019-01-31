@@ -64,7 +64,7 @@ class ExpressionNumberSortScript implements NumberSortScript.LeafFactory {
             });
 
             @Override
-            public double execute() {
+            public Double execute() {
                 try {
                     return values.doubleValue();
                 } catch (Exception exception) {

@@ -367,11 +367,15 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             @Override
                             public boolean advanceExact(int doc) throws IOException {
                                 leafScript.setDocument(doc);
+                                String ret = leafScript.execute();
+                                if (ret == null) {
+                                    return false;
+                                }
+                                spare.copyChars(ret);
                                 return true;
                             }
                             @Override
                             public BytesRef binaryValue() {
-                                spare.copyChars(leafScript.execute());
                                 return spare.get();
                             }
                         };
@@ -392,14 +396,21 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
                         leafScript = numberSortScript.newInstance(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
+                            double value;
+
                             @Override
                             public boolean advanceExact(int doc) throws IOException {
                                 leafScript.setDocument(doc);
+                                Double ret = leafScript.execute();
+                                if(ret == null) {
+                                    return false;
+                                }
+                                value = ret;
                                 return true;
                             }
                             @Override
                             public double doubleValue() {
-                                return leafScript.execute();
+                                return value;
                             }
                         };
                         return FieldData.singleton(values);

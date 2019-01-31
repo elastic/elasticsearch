@@ -132,8 +132,6 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         assertThat(restResponse.status(), is(RestStatus.OK));
         assertThat(restResponse.content().utf8ToString(),
                 is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":true,\"errors\":false}"));
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testWithErrors() throws Exception {

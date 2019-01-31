@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.delete;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
@@ -51,6 +53,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  */
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(DeleteRequest.class));
 
     private String type;
     private String id;
@@ -117,6 +120,8 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
             validationException =
                 addValidationError("ifSeqNo is unassigned, but primary term is [" + ifPrimaryTerm + "]", validationException);
         }
+
+        DocWriteRequest.logDeprecationWarnings(this, DEPRECATION_LOGGER);
 
         return validationException;
     }

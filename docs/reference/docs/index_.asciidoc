@@ -369,6 +369,8 @@ the different version types and their semantics.
 
 `internal`:: only index the document if the given version is identical to the version
 of the stored document.
+deprecated[6.7.0, Please use `if_seq_no` & `if_primary_term` instead. See <<optimistic-concurrency-control>> for more details.]
+
 
 `external` or `external_gt`:: only index the document if the given version is strictly higher
 than the version of the stored document *or* if there is no existing document. The given

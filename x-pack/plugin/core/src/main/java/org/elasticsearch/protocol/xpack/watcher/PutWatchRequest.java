@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.protocol.xpack.watcher;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -26,6 +28,8 @@ import java.util.regex.Pattern;
  * The name of the watch will become the ID of the indexed document.
  */
 public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(PutWatchRequest.class));
 
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
     private static final Pattern NO_WS_PATTERN = Pattern.compile("\\S+");
@@ -121,6 +125,13 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         if (xContentType == null) {
             validationException = ValidateActions.addValidationError("request body is missing", validationException);
         }
+
+        if (version != Versions.MATCH_ANY) {
+            DEPRECATION_LOGGER.deprecated(
+                "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use" +
+                    " the `if_seq_no` and `if_primary_term` parameters instead.");
+        }
+
         return validationException;
     }
 

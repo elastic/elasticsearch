@@ -24,6 +24,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
@@ -212,5 +214,17 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         } else {
             throw new IllegalStateException("invalid request [" + request.getClass().getSimpleName() + " ]");
         }
+    }
+
+    static void logDeprecationWarnings(DocWriteRequest request, DeprecationLogger logger) {
+        if (request.versionType() == VersionType.INTERNAL &&
+            request.version() != Versions.MATCH_ANY &&
+            request.version() != Versions.MATCH_DELETED) {
+            logger.deprecatedAndMaybeLog("occ_internal_version",
+                "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use" +
+                    " the `if_seq_no` and `if_primary_term` parameters instead. (request for index [{}], type [{}], id [{}])",
+                request.index(), request.type(), request.id());
+        }
+
     }
 }

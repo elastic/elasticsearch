@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.index;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -73,6 +75,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(IndexRequest.class));
 
     /**
      * Max length of the source document to include into string()
@@ -216,6 +219,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             validationException =
                 addValidationError("ifSeqNo is unassigned, but primary term is [" + ifPrimaryTerm + "]", validationException);
         }
+
+        DocWriteRequest.logDeprecationWarnings(this, DEPRECATION_LOGGER);
+
 
         return validationException;
     }

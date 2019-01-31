@@ -54,17 +54,17 @@ public class Aggs {
     };
 
     private final List<GroupByKey> groups;
-    private final List<LeafAgg> metricAggs;
+    private final List<LeafAgg> simpleAggs;
     private final List<PipelineAgg> pipelineAggs;
 
     public Aggs() {
         this(emptyList(), emptyList(), emptyList());
     }
 
-    public Aggs(List<GroupByKey> groups, List<LeafAgg> metricAggs, List<PipelineAgg> pipelineAggs) {
+    public Aggs(List<GroupByKey> groups, List<LeafAgg> simpleAggs, List<PipelineAgg> pipelineAggs) {
         this.groups = groups;
 
-        this.metricAggs = metricAggs;
+        this.simpleAggs = simpleAggs;
         this.pipelineAggs = pipelineAggs;
     }
 
@@ -75,7 +75,7 @@ public class Aggs {
     public AggregationBuilder asAggBuilder() {
         AggregationBuilder rootGroup = null;
 
-        if (groups.isEmpty() && metricAggs.isEmpty()) {
+        if (groups.isEmpty() && simpleAggs.isEmpty()) {
             return null;
         }
 
@@ -93,7 +93,7 @@ public class Aggs {
             rootGroup = new FiltersAggregationBuilder(ROOT_GROUP_NAME, matchAllQuery());
         }
 
-        for (LeafAgg agg : metricAggs) {
+        for (LeafAgg agg : simpleAggs) {
             rootGroup.subAggregation(agg.toBuilder());
         }
 
@@ -109,18 +109,18 @@ public class Aggs {
     }
 
     public Aggs addGroups(Collection<GroupByKey> groups) {
-        return new Aggs(combine(this.groups, groups), metricAggs, pipelineAggs);
+        return new Aggs(combine(this.groups, groups), simpleAggs, pipelineAggs);
     }
 
     public Aggs addAgg(LeafAgg agg) {
-        if (metricAggs.contains(agg)) {
+        if (simpleAggs.contains(agg)) {
             return this;
         }
-        return new Aggs(groups, combine(metricAggs, agg), pipelineAggs);
+        return new Aggs(groups, combine(simpleAggs, agg), pipelineAggs);
     }
 
     public Aggs addAgg(PipelineAgg pipelineAgg) {
-        return new Aggs(groups, metricAggs, combine(pipelineAggs, pipelineAgg));
+        return new Aggs(groups, simpleAggs, combine(pipelineAggs, pipelineAgg));
     }
 
     public GroupByKey findGroupForAgg(String groupOrAggId) {
@@ -131,7 +131,7 @@ public class Aggs {
         }
 
         // maybe it's the default group agg ?
-        for (Agg agg : metricAggs) {
+        for (Agg agg : simpleAggs) {
             if (groupOrAggId.equals(agg.id())) {
                 return IMPLICIT_GROUP_KEY;
             }
@@ -153,12 +153,12 @@ public class Aggs {
     }
 
     public Aggs with(List<GroupByKey> groups) {
-        return new Aggs(groups, metricAggs, pipelineAggs);
+        return new Aggs(groups, simpleAggs, pipelineAggs);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(groups, metricAggs, pipelineAggs);
+        return Objects.hash(groups, simpleAggs, pipelineAggs);
     }
 
     @Override
@@ -173,7 +173,7 @@ public class Aggs {
 
         Aggs other = (Aggs) obj;
         return Objects.equals(groups, other.groups)
-                && Objects.equals(metricAggs, other.metricAggs)
+                && Objects.equals(simpleAggs, other.simpleAggs)
                 && Objects.equals(pipelineAggs, other.pipelineAggs);
                 
     }

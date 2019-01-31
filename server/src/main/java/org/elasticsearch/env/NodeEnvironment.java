@@ -319,14 +319,14 @@ public final class NodeEnvironment  implements Closeable {
                     try {
                         ensureNoIndexMetaData(nodePaths);
                     } catch (IllegalStateException e) {
-                        logger.warn(e.getMessage() + ", this needs to be cleaned up (will refuse to start in 7.0)");
+                        logger.warn(e.getMessage() + ", this should be cleaned up (will refuse to start in 7.0). Beware of data-loss.");
                     }
                 }
 
                 try {
                     ensureNoShardData(nodePaths);
                 } catch (IllegalStateException e) {
-                    logger.warn(e.getMessage() + ", this needs to be cleaned up (will refuse to start in 7.0)");
+                    logger.warn(e.getMessage() + ", this should be cleaned up (will refuse to start in 7.0). Beware of data-loss.");
                 }
             }
 

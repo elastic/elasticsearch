@@ -115,7 +115,9 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
         }
 
         if (nodeIssueFound) {
-            assertThat(response.getNodeSettingsIssues(), equalTo(Collections.singletonList(foundIssue)));
+            DeprecationIssue mergedFoundIssue = new DeprecationIssue(foundIssue.getLevel(), foundIssue.getMessage(), foundIssue.getUrl(),
+                foundIssue.getDetails() + " (nodes impacted: [" + discoveryNode.getName() + "])");
+            assertThat(response.getNodeSettingsIssues(), equalTo(Collections.singletonList(mergedFoundIssue)));
         } else {
             assertTrue(response.getNodeSettingsIssues().isEmpty());
         }

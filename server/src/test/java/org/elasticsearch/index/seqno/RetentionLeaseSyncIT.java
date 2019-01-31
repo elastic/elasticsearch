@@ -75,7 +75,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
             // check retention leases have been committed on the primary
             final RetentionLeases primaryCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
                     primary.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
-            assertThat(currentRetentionLeases, equalTo(RetentionLease.toMap(primaryCommittedRetentionLeases)));
+            assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(primaryCommittedRetentionLeases)));
 
             // check current retention leases have been synced to all replicas
             for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
@@ -84,13 +84,13 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
                 final IndexShard replica = internalCluster()
                         .getInstance(IndicesService.class, replicaShardNodeName)
                         .getShardOrNull(new ShardId(resolveIndex("index"), 0));
-                final Map<String, RetentionLease> retentionLeasesOnReplica = RetentionLease.toMap(replica.getRetentionLeases());
+                final Map<String, RetentionLease> retentionLeasesOnReplica = RetentionLeases.toMap(replica.getRetentionLeases());
                 assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
 
                 // check retention leases have been committed on the replica
                 final RetentionLeases replicaCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
                         replica.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
-                assertThat(currentRetentionLeases, equalTo(RetentionLease.toMap(replicaCommittedRetentionLeases)));
+                assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(replicaCommittedRetentionLeases)));
             }
         }
     }

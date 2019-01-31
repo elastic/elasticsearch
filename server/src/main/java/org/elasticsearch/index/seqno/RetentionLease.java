@@ -214,14 +214,4 @@ public final class RetentionLease implements Writeable {
                 '}';
     }
 
-    /**
-     * A utility method to convert a retention lease collection to a map from retention lease ID to retention lease.
-     *
-     * @param retentionLeases the retention lease collection
-     * @return the map from retention lease ID to retention lease
-     */
-    static Map<String, RetentionLease> toMap(final RetentionLeases retentionLeases) {
-        return retentionLeases.leases().stream().collect(Collectors.toMap(RetentionLease::id, Function.identity()));
-    }
-
 }

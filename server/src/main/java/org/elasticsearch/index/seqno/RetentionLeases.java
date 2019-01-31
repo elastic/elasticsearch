@@ -24,12 +24,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -37,6 +38,17 @@ import java.util.stream.Collectors;
  * arrive out of order on the replica, using the version to ensure that older sync requests are rejected.
  */
 public class RetentionLeases implements Writeable {
+
+    private final long primaryTerm;
+
+    /**
+     * The primary term of this retention lease collection.
+     *
+     * @return the primary term
+     */
+    public long primaryTerm() {
+        return primaryTerm;
+    }
 
     private final long version;
 
@@ -50,7 +62,11 @@ public class RetentionLeases implements Writeable {
         return version;
     }
 
-    private final Collection<RetentionLease> leases;
+    public boolean supercedes(final RetentionLeases that) {
+        return primaryTerm() > that.primaryTerm() || primaryTerm() <= that.primaryTerm() && version() > that.version();
+    }
+
+    private final Map<String, RetentionLease> leases;
 
     /**
      * The underlying collection of retention leases
@@ -58,7 +74,27 @@ public class RetentionLeases implements Writeable {
      * @return the retention leases
      */
     public Collection<RetentionLease> leases() {
-        return leases;
+        return Collections.unmodifiableCollection(leases.values());
+    }
+
+    /**
+     * Checks if this retention lease collection contains a retention lease with the specified {@link RetentionLease#id()}.
+     *
+     * @param id the retention lease ID
+     * @return true if this retention lease collection contains a retention lease with the specified ID, otherwise false
+     */
+    public boolean contains(final String id) {
+        return leases.containsKey(id);
+    }
+
+    /**
+     * Returns the retention lease with the specified ID, or null if no such retention lease exists.
+     *
+     * @param id the retention lease ID
+     * @return the retention lease, or null if no retention lease with the specified ID exists
+     */
+    public RetentionLease get(final String id) {
+        return leases.get(id);
     }
 
     /**
@@ -74,12 +110,20 @@ public class RetentionLeases implements Writeable {
      * @param leases  the retention leases
      */
     public RetentionLeases(final long version, final Collection<RetentionLease> leases) {
+        this(0, version, leases);
+    }
+
+    public RetentionLeases(final long primaryTerm, final long version, final Collection<RetentionLease> leases) {
+        if (primaryTerm < 0) {
+            throw new IllegalArgumentException("primary term must be non-negative but was [" + primaryTerm + "]");
+        }
         if (version < 0) {
             throw new IllegalArgumentException("version must be non-negative but was [" + version + "]");
         }
         Objects.requireNonNull(leases);
+        this.primaryTerm = primaryTerm;
         this.version = version;
-        this.leases = Collections.unmodifiableCollection(new ArrayList<>(leases));
+        this.leases = Collections.unmodifiableMap(toMap(leases));
     }
 
     /**
@@ -90,8 +134,9 @@ public class RetentionLeases implements Writeable {
      * @throws IOException if an I/O exception occurs reading from the stream
      */
     public RetentionLeases(final StreamInput in) throws IOException {
+        primaryTerm = in.readVLong();
         version = in.readVLong();
-        leases = in.readList(RetentionLease::new);
+        leases = Collections.unmodifiableMap(toMap(in.readList(RetentionLease::new)));
     }
 
     /**
@@ -103,8 +148,9 @@ public class RetentionLeases implements Writeable {
      */
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
+        out.writeVLong(primaryTerm);
         out.writeVLong(version);
-        out.writeCollection(leases);
+        out.writeCollection(leases.values());
     }
 
     /**
@@ -119,7 +165,8 @@ public class RetentionLeases implements Writeable {
         Objects.requireNonNull(retentionLeases);
         return String.format(
                 Locale.ROOT,
-                "version:%d;%s",
+                "primary_term:%d;version:%d;%s",
+                retentionLeases.primaryTerm(),
                 retentionLeases.version(),
                 retentionLeases.leases().stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(",")));
     }
@@ -135,30 +182,53 @@ public class RetentionLeases implements Writeable {
         if (encodedRetentionLeases.isEmpty()) {
             return EMPTY;
         }
-        assert encodedRetentionLeases.matches("version:\\d+;.*") : encodedRetentionLeases;
+        assert encodedRetentionLeases.matches("primary_term:\\d+;version:\\d+;.*") : encodedRetentionLeases;
         final int firstSemicolon = encodedRetentionLeases.indexOf(";");
-        final long version = Long.parseLong(encodedRetentionLeases.substring("version:".length(), firstSemicolon));
+        final long primaryTerm = Long.parseLong(encodedRetentionLeases.substring("primary_term:".length(), firstSemicolon));
+        final int secondSemicolon = encodedRetentionLeases.indexOf(";", firstSemicolon + 1);
+        final long version = Long.parseLong(encodedRetentionLeases.substring(firstSemicolon + 1 + "version:".length(), secondSemicolon));
         final Collection<RetentionLease> retentionLeases;
         if (firstSemicolon + 1 == encodedRetentionLeases.length()) {
             retentionLeases = Collections.emptyList();
         } else {
-            assert Arrays.stream(encodedRetentionLeases.substring(firstSemicolon + 1).split(","))
+            assert Arrays.stream(encodedRetentionLeases.substring(secondSemicolon + 1).split(","))
                     .allMatch(s -> s.matches("id:[^:;,]+;retaining_seq_no:\\d+;timestamp:\\d+;source:[^:;,]+"))
                     : encodedRetentionLeases;
-            retentionLeases = Arrays.stream(encodedRetentionLeases.substring(firstSemicolon + 1).split(","))
+            retentionLeases = Arrays.stream(encodedRetentionLeases.substring(secondSemicolon + 1).split(","))
                     .map(RetentionLease::decodeRetentionLease)
                     .collect(Collectors.toList());
         }
 
-        return new RetentionLeases(version, retentionLeases);
+        return new RetentionLeases(primaryTerm, version, retentionLeases);
     }
 
     @Override
     public String toString() {
         return "RetentionLeases{" +
-                "version=" + version +
+                "primaryTerm=" + primaryTerm +
+                ", version=" + version +
                 ", leases=" + leases +
                 '}';
+    }
+
+    /**
+     * A utility method to convert retention leases to a map from retention lease ID to retention lease.
+     *
+     * @param leases the retention leases
+     * @return the map from retention lease ID to retention lease
+     */
+    private static Map<String, RetentionLease> toMap(final Collection<RetentionLease> leases) {
+        return leases.stream().collect(Collectors.toMap(RetentionLease::id, Function.identity()));
+    }
+
+    /**
+     * A utility method to convert a retention lease collection to a map from retention lease ID to retention lease.
+     *
+     * @param retentionLeases the retention lease collection
+     * @return the map from retention lease ID to retention lease
+     */
+    static Map<String, RetentionLease> toMap(final RetentionLeases retentionLeases) {
+        return retentionLeases.leases;
     }
 
 }

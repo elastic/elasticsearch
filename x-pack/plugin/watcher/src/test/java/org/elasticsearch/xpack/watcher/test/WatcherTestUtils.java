@@ -127,6 +127,7 @@ public final class WatcherTestUtils {
     }
 
     public static WatchExecutionContext createWatchExecutionContext() throws Exception {
+        ZonedDateTime EPOCH_UTC = Instant.EPOCH.atZone(ZoneOffset.UTC);
         Watch watch = new Watch("test-watch",
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple())),
@@ -135,10 +136,10 @@ public final class WatcherTestUtils {
                 null,
                 new ArrayList<>(),
                 null,
-                new WatchStatus(Instant.EPOCH.atZone(ZoneOffset.UTC), emptyMap()), 1L);
-        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), Instant.EPOCH.atZone(ZoneOffset.UTC),
-            new ScheduleTriggerEvent(watch.id(), Instant.EPOCH.atZone(ZoneOffset.UTC), Instant.EPOCH.atZone(ZoneOffset.UTC)),
-            TimeValue.timeValueSeconds(5));
+
+                new WatchStatus(EPOCH_UTC, emptyMap()), 1L, 1L);
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), EPOCH_UTC,
+            new ScheduleTriggerEvent(watch.id(), EPOCH_UTC, EPOCH_UTC), TimeValue.timeValueSeconds(5));
         context.ensureWatchExists(() -> watch);
         return context;
     }
@@ -181,7 +182,7 @@ public final class WatcherTestUtils {
                 new TimeValue(0),
                 actions,
                 Collections.singletonMap("foo", "bar"),
-                new WatchStatus(now, statuses), 1L);
+                new WatchStatus(now, statuses), 1L, 1L);
     }
 
     public static SearchType getRandomSupportedSearchType() {

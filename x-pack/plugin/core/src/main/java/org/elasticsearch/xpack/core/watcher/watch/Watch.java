@@ -9,6 +9,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
@@ -37,11 +38,12 @@ public class Watch implements ToXContentObject {
     @Nullable private final Map<String, Object> metadata;
     private final WatchStatus status;
 
-    private transient long version;
+    private final long sourceSeqNo;
+    private final long sourcePrimaryTerm;
 
     public Watch(String id, Trigger trigger, ExecutableInput input, ExecutableCondition condition, @Nullable ExecutableTransform transform,
                  @Nullable TimeValue throttlePeriod, List<ActionWrapper> actions, @Nullable Map<String, Object> metadata,
-                 WatchStatus status, long version) {
+                 WatchStatus status, long sourceSeqNo, long sourcePrimaryTerm) {
         this.id = id;
         this.trigger = trigger;
         this.input = input;
@@ -51,7 +53,8 @@ public class Watch implements ToXContentObject {
         this.throttlePeriod = throttlePeriod;
         this.metadata = metadata;
         this.status = status;
-        this.version = version;
+        this.sourceSeqNo = sourceSeqNo;
+        this.sourcePrimaryTerm = sourcePrimaryTerm;
     }
 
     public String id() {
@@ -88,12 +91,20 @@ public class Watch implements ToXContentObject {
         return status;
     }
 
-    public long version() {
-        return version;
+    /**
+     * The sequence number of the document that was used to create this watch, {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
+     * if the watch wasn't read from a document
+     ***/
+    public long getSourceSeqNo() {
+        return sourceSeqNo;
     }
 
-    public void version(long version) {
-        this.version = version;
+    /**
+     * The primary term of the document that was used to create this watch, {@link SequenceNumbers#UNASSIGNED_PRIMARY_TERM}
+     * if the watch wasn't read from a document
+     ***/
+    public long getSourcePrimaryTerm() {
+        return sourcePrimaryTerm;
     }
 
     /**

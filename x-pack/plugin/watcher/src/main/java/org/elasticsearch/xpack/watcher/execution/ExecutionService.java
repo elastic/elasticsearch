@@ -282,7 +282,8 @@ public class ExecutionService {
                         if (resp.isExists() == false) {
                             throw new ResourceNotFoundException("watch [{}] does not exist", watchId);
                         }
-                        return parser.parseWithSecrets(watchId, true, resp.getSourceAsBytesRef(), ctx.executionTime(), XContentType.JSON);
+                        return parser.parseWithSecrets(watchId, true, resp.getSourceAsBytesRef(), ctx.executionTime(), XContentType.JSON,
+                            resp.getSeqNo(), resp.getPrimaryTerm());
                     });
                 } catch (ResourceNotFoundException e) {
                     String message = "unable to find watch for record [" + ctx.id() + "]";
@@ -353,7 +354,8 @@ public class ExecutionService {
 
         UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, watch.id());
         updateRequest.doc(source);
-        updateRequest.version(watch.version());
+        updateRequest.setIfSeqNo(watch.getSourceSeqNo());
+        updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
             client.update(updateRequest).actionGet(indexDefaultTimeout);
         } catch (DocumentMissingException e) {

@@ -101,6 +101,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -166,7 +167,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
-        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         Condition.Result conditionResult = InternalAlwaysCondition.RESULT_INSTANCE;
         ExecutableCondition condition = mock(ExecutableCondition.class);
@@ -270,7 +271,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
-        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         input = mock(ExecutableInput.class);
         Input.Result inputResult = mock(Input.Result.class);
@@ -339,7 +340,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
-        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         ExecutableCondition condition = mock(ExecutableCondition.class);
         Condition.Result conditionResult = mock(Condition.Result.class);
@@ -404,7 +405,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
-        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         Condition.Result conditionResult = InternalAlwaysCondition.RESULT_INSTANCE;
         ExecutableCondition condition = mock(ExecutableCondition.class);
@@ -464,7 +465,7 @@ public class ExecutionServiceTests extends ESTestCase {
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
         mockGetWatchResponse(client, "_id", getResponse);
-        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -843,7 +844,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(getResponse.isExists()).thenReturn(true);
         when(getResponse.getId()).thenReturn("foo");
         mockGetWatchResponse(client, "foo", getResponse);
-        when(parser.parseWithSecrets(eq("foo"), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq("foo"), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         // execute needs to fail as well as storing the history
         doThrow(new EsRejectedExecutionException()).when(executor).execute(any());
@@ -978,7 +979,7 @@ public class ExecutionServiceTests extends ESTestCase {
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
         mockGetWatchResponse(client, "_id", getResponse);
-        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         WatchRecord.MessageWatchRecord record = mock(WatchRecord.MessageWatchRecord.class);
         when(record.state()).thenReturn(ExecutionState.EXECUTION_NOT_NEEDED);
@@ -1024,7 +1025,7 @@ public class ExecutionServiceTests extends ESTestCase {
     public void testUpdateWatchStatusDoesNotUpdateState() throws Exception {
         WatchStatus status = new WatchStatus(ZonedDateTime.now(ZoneOffset.UTC), Collections.emptyMap());
         Watch watch = new Watch("_id", new ManualTrigger(), new ExecutableNoneInput(), InternalAlwaysCondition.INSTANCE, null, null,
-                Collections.emptyList(), null, status, 1L);
+                Collections.emptyList(), null, status, 1L, 1L);
 
         final AtomicBoolean assertionsTriggered = new AtomicBoolean(false);
         doAnswer(invocation -> {

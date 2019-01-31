@@ -42,7 +42,6 @@
   - do:
       index:
         index: index1
-        type: type
         body: { foo: bar }
         refresh: true
   - do:
@@ -62,7 +61,6 @@
   - do:
       index:
         index: index2
-        type: type
         body: { foo: bar }
         refresh: true
   - do:
@@ -117,7 +115,6 @@
   - do:
       index:
         index: foo
-        type: type
         body: { test: foo }
         refresh: true
 
@@ -132,7 +129,6 @@
   - do:
       index:
         index: bar
-        type: type
         body: { test: bar }
         refresh: true
 
@@ -147,7 +143,6 @@
   - do:
       index:
         index: baz
-        type: type
         body: { test: baz }
         refresh: true
 

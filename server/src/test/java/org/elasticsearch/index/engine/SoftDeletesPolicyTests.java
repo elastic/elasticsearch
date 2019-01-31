@@ -49,7 +49,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
         AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final AtomicLong[] retainingSequenceNumbers = new AtomicLong[randomIntBetween(0, 8)];
         for (int i = 0; i < retainingSequenceNumbers.length; i++) {
-            retainingSequenceNumbers[i] = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+            retainingSequenceNumbers[i] = new AtomicLong();
         }
         final Supplier<Collection<RetentionLease>> retentionLeasesSupplier =
                 () -> {

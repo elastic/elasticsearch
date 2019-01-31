@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
@@ -282,6 +282,6 @@ public class TickerScheduleEngineTests extends ESTestCase {
     private Watch createWatch(String name, Schedule schedule) {
         return new Watch(name, new ScheduleTrigger(schedule), new ExecutableNoneInput(),
                 InternalAlwaysCondition.INSTANCE, null, null,
-                Collections.emptyList(), null, null, Versions.MATCH_ANY);
+                Collections.emptyList(), null, null, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
     }
 }

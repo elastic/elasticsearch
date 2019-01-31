@@ -74,6 +74,7 @@ public class GetWatchResponseTests extends
                 throw new AssertionError(e);
             }
             newInstance = new GetWatchResponse(newInstance.getId(), newInstance.getVersion(),
+                newInstance.getSeqNo(), newInstance.getPrimaryTerm(),
                 newInstance.getStatus(), new XContentSource(newSource, expectedInstance.getSource().getContentType()));
         }
         super.assertEqualInstances(expectedInstance, newInstance);
@@ -91,9 +92,11 @@ public class GetWatchResponseTests extends
             return new GetWatchResponse(id);
         }
         long version = randomLongBetween(0, 10);
+        long seqNo = randomNonNegativeLong();
+        long primaryTerm = randomLongBetween(1, 2000);
         WatchStatus status = randomWatchStatus();
         BytesReference source = simpleWatch();
-        return new GetWatchResponse(id, version, status, new XContentSource(source, XContentType.JSON));
+        return new GetWatchResponse(id, version, seqNo, primaryTerm, status, new XContentSource(source, XContentType.JSON));
     }
 
     private static BytesReference simpleWatch() {
@@ -170,8 +173,8 @@ public class GetWatchResponseTests extends
     @Override
     public GetWatchResponse convertHlrcToInternal(org.elasticsearch.client.watcher.GetWatchResponse instance) {
         if (instance.isFound()) {
-            return new GetWatchResponse(instance.getId(), instance.getVersion(), convertHlrcToInternal(instance.getStatus()),
-                new XContentSource(instance.getSource(), instance.getContentType()));
+            return new GetWatchResponse(instance.getId(), instance.getVersion(), instance.getSeqNo(), instance.getPrimaryTerm(),
+                convertHlrcToInternal(instance.getStatus()), new XContentSource(instance.getSource(), instance.getContentType()));
         } else {
             return new GetWatchResponse(instance.getId());
         }

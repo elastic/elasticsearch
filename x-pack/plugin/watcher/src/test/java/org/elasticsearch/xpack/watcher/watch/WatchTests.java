@@ -206,13 +206,16 @@ public class WatchTests extends ESTestCase {
 
         TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10000));
 
-        Watch watch = new Watch("_name", trigger, input, condition, transform, throttlePeriod, actions, metadata, watchStatus, 1L);
+        final long sourceSeqNo = randomNonNegativeLong();
+        final long sourcePrimaryTerm = randomLongBetween(1, 200);
+        Watch watch = new Watch("_name", trigger, input, condition, transform, throttlePeriod, actions, metadata, watchStatus,
+            sourceSeqNo, sourcePrimaryTerm);
 
         BytesReference bytes = BytesReference.bytes(jsonBuilder().value(watch));
         logger.info("{}", bytes.utf8ToString());
         WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, clock);
 
-        Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes, XContentType.JSON);
+        Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes, XContentType.JSON, sourceSeqNo, sourcePrimaryTerm);
 
         if (includeStatus) {
             assertThat(parsedWatch.status(), equalTo(watchStatus));
@@ -225,6 +228,8 @@ public class WatchTests extends ESTestCase {
         }
         assertThat(parsedWatch.metadata(), equalTo(metadata));
         assertThat(parsedWatch.actions(), equalTo(actions));
+        assertThat(parsedWatch.getSourceSeqNo(), equalTo(sourceSeqNo));
+        assertThat(parsedWatch.getSourcePrimaryTerm(), equalTo(sourcePrimaryTerm));
     }
 
     public void testThatBothStatusFieldsCanBeRead() throws Exception {
@@ -254,8 +259,8 @@ public class WatchTests extends ESTestCase {
 
         WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, clock);
         XContentBuilder builder = jsonBuilder().startObject().startObject("trigger").endObject().field("status", watchStatus).endObject();
-        Watch watch = watchParser.parse("foo", true, BytesReference.bytes(builder), XContentType.JSON);
-        assertThat(watch.status().state().getTimestamp().toInstant().toEpochMilli(), is(clock.millis()));
+        Watch watch = watchParser.parse("foo", true, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L);
+        assertThat(watch.status().state().getTimestamp().toInstant(), is(clock.millis()));
         for (ActionWrapper action : actions) {
             assertThat(watch.status().actionStatus(action.id()), is(actionsStatuses.get(action.id())));
         }
@@ -282,7 +287,7 @@ public class WatchTests extends ESTestCase {
                 .endObject();
         WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, clock);
         try {
-            watchParser.parse("failure", false, BytesReference.bytes(jsonBuilder), XContentType.JSON);
+            watchParser.parse("failure", false, BytesReference.bytes(jsonBuilder), XContentType.JSON, 1L, 1L);
             fail("This watch should fail to parse as actions is an array");
         } catch (ElasticsearchParseException pe) {
             assertThat(pe.getMessage().contains("could not parse actions for watch [failure]"), is(true));
@@ -307,7 +312,7 @@ public class WatchTests extends ESTestCase {
                 .endObject();
         builder.endObject();
         WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
-        Watch watch = watchParser.parse("failure", false, BytesReference.bytes(builder), XContentType.JSON);
+        Watch watch = watchParser.parse("failure", false, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L);
         assertThat(watch, notNullValue());
         assertThat(watch.trigger(), instanceOf(ScheduleTrigger.class));
         assertThat(watch.input(), instanceOf(ExecutableNoneInput.class));
@@ -373,7 +378,7 @@ public class WatchTests extends ESTestCase {
         builder.endObject();
 
         // parse in default mode:
-        Watch watch = watchParser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON);
+        Watch watch = watchParser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L);
         assertThat(((ScriptCondition) watch.condition()).getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         WatcherSearchTemplateRequest request = ((SearchInput) watch.input().input()).getRequest();
         SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
@@ -392,7 +397,7 @@ public class WatchTests extends ESTestCase {
             builder.endObject();
 
             WatchParser parser = createWatchparser();
-            Watch watch = parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON);
+            Watch watch = parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L);
             assertThat(watch, is(notNullValue()));
             assertThat(watch.input().type(), is(NoneInput.TYPE));
         }
@@ -408,7 +413,7 @@ public class WatchTests extends ESTestCase {
             builder.endObject();
 
             WatchParser parser = createWatchparser();
-            Watch watch = parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON);
+            Watch watch = parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L);
             assertThat(watch, is(notNullValue()));
             assertThat(watch.actions(), hasSize(0));
         }
@@ -427,7 +432,7 @@ public class WatchTests extends ESTestCase {
 
             WatchParser parser = createWatchparser();
             ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                    () -> parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON));
+                    () -> parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L));
             assertThat(e.getMessage(), is("could not parse watch [_id]. missing required field [trigger]"));
         }
     }

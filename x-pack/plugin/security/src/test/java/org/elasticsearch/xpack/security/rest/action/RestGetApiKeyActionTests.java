@@ -71,7 +71,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final Map<String, String> param4 = mapBuilder().put("id", "api-key-id-1").map();
         final Map<String, String> param5 = mapBuilder().put("name", "api-key-name-1").map();
         final Map<String, String> params = randomFrom(param1, param2, param3, param4, param5);
-        final boolean withEmptyResponse = randomBoolean();
+        final boolean replyEmptyResponse = rarely();
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                 .withParams(params).build();
 
@@ -102,7 +102,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                         || getApiKeyRequest.getApiKeyId() != null && getApiKeyRequest.getApiKeyId().equals("api-key-id-1")
                         || getApiKeyRequest.getRealmName() != null && getApiKeyRequest.getRealmName().equals("realm-1")
                         || getApiKeyRequest.getUserName() != null && getApiKeyRequest.getUserName().equals("user-x")) {
-                    if (withEmptyResponse) {
+                    if (replyEmptyResponse) {
                         listener.onResponse((Response) GetApiKeyResponse.emptyResponse());
                     } else {
                         listener.onResponse((Response) getApiKeyResponseExpected);
@@ -118,10 +118,10 @@ public class RestGetApiKeyActionTests extends ESTestCase {
 
             final RestResponse restResponse = responseSetOnce.get();
             assertNotNull(restResponse);
-            assertThat(restResponse.status(), (withEmptyResponse) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK));
+            assertThat(restResponse.status(), (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK));
             final GetApiKeyResponse actual = GetApiKeyResponse
                     .fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
-            if (withEmptyResponse) {
+            if (replyEmptyResponse) {
                 assertThat(actual.getApiKeyInfos().length, is(0));
             } else {
                 assertThat(actual.getApiKeyInfos(),

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -45,8 +46,8 @@ public final class RestGetApiKeyAction extends SecurityBaseRestHandler {
                     public RestResponse buildResponse(GetApiKeyResponse getApiKeyResponse, XContentBuilder builder) throws Exception {
                         getApiKeyResponse.toXContent(builder, channel.request());
 
-                        // return HTTP status 404 if no API key found
-                        if (getApiKeyResponse.getApiKeyInfos().length == 0) {
+                        // return HTTP status 404 if no API key found for API key id
+                        if (Strings.hasText(apiKeyId) && getApiKeyResponse.getApiKeyInfos().length == 0) {
                             return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
                         }
                         return new BytesRestResponse(RestStatus.OK, builder);

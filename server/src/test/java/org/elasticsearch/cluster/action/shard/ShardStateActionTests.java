@@ -544,7 +544,7 @@ public class ShardStateActionTests extends ESTestCase {
             final StartedShardEntry deserialized = new StartedShardEntry(in);
             assertThat(deserialized.shardId, equalTo(shardId));
             assertThat(deserialized.allocationId, equalTo(allocationId));
-            if (version.onOrAfter(Version.V_7_0_0)) {  // TODO update version to 6.7.0 after backport
+            if (version.onOrAfter(Version.V_6_7_0)) {
                 assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             } else {
                 assertThat(deserialized.primaryTerm, equalTo(0L));

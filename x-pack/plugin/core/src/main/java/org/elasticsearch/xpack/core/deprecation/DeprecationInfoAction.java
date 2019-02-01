@@ -72,8 +72,9 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
         return issueListMap.entrySet().stream()
             .map(entry -> {
                 DeprecationIssue issue = entry.getKey();
+                String details = issue.getDetails() != null ? issue.getDetails() + " " : "";
                 return new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(),
-                    issue.getDetails() + " (nodes impacted: " + entry.getValue() + ")");
+                    details + "(nodes impacted: " + entry.getValue() + ")");
             }).collect(Collectors.toList());
     }
 

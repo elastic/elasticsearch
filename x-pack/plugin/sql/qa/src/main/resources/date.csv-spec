@@ -2,6 +2,73 @@
 // Date
 //
 
+currentDateKeywordWithDivision
+SELECT YEAR(CURRENT_TIMESTAMP) / 1000 AS result;
+
+    result
+---------------
+2
+;
+
+currentDateFunctionNoArgsWithDivision
+SELECT YEAR(CURRENT_TIMESTAMP()) / 1000 AS result;
+
+    result
+---------------
+2
+;
+
+todayWithDivision
+SELECT YEAR(TODAY()) / 1000 AS result;
+
+    result
+---------------
+2
+;
+
+todayIntervalSubstraction
+SELECT YEAR(TODAY() - INTERVAL 2 YEARS) / 1000 AS result;
+
+    result
+---------------
+2
+;
+
+
+currentDateFilter
+SELECT first_name FROM test_emp WHERE hire_date > CURRENT_DATE() - INTERVAL 25 YEARS ORDER BY first_name ASC LIMIT 10;
+
+    first_name
+-----------------
+Kazuhito
+Kenroku
+Lillian
+Mayumi
+Mingsen
+Sailaja
+Saniya
+Shahaf
+Suzette
+Tuval
+;
+
+currentDateFilterScript
+SELECT first_name FROM test_emp WHERE YEAR(hire_date) - YEAR(TODAY()) / 1000 > 10 ORDER BY first_name ASC LIMIT 10;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+Basil
+Berhard
+Berni
+Bezalel
+Bojan
+;
+
 dateExtractDateParts
 SELECT
 DAY(CAST(birth_date AS DATE)) d,

@@ -215,6 +215,7 @@ valueExpression
 primaryExpression
     : castExpression                                                                 #cast
     | extractExpression                                                              #extract
+    | builtinDateFunction                                                            #currentDateFunction
     | builtinDateTimeFunction                                                        #currentDateTimeFunction
     | constant                                                                       #constantDefault
     | (qualifiedName DOT)? ASTERISK                                                  #star
@@ -233,6 +234,10 @@ castExpression
     
 castTemplate
     : CAST '(' expression AS dataType ')'
+    ;
+
+builtinDateFunction
+    : name=CURRENT_DATE ('(' ')')?
     ;
 
 builtinDateTimeFunction
@@ -337,7 +342,7 @@ string
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS | CURRENT 
+    | CATALOGS | COLUMNS
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
     | FIRST | FORMAT | FULL | FUNCTIONS
@@ -370,7 +375,7 @@ CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
 CONVERT: 'CONVERT';
-CURRENT: 'CURRENT';
+CURRENT_DATE : 'CURRENT_DATE';
 CURRENT_TIMESTAMP : 'CURRENT_TIMESTAMP';
 DAY: 'DAY';
 DAYS: 'DAYS';

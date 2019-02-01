@@ -93,6 +93,48 @@ include-tagged::{sql-specs}/docs.csv-spec[dtIntervalMul]
 
 beta[]
 
+[[sql-functions-current-date]]
+==== `CURRENT_TIMESTAMP/CURDATE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+CURRENT_DATE
+CURRENT_DATE()
+--------------------------------------------------
+
+*Input*: _none_
+
+*Output*: date
+
+.Description:
+
+Returns the date (no time part) when the current query reached the server.
+It can be used both as a keyword: `CURRENT_DATE` or as a function with no arguments: `CURRENT_DATE()`.
+
+[NOTE]
+Unlike CURRENT_DATE, `CURDATE()` can only be used as a function with no arguments and not as a keyword.
+
+This method always returns the same value within a query.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[curDate]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[curDateFunction]
+--------------------------------------------------
+
+Typically, this function (as well as its twin <<sql-functions-today,TODAY())>> function
+is used for relative date filtering:
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[filterToday]
+--------------------------------------------------
+
 [[sql-functions-current-timestamp]]
 ==== `CURRENT_TIMESTAMP`
 
@@ -483,6 +525,37 @@ Extract the year quarter the date/datetime falls in.
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[quarter]
+--------------------------------------------------
+
+[[sql-functions-today]]
+==== `TODAY`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+TODAY()
+--------------------------------------------------
+
+*Input*: _none_
+
+*Output*: date
+
+.Description:
+
+This function offers the same functionality as <<sql-functions-current-date,CURRENT_DATE()>> function: returns
+the date when the current query reached the server. This method always returns the same value within a query.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[todayFunction]
+--------------------------------------------------
+
+Typically, this function (as well as its twin <<sql-functions-current-timestamp,CURRENT_TIMESTAMP())>> function is used
+for relative date filtering:
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[filterToday]
 --------------------------------------------------
 
 [[sql-functions-datetime-week]]

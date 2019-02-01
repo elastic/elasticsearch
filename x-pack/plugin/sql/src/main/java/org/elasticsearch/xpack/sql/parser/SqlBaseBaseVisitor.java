@@ -388,6 +388,13 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitCurrentDateFunction(SqlBaseParser.CurrentDateFunctionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -445,6 +452,13 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitCastTemplate(SqlBaseParser.CastTemplateContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitBuiltinDateFunction(SqlBaseParser.BuiltinDateFunctionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

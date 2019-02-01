@@ -338,6 +338,22 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:13: Invalid data type [INVALID] provided", ex.getMessage());
     }
 
+    public void testCurrentDate() {
+        Expression expr = parser.createExpression("CURRENT_DATE");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_DATE", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentDateWithParentheses() {
+        Expression expr = parser.createExpression("CURRENT_DATE(  )");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_DATE(  )", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
     public void testCurrentTimestamp() {
         Expression expr = parser.createExpression("CURRENT_TIMESTAMP");
         assertEquals(UnresolvedFunction.class, expr.getClass());

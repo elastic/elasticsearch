@@ -270,13 +270,12 @@ public class RestClient implements Closeable {
         HttpRequestBase httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity());
         setHeaders(httpRequest, request.getOptions().getHeaders());
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(listener);
-        long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextNode(), httpRequest, ignoreErrorCodes,
+        performRequestAsync(nextNode(), httpRequest, ignoreErrorCodes,
                 request.getOptions().getWarningsHandler() == null ? warningsHandler : request.getOptions().getWarningsHandler(),
                 request.getOptions().getHttpAsyncResponseConsumerFactory(), failureTrackingResponseListener);
     }
 
-    private void performRequestAsync(final long startTime, final NodeTuple<Iterator<Node>> nodeTuple, final HttpRequestBase request,
+    private void performRequestAsync(final NodeTuple<Iterator<Node>> nodeTuple, final HttpRequestBase request,
                                      final Set<Integer> ignoreErrorCodes,
                                      final WarningsHandler thisWarningsHandler,
                                      final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
@@ -334,7 +333,7 @@ public class RestClient implements Closeable {
                 if (nodeTuple.nodes.hasNext()) {
                     listener.trackFailure(exception);
                     request.reset();
-                    performRequestAsync(startTime, nodeTuple, request, ignoreErrorCodes,
+                    performRequestAsync(nodeTuple, request, ignoreErrorCodes,
                         thisWarningsHandler, httpAsyncResponseConsumerFactory, listener);
                 } else {
                     listener.onDefinitiveFailure(exception);

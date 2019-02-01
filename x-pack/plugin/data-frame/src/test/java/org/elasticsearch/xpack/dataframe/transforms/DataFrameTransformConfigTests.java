@@ -22,6 +22,15 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
                 randomAlphaOfLengthBetween(1, 10), QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
     }
 
+    public static DataFrameTransformConfig randomInvalidDataFrameTransformConfig() {
+        if (randomBoolean()) {
+            return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
+                    randomAlphaOfLengthBetween(1, 10), QueryConfigTests.randomInvalidQueryConfig(), PivotConfigTests.randomPivotConfig());
+        } // else
+        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
+                randomAlphaOfLengthBetween(1, 10), QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomInvalidPivotConfig());
+    }
+
     @Before
     public void setUpOptionalId() {
         transformId = randomAlphaOfLengthBetween(1, 10);

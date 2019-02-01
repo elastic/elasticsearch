@@ -95,7 +95,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
         return Objects.hash(destinationFieldName, groupType, groupSource);
     }
 
-    public static GroupConfig fromXContent(final XContentParser parser, boolean ignoreUnknownFields) throws IOException {
+    public static GroupConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         String destinationFieldName;
         Type groupType;
         SingleGroupSource<?> groupSource;
@@ -124,7 +124,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
         switch (groupType) {
             case TERMS:
-                groupSource = TermsGroupSource.fromXContent(parser, ignoreUnknownFields);
+                groupSource = TermsGroupSource.fromXContent(parser, lenient);
                 break;
             default:
                 throw new ParsingException(parser.getTokenLocation(), "invalid grouping type: " + groupType);

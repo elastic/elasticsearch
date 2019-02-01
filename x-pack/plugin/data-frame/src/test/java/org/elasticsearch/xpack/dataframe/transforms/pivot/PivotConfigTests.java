@@ -26,6 +26,16 @@ public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<Pivot
         return new PivotConfig(groups, AggregationConfigTests.randomAggregationConfig());
     }
 
+    public static PivotConfig randomInvalidPivotConfig() {
+        List<GroupConfig> groups = new ArrayList<>();
+
+        for (int i = 0; i < randomIntBetween(1, 10); ++i) {
+            groups.add(GroupConfigTests.randomGroupConfig());
+        }
+
+        return new PivotConfig(groups, AggregationConfigTests.randomInvalidAggregationConfig());
+    }
+
     @Override
     protected PivotConfig doParseInstance(XContentParser parser) throws IOException {
         return PivotConfig.fromXContent(parser, false);

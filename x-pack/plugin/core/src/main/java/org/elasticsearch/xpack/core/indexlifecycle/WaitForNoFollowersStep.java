@@ -57,7 +57,7 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
             boolean isCurrentlyLeaderIndex = Arrays.stream(indexStats.getShards())
                 .map(ShardStats::getRetentionLeaseStats)
-                .flatMap(retentionLeaseStats -> retentionLeaseStats.leases().stream())
+                .flatMap(retentionLeaseStats -> retentionLeaseStats.retentionLeases().leases().stream())
                 .anyMatch(lease -> CCR_LEASE_KEY.equals(lease.source()));
 
             if (isCurrentlyLeaderIndex) {

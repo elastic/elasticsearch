@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.mockito.Mockito;
@@ -222,7 +223,8 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             leases.add(new RetentionLease(randomAlphaOfLength(5), randomNonNegativeLong(), randomNonNegativeLong(),
                 isLeaderIndex ? CCR_LEASE_KEY : randomAlphaOfLength(5)));
         }
-        return new RetentionLeaseStats(leases);
+        return new RetentionLeaseStats(
+                new RetentionLeases(randomLongBetween(1, Long.MAX_VALUE), randomLongBetween(1, Long.MAX_VALUE), leases));
     }
 
     private ShardPath mockShardPath() {

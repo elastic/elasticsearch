@@ -33,7 +33,7 @@ include-tagged::{doc-tests-file}[get-api-key-id-request]
 include-tagged::{doc-tests-file}[get-api-key-name-request]
 --------------------------------------------------
 
-===== All API keys for realm
+===== Retrieve all API keys for given realm
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[get-realm-api-keys-request]

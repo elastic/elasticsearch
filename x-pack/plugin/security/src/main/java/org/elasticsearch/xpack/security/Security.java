@@ -447,8 +447,11 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
                 new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)));
         } else {
-            requestInterceptors = Collections.emptySet();
+            requestInterceptors = Collections.unmodifiableSet(Sets.newHashSet(
+                new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
+                new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)));
         }
+
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
             auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine(), requestInterceptors);
 

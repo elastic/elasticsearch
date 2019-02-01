@@ -26,8 +26,6 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
@@ -106,15 +104,11 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isAuditingAllowed()).thenReturn(true);
-        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
+        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(randomBoolean());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),
                 new RealmRef(null, null, null));
-        Role role = Role.builder()
-                .add(IndexPrivilege.ALL, "alias")
-                .add(IndexPrivilege.READ, "index")
-                .build();
         final String action = IndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);

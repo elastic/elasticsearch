@@ -141,34 +141,43 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public SearchAsYouTypeFieldMapper build(Mapper.BuilderContext context) {
             setupFieldType(context);
 
-            final NamedAnalyzer analyzer = fieldType().indexAnalyzer();
-            final NamedAnalyzer searchAnalyzer = fieldType().searchAnalyzer() == null ? analyzer : fieldType().searchAnalyzer();
+            final NamedAnalyzer indexAnalyzer = fieldType().indexAnalyzer();
+            final NamedAnalyzer searchAnalyzer = fieldType().searchAnalyzer();
+            final NamedAnalyzer searchQuoteAnalyzer = fieldType().searchQuoteAnalyzer();
 
-            // Setup the prefix field
-            String prefixFieldName = name() + PREFIX_FIELD_SUFFIX;
-            PrefixFieldType prefixFieldType = new PrefixFieldType(name(), prefixFieldName, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
+            // set up the prefix field
+            final String prefixFieldName = name() + PREFIX_FIELD_SUFFIX;
+            final PrefixFieldType prefixFieldType = new PrefixFieldType(name(), prefixFieldName, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
             prefixFieldType.setIndexOptions(fieldType().indexOptions());
-            // we wrap the index analyzer with shingle and edge-ngram
-            SearchAsYouTypeAnalyzer indexWrapper = SearchAsYouTypeAnalyzer.withShingleAndPrefix(analyzer.analyzer(), maxShingleSize);
-            // the search analyzer is wrapped with shingle only
-            SearchAsYouTypeAnalyzer searchWrapper = SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), maxShingleSize);
-            prefixFieldType.setIndexAnalyzer(new NamedAnalyzer(analyzer.name(), AnalyzerScope.INDEX, indexWrapper));
-            prefixFieldType.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX, searchWrapper));
-            PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixFieldType, context.indexSettings());
+            // wrap the root field's index analyzer with shingles and edge ngrams
+            final SearchAsYouTypeAnalyzer prefixIndexWrapper =
+                SearchAsYouTypeAnalyzer.withShingleAndPrefix(indexAnalyzer.analyzer(), maxShingleSize);
+            // wrap the root field's search analyzer with only shingles
+            final SearchAsYouTypeAnalyzer prefixSearchWrapper =
+                SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), maxShingleSize);
+            // don't wrap the root field's search quote analyzer as prefix field doesn't support phrase queries
+            prefixFieldType.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper));
+            prefixFieldType.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX, prefixSearchWrapper));
+            final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixFieldType, context.indexSettings());
 
-            // Setup the shingle fields
-            ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[maxShingleSize-1];
-            ShingleFieldType[] shingleFieldTypes = new ShingleFieldType[maxShingleSize-1];
+            // set up the shingle fields
+            final ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[maxShingleSize - 1];
+            final ShingleFieldType[] shingleFieldTypes = new ShingleFieldType[maxShingleSize - 1];
             for (int i = 0; i < shingleFieldMappers.length; i++) {
-                int shingleSize = i + 2;
-                ShingleFieldType shingleFieldType = new ShingleFieldType(fieldType(), shingleSize);
+                final int shingleSize = i + 2;
+                final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldType(), shingleSize);
                 shingleFieldType.setName(getShingleFieldName(name(), shingleSize));
-                // we wrap the search and index analyzer with a shingle filter
-                indexWrapper = SearchAsYouTypeAnalyzer.withShingle(analyzer.analyzer(), shingleSize);
-                searchWrapper = SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), shingleSize);
-                shingleFieldType.setIndexAnalyzer(new NamedAnalyzer(analyzer.name(), AnalyzerScope.INDEX, indexWrapper));
-                shingleFieldType.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX, searchWrapper));
-                shingleFieldType.setSearchQuoteAnalyzer(shingleFieldType.searchAnalyzer());
+                // wrap the root field's index, search, and search quote analyzers with shingles
+                final SearchAsYouTypeAnalyzer shingleIndexWrapper =
+                    SearchAsYouTypeAnalyzer.withShingle(indexAnalyzer.analyzer(), shingleSize);
+                final SearchAsYouTypeAnalyzer shingleSearchWrapper =
+                    SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), shingleSize);
+                final SearchAsYouTypeAnalyzer shingleSearchQuoteWrapper =
+                    SearchAsYouTypeAnalyzer.withShingle(searchQuoteAnalyzer.analyzer(), shingleSize);
+                shingleFieldType.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper));
+                shingleFieldType.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX, shingleSearchWrapper));
+                shingleFieldType.setSearchQuoteAnalyzer(
+                    new NamedAnalyzer(searchQuoteAnalyzer.name(), AnalyzerScope.INDEX, shingleSearchQuoteWrapper));
                 shingleFieldType.setPrefixFieldType(prefixFieldType);
                 shingleFieldTypes[i] = shingleFieldType;
                 shingleFieldMappers[i] = new ShingleFieldMapper(shingleFieldType, context.indexSettings());

@@ -1627,8 +1627,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
         assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
         assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
-        assertThat(extractValue("my-template.mappings.properties.host_name.type", templates), equalTo("keyword"));
-        assertThat(extractValue("my-template.mappings.properties.description.type", templates), equalTo("text"));
+        assertThat(extractValue("my-template.mappings.my_doc_type.properties.host_name.type", templates), equalTo("keyword"));
+        assertThat(extractValue("my-template.mappings.my_doc_type.properties.description.type", templates), equalTo("text"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
         assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
     }    
@@ -1728,8 +1728,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         //Check the typed version of the call  
         org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse getTemplate2 = 
             execute(new GetIndexTemplatesRequest("template-2"),
-                client.indices()::getTemplate, client.indices()::getTemplateAsync, 
-                expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
+                client.indices()::getTemplate, client.indices()::getTemplateAsync);
         assertThat(getTemplate2.getIndexTemplates(), hasSize(1));
         org.elasticsearch.cluster.metadata.IndexTemplateMetaData template2 = getTemplate2.getIndexTemplates().get(0);
         assertThat(template2.name(), equalTo("template-2"));

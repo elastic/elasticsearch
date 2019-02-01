@@ -66,6 +66,20 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIn
 import static org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType.hasGaps;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
+/**
+ * Mapper for a text field that optimizes itself for as-you-type completion by indexing its content into subfields. Each subfield
+ * modifies the analysis chain of the root field to index terms the user would create as they type out the value in the root field
+ *
+ * The structure of these fields is
+ *
+ * <pre>
+ *     [ SearchAsYouTypeFieldMapper, SearchAsYouTypeFieldType, unmodified analysis ]
+ *     ├── [ ShingleFieldMapper, ShingleFieldType, analysis wrapped with 2-shingles ]
+ *     ├── ...
+ *     ├── [ ShingleFieldMapper, ShingleFieldType, analysis wrapped with max_shingle_size-shingles ]
+ *     └── [ PrefixFieldMapper, PrefixFieldType, analysis wrapped with max_shingle_size-shingles and edge-ngrams ]
+ * </pre>
+ */
 public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "search_as_you_type";
@@ -202,6 +216,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         return positionCount;
     }
 
+    /**
+     * The root field type, which most queries should target as it will delegate queries to subfields better optimized for the query. When
+     * handling phrase queries, it analyzes the query text to find the appropriate sized shingle subfield to delegate to. When handling
+     * prefix or phrase prefix queries, it delegates to the prefix subfield
+     */
     static class SearchAsYouTypeFieldType extends StringFieldType {
 
         PrefixFieldType prefixField;
@@ -360,6 +379,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
     }
 
+    /**
+     * The prefix field type handles prefix and phrase prefix queries that are delegated to it by the other field types in a
+     * search_as_you_type structure
+     */
     static final class PrefixFieldType extends StringFieldType {
 
         final int minChars;
@@ -497,6 +520,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
     }
 
+    /**
+     * The shingle field type handles phrase queries and delegates prefix and phrase prefix queries to the prefix field
+     */
     static class ShingleFieldType extends StringFieldType {
         final int shingleSize;
         PrefixFieldType prefixFieldType;
@@ -714,6 +740,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         return concat;
     }
 
+    /**
+     * An analyzer wrapper to add a shingle token filter, an edge ngram token filter or both to its wrapped analyzer. When adding an edge
+     * ngrams token filter, it also adds a {@link TrailingShingleTokenFilter} to add extra position increments at the end of the stream
+     * to induce the shingle token filter to create tokens at the end of the stream smaller than the shingle size
+     */
     static class SearchAsYouTypeAnalyzer extends AnalyzerWrapper {
 
         private final Analyzer delegate;
@@ -725,7 +756,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                                         boolean indexPrefixes) {
 
             super(delegate.getReuseStrategy());
-            this.delegate = delegate;
+            this.delegate = Objects.requireNonNull(delegate);
             this.shingleSize = shingleSize;
             this.indexPrefixes = indexPrefixes;
         }
@@ -771,12 +802,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private static class TrailingShingleTokenFilter extends TokenFilter {
 
-            private final int numberOfExtraTrailingPositions;
+            private final int extraPositionIncrements;
             private final PositionIncrementAttribute positionIncrementAttribute;
 
-            TrailingShingleTokenFilter(TokenStream input, int numberOfExtraTrailingPositions) {
+            TrailingShingleTokenFilter(TokenStream input, int extraPositionIncrements) {
                 super(input);
-                this.numberOfExtraTrailingPositions = numberOfExtraTrailingPositions;
+                this.extraPositionIncrements = extraPositionIncrements;
                 this.positionIncrementAttribute = addAttribute(PositionIncrementAttribute.class);
             }
 
@@ -788,7 +819,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             @Override
             public void end() throws IOException {
                 super.end();
-                positionIncrementAttribute.setPositionIncrement(numberOfExtraTrailingPositions);
+                positionIncrementAttribute.setPositionIncrement(extraPositionIncrements);
             }
         }
     }

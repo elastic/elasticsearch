@@ -54,7 +54,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             ".tasks index must be re-created",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html" +
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#_indices_created_before_7_0",
             "The .tasks index was created before version 6.0 and cannot be opened in 7.0. " +
                 "You must delete this index and allow it to be re-created by Elasticsearch. If you wish to preserve task history, " +

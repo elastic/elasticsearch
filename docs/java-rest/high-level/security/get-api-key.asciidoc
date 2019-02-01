@@ -27,7 +27,7 @@ The +{request}+ supports retrieving API key information of
 include-tagged::{doc-tests-file}[get-api-key-id-request]
 --------------------------------------------------
 
-===== Specific API key by API key name
+===== Retrieve a specific API key by its name
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[get-api-key-name-request]

@@ -467,6 +467,11 @@ final class StoreRecovery {
             store.bootstrapNewHistory();
             final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
             final long maxSeqNo = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.MAX_SEQ_NO));
+            final long localCheckpoint =  Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            if (maxSeqNo != localCheckpoint) {
+                int i = 0;
+            }
+            logger.error("FUCK: " + localCheckpoint);
             final String translogUUID = Translog.createEmptyTranslog(
                 indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId, indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);

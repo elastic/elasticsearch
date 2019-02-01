@@ -224,12 +224,11 @@ public class OpenIdConnectAuthenticator {
             } else {
                 claimsListener.onResponse(verifiedIdTokenClaims);
             }
-        } catch (com.nimbusds.oauth2.sdk.ParseException | JOSEException | BadJOSEException e) {
+        } catch (BadJOSEException e) {
             // We only try to update the cached JWK set once if a remote source is used and
             // RSA or ECDSA is used for signatures
             if (shouldRetry
                 && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
-                && e instanceof BadJOSEException
                 && "Signed JWT rejected: Another algorithm expected, or no matching key(s) found".equals(e.getMessage())
                 && opConfig.getJwkSetPath().startsWith("https://")) {
                 ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.getJWSKeySelector()).getJWKSource())
@@ -242,6 +241,8 @@ public class OpenIdConnectAuthenticator {
             } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
+        } catch (com.nimbusds.oauth2.sdk.ParseException | JOSEException e) {
+            claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
         }
     }
 
@@ -634,7 +635,7 @@ public class OpenIdConnectAuthenticator {
      */
     class ReloadableJWKSource<C extends SecurityContext> implements JWKSource<C> {
 
-        private volatile JWKSet cachedJwkSet = null;
+        private volatile JWKSet cachedJwkSet = new JWKSet();
         private final AtomicReference<ListenableFuture<Void>> reloadFutureRef = new AtomicReference<>();
         private final URL jwkSetPath;
 

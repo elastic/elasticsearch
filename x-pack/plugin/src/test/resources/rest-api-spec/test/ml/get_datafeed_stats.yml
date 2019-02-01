@@ -11,10 +11,9 @@ setup:
             index:
               number_of_replicas: 1
           mappings:
-            type-1:
-              properties:
-                time:
-                  type: date
+            properties:
+              time:
+                type: date
 
   - do:
       headers:
@@ -26,10 +25,9 @@ setup:
             index:
               number_of_replicas: 1
           mappings:
-            type-2:
-              properties:
-                time:
-                  type: date
+            properties:
+              time:
+                type: date
 
   - do:
       headers:

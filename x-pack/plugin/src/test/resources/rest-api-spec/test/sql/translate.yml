@@ -1,9 +1,8 @@
 ---
 "Translate SQL":
   - skip:
-      version: " - 6.3.99"
-      reason: format option was added in 6.4
-      features: warnings
+      version: " - 6.99.99"
+      reason: Triggers warnings before 7.0
 
   - do:
       bulk:
@@ -29,7 +28,6 @@
           excludes: []
         docvalue_fields:
           - field: int
-            format: use_field_mapping
         sort:
           - int:
               order: asc

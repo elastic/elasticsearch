@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -64,10 +65,11 @@ import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
-import org.elasticsearch.xpack.ccr.index.engine.FollowingEngine;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
@@ -119,7 +121,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
         stopClusters();
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(ESIntegTestCase.TestSeedPlugin.class,
-            TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class, getTestTransportPlugin());
+            TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class, MockTransportService.TestPlugin.class,
+            MockNioTransportPlugin.class);
 
         InternalTestCluster leaderCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
             numberOfNodesPerCluster(), UUIDs.randomBase64UUID(random()), createNodeConfigurationSource(null), 0, "leader", mockPlugins,
@@ -277,8 +280,13 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected final ClusterHealthStatus ensureFollowerGreen(String... indices) {
+        return ensureFollowerGreen(false, indices);
+    }
+
+    protected final ClusterHealthStatus ensureFollowerGreen(boolean waitForNoInitializingShards, String... indices) {
         logger.info("ensure green follower indices {}", Arrays.toString(indices));
-        return ensureColor(clusterGroup.followerCluster, ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(30), false, indices);
+        return ensureColor(clusterGroup.followerCluster, ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(30),
+            waitForNoInitializingShards, indices);
     }
 
     private ClusterHealthStatus ensureColor(TestCluster testCluster,
@@ -411,10 +419,15 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex) {
+        return putFollow(leaderIndex, followerIndex, ActiveShardCount.ONE);
+    }
+
+    public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex, ActiveShardCount waitForActiveShards) {
         PutFollowAction.Request request = new PutFollowAction.Request();
         request.setRemoteCluster("leader_cluster");
         request.setLeaderIndex(leaderIndex);
         request.setFollowRequest(resumeFollow(followerIndex));
+        request.waitForActiveShards(waitForActiveShards);
         return request;
     }
 
@@ -431,6 +444,13 @@ public abstract class CcrIntegTestCase extends ESTestCase {
      * on the follower equal the leader's; then verifies the existing pairs of (docId, seqNo) on the follower also equal the leader.
      */
     protected void assertIndexFullyReplicatedToFollower(String leaderIndex, String followerIndex) throws Exception {
+        logger.info("--> asserting <<docId,seqNo>> between {} and {}", leaderIndex, followerIndex);
+        assertBusy(() -> {
+            Map<Integer, List<DocIdSeqNoAndTerm>> docsOnFollower = getDocIdAndSeqNos(clusterGroup.followerCluster, followerIndex);
+            logger.info("--> docs on the follower {}", docsOnFollower);
+            assertThat(docsOnFollower, equalTo(getDocIdAndSeqNos(clusterGroup.leaderCluster, leaderIndex)));
+        }, 120, TimeUnit.SECONDS);
+
         logger.info("--> asserting seq_no_stats between {} and {}", leaderIndex, followerIndex);
         assertBusy(() -> {
             Map<Integer, SeqNoStats> leaderStats = new HashMap<>();
@@ -447,13 +467,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 }
                 followerStats.put(shardStat.getShardRouting().shardId().id(), shardStat.getSeqNoStats());
             }
-            assertThat(leaderStats, equalTo(followerStats));
-        }, 60, TimeUnit.SECONDS);
-        logger.info("--> asserting <<docId,seqNo>> between {} and {}", leaderIndex, followerIndex);
-        assertBusy(() -> {
-            assertThat(getDocIdAndSeqNos(clusterGroup.leaderCluster, leaderIndex),
-                equalTo(getDocIdAndSeqNos(clusterGroup.followerCluster, followerIndex)));
-        }, 60, TimeUnit.SECONDS);
+            assertThat(followerStats, equalTo(leaderStats));
+        }, 120, TimeUnit.SECONDS);
     }
 
     private Map<Integer, List<DocIdSeqNoAndTerm>> getDocIdAndSeqNos(InternalTestCluster cluster, String index) throws IOException {
@@ -474,14 +489,15 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         return docs;
     }
 
-    protected void atLeastDocsIndexed(Client client, String index, long numDocsReplicated) throws InterruptedException {
+    protected void atLeastDocsIndexed(Client client, String index, long numDocsReplicated) throws Exception {
         logger.info("waiting for at least [{}] documents to be indexed into index [{}]", numDocsReplicated, index);
-        awaitBusy(() -> {
+        assertBusy(() -> {
             refresh(client, index);
             SearchRequest request = new SearchRequest(index);
             request.source(new SearchSourceBuilder().size(0));
             SearchResponse response = client.search(request).actionGet();
-            return response.getHits().getTotalHits().value >= numDocsReplicated;
+            assertNotNull(response.getHits().getTotalHits());
+            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(numDocsReplicated));
         }, 60, TimeUnit.SECONDS);
     }
 
@@ -534,27 +550,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     }
                 }
             }
-        });
-    }
-
-    protected void assertTotalNumberOfOptimizedIndexing(Index followerIndex, int numberOfShards, long expectedTotal) throws Exception {
-        assertBusy(() -> {
-            long[] numOfOptimizedOps = new long[numberOfShards];
-            for (int shardId = 0; shardId < numberOfShards; shardId++) {
-                for (String node : getFollowerCluster().nodesInclude(followerIndex.getName())) {
-                    IndicesService indicesService = getFollowerCluster().getInstance(IndicesService.class, node);
-                    IndexShard shard = indicesService.getShardOrNull(new ShardId(followerIndex, shardId));
-                    if (shard != null && shard.routingEntry().primary()) {
-                        try {
-                            FollowingEngine engine = ((FollowingEngine) IndexShardTestCase.getEngine(shard));
-                            numOfOptimizedOps[shardId] = engine.getNumberOfOptimizedIndexing();
-                        } catch (AlreadyClosedException e) {
-                            throw new AssertionError(e); // causes assertBusy to retry
-                        }
-                    }
-                }
-            }
-            assertThat(Arrays.stream(numOfOptimizedOps).sum(), equalTo(expectedTotal));
         });
     }
 

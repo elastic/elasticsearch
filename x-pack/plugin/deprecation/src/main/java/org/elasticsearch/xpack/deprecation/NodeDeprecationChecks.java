@@ -27,7 +27,7 @@ public class NodeDeprecationChecks {
                 "HTTP Enabled setting removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#remove-http-enabled",
-                "nodes with http.enabled set: ");
+                "the HTTP Enabled setting has been removed");
         }
         return null;
     }
@@ -38,7 +38,7 @@ public class NodeDeprecationChecks {
                 "Audit log node info settings renamed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#audit-logfile-local-node-info",
-                "nodes with audit log settings that have been renamed: ");
+                "the audit log is now structured JSON");
         }
         return null;
     }
@@ -51,7 +51,7 @@ public class NodeDeprecationChecks {
                 "Audit index output type removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#remove-audit-index-output",
-                "nodes with audit index output type settings: ");
+                "recommended replacement is the logfile audit output type");
         }
         return null;
     }
@@ -62,7 +62,7 @@ public class NodeDeprecationChecks {
                 "Index thread pool removed in favor of combined write thread pool",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_index_thread_pool",
-                "nodes with index thread pool settings: ");
+                "the write threadpool is now used for all writes");
         }
         return null;
     }
@@ -73,7 +73,7 @@ public class NodeDeprecationChecks {
                 "Bulk thread pool renamed to write thread pool",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#write-thread-pool-fallback",
-                "nodes with bulk thread pool settings: ");
+                "the write threadpool is now used for all writes");
         }
         return null;
     }
@@ -84,7 +84,7 @@ public class NodeDeprecationChecks {
                 "Tribe Node removed in favor of Cross Cluster Search",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_tribe_node_removed",
-                "nodes with tribe node settings: ");
+                "tribe node functionality has been removed in favor of cross-cluster search");
         }
         return null;
     }
@@ -95,7 +95,7 @@ public class NodeDeprecationChecks {
                 "Security realm settings structure changed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#include-realm-type-in-setting",
-                "nodes have authentication realm configuration which must be updated at time of upgrade to 7.0: ");
+                "these settings must be updated to the new format while the node is offline during the upgrade to 7.0");
         }
         return null;
     }
@@ -106,7 +106,7 @@ public class NodeDeprecationChecks {
                 "HTTP pipelining setting removed as pipelining is now mandatory",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#remove-http-pipelining-setting",
-                "nodes with http.pipelining set: ");
+                "");
         }
         return null;
     }
@@ -122,7 +122,7 @@ public class NodeDeprecationChecks {
                 "Discovery configuration is required in production mode",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_discovery_configuration_is_required_in_production",
-                "nodes which do not have discovery configured: ");
+                "");
         }
         return null;
     }
@@ -139,7 +139,7 @@ public class NodeDeprecationChecks {
                 "Watcher notification accounts' authentication settings must be defined securely",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#watcher-notifications-account-settings",
-                "nodes which have insecure notification account settings are: ");
+                "account authentication settings must use the keystore");
         }
         return null;
     }
@@ -150,7 +150,7 @@ public class NodeDeprecationChecks {
                 "Azure Repository settings changed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_azure_repository_plugin",
-                "nodes with repository-azure installed: ");
+                "see breaking changes list for details");
         }
         return null;
     }
@@ -162,7 +162,7 @@ public class NodeDeprecationChecks {
                 "GCS Repository settings changed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_google_cloud_storage_repository_plugin",
-                "nodes with repository-gcs installed: ");
+                "see breaking changes list for details");
         }
         return null;
     }
@@ -173,7 +173,8 @@ public class NodeDeprecationChecks {
                 "File-based discovery is no longer a plugin and uses a different path",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_file_based_discovery_plugin",
-                "nodes with discovery-file installed: ");
+                "the location of the hosts file used for file-based discovery has changed to $ES_PATH_CONF/unicast_hosts.txt " +
+                    "(from $ES_PATH_CONF/file-discovery/unicast_hosts.txt)");
         }
         return null;
     }
@@ -184,7 +185,7 @@ public class NodeDeprecationChecks {
                 "Default TLS/SSL settings have been removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#tls-setting-fallback",
-                "Nodes with default TLS/SSL settings: ");
+                "each component must have TLS/SSL configured explicitly");
         }
         return null;
     }

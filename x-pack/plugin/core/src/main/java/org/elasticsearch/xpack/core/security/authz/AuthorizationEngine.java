@@ -9,10 +9,16 @@ package org.elasticsearch.xpack.core.security.authz;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -160,6 +166,36 @@ public interface AuthorizationEngine {
      */
     void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                            Map<String, List<String>> indexNameToNewNames, ActionListener<AuthorizationResult> listener);
+
+    /**
+     * Checks the current user's privileges against those that being requested to check in the
+     * request. This provides a way for an application to ask if a user has permission to perform
+     * an action or if they have permissions to an application resource.
+     *
+     * @param authentication the authentication that is associated with this request
+     * @param authorizationInfo information needed from authorization that was previously retrieved
+     *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
+     * @param hasPrivilegesRequest the request that contains the privileges to check for the user
+     * @param applicationPrivilegeDescriptors a collection of application privilege descriptors
+     * @param listener the listener to be notified of the has privileges response
+     */
+    void checkPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo, HasPrivilegesRequest hasPrivilegesRequest,
+                         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
+                         ActionListener<HasPrivilegesResponse> listener);
+
+    /**
+     * Retrieve's the current user's privileges in a standard format that can be rendered via an
+     * API for an application to understand the privileges that the current user has.
+     *
+     * @param authentication the authentication that is associated with this request
+     * @param authorizationInfo information needed from authorization that was previously retrieved
+     *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
+     * @param request the request for retrieving the user's privileges
+     * @param listener the listener to be notified of the has privileges response
+     */
+    void getUserPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo, GetUserPrivilegesRequest request,
+                           ActionListener<GetUserPrivilegesResponse> listener);
+
     /**
      * Interface for objects that contains the information needed to authorize a request
      */

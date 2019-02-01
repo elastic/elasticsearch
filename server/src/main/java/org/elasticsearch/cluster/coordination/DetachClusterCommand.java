@@ -32,13 +32,14 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
 
     static final String NODE_DETACHED_MSG = "Node was successfully detached from the cluster";
     static final String CONFIRMATION_MSG =
-                    "-------------------------------------------------------------------------------\n" +
+                    DELIMITER +
                     "\n" +
-                    "You should run this tool only if you have permanently lost all\n" +
-                    "your master-eligible nodes, and you cannot restore the cluster\n" +
-                    "from a snapshot, or you have already run `elasticsearch-node unsafe-bootstrap`\n" +
+                    "You should run this tool only if you have permanently lost all your\n" +
+                    "master-eligible nodes and you cannot restore the cluster from\n" +
+                    "a snapshot or you have already run `elasticsearch-node unsafe-bootstrap`\n" +
                     "on a master-eligible node that formed a cluster with this node.\n" +
-                    "This tool can cause arbitrary data loss and its use should be your last resort.\n" +
+                    "This tool can cause arbitrary data loss and its use should be your last\n" +
+                    "resort.\n" +
                     "Do you want to proceed?\n";
 
     public DetachClusterCommand() {

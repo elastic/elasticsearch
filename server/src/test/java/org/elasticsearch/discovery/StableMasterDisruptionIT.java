@@ -117,7 +117,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
     public void testFollowerCheckerDetectsUnresponsiveNodeAfterMasterReelection() throws Exception {
         testFollowerCheckerAfterMasterReelection(new NetworkUnresponsive(), Settings.builder()
             .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-            .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "10")
+            .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "4")
             .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
             .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), 1).build());
     }

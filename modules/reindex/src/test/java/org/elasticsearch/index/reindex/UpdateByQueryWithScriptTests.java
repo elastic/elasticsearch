@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Date;
@@ -54,6 +55,6 @@ public class UpdateByQueryWithScriptTests
     @Override
     protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action(ScriptService scriptService, UpdateByQueryRequest request) {
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, scriptService,
-                null, listener());
+                ClusterState.EMPTY_STATE, listener());
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -91,9 +92,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
                     ActionListener.<GetResponse>wrap(response -> {
                         if (response.isExists()) {
-                            Watch watch =
-                                    watchParser.parse(request.getId(), true, response.getSourceAsBytesRef(), request.getXContentType());
-                            watch.version(response.getVersion());
+                            Watch watch = watchParser.parse(request.getId(), true, response.getSourceAsBytesRef(),
+                                request.getXContentType(), response.getSeqNo(), response.getPrimaryTerm());
                             watch.status().version(response.getVersion());
                             executeWatch(request, listener, watch, true);
                         } else {
@@ -104,7 +104,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             try {
                 assert !request.isRecordExecution();
                 Watch watch = watchParser.parse(ExecuteWatchRequest.INLINE_WATCH_ID, true, request.getWatchSource(),
-                request.getXContentType());
+                    request.getXContentType(), SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
                 executeWatch(request, listener, watch, false);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("failed to parse [{}]", request.getId()), e);

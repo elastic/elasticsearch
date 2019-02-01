@@ -328,11 +328,16 @@ public class MasterServiceTests extends ESTestCase {
                 MasterService.class.getCanonicalName(),
                 Level.DEBUG,
                 "*processing [test3]: took [3s] done publishing updated cluster state (version: *, uuid: *)"));
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "test4",
+                MasterService.class.getCanonicalName(),
+                Level.DEBUG,
+                "*processing [test4]: took [0s] no change in cluster state"));
 
         Logger clusterLogger = LogManager.getLogger(MasterService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
         try {
-            final CountDownLatch latch = new CountDownLatch(4);
             masterService.currentTimeOverride = System.nanoTime();
             masterService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
                 @Override
@@ -342,9 +347,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    latch.countDown();
-                }
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) { }
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -364,9 +367,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
-                    latch.countDown();
-                }
+                public void onFailure(String source, Exception e) { }
             });
             masterService.submitStateUpdateTask("test3", new ClusterStateUpdateTask() {
                 @Override
@@ -376,9 +377,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    latch.countDown();
-                }
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) { }
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -394,21 +393,18 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    latch.countDown();
-                }
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) { }
 
                 @Override
                 public void onFailure(String source, Exception e) {
                     fail();
                 }
             });
-            latch.await();
+            assertBusy(mockAppender::assertAllExpectationsMatched);
         } finally {
             Loggers.removeAppender(clusterLogger, mockAppender);
             mockAppender.stop();
         }
-        mockAppender.assertAllExpectationsMatched();
     }
 
     public void testClusterStateBatchedUpdates() throws BrokenBarrierException, InterruptedException {

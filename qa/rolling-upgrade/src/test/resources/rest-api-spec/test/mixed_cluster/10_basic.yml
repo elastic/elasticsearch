@@ -61,7 +61,6 @@
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field2: value
                 field3: value

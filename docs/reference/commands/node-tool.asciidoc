@@ -113,12 +113,14 @@ node_1$ ./bin/elasticsearch-node unsafe-bootstrap
 
 Current node cluster state (term, version) pair is (1, 12)
 
-You should run this tool only if you have permanently lost half
-or more of the master-eligible nodes, and you cannot restore the cluster
-from a snapshot. This tool can result in arbitrary data loss and
-should be the last resort.
+You should run this tool only if you have permanently lost half or more
+of the master-eligible nodes, and you cannot restore the cluster from
+a snapshot.
+This tool can cause arbitrary data loss and its use should be your last
+resort.
 If you have multiple survived master eligible nodes, consider running
-this tool on the node with the highest cluster state (term, version) pair.
+this tool on the node with the highest cluster state (term, version)
+pair.
 Do you want to proceed?
 
 Confirm [y/N] n
@@ -133,12 +135,14 @@ node_2$ ./bin/elasticsearch-node unsafe-bootstrap
 
 Current node cluster state (term, version) pair is (2, 3)
 
-You should run this tool only if you have permanently lost half
-or more of the master-eligible nodes, and you cannot restore the cluster
-from a snapshot. This tool can result in arbitrary data loss and
-should be the last resort.
+You should run this tool only if you have permanently lost half or more
+of the master-eligible nodes, and you cannot restore the cluster from
+a snapshot.
+This tool can cause arbitrary data loss and its use should be your last
+resort.
 If you have multiple survived master eligible nodes, consider running
-this tool on the node with the highest cluster state (term, version) pair.
+this tool on the node with the highest cluster state (term, version)
+pair.
 Do you want to proceed?
 
 Confirm [y/N] n
@@ -150,19 +154,19 @@ it's better to bootstrap using node 2.
 [source,txt]
 ----
 node_2$ ./bin/elasticsearch-node unsafe-bootstrap
---------------------------------------------------------------------------
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 
 Current node cluster state (term, version) pair is (2, 3)
---------------------------------------------------------------------------
 
-You should run this tool only if you have permanently lost half
-or more of the master-eligible nodes, and you cannot restore the cluster
-from a snapshot. This tool can result in arbitrary data loss and
-should be the last resort.
+You should run this tool only if you have permanently lost half or more
+of the master-eligible nodes, and you cannot restore the cluster from
+a snapshot.
+This tool can cause arbitrary data loss and its use should be your last
+resort.
 If you have multiple survived master eligible nodes, consider running
-this tool on the node with the highest cluster state (term, version) pair.
+this tool on the node with the highest cluster state (term, version)
+pair.
 Do you want to proceed?
 
 Confirm [y/N] y
@@ -171,6 +175,24 @@ Master node was successfully bootstrapped
 
 [float]
 === Detach cluster
-To be described
+Sample tool output
+
+[source, txt]
+----
+node_3$ ./bin/elasticsearch-node detach-cluster
+
+    WARNING: Elasticsearch MUST be stopped before running this tool.
+
+You should run this tool only if you have permanently lost all your
+master-eligible nodes and you cannot restore the cluster from
+a snapshot or you have already run `elasticsearch-node unsafe-bootstrap`
+on a master-eligible node that formed a cluster with this node.
+This tool can cause arbitrary data loss and its use should be your last
+resort.
+Do you want to proceed?
+
+Confirm [y/N] y
+Node was successfully detached from the cluster
+----
 
 

@@ -73,7 +73,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
             // Advances the global checkpoint and the local checkpoint of a safe commit
             globalCheckpoint.addAndGet(between(0, 1000));
             for (final AtomicLong retainingSequenceNumber : retainingSequenceNumbers) {
-                retainingSequenceNumber.set(randomLongBetween(retainingSequenceNumber.get(), globalCheckpoint.get()));
+                retainingSequenceNumber.set(randomLongBetween(retainingSequenceNumber.get(), Math.max(globalCheckpoint.get(), 0L)));
             }
             safeCommitCheckpoint = randomLongBetween(safeCommitCheckpoint, globalCheckpoint.get());
             policy.setLocalCheckpointOfSafeCommit(safeCommitCheckpoint);

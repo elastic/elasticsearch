@@ -700,3 +700,74 @@ setup:
   - is_false: aggregations.str_terms.buckets.1.key_as_string
 
   - match: { aggregations.str_terms.buckets.1.doc_count: 2 }
+
+---
+"Global ordinals are not loaded with the map execution hint":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  bug fixed in 7.0
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: 1
+        routing: 1
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: 2
+        routing: 1
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: 3
+        routing: 1
+        body: { "str": "bcd" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_1
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "map" } } } }
+
+  - match: { hits.total.value: 3}
+  - length: { aggregations.str_terms.buckets: 2 }
+
+  - do:
+      indices.stats:
+        index: test_1
+        metric: fielddata
+        fielddata_fields: str
+
+  - match: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
+
+  - do:
+      search:
+        index: test_1
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "global_ordinals" } } } }
+
+  - match: { hits.total.value: 3}
+  - length: { aggregations.str_terms.buckets: 2 }
+
+  - do:
+      indices.stats:
+        index: test_1
+        metric: fielddata
+        fielddata_fields: str
+
+  - gt: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
+
+
+
+
+

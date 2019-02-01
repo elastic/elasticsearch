@@ -627,7 +627,7 @@ public class InternalEngine extends Engine {
                     if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
                         get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term
                         )) {
-                        throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                        throw new VersionConflictEngineException(shardId, get.id(),
                             get.getIfSeqNo(), get.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
                     }
                     if (get.isReadFromTranslog()) {

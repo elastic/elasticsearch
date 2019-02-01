@@ -45,7 +45,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging("org.elasticsearch.xpack.ccr:TRACE")
+@TestLogging("org.elasticsearch.xpack.ccr:TRACE,org.elasticsearch.index.shard:DEBUG")
 public class FollowerFailOverIT extends CcrIntegTestCase {
 
     @Override

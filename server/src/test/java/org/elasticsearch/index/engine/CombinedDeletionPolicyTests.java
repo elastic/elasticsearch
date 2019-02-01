@@ -42,8 +42,8 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.doAnswer;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -219,7 +219,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
     public void testKeepSingleNoOpsCommits() throws Exception {
         final AtomicLong globalCheckpoint = new AtomicLong(randomLong());
         final UUID translogUUID = UUID.randomUUID();
-        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, 0, Collections::emptyList);
+        final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(globalCheckpoint::get, -1, 0, () -> RetentionLeases.EMPTY);
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(logger, translogPolicy, softDeletesPolicy, globalCheckpoint::get);
 

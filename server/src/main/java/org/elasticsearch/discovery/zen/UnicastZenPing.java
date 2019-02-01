@@ -304,9 +304,9 @@ public class UnicastZenPing implements ZenPing {
             }
         };
         threadPool.generic().execute(pingSender);
-        threadPool.schedule(TimeValue.timeValueMillis(scheduleDuration.millis() / 3), ThreadPool.Names.GENERIC, pingSender);
-        threadPool.schedule(TimeValue.timeValueMillis(scheduleDuration.millis() / 3 * 2), ThreadPool.Names.GENERIC, pingSender);
-        threadPool.schedule(scheduleDuration, ThreadPool.Names.GENERIC, new AbstractRunnable() {
+        threadPool.schedule(pingSender, TimeValue.timeValueMillis(scheduleDuration.millis() / 3), ThreadPool.Names.GENERIC);
+        threadPool.schedule(pingSender, TimeValue.timeValueMillis(scheduleDuration.millis() / 3 * 2), ThreadPool.Names.GENERIC);
+        threadPool.schedule(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
                 finishPingingRound(pingingRound);
@@ -316,7 +316,7 @@ public class UnicastZenPing implements ZenPing {
             public void onFailure(Exception e) {
                 logger.warn("unexpected error while finishing pinging round", e);
             }
-        });
+        }, scheduleDuration, ThreadPool.Names.GENERIC);
     }
 
     // for testing
@@ -557,8 +557,8 @@ public class UnicastZenPing implements ZenPing {
         temporalResponses.add(request.pingResponse);
         // add to any ongoing pinging
         activePingingRounds.values().forEach(p -> p.addPingResponseToCollection(request.pingResponse));
-        threadPool.schedule(TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME,
-            () -> temporalResponses.remove(request.pingResponse));
+        threadPool.schedule(() -> temporalResponses.remove(request.pingResponse),
+            TimeValue.timeValueMillis(request.timeout.millis() * 2), ThreadPool.Names.SAME);
 
         List<PingResponse> pingResponses = CollectionUtils.iterableAsArrayList(temporalResponses);
         pingResponses.add(createPingResponse(contextProvider.clusterState()));

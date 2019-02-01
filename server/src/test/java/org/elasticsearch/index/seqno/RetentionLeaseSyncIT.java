@@ -32,6 +32,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -70,8 +71,11 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            // simulate a peer-recovery which locks the soft-deletes policy on the primary.
+            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLockForPeerRecovery() : () -> {};
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
+            retentionLock.close();
 
             // check retention leases have been committed on the primary
             final Collection<RetentionLease> primaryCommittedRetentionLeases = RetentionLease.decodeRetentionLeases(

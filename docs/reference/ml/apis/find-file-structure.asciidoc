@@ -606,11 +606,11 @@ If the request does not encounter errors, you receive the following result:
     },
     "tpep_dropoff_datetime" : {
       "type" : "date",
-      "format" : "8yyyy-MM-dd HH:mm:ss"
+      "format" : "yyyy-MM-dd HH:mm:ss"
     },
     "tpep_pickup_datetime" : {
       "type" : "date",
-      "format" : "8yyyy-MM-dd HH:mm:ss"
+      "format" : "yyyy-MM-dd HH:mm:ss"
     },
     "trip_distance" : {
       "type" : "double"
@@ -624,7 +624,7 @@ If the request does not encounter errors, you receive the following result:
           "field" : "tpep_pickup_datetime",
           "timezone" : "{{ beat.timezone }}",
           "formats" : [
-            "8yyyy-MM-dd HH:mm:ss"
+            "yyyy-MM-dd HH:mm:ss"
           ]
         }
       }
@@ -1398,7 +1398,7 @@ this:
           "field" : "timestamp",
           "timezone" : "{{ beat.timezone }}",
           "formats" : [
-            "8yyyy-MM-dd'T'HH:mm:ss,SSS"
+            "yyyy-MM-dd'T'HH:mm:ss,SSS"
           ]
         }
       },
@@ -1558,7 +1558,7 @@ this:
           "field" : "timestamp",
           "timezone" : "{{ beat.timezone }}",
           "formats" : [
-            "8yyyy-MM-dd'T'HH:mm:ss,SSS"
+            "yyyy-MM-dd'T'HH:mm:ss,SSS"
           ]
         }
       },

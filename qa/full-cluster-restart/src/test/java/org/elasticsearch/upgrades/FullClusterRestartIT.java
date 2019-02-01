@@ -68,6 +68,7 @@ import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -970,10 +971,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
             client().performRequest(createIndex);
         } else {
+            ensureGreenLongWait(index);
+
             Request statsRequest = new Request("GET", index + "/_stats");
             statsRequest.addParameter("level", "shards");
             Response response = client().performRequest(statsRequest);
             List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
+            assertThat(shardStats, notNullValue());
+            assertThat("Expected stats for 2 shards", shardStats, hasSize(2));
             String globalHistoryUUID = null;
             for (Object shard : shardStats) {
                 final String nodeId = ObjectPath.evaluate(shard, "routing.node");

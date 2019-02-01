@@ -70,7 +70,7 @@ public abstract class Exporter implements AutoCloseable {
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.name.time_format",
                     key -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
 
-    private static final String INDEX_FORMAT = "YYYY.MM.dd";
+    private static final String INDEX_FORMAT = "yyyy.MM.dd";
 
     protected final Config config;
 

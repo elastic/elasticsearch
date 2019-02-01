@@ -30,6 +30,10 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
+
 public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
 
     public void testPing() throws IOException {
@@ -56,7 +60,6 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals(versionMap.get("lucene_version"), info.getVersion().luceneVersion.toString());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34386")
     public void testXPackInfo() throws IOException {
         XPackInfoRequest request = new XPackInfoRequest();
         request.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
@@ -85,8 +88,8 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertNotNull(ml.description());
         assertTrue(ml.available());
         assertTrue(ml.enabled());
-        assertEquals(mainResponse.getVersion().toString(),
-                ml.nativeCodeInfo().get("version").toString().replace("-SNAPSHOT", ""));
+        assertThat(ml.nativeCodeInfo().get("version").toString().replace("-SNAPSHOT", ""),
+            anyOf(equalTo(mainResponse.getVersion().toString()), startsWith("based on " + mainResponse.getVersion().toString())));
     }
 
     public void testXPackInfoEmptyRequest() throws IOException {

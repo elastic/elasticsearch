@@ -612,24 +612,4 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
         return (String) snapResponse.get("state");
     }
-
-    private void stopILM(RestClient client) throws IOException {
-        Request request = new Request("POST", "/_ilm/stop");
-        Response response = client.performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-    }
-
-    private String ilmStatus(RestClient client) throws IOException {
-        Request request = new Request("GET", "/_ilm/status");
-        Response response = client.performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        Map<String, Object> responseMap = toMap(client.performRequest(request));
-        return (String) responseMap.get("operation_mode");
-    }
-
-    private void startILM(RestClient client) throws IOException {
-        Request request = new Request("POST", "/_ilm/start");
-        Response response = client.performRequest(request);
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-    }
 }

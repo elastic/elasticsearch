@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
@@ -416,6 +417,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Role monitoringUserRole = Role.builder(roleDescriptor, null).build();
         assertThat(monitoringUserRole.cluster().check(MainAction.NAME, request), is(true));
+        assertThat(monitoringUserRole.cluster().check(XPackInfoAction.NAME, request), is(true));
         assertThat(monitoringUserRole.cluster().check(ClusterHealthAction.NAME, request), is(false));
         assertThat(monitoringUserRole.cluster().check(ClusterStateAction.NAME, request), is(false));
         assertThat(monitoringUserRole.cluster().check(ClusterStatsAction.NAME, request), is(false));

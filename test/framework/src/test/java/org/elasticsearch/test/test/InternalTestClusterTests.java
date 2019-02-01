@@ -56,15 +56,11 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
-import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.DATA;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.INGEST;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.MASTER;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.node.Node.NODE_MASTER_SETTING;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
@@ -144,21 +140,23 @@ public class InternalTestClusterTests extends ESTestCase {
         final boolean masterNodes;
         final int minNumDataNodes;
         final int maxNumDataNodes;
+        final int bootstrapMasterNodeIndex;
         if (autoManageMinMasterNodes) {
             masterNodes = randomBoolean();
             minNumDataNodes = randomIntBetween(0, 3);
             maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);
+            bootstrapMasterNodeIndex = -1;
         } else {
             // if we manage min master nodes, we need to lock down the number of nodes
             minNumDataNodes = randomIntBetween(0, 4);
             maxNumDataNodes = minNumDataNodes;
             masterNodes = false;
+            bootstrapMasterNodeIndex = maxNumDataNodes == 0 ? -1 : randomIntBetween(0, maxNumDataNodes - 1);
         }
         final int numClientNodes = randomIntBetween(0, 2);
         final String clusterName1 = "shared1";
         final String clusterName2 = "shared2";
         String transportClient = getTestTransportType();
-        final long bootstrapNodeSelectionSeed = randomLong();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -174,14 +172,6 @@ public class InternalTestClusterTests extends ESTestCase {
                     assert masterNodes == false;
                 }
                 return settings.build();
-            }
-
-            @Override
-            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-                if (autoManageMinMasterNodes) {
-                    return allNodesSettings;
-                }
-                return addBootstrapConfiguration(new Random(bootstrapNodeSelectionSeed), allNodesSettings);
             }
 
             @Override
@@ -202,9 +192,12 @@ public class InternalTestClusterTests extends ESTestCase {
         InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
             nodePrefix, mockPlugins(), Function.identity());
+        cluster0.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
+
         InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName2, nodeConfigurationSource, numClientNodes,
             nodePrefix, mockPlugins(), Function.identity());
+        cluster1.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();
@@ -229,19 +222,6 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             IOUtils.close(cluster0, cluster1);
         }
-    }
-
-    private static List<Settings> addBootstrapConfiguration(Random random, List<Settings> allNodesSettings) {
-        final List<Settings> updatedSettings = new ArrayList<>(allNodesSettings);
-        final int bootstrapIndex = randomFrom(random, IntStream.range(0, updatedSettings.size())
-            .filter(i -> NODE_MASTER_SETTING.get(allNodesSettings.get(i))).boxed().collect(Collectors.toList()));
-        final Settings settings = updatedSettings.get(bootstrapIndex);
-        assertFalse(INITIAL_MASTER_NODES_SETTING.exists(settings));
-        assertTrue(NODE_MASTER_SETTING.get(settings));
-        updatedSettings.set(bootstrapIndex,
-            Settings.builder().put(settings).putList(INITIAL_MASTER_NODES_SETTING.getKey(), allNodesSettings.stream()
-                .filter(NODE_MASTER_SETTING::get).map(NODE_NAME_SETTING::get).collect(Collectors.toList())).build());
-        return updatedSettings;
     }
 
     public void testDataFolderAssignmentAndCleaning() throws IOException, InterruptedException {
@@ -353,8 +333,6 @@ public class InternalTestClusterTests extends ESTestCase {
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false,
                 false, 0, 0, "test", new NodeConfigurationSource() {
 
-            private boolean bootstrapConfigurationSet;
-
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
@@ -367,16 +345,6 @@ public class InternalTestClusterTests extends ESTestCase {
                         .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
                         .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                         .build();
-            }
-
-            @Override
-            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-                if (bootstrapConfigurationSet || allNodesSettings.stream().noneMatch(NODE_MASTER_SETTING::get)) {
-                    return allNodesSettings;
-                }
-
-                bootstrapConfigurationSet = true;
-                return addBootstrapConfiguration(random(), allNodesSettings);
             }
 
             @Override
@@ -398,6 +366,8 @@ public class InternalTestClusterTests extends ESTestCase {
                 randomFrom(MASTER, DiscoveryNode.Role.DATA, DiscoveryNode.Role.INGEST);
             roles.add(role);
         }
+
+        cluster.setBootstrapMasterNodeIndex(randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(MASTER)).count() - 1));
 
         try {
             Map<DiscoveryNode.Role, Set<String>> pathsPerRole = new HashMap<>();

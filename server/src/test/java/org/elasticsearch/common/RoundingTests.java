@@ -730,7 +730,7 @@ public class RoundingTests extends ESTestCase {
 
     private static long time(String time, ZoneId zone) {
         TemporalAccessor accessor = DateFormatter.forPattern("date_optional_time").withZone(zone).parse(time);
-        return DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli();
+        return DateFormatters.from(accessor).toInstant().toEpochMilli();
     }
 
     private static Matcher<Long> isDate(final long expected, ZoneId tz) {

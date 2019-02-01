@@ -557,8 +557,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert leaderNode.isMasterNode() : leaderNode + " became a leader but is not master-eligible";
 
-        logger.debug("{}: coordinator becoming FOLLOWER of [{}] in term {} (was {}, lastKnownLeader was [{}])",
-            method, leaderNode, getCurrentTerm(), mode, lastKnownLeader);
+        if (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) {
+            logger.trace("{}: coordinator remaining FOLLOWER of [{}] in term {}",
+                method, leaderNode, getCurrentTerm());
+        } else {
+            logger.debug("{}: coordinator becoming FOLLOWER of [{}] in term {} (was {}, lastKnownLeader was [{}])",
+                method, leaderNode, getCurrentTerm(), mode, lastKnownLeader);
+        }
 
         final boolean restartLeaderChecker = (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) == false;
 
@@ -971,7 +976,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     new ListenableFuture<>(), ackListener, publishListener);
                 currentPublication = Optional.of(publication);
 
-                transportService.getThreadPool().schedule(publishTimeout, Names.GENERIC, new Runnable() {
+                transportService.getThreadPool().schedule(new Runnable() {
                     @Override
                     public void run() {
                         synchronized (mutex) {
@@ -983,7 +988,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     public String toString() {
                         return "scheduled timeout for " + publication;
                     }
-                });
+                }, publishTimeout, Names.GENERIC);
 
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
                 leaderChecker.setCurrentNodes(publishNodes);
@@ -1124,6 +1129,21 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     public Iterable<DiscoveryNode> getFoundPeers() {
         // TODO everyone takes this and adds the local node. Maybe just add the local node here?
         return peerFinder.getFoundPeers();
+    }
+
+    /**
+     * If there is any current committed publication, this method cancels it.
+     * This method is used exclusively by tests.
+     * @return true if publication was cancelled, false if there is no current committed publication.
+     */
+    boolean cancelCommittedPublication() {
+        synchronized (mutex) {
+            if (currentPublication.isPresent() && currentPublication.get().isCommitted()) {
+                currentPublication.get().cancel("cancelCommittedPublication");
+                return true;
+            }
+            return false;
+        }
     }
 
     class CoordinatorPublication extends Publication {

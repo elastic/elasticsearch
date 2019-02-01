@@ -21,18 +21,14 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.main.MainResponse;
+import org.elasticsearch.client.license.LicenseStatus;
 import org.elasticsearch.client.xpack.XPackInfoRequest;
 import org.elasticsearch.client.xpack.XPackInfoResponse;
 import org.elasticsearch.client.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
-import org.elasticsearch.client.license.LicenseStatus;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
-
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
 
 public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
 
@@ -88,8 +84,8 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertNotNull(ml.description());
         assertTrue(ml.available());
         assertTrue(ml.enabled());
-        assertThat(ml.nativeCodeInfo().get("version").toString().replace("-SNAPSHOT", ""),
-            anyOf(equalTo(mainResponse.getVersion().toString()), startsWith("based on " + mainResponse.getVersion().toString())));
+        assertEquals(mainResponse.getVersion().toString(),
+                ml.nativeCodeInfo().get("version").toString().replace("-SNAPSHOT", ""));
     }
 
     public void testXPackInfoEmptyRequest() throws IOException {

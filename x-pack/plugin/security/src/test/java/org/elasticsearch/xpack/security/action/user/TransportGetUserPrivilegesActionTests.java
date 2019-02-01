@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.Collections;
 import java.util.Set;
@@ -49,7 +49,7 @@ public class TransportGetUserPrivilegesActionTests extends ESTestCase {
             .build();
 
         final TransportGetUserPrivilegesAction action = new TransportGetUserPrivilegesAction(mock(ThreadPool.class),
-            mock(TransportService.class), mock(ActionFilters.class), mock(AuthorizationService.class));
+            mock(TransportService.class), mock(ActionFilters.class), mock(CompositeRolesStore.class));
         final GetUserPrivilegesResponse response = action.buildResponseObject(role);
 
         assertThat(response.getClusterPrivileges(), containsInAnyOrder("monitor", "manage_watcher"));

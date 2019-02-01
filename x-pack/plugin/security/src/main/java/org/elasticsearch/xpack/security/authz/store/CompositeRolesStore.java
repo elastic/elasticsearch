@@ -36,6 +36,11 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
@@ -95,6 +100,8 @@ public class CompositeRolesStore {
     private final Cache<String, Boolean> negativeLookupCache;
     private final ThreadContext threadContext;
     private final AtomicLong numInvalidation = new AtomicLong();
+    private final AnonymousUser anonymousUser;
+    private final boolean isAnonymousEnabled;
     private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> builtInRoleProviders;
     private final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> allRoleProviders;
 
@@ -130,6 +137,8 @@ public class CompositeRolesStore {
             allList.addAll(rolesProviders);
             this.allRoleProviders = Collections.unmodifiableList(allList);
         }
+        this.anonymousUser = new AnonymousUser(settings);
+        this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
     }
 
     public void roles(Set<String> roleNames, FieldPermissionsCache fieldPermissionsCache, ActionListener<Role> roleActionListener) {
@@ -177,6 +186,42 @@ public class CompositeRolesStore {
                         }, roleActionListener::onFailure));
                     },
                     roleActionListener::onFailure));
+        }
+    }
+
+    public void getRoles(User user, FieldPermissionsCache fieldPermissionsCache, ActionListener<Role> roleActionListener) {
+        // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
+        // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
+        // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
+        // passed into this method. The XPackUser has the Superuser role and we can simply return that
+        if (SystemUser.is(user)) {
+            throw new IllegalArgumentException("the user [" + user.principal() + "] is the system user and we should never try to get its" +
+                " roles");
+        }
+        if (XPackUser.is(user)) {
+            assert XPackUser.INSTANCE.roles().length == 1;
+            roleActionListener.onResponse(XPackUser.ROLE);
+            return;
+        }
+        if (XPackSecurityUser.is(user)) {
+            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+            return;
+        }
+
+        Set<String> roleNames = new HashSet<>(Arrays.asList(user.roles()));
+        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
+            if (anonymousUser.roles().length == 0) {
+                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+            }
+            Collections.addAll(roleNames, anonymousUser.roles());
+        }
+
+        if (roleNames.isEmpty()) {
+            roleActionListener.onResponse(Role.EMPTY);
+        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+        } else {
+            roles(roleNames, fieldPermissionsCache, roleActionListener);
         }
     }
 

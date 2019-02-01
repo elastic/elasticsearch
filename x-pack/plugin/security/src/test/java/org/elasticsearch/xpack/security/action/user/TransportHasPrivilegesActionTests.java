@@ -29,13 +29,14 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse.R
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -86,12 +87,12 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
 
         when(authentication.getUser()).thenReturn(user);
 
-        AuthorizationService authorizationService = mock(AuthorizationService.class);
+        CompositeRolesStore rolesStore = mock(CompositeRolesStore.class);
         Mockito.doAnswer(invocationOnMock -> {
-            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[1];
+            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
             listener.onResponse(role);
             return null;
-        }).when(authorizationService).roles(eq(user), any(ActionListener.class));
+        }).when(rolesStore).getRoles(eq(user), any(FieldPermissionsCache.class), any(ActionListener.class));
 
         applicationPrivileges = new ArrayList<>();
         NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
@@ -104,7 +105,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             return null;
         }).when(privilegeStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
 
-        action = new TransportHasPrivilegesAction(threadPool, transportService, mock(ActionFilters.class), authorizationService,
+        action = new TransportHasPrivilegesAction(threadPool, transportService, mock(ActionFilters.class), rolesStore,
             privilegeStore);
     }
 

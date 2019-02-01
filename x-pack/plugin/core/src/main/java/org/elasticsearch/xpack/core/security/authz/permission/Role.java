@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 public final class Role {
 
@@ -77,10 +78,11 @@ public final class Role {
      * specified action with the requested indices/aliases. At the same time if field and/or document level security
      * is configured for any group also the allowed fields and role queries are resolved.
      */
-    public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData,
+    public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
+                                          Function<String, AliasOrIndex> aliasAndIndexLookup,
                                           FieldPermissionsCache fieldPermissionsCache) {
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = indices.authorize(
-            action, requestedIndicesOrAliases, metaData, fieldPermissionsCache
+            action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache
         );
 
         // At least one role / indices permission set need to match with all the requested indices/aliases:

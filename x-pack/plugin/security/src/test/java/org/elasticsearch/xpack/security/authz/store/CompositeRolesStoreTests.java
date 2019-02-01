@@ -42,6 +42,10 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterP
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -62,6 +66,7 @@ import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
@@ -462,8 +467,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
-        Map<String, IndicesAccessControl.IndexAccessControl> acls =
-                role.indices().authorize("indices:data/read/search", Collections.singleton("test"), metaData, cache);
+        Map<String, IndicesAccessControl.IndexAccessControl> acls = role.indices().authorize("indices:data/read/search",
+            Collections.singleton("test"), metaData.getAliasAndIndexLookup()::get, cache);
         assertFalse(acls.isEmpty());
         assertTrue(acls.get("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(acls.get("test").getFieldPermissions().grantsAccessTo("L2.foo"));
@@ -770,6 +775,118 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new SecurityIndexManager.State(true, true, true, true, null, null),
             new SecurityIndexManager.State(true, false, true, true, null, null));
         assertEquals(2, numInvalidation.get());
+    }
+
+    public void testDefaultRoleUserWithoutRoles() {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
+        when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
+        doAnswer((invocationOnMock) -> {
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
+        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+
+        final CompositeRolesStore compositeRolesStore =
+            new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
+                mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
+        verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
+
+
+        PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
+        compositeRolesStore.getRoles(new User("no role user"), new FieldPermissionsCache(SECURITY_ENABLED_SETTINGS), rolesFuture);
+        final Role roles = rolesFuture.actionGet();
+        assertEquals(Role.EMPTY, roles);
+    }
+
+    public void testAnonymousUserEnabledRoleAdded() {
+        Settings settings = Settings.builder()
+            .put(SECURITY_ENABLED_SETTINGS)
+            .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous_user_role")
+            .build();
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
+        doAnswer(invocationOnMock -> {
+            Set<String> names = (Set<String>) invocationOnMock.getArguments()[0];
+            if (names.size() == 1 && names.contains("anonymous_user_role")) {
+                RoleDescriptor rd = new RoleDescriptor("anonymous_user_role", null, null, null);
+                return Collections.singleton(rd);
+            }
+            return Collections.emptySet();
+        }).
+        when(fileRolesStore).roleDescriptors(anySetOf(String.class));
+        doAnswer((invocationOnMock) -> {
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
+        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+
+        final CompositeRolesStore compositeRolesStore =
+            new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
+                mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(settings),
+                new XPackLicenseState(settings));
+        verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
+
+        PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
+        compositeRolesStore.getRoles(new User("no role user"), new FieldPermissionsCache(Settings.EMPTY), rolesFuture);
+        final Role roles = rolesFuture.actionGet();
+        assertThat(Arrays.asList(roles.names()), hasItem("anonymous_user_role"));
+    }
+
+    public void testDoesNotUseRolesStoreForXPackUser() {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
+        when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
+        doAnswer((invocationOnMock) -> {
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
+        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+
+        final CompositeRolesStore compositeRolesStore =
+            new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
+                mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
+        verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
+
+        PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
+        compositeRolesStore.getRoles(XPackUser.INSTANCE, new FieldPermissionsCache(Settings.EMPTY), rolesFuture);
+        final Role roles = rolesFuture.actionGet();
+        assertThat(roles, equalTo(XPackUser.ROLE));
+        verifyNoMoreInteractions(fileRolesStore, nativeRolesStore, reservedRolesStore);
+    }
+
+    public void testGetRolesForSystemUserThrowsException() {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
+        when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
+        doAnswer((invocationOnMock) -> {
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
+        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+
+        final CompositeRolesStore compositeRolesStore =
+            new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
+                mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
+        verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            () -> compositeRolesStore.getRoles(SystemUser.INSTANCE, null, null));
+        assertEquals("the user [_system] is the system user and we should never try to get its roles", iae.getMessage());
     }
 
     private static class InMemoryRolesProvider implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {

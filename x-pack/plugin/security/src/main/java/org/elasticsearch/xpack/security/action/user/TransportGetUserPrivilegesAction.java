@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesReques
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -29,7 +31,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,14 +48,14 @@ import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 public class TransportGetUserPrivilegesAction extends HandledTransportAction<GetUserPrivilegesRequest, GetUserPrivilegesResponse> {
 
     private final ThreadPool threadPool;
-    private final AuthorizationService authorizationService;
+    private final CompositeRolesStore rolesStore;
 
     @Inject
     public TransportGetUserPrivilegesAction(ThreadPool threadPool, TransportService transportService,
-                                            ActionFilters actionFilters, AuthorizationService authorizationService) {
+                                            ActionFilters actionFilters, CompositeRolesStore rolesStore) {
         super(GetUserPrivilegesAction.NAME, transportService, actionFilters, GetUserPrivilegesRequest::new);
         this.threadPool = threadPool;
-        this.authorizationService = authorizationService;
+        this.rolesStore = rolesStore;
     }
 
     @Override
@@ -66,7 +68,8 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
             return;
         }
 
-        authorizationService.roles(user, ActionListener.wrap(
+        // FIXME reuse field permissions cache!
+        rolesStore.getRoles(user, new FieldPermissionsCache(Settings.EMPTY), ActionListener.wrap(
             role -> listener.onResponse(buildResponseObject(role)),
             listener::onFailure));
     }

@@ -162,7 +162,6 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         } else {
             listener.onResponse(AuthenticationResult.notHandled());
         }
-
     }
 
     @Override
@@ -209,7 +208,6 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         }, authResultListener::onFailure));
 
     }
-
 
     private RelyingPartyConfiguration buildRelyingPartyConfiguration(RealmConfig config) {
         final String redirectUriString = require(config, RP_REDIRECT_URI);

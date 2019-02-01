@@ -18,7 +18,7 @@ import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.proc.BadJOSEException;
 import com.nimbusds.jose.proc.BadJWSException;
-import com.nimbusds.jose.util.Resource;
+import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jwt.JWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.PlainJWT;
@@ -38,6 +38,7 @@ import com.nimbusds.openid.connect.sdk.claims.AccessTokenHash;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.InvalidHashException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
@@ -52,13 +53,12 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.security.KeyPair;
@@ -69,6 +69,7 @@ import java.security.interfaces.ECPublicKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Date;
 import java.util.UUID;
 
@@ -108,11 +109,10 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
     }
 
     private OpenIdConnectAuthenticator buildAuthenticator(OpenIdConnectProviderConfiguration opConfig, RelyingPartyConfiguration rpConfig,
-                                                          OpenIdConnectAuthenticator.PrivilegedResourceRetriever retriever)
-        throws MalformedURLException {
+                                                          OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource) {
         final RealmConfig config = buildConfig(getBasicRealmSettings().build());
-        final IDTokenValidator validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(),
-            rpConfig.getSignatureAlgorithm(), new URL(opConfig.getJwkSetPath()), retriever);
+        final JWSVerificationKeySelector keySelector = new JWSVerificationKeySelector(rpConfig.getSignatureAlgorithm(), jwkSource);
+        final IDTokenValidator validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), keySelector, null);
         return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(globalSettings, env), validator,
             null);
     }
@@ -159,11 +159,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         if (jwk.getAlgorithm().getName().startsWith("HS")) {
             authenticator = buildAuthenticator(opConfig, rpConfig);
         } else {
-            OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-                mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-            when(privilegedResourceRetriever.retrieveResource(any()))
-                .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-            authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+            OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+            authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
         }
 
         final State state = new State();
@@ -189,11 +186,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         final Key key = keyMaterial.v1();
         RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
         OpenIdConnectProviderConfiguration opConfig = getOpConfig();
-        OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-            mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-        when(privilegedResourceRetriever.retrieveResource(any()))
-            .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-        authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+        OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+        authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
 
         final State state = new State();
         final Nonce nonce = new Nonce();
@@ -213,11 +207,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         final Key key = keyMaterial.v1();
         RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
         OpenIdConnectProviderConfiguration opConfig = getOpConfig();
-        OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-            mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-        when(privilegedResourceRetriever.retrieveResource(any()))
-            .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-        authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+        OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+        authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
 
         final State state = new State();
         final Nonce nonce = new Nonce();
@@ -261,11 +252,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         if (jwk.getAlgorithm().getName().startsWith("HS")) {
             authenticator = buildAuthenticator(opConfig, rpConfig);
         } else {
-            OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-                mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-            when(privilegedResourceRetriever.retrieveResource(any()))
-                .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-            authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+            OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+            authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
         }
         final State state = new State();
         final Nonce nonce = new Nonce();
@@ -300,11 +288,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         if (jwk.getAlgorithm().getName().startsWith("HS")) {
             authenticator = buildAuthenticator(opConfig, rpConfig);
         } else {
-            OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-                mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-            when(privilegedResourceRetriever.retrieveResource(any()))
-                .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-            authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+            OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+            authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
         }
         final State state = new State();
         final Nonce nonce = new Nonce();
@@ -342,11 +327,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         if (jwk.getAlgorithm().getName().startsWith("HS")) {
             authenticator = buildAuthenticator(opConfig, rpConfig);
         } else {
-            OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-                mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-            when(privilegedResourceRetriever.retrieveResource(any()))
-                .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-            authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+            OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+            authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
         }
         final State state = new State();
         final Nonce nonce = new Nonce();
@@ -384,11 +366,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         if (jwk.getAlgorithm().getName().startsWith("HS")) {
             authenticator = buildAuthenticator(opConfig, rpConfig);
         } else {
-            OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-                mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-            when(privilegedResourceRetriever.retrieveResource(any()))
-                .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-            authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+            OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+            authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
         }
         final State state = new State();
         final Nonce nonce = new Nonce();
@@ -425,11 +404,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         if (jwk.getAlgorithm().getName().startsWith("HS")) {
             authenticator = buildAuthenticator(opConfig, rpConfig);
         } else {
-            OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-                mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-            when(privilegedResourceRetriever.retrieveResource(any()))
-                .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-            authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+            OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+            authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
         }
         final State state = new State();
         final Nonce nonce = new Nonce();
@@ -463,11 +439,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         final Key key = keyMaterial.v1();
         RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
         OpenIdConnectProviderConfiguration opConfig = getOpConfig();
-        OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-            mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-        when(privilegedResourceRetriever.retrieveResource(any()))
-            .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-        authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+        OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+        authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
 
         final State state = new State();
         final Nonce nonce = new Nonce();
@@ -490,11 +463,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         final Key key = keyMaterial.v1();
         RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
         OpenIdConnectProviderConfiguration opConfig = getOpConfig();
-        OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-            mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-        when(privilegedResourceRetriever.retrieveResource(any()))
-            .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-        authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+        OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+        authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
 
         final State state = new State();
         final Nonce nonce = new Nonce();
@@ -543,11 +513,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         if (jwk.getAlgorithm().getName().startsWith("HS")) {
             authenticator = buildAuthenticator(opConfig, rpConfig);
         } else {
-            OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-                mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-            when(privilegedResourceRetriever.retrieveResource(any()))
-                .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-            authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+            OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+            authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
         }
         final State state = new State();
         final Nonce nonce = new Nonce();
@@ -567,7 +534,7 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
     }
 
     public void testImplicitFlowFailsWithNoneAlgorithm() throws Exception {
-        final Tuple<Key, JWKSet> keyMaterial = getRandomJwkForType(randomFrom("HS", "ES", "RS"));
+        final Tuple<Key, JWKSet> keyMaterial = getRandomJwkForType(randomFrom("HS"));
         final JWK jwk = keyMaterial.v2().getKeys().get(0);
         final Key key = keyMaterial.v1();
         RelyingPartyConfiguration rpConfig = getRpConfigNoAccessToken(jwk.getAlgorithm().getName());
@@ -575,11 +542,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         if (jwk.getAlgorithm().getName().startsWith("HS")) {
             authenticator = buildAuthenticator(opConfig, rpConfig);
         } else {
-            OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-                mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-            when(privilegedResourceRetriever.retrieveResource(any()))
-                .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-            authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+            OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+            authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
         }
         final State state = new State();
         final Nonce nonce = new Nonce();
@@ -614,14 +578,10 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
     public void testImplicitFlowFailsWithAlgorithmMixupAttack() throws Exception {
         final Tuple<Key, JWKSet> keyMaterial = getRandomJwkForType(randomFrom("ES", "RS"));
         final JWK jwk = keyMaterial.v2().getKeys().get(0);
-        final Key key = keyMaterial.v1();
         RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
         OpenIdConnectProviderConfiguration opConfig = getOpConfig();
-        OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-            mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-        when(privilegedResourceRetriever.retrieveResource(any()))
-            .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-        authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+        OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+        authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
         final State state = new State();
         final Nonce nonce = new Nonce();
         final String subject = "janedoe";
@@ -648,11 +608,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         if (jwk.getAlgorithm().getName().startsWith("HS")) {
             authenticator = buildAuthenticator(opConfig, rpConfig);
         } else {
-            OpenIdConnectAuthenticator.PrivilegedResourceRetriever privilegedResourceRetriever =
-                mock(OpenIdConnectAuthenticator.PrivilegedResourceRetriever.class);
-            when(privilegedResourceRetriever.retrieveResource(any()))
-                .thenReturn(new Resource(keyMaterial.v2().toString(), "application/json"));
-            authenticator = buildAuthenticator(opConfig, rpConfig, privilegedResourceRetriever);
+            OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource = mockSource(jwk);
+            authenticator = buildAuthenticator(opConfig, rpConfig, jwkSource);
         }
         final State state = new State();
         final Nonce nonce = new Nonce();
@@ -753,6 +710,19 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
             null,
             null);
         return response.toURI().toString();
+    }
+
+    private OpenIdConnectAuthenticator.ReloadableJWKSource mockSource(JWK jwk) {
+        OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource =
+            mock(OpenIdConnectAuthenticator.ReloadableJWKSource.class);
+        when(jwkSource.get(any(), any())).thenReturn(Collections.singletonList(jwk));
+        Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Void> listener = (ActionListener<Void>) invocation.getArguments()[0];
+            listener.onResponse(null);
+            return null;
+        }).when(jwkSource).triggerReload(any(ActionListener.class));
+        return jwkSource;
     }
 
     private Tuple<AccessToken, JWT> buildTokens(JWTClaimsSet idToken, Key key, String alg, String keyId,

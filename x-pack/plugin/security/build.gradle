@@ -170,7 +170,7 @@ forbiddenPatterns {
 }
 
 forbiddenApisMain {
-    signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt')
+    signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

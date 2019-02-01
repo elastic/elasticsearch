@@ -19,16 +19,20 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class DateFormatTests extends ESTestCase {
@@ -40,6 +44,31 @@ public class DateFormatTests extends ESTestCase {
                         .atZone(ZoneId.of("GMT-8"))
                         .format(DateTimeFormatter.ofPattern("MM dd HH:mm:ss", Locale.ENGLISH)),
                 equalTo("11 24 01:29:01"));
+    }
+
+    public void testParseJodaDefaultYear() {
+        String format = randomFrom("8dd/MM", "dd/MM");
+        DateTimeZone timezone = DateUtils.zoneIdToDateTimeZone(ZoneId.of("Europe/Amsterdam"));
+        Function<String, DateTime> javaFunction = DateFormat.Java.getFunction(format, timezone, Locale.ENGLISH);
+        int year = ZonedDateTime.now(ZoneOffset.UTC).getYear();
+        DateTime dateTime = javaFunction.apply("12/06");
+        assertThat(dateTime.getYear(), is(year));
+        assertThat(dateTime.toString(), is(year + "-06-12T00:00:00.000+02:00"));
+    }
+
+    // if there is a time around end of year, which is different in UTC make sure the result is the same
+    public void testParseDefaultYearBackwardsCompatible() {
+        ZoneId zoneId = ZoneId.of("America/New_York");
+        DateTimeZone timezone = DateUtils.zoneIdToDateTimeZone(zoneId);
+        int year = ZonedDateTime.now(zoneId).getYear();
+        int nextYear = year + 1;
+
+        DateTime javaDateTime = DateFormat.Java.getFunction("8dd/MM HH:mm", timezone, Locale.ENGLISH).apply("31/12 23:59");
+        DateTime jodaDateTime = DateFormat.Java.getFunction("dd/MM HH:mm", timezone, Locale.ENGLISH).apply("31/12 23:59");
+        assertThat(javaDateTime.getYear(), is(jodaDateTime.getYear()));
+        assertThat(year, is(jodaDateTime.getYear()));
+        assertThat(javaDateTime.withZone(DateTimeZone.UTC), is(jodaDateTime.withZone(DateTimeZone.UTC)));
+        assertThat(nextYear, is(jodaDateTime.withZone(DateTimeZone.UTC).getYear()));
     }
 
     public void testParseUnixMs() {

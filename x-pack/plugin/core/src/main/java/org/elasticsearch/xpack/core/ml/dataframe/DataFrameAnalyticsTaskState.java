@@ -27,7 +27,7 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState {
     private final long allocationId;
 
     private static final ConstructingObjectParser<DataFrameAnalyticsTaskState, Void> PARSER =
-            new ConstructingObjectParser<>(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+            new ConstructingObjectParser<>(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, true,
                 a -> new DataFrameAnalyticsTaskState((DataFrameAnalyticsState) a[0], (long) a[1]));
 
     static {

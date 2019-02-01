@@ -37,6 +37,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -277,7 +279,8 @@ public class MetaDataMappingService {
                 if (mappingType == null) {
                     mappingType = newMapper.type();
                 } else if (mappingType.equals(newMapper.type()) == false
-                        && mapperService.resolveDocumentType(mappingType).equals(newMapper.type()) == false) {
+                        && (isMappingSourceTyped(mapperService, mappingUpdateSource, request.type())
+                                || mapperService.resolveDocumentType(mappingType).equals(newMapper.type()) == false)) {
                     throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition.");
                 }
             }
@@ -297,10 +300,13 @@ public class MetaDataMappingService {
                 final Index index = indexMetaData.getIndex();
                 final MapperService mapperService = indexMapperServices.get(index);
 
-                // If the user gave _doc as a special type value or if they are using the new typeless APIs,
-                // then we apply the mapping update to the existing type. This allows to move to typeless
-                // APIs with indices whose type name is different from `_doc`.
-                String typeForUpdate = mapperService.resolveDocumentType(mappingType); // the type to use to apply the mapping update
+                // If the _type name is _doc and there is no _doc top-level key then this means that we
+                // are handling a typeless call. In such a case, we override _doc with the actual type
+                // name in the mappings. This allows to use typeless APIs on typed indices.
+                String typeForUpdate = mappingType; // the type to use to apply the mapping update
+                if (isMappingSourceTyped(mapperService, mappingUpdateSource, request.type()) == false) {
+                    typeForUpdate = mapperService.resolveDocumentType(mappingType);
+                }
 
                 CompressedXContent existingSource = null;
                 DocumentMapper existingMapper = mapperService.documentMapper(typeForUpdate);
@@ -363,6 +369,15 @@ public class MetaDataMappingService {
         public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
             return String.join(", ", tasks.stream().map(t -> (CharSequence)t.type())::iterator);
         }
+    }
+
+    /**
+     * Returns {@code true} if the given {@code mappingSource} includes a type
+     * as a top-level object.
+     */
+    private static boolean isMappingSourceTyped(MapperService mapperService, CompressedXContent mappingSource, String type) {
+        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
+        return root.size() == 1 && root.keySet().iterator().next().equals(type);
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {

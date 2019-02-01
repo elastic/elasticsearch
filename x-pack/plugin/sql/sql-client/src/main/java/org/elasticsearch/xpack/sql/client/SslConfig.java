@@ -63,7 +63,7 @@ public class SslConfig {
 
     private final SSLContext sslContext;
 
-    SslConfig(Properties settings, URI baseURI) {
+    public SslConfig(Properties settings, URI baseURI) {
         boolean isSchemaPresent = baseURI.getScheme() != null;
         boolean isSSLPropertyPresent = settings.getProperty(SSL) != null;
         boolean isHttpsScheme = "https".equals(baseURI.getScheme());

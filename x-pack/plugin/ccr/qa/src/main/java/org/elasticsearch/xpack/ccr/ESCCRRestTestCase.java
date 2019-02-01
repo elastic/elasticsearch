@@ -73,7 +73,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     protected static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
+        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
         request.setJsonEntity("{\"remote_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex +
             "\", \"read_poll_timeout\": \"10ms\"}");
         assertOK(client.performRequest(request));
@@ -85,6 +85,22 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void pauseFollow(RestClient client, String followIndex) throws IOException {
         assertOK(client.performRequest(new Request("POST", "/" + followIndex + "/_ccr/pause_follow")));
+    }
+
+    protected static void putAutoFollowPattern(String patternName, String remoteCluster, String indexPattern) throws IOException {
+        Request putPatternRequest = new Request("PUT", "/_ccr/auto_follow/" + patternName);
+        putPatternRequest.setJsonEntity("{\"leader_index_patterns\": [\"" + indexPattern + "\"], \"remote_cluster\": \"" +
+            remoteCluster + "\"}");
+        assertOK(client().performRequest(putPatternRequest));
+    }
+
+    protected static void deleteAutoFollowPattern(String patternName) throws IOException {
+        Request putPatternRequest = new Request("DELETE", "/_ccr/auto_follow/" + patternName);
+        assertOK(client().performRequest(putPatternRequest));
+    }
+
+    protected static void unfollow(String followIndex) throws IOException {
+        assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/unfollow")));
     }
 
     protected static void verifyDocuments(final String index, final int expectedNumDocs, final String query) throws IOException {
@@ -186,6 +202,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     protected static void ensureYellow(String index) throws IOException {
         Request request = new Request("GET", "/_cluster/health/" + index);
         request.addParameter("wait_for_status", "yellow");
+        request.addParameter("wait_for_active_shards", "1");
         request.addParameter("wait_for_no_relocating_shards", "true");
         request.addParameter("wait_for_no_initializing_shards", "true");
         request.addParameter("timeout", "70s");

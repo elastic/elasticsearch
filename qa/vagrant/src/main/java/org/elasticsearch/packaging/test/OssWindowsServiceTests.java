@@ -25,6 +25,6 @@ public class OssWindowsServiceTests extends WindowsServiceTestCase {
 
     @Override
     protected Distribution distribution() {
-        return Distribution.OSS_ZIP;
+        return Distribution.OSS_WINDOWS;
     }
 }

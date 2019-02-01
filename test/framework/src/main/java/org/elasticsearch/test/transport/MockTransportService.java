@@ -368,7 +368,7 @@ public final class MockTransportService extends TransportService {
                         runnable.run();
                     } else {
                         requestsToSendWhenCleared.add(runnable);
-                        threadPool.schedule(delay, ThreadPool.Names.GENERIC, runnable);
+                        threadPool.schedule(runnable, delay, ThreadPool.Names.GENERIC);
                     }
                 }
             }
@@ -405,6 +405,16 @@ public final class MockTransportService extends TransportService {
     public boolean addSendBehavior(TransportAddress transportAddress, StubbableTransport.SendRequestBehavior sendBehavior) {
         return transport().addSendBehavior(transportAddress, sendBehavior);
     }
+
+    /**
+     * Adds a send behavior that is the default send behavior.
+     *
+     * @return {@code true} if no default send behavior was registered
+     */
+    public boolean addSendBehavior(StubbableTransport.SendRequestBehavior behavior) {
+        return transport().setDefaultSendBehavior(behavior);
+    }
+
 
     /**
      * Adds a new connect behavior that is used for creating connections with the given delegate service.

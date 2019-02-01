@@ -44,7 +44,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
@@ -198,7 +197,7 @@ public class DatafeedConfigProvider {
     public void findDatafeedsForJobIds(Collection<String> jobIds, ActionListener<Set<String>> listener) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedJobIdsQuery(jobIds));
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), null);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -366,7 +365,7 @@ public class DatafeedConfigProvider {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
         sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), null);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())

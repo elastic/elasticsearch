@@ -20,14 +20,12 @@ setup:
   - do:
       index:
         index: source
-        type:  doc
         id:    1
         body:  { "join_field": { "name": "parent" } }
 
   - do:
       index:
         index: source
-        type:  doc
         id:    2
         routing: 1
         body:  { "join_field": { "name": "child", "parent": "1" } }
@@ -35,7 +33,6 @@ setup:
   - do:
       index:
         index: source
-        type:  doc
         id:    3
         routing: 1
         body:  { "join_field": { "name": "grand_child", "parent": "2" } }

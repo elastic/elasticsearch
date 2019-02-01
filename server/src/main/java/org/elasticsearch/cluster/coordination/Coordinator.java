@@ -147,7 +147,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.masterService = masterService;
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
-            this::getCurrentTerm, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators);
+            this::getCurrentTerm, this::getStateForMasterService, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators);
         this.persistedStateSupplier = persistedStateSupplier;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
@@ -281,7 +281,18 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     + lastKnownLeader + ", rejecting");
             }
 
-            if (publishRequest.getAcceptedState().term() > coordinationState.get().getLastAcceptedState().term()) {
+            final ClusterState localState = coordinationState.get().getLastAcceptedState();
+
+            if (localState.metaData().clusterUUIDCommitted() &&
+                localState.metaData().clusterUUID().equals(publishRequest.getAcceptedState().metaData().clusterUUID()) == false) {
+                logger.warn("received cluster state from {} with a different cluster uuid {} than local cluster uuid {}, rejecting",
+                    sourceNode, publishRequest.getAcceptedState().metaData().clusterUUID(), localState.metaData().clusterUUID());
+                throw new CoordinationStateRejectedException("received cluster state from " + sourceNode +
+                    " with a different cluster uuid " + publishRequest.getAcceptedState().metaData().clusterUUID() +
+                    " than local cluster uuid " + localState.metaData().clusterUUID() + ", rejecting");
+            }
+
+            if (publishRequest.getAcceptedState().term() > localState.term()) {
                 // only do join validation if we have not accepted state from this master yet
                 onJoinValidators.forEach(a -> a.accept(getLocalNode(), publishRequest.getAcceptedState()));
             }
@@ -546,8 +557,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert leaderNode.isMasterNode() : leaderNode + " became a leader but is not master-eligible";
 
-        logger.debug("{}: coordinator becoming FOLLOWER of [{}] in term {} (was {}, lastKnownLeader was [{}])",
-            method, leaderNode, getCurrentTerm(), mode, lastKnownLeader);
+        if (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) {
+            logger.trace("{}: coordinator remaining FOLLOWER of [{}] in term {}",
+                method, leaderNode, getCurrentTerm());
+        } else {
+            logger.debug("{}: coordinator becoming FOLLOWER of [{}] in term {} (was {}, lastKnownLeader was [{}])",
+                method, leaderNode, getCurrentTerm(), mode, lastKnownLeader);
+        }
 
         final boolean restartLeaderChecker = (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) == false;
 
@@ -653,6 +669,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
             assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID);
+            assert applierState.nodes().getMasterNodeId() == null || applierState.metaData().clusterUUIDCommitted();
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse())
                 : preVoteCollector + " vs " + getPreVoteResponse();
 
@@ -959,7 +976,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     new ListenableFuture<>(), ackListener, publishListener);
                 currentPublication = Optional.of(publication);
 
-                transportService.getThreadPool().schedule(publishTimeout, Names.GENERIC, new Runnable() {
+                transportService.getThreadPool().schedule(new Runnable() {
                     @Override
                     public void run() {
                         synchronized (mutex) {
@@ -971,7 +988,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     public String toString() {
                         return "scheduled timeout for " + publication;
                     }
-                });
+                }, publishTimeout, Names.GENERIC);
 
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
                 leaderChecker.setCurrentNodes(publishNodes);

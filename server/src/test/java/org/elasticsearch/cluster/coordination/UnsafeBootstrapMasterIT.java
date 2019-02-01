@@ -36,11 +36,8 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -49,42 +46,6 @@ import static org.hamcrest.Matchers.containsString;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
 public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
-
-    private int bootstrapNodeId;
-
-    @Before
-    public void resetBootstrapNodeId() {
-        bootstrapNodeId = -1;
-    }
-
-    /**
-     * Performs cluster bootstrap when node with id bootstrapNodeId is started.
-     * Any node of the batch could be selected as bootstrap target.
-     */
-    @Override
-    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-        if (internalCluster().size() + allNodesSettings.size() == bootstrapNodeId) {
-            List<String> nodeNames = new ArrayList<>();
-            Collections.addAll(nodeNames, internalCluster().getNodeNames());
-            allNodesSettings.forEach(settings -> nodeNames.add(Node.NODE_NAME_SETTING.get(settings)));
-
-            List<Settings> newSettings = new ArrayList<>();
-            int bootstrapIndex = randomInt(allNodesSettings.size() - 1);
-            for (int i = 0; i < allNodesSettings.size(); i++) {
-                Settings nodeSettings = allNodesSettings.get(i);
-                if (i == bootstrapIndex) {
-                    newSettings.add(Settings.builder().put(nodeSettings)
-                            .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
-                            .build());
-                } else {
-                    newSettings.add(nodeSettings);
-                }
-            }
-
-            return newSettings;
-        }
-        return allNodesSettings;
-    }
 
     private MockTerminal executeCommand(Environment environment, boolean abort) throws Exception {
         final UnsafeBootstrapMasterCommand command = new UnsafeBootstrapMasterCommand();
@@ -169,7 +130,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
     }
 
     public void testNoManifestFile() throws IOException {
-        bootstrapNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
@@ -181,7 +142,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
     }
 
     public void testNoMetaData() throws IOException {
-        bootstrapNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
@@ -194,7 +155,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
     }
 
     public void testAbortedByUser() throws IOException {
-        bootstrapNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
@@ -204,7 +165,7 @@ public class UnsafeBootstrapMasterIT extends ESIntegTestCase {
     }
 
     public void test3MasterNodes2Failed() throws Exception {
-        bootstrapNodeId = 3;
+        internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> masterNodes = internalCluster().startMasterOnlyNodes(3, Settings.EMPTY);
 
         String dataNode = internalCluster().startDataOnlyNode();

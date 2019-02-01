@@ -58,7 +58,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -740,13 +739,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(expected, query);
     }
 
-    public void testNegativeFieldBoost() {
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> new SimpleQueryStringBuilder("the quick fox")
-                .field(STRING_FIELD_NAME, -1.0f)
-                .field(STRING_FIELD_NAME_2)
-                .toQuery(createShardContext()));
-        assertThat(exc.getMessage(), containsString("negative [boost]"));
+    public void testNegativeFieldBoost() throws IOException {
+        Query query =   new SimpleQueryStringBuilder("the quick fox")
+            .field(STRING_FIELD_NAME, -1.0f)
+            .field(STRING_FIELD_NAME_2)
+            .toQuery(createShardContext());
+        assertWarnings("setting a negative [boost] on a query is deprecated and will throw an error in the next major " +
+            "version. You can use a value between 0 and 1 to deboost.");
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

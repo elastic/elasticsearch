@@ -59,7 +59,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 
@@ -1489,13 +1488,13 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(expected, query);
     }
 
-    public void testNegativeFieldBoost() {
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> new QueryStringQueryBuilder("the quick fox")
-                .field(STRING_FIELD_NAME, -1.0f)
-                .field(STRING_FIELD_NAME_2)
-                .toQuery(createShardContext()));
-        assertThat(exc.getMessage(), CoreMatchers.containsString("negative [boost]"));
+    public void testNegativeFieldBoost() throws IOException {
+        Query query =  new QueryStringQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME, -1.0f)
+            .field(STRING_FIELD_NAME_2)
+            .toQuery(createShardContext());
+        assertWarnings("setting a negative [boost] on a query is deprecated and will throw an error in the next major " +
+            "version. You can use a value between 0 and 1 to deboost.");
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

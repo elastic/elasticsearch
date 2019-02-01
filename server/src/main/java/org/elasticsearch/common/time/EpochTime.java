@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.bootstrap.JavaVersion;
-
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.ResolverStyle;
@@ -72,7 +70,7 @@ class EpochTime {
     private static final EpochField NANOS_OF_SECOND = new EpochField(ChronoUnit.NANOS, ChronoUnit.SECONDS, ValueRange.of(0, 999_999_999)) {
         @Override
         public boolean isSupportedBy(TemporalAccessor temporal) {
-            return temporal.isSupported(ChronoField.NANO_OF_SECOND) && temporal.getLong(ChronoField.NANO_OF_SECOND) != 0;
+            return temporal.isSupported(ChronoField.NANO_OF_SECOND);
         }
         @Override
         public long getFrom(TemporalAccessor temporal) {
@@ -117,32 +115,30 @@ class EpochTime {
         }
         @Override
         public long getFrom(TemporalAccessor temporal) {
-            return temporal.getLong(ChronoField.NANO_OF_SECOND);
+            return temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000_000;
         }
     };
 
     // this supports seconds without any fraction
     private static final DateTimeFormatter SECONDS_FORMATTER1 = new DateTimeFormatterBuilder()
         .appendValue(SECONDS, 1, 19, SignStyle.NORMAL)
+        .optionalStart() // optional is used so isSupported will be called when printing
+        .appendFraction(NANOS_OF_SECOND, 0, 9, true)
+        .optionalEnd()
         .toFormatter(Locale.ROOT);
 
     // this supports seconds ending in dot
     private static final DateTimeFormatter SECONDS_FORMATTER2 = new DateTimeFormatterBuilder()
-        .append(SECONDS_FORMATTER1)
+        .appendValue(SECONDS, 1, 19, SignStyle.NORMAL)
         .appendLiteral('.')
-        .toFormatter(Locale.ROOT);
-
-    // this supports seconds with a fraction and is also used for printing
-    private static final DateTimeFormatter SECONDS_FORMATTER3 = new DateTimeFormatterBuilder()
-        .append(SECONDS_FORMATTER1)
-        .optionalStart() // optional is used so isSupported will be called when printing
-        .appendFraction(NANOS_OF_SECOND, 1, 9, true)
-        .optionalEnd()
         .toFormatter(Locale.ROOT);
 
     // this supports milliseconds without any fraction
     private static final DateTimeFormatter MILLISECONDS_FORMATTER1 = new DateTimeFormatterBuilder()
         .appendValue(MILLIS, 1, 19, SignStyle.NORMAL)
+        .optionalStart()
+        .appendFraction(NANOS_OF_MILLI, 0, 6, true)
+        .optionalEnd()
         .toFormatter(Locale.ROOT);
 
     // this supports milliseconds ending in dot
@@ -151,32 +147,13 @@ class EpochTime {
         .appendLiteral('.')
         .toFormatter(Locale.ROOT);
 
-    // this supports milliseconds with a fraction and is also used for printing
-    private static final DateTimeFormatter MILLISECONDS_FORMATTER3 = new DateTimeFormatterBuilder()
-        .append(MILLISECONDS_FORMATTER1)
-        .optionalStart() // optional is used so isSupported will be called when printing
-        .appendFraction(NANOS_OF_MILLI, 1, 6, true)
-        .optionalEnd()
-        .toFormatter(Locale.ROOT);
-
-    static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter("epoch_second", SECONDS_FORMATTER3,
+    static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter("epoch_second", SECONDS_FORMATTER1,
         builder -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L),
-        SECONDS_FORMATTER1, SECONDS_FORMATTER2, SECONDS_FORMATTER3);
+        SECONDS_FORMATTER1, SECONDS_FORMATTER2);
 
-    static final DateFormatter MILLIS_FORMATTER = getEpochMillisFormatter();
-
-    private static DateFormatter getEpochMillisFormatter() {
-        // the third formatter fails under java 8 as a printer, so fall back to this one
-        final DateTimeFormatter printer;
-        if (JavaVersion.current().getVersion().get(0) == 8) {
-            printer = MILLISECONDS_FORMATTER1;
-        } else {
-            printer = MILLISECONDS_FORMATTER3;
-        }
-        return new JavaDateFormatter("epoch_millis", printer,
-            builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L),
-            MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2, MILLISECONDS_FORMATTER3);
-    }
+    static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter("epoch_millis", MILLISECONDS_FORMATTER1,
+        builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L),
+        MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2);
 
     private abstract static class EpochField implements TemporalField {
 

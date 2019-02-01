@@ -73,7 +73,7 @@ public class SearchResponseMergerTests extends ESTestCase {
 
     @Before
     public void init() {
-        numResponses = randomIntBetween(2, 10);
+        numResponses = randomIntBetween(1, 10);
         executorService = Executors.newFixedThreadPool(numResponses);
     }
 
@@ -87,7 +87,7 @@ public class SearchResponseMergerTests extends ESTestCase {
 
     private void awaitResponsesAdded() throws InterruptedException {
         executorService.shutdown();
-        executorService.awaitTermination(5, TimeUnit.SECONDS);
+        assertTrue(executorService.awaitTermination(5, TimeUnit.SECONDS));
     }
 
     public void testMergeTookInMillis() throws InterruptedException {
@@ -137,6 +137,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
+        assertEquals(numResponses, merger.numResponses());
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = merger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
@@ -170,6 +171,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
+        assertEquals(numResponses, merger.numResponses());
         ShardSearchFailure[] shardFailures = merger.getMergedResponse(SearchResponse.Clusters.EMPTY).getShardFailures();
         assertThat(Arrays.asList(shardFailures), containsInAnyOrder(expectedFailures.toArray(ShardSearchFailure.EMPTY_ARRAY)));
     }
@@ -189,6 +191,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             addResponse(merger, searchResponse);
         }
         awaitResponsesAdded();
+        assertEquals(numResponses, merger.numResponses());
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = merger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
@@ -221,6 +224,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             addResponse(searchResponseMerger, searchResponse);
         }
         awaitResponsesAdded();
+        assertEquals(numResponses, searchResponseMerger.numResponses());
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
@@ -267,6 +271,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             addResponse(searchResponseMerger, searchResponse);
         }
         awaitResponsesAdded();
+        assertEquals(numResponses, searchResponseMerger.numResponses());
         SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse mergedResponse = searchResponseMerger.getMergedResponse(clusters);
         assertSame(clusters, mergedResponse.getClusters());
@@ -334,7 +339,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         Iterator<Map.Entry<String, Index[]>> indicesIterator = randomRealisticIndices(numIndices, numResponses).entrySet().iterator();
         for (int i = 0; i < numResponses; i++) {
             Map.Entry<String, Index[]> entry = indicesIterator.next();
-            String clusterAlias = entry.getKey().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? null : entry.getKey();
+            String clusterAlias = entry.getKey();
             Index[] indices = entry.getValue();
             int total = randomIntBetween(1, 1000);
             expectedTotal += total;
@@ -386,7 +391,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
 
         awaitResponsesAdded();
-
+        assertEquals(numResponses, searchResponseMerger.numResponses());
         final SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
         SearchResponse searchResponse = searchResponseMerger.getMergedResponse(clusters);
 
@@ -432,6 +437,33 @@ public class SearchResponseMergerTests extends ESTestCase {
             SearchHit expected = priorityQueue.poll();
             assertSame(expected, hit);
         }
+    }
+
+    public void testMergeNoResponsesAdded() {
+        long currentRelativeTime = randomLong();
+        final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
+        SearchResponseMerger merger = new SearchResponseMerger(0, 10, Integer.MAX_VALUE, timeProvider, flag -> null);
+        SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
+        assertEquals(0, merger.numResponses());
+        SearchResponse response = merger.getMergedResponse(clusters);
+        assertSame(clusters, response.getClusters());
+        assertEquals(TimeUnit.NANOSECONDS.toMillis(currentRelativeTime), response.getTook().millis());
+        assertEquals(0, response.getTotalShards());
+        assertEquals(0, response.getSuccessfulShards());
+        assertEquals(0, response.getSkippedShards());
+        assertEquals(0, response.getFailedShards());
+        assertEquals(0, response.getNumReducePhases());
+        assertFalse(response.isTimedOut());
+        assertNotNull(response.getHits().getTotalHits());
+        assertEquals(0, response.getHits().getTotalHits().value);
+        assertEquals(0, response.getHits().getHits().length);
+        assertEquals(TotalHits.Relation.EQUAL_TO, response.getHits().getTotalHits().relation);
+        assertNull(response.getScrollId());
+        assertSame(InternalAggregations.EMPTY, response.getAggregations());
+        assertNull(response.getSuggest());
+        assertEquals(0, response.getProfileResults().size());
+        assertNull(response.isTerminatedEarly());
+        assertEquals(0, response.getShardFailures().length);
     }
 
     private static Tuple<Integer, TotalHits.Relation> randomTrackTotalHits() {
@@ -499,8 +531,11 @@ public class SearchResponseMergerTests extends ESTestCase {
         for (int i = 0; i < numClusters; i++) {
             Index[] indices = new Index[indicesNames.length];
             for (int j = 0; j < indices.length; j++) {
-                //Realistically clusters have the same indices with same names, but different uuid
-                indices[j] = new Index(indicesNames[j], randomAlphaOfLength(10));
+                String indexName = indicesNames[j];
+                //Realistically clusters have the same indices with same names, but different uuid. Yet it can happen that the same cluster
+                //is registered twice with different aliases and searched multiple times as part of the same search request.
+                String indexUuid = frequently() ? randomAlphaOfLength(10) : indexName;
+                indices[j] = new Index(indexName, indexUuid);
             }
             String clusterAlias;
             if (frequently() || indicesPerCluster.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
@@ -551,9 +586,21 @@ public class SearchResponseMergerTests extends ESTestCase {
                     }
                 }
             }
-            int shardIdCompareTo = a.getShard().getShardId().compareTo(b.getShard().getShardId());
+            SearchShardTarget aShard = a.getShard();
+            SearchShardTarget bShard = b.getShard();
+            int shardIdCompareTo = aShard.getShardId().compareTo(bShard.getShardId());
             if (shardIdCompareTo != 0) {
                 return shardIdCompareTo;
+            }
+            int clusterAliasCompareTo = aShard.getClusterAlias().compareTo(bShard.getClusterAlias());
+            if (clusterAliasCompareTo != 0) {
+                if (aShard.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    return 1;
+                }
+                if (bShard.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                    return -1;
+                }
+                return clusterAliasCompareTo;
             }
             return Integer.compare(a.docId(), b.docId());
         }

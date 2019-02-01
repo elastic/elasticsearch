@@ -519,7 +519,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final DiscoveryNode discoveryNode;
             final boolean remoteCluster;
             if (clusterAlias == null || requestClusterAlias != null) {
-                assert requestClusterAlias == null || requestClusterAlias.equals(clusterAlias) : "request: " + requestClusterAlias + " - " + clusterAlias;
+                assert requestClusterAlias == null || requestClusterAlias.equals(clusterAlias);
                 discoveryNode = localNodes.apply(nodeId);
                 remoteCluster = false;
             } else {

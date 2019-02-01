@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.Version;
@@ -26,9 +27,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-
-import java.util.Collections;
-
 
 public class EngineConfigTests extends ESTestCase {
 

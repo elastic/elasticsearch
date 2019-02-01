@@ -66,7 +66,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.time.DateUtils.toLong;
 
 /** A {@link FieldMapper} for dates. */
-public class DateFieldMapper extends FieldMapper {
+public final class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");

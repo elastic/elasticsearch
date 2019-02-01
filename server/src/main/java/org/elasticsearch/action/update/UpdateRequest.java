@@ -158,15 +158,20 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             validationException = addValidationError("id is missing", validationException);
         }
 
-
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
-        if (ifSeqNo != UNASSIGNED_SEQ_NO && retryOnConflict > 0) {
-            validationException = addValidationError("compare and write operations can not be retried", validationException);
-        }
+        if (ifSeqNo != UNASSIGNED_SEQ_NO) {
+            if (retryOnConflict > 0) {
+                validationException = addValidationError("compare and write operations can not be retried", validationException);
+            }
 
-        if (ifSeqNo != UNASSIGNED_SEQ_NO && docAsUpsert) {
-            validationException = addValidationError("compare and write operations can not be used with upsert", validationException);
+            if (docAsUpsert) {
+                validationException = addValidationError("compare and write operations can not be used with upsert", validationException);
+            }
+            if (upsertRequest != null) {
+                validationException =
+                    addValidationError("upsert requests don't support `if_seq_no` and `if_primary_term`", validationException);
+            }
         }
 
         if (script == null && doc == null) {

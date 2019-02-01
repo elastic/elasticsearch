@@ -500,12 +500,13 @@ public class UpdateRequestTests extends ESTestCase {
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
-    public void testToValidateUpsertRequestAndVersion() {
+    public void testToValidateUpsertRequestAndCAS() {
         UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
-        updateRequest.version(1L);
+        updateRequest.setIfSeqNo(1L);
+        updateRequest.setIfPrimaryTerm(1L);
         updateRequest.doc("{}", XContentType.JSON);
         updateRequest.upsert(new IndexRequest("index","type", "id"));
-        assertThat(updateRequest.validate().validationErrors(), contains("can't provide both upsert request and a version"));
+        assertThat(updateRequest.validate().validationErrors(), contains("upsert requests don't support `if_seq_no` and `if_primary_term`"));
     }
 
     public void testToValidateUpsertRequestWithVersion() {

@@ -35,11 +35,9 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -53,42 +51,6 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
 public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
-
-    private int bootstrapNodeId;
-
-    @Before
-    public void resetBootstrapNodeId() {
-        bootstrapNodeId = -1;
-    }
-
-    /**
-     * Performs cluster bootstrap when node with id bootstrapNodeId is started.
-     * Any node of the batch could be selected as bootstrap target.
-     */
-    @Override
-    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-        if (internalCluster().numMasterNodes() + allNodesSettings.size() == bootstrapNodeId) {
-            List<String> nodeNames = new ArrayList<>();
-            Collections.addAll(nodeNames, internalCluster().getNodeNames());
-            allNodesSettings.forEach(settings -> nodeNames.add(Node.NODE_NAME_SETTING.get(settings)));
-
-            List<Settings> newSettings = new ArrayList<>();
-            int bootstrapIndex = randomInt(allNodesSettings.size() - 1);
-            for (int i = 0; i < allNodesSettings.size(); i++) {
-                Settings nodeSettings = allNodesSettings.get(i);
-                if (i == bootstrapIndex) {
-                    newSettings.add(Settings.builder().put(nodeSettings)
-                            .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
-                            .build());
-                } else {
-                    newSettings.add(nodeSettings);
-                }
-            }
-
-            return newSettings;
-        }
-        return allNodesSettings;
-    }
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, int nodeOrdinal, boolean abort)
             throws Exception {
@@ -219,7 +181,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     }
 
     public void testBootstrapNoManifestFile() throws IOException {
-        bootstrapNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
@@ -231,7 +193,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     }
 
     public void testDetachNoManifestFile() throws IOException {
-        bootstrapNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
@@ -243,7 +205,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     }
 
     public void testBootstrapNoMetaData() throws IOException {
-        bootstrapNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
@@ -256,7 +218,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     }
 
     public void testDetachNoMetaData() throws IOException {
-        bootstrapNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
@@ -269,7 +231,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     }
 
     public void testBootstrapAbortedByUser() throws IOException {
-        bootstrapNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
@@ -279,7 +241,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     }
 
     public void testDetachAbortedByUser() throws IOException {
-        bootstrapNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
@@ -289,7 +251,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     }
 
     public void test3MasterNodes2Failed() throws Exception {
-        bootstrapNodeId = 3;
+        internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> masterNodes = new ArrayList<>();
 
         logger.info("--> start 1st master-eligible node");
@@ -365,7 +327,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     }
 
     public void testAllMasterEligibleNodesFailedDanglingIndexImport() throws Exception {
-        bootstrapNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
 
         logger.info("--> start mixed data and master-eligible node and bootstrap cluster");
         String masterNode = internalCluster().startNode(); // node ordinal 0
@@ -410,7 +372,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     }
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {
-        bootstrapNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startMasterOnlyNode();
         internalCluster().stopCurrentMasterNode();
 
@@ -430,7 +392,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
     }
 
     public void testCanRunUnsafeBootstrapAfterErroneousDetachWithoutLoosingMetaData() throws Exception {
-        bootstrapNodeId = 1;
+        internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startMasterOnlyNode();
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
                 Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb"));

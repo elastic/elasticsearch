@@ -610,7 +610,7 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Listener used in any sync performRequest calls, it waits for a response or an exception back up to a timeout
+     * Listener used in any sync performRequest calls, it waits for a response or an exception back from the http client
      */
     static class SyncResponseListener implements ResponseListener {
         private final CountDownLatch latch = new CountDownLatch(1);
@@ -639,7 +639,7 @@ public class RestClient implements Closeable {
         }
 
         /**
-         * Waits (up to a timeout) for some result of the request: either a response, or an exception.
+         * Waits for some result of the request: either a response, or an exception.
          */
         Response get() throws IOException {
             try {

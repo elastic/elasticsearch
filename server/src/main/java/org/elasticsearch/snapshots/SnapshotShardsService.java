@@ -157,7 +157,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             if ((previousSnapshots == null && currentSnapshots != null)
                 || (previousSnapshots != null && previousSnapshots.equals(currentSnapshots) == false)) {
                 synchronized (shardSnapshots) {
-                    processIndexShardSnapshots(event);
+                    processIndexShardSnapshots(currentSnapshots);
                 }
             }
 
@@ -206,10 +206,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     /**
      * Checks if any new shards should be snapshotted on this node
      *
-     * @param event cluster state changed event
+     * @param snapshotsInProgress Current snapshots in progress in cluster state
      */
-    private void processIndexShardSnapshots(ClusterChangedEvent event) {
-        final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
+    private void processIndexShardSnapshots(SnapshotsInProgress snapshotsInProgress) {
         cancelRemoved(snapshotsInProgress);
         if (snapshotsInProgress != null) {
             startNewSnapshots(snapshotsInProgress);
@@ -239,13 +238,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         // For now we will be mostly dealing with a single snapshot at a time but might have multiple simultaneously running
         // snapshots in the future
         // Now go through all snapshots and update existing or create missing
+        final String localNodeId = clusterService.localNode().getId();
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
             final State entryState = entry.state();
             if (entryState == State.STARTED) {
-                Map<ShardId, IndexShardSnapshotStatus> startedShards = new HashMap<>();
+                Map<ShardId, IndexShardSnapshotStatus> startedShards = null;
                 final Snapshot snapshot = entry.snapshot();
                 Map<ShardId, IndexShardSnapshotStatus> snapshotShards = shardSnapshots.getOrDefault(snapshot, emptyMap());
-                final String localNodeId = clusterService.localNode().getId();
                 for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
                     // Add all new shards to start processing on
                     final ShardId shardId = shard.key;
@@ -253,10 +252,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     if (localNodeId.equals(shardSnapshotStatus.nodeId()) && shardSnapshotStatus.state() == State.INIT
                         && snapshotShards.containsKey(shardId) == false) {
                         logger.trace("[{}] - Adding shard to the queue", shardId);
+                        if (startedShards == null) {
+                             startedShards = new HashMap<>();
+                        }
                         startedShards.put(shardId, IndexShardSnapshotStatus.newInitializing());
                     }
                 }
-                if (startedShards.isEmpty() == false) {
+                if (startedShards != null && startedShards.isEmpty() == false) {
                     shardSnapshots.computeIfAbsent(snapshot, s -> new HashMap<>()).putAll(startedShards);
                     startNewShards(entry, startedShards);
                 }
@@ -303,6 +305,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : startedShards.entrySet()) {
             final ShardId shardId = shardEntry.getKey();
             final IndexId indexId = indicesMap.get(shardId.getIndexName());
+            assert indexId != null;
             executor.execute(new AbstractRunnable() {
 
                 private final SetOnce<Exception> failure = new SetOnce<>();
@@ -311,7 +314,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 public void doRun() {
                     final IndexShard indexShard =
                         indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
-                    assert indexId != null;
                     snapshot(indexShard, snapshot, indexId, shardEntry.getValue());
                 }
 

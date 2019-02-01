@@ -138,12 +138,12 @@ public class JavaDateMathParserTests extends ESTestCase {
         // If a user only specifies times, then the date needs to always be 1970-01-01 regardless of rounding
         DateFormatter formatter = DateFormatters.forPattern("HH:mm:ss");
         DateMathParser parser = formatter.toDateMathParser();
-        ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(formatter.parse("04:52:20"));
+        ZonedDateTime zonedDateTime = DateFormatters.from(formatter.parse("04:52:20"));
         assertThat(zonedDateTime.getYear(), is(1970));
         long millisStart = zonedDateTime.toInstant().toEpochMilli();
         assertEquals(millisStart, parser.parse("04:52:20", () -> 0, false, (ZoneId) null));
         // due to rounding up, we have to add the number of milliseconds here manually
-        long millisEnd = DateFormatters.toZonedDateTime(formatter.parse("04:52:20")).toInstant().toEpochMilli() + 999;
+        long millisEnd = DateFormatters.from(formatter.parse("04:52:20")).toInstant().toEpochMilli() + 999;
         assertEquals(millisEnd, parser.parse("04:52:20", () -> 0, true, (ZoneId) null));
     }
 

@@ -32,7 +32,6 @@ Note: GC logs which are written to the file `gc.log` will not be changed.
 
 All Docker console logs are now in JSON format. You can distinguish logs streams with the `type` field.
 
-
 [float]
 ==== Audit plaintext log file removed, JSON file renamed
 

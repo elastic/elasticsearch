@@ -17,14 +17,17 @@ public class OpenIdConnectProviderConfiguration {
     private final String authorizationEndpoint;
     private final String tokenEndpoint;
     private final String userinfoEndpoint;
+    private final String endsessionEndpoint;
     private final String issuer;
 
     public OpenIdConnectProviderConfiguration(String providerName, String issuer, String authorizationEndpoint,
-                                              @Nullable String tokenEndpoint, @Nullable String userinfoEndpoint) {
+                                              @Nullable String tokenEndpoint, @Nullable String userinfoEndpoint,
+                                              @Nullable String endsessionEndpoint) {
         this.providerName = Objects.requireNonNull(providerName, "OP Name must be provided");
         this.authorizationEndpoint = Objects.requireNonNull(authorizationEndpoint, "Authorization Endpoint must be provided");
         this.tokenEndpoint = tokenEndpoint;
         this.userinfoEndpoint = userinfoEndpoint;
+        this.endsessionEndpoint = endsessionEndpoint;
         this.issuer = Objects.requireNonNull(issuer, "OP Issuer must be provided");
     }
 
@@ -42,6 +45,10 @@ public class OpenIdConnectProviderConfiguration {
 
     public String getUserinfoEndpoint() {
         return userinfoEndpoint;
+    }
+
+    public String getEndsessionEndpoint() {
+        return endsessionEndpoint;
     }
 
     public String getIssuer() {

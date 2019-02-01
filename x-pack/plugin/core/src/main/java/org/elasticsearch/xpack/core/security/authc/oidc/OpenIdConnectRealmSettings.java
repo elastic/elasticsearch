@@ -11,6 +11,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -40,6 +42,15 @@ public class OpenIdConnectRealmSettings {
         = RealmSettings.simpleString(TYPE, "op.token_endpoint", Setting.Property.NodeScope);
     public static final Setting.AffixSetting<String> OP_USERINFO_ENDPOINT
         = RealmSettings.simpleString(TYPE, "op.userinfo_endpoint", Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<String> OP_ENDSESSION_ENDPOINT
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "op.userinfo_endpoint",
+        key -> Setting.simpleString(key, v -> {
+            try {
+                new URI(v);
+            } catch (URISyntaxException e) {
+                throw new IllegalArgumentException("Invalid value [" + v + "] for [" + key + "]. Not a valid URI.", e);
+            }
+        }, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<String> OP_ISSUER
         = RealmSettings.simpleString(TYPE, "op.issuer", Setting.Property.NodeScope);
     public static final Setting.AffixSetting<List<String>> RP_REQUESTED_SCOPES = Setting.affixKeySetting(

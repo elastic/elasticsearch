@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -27,6 +28,7 @@ import java.util.Base64;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_ENDSESSION_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_ISSUER;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_NAME;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT;
@@ -88,8 +90,10 @@ public class OpenIdConnectRealm extends Realm {
         String issuer = require(config, OP_ISSUER);
         String tokenEndpoint = config.getSetting(OP_TOKEN_ENDPOINT, () -> null);
         String userinfoEndpoint = config.getSetting(OP_USERINFO_ENDPOINT, () -> null);
+        String endSessionEndpoint = config.getSetting(OP_ENDSESSION_ENDPOINT, () -> null);
 
-        return new OpenIdConnectProviderConfiguration(providerName, issuer, authorizationEndpoint, tokenEndpoint, userinfoEndpoint);
+        return new OpenIdConnectProviderConfiguration(providerName, issuer, authorizationEndpoint, tokenEndpoint, userinfoEndpoint,
+            endSessionEndpoint);
     }
 
     static String require(RealmConfig config, Setting.AffixSetting<String> setting) {
@@ -126,6 +130,10 @@ public class OpenIdConnectRealm extends Realm {
         } catch (UnsupportedEncodingException e) {
             throw new ElasticsearchException("Cannot build OpenID Connect Authentication Request", e);
         }
+    }
+
+    public OpenIdConnectLogoutResponse buildLogoutResponse() {
+        return new OpenIdConnectLogoutResponse(opConfiguration.getEndsessionEndpoint());
     }
 
     private void addParameter(StringBuilder builder, String parameter, String value, boolean isFirstParameter)

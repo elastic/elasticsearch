@@ -27,7 +27,6 @@
   - do:
       index:
         index: queries
-        type: doc
         id: q4
         refresh: true
         body:

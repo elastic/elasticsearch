@@ -54,6 +54,11 @@ public class DateFormattersTests extends ESTestCase {
             assertThat(instant.getEpochSecond(), is(0L));
             assertThat(instant.getNano(), is(0));
         }
+        {
+            Instant instant = Instant.from(formatter.parse("123.123456"));
+            assertThat(instant.getEpochSecond(), is(0L));
+            assertThat(instant.getNano(), is(123123456));
+        }
     }
 
     public void testInvalidEpochMilliParser() {
@@ -68,17 +73,27 @@ public class DateFormattersTests extends ESTestCase {
     // this is not in the duelling tests, because the epoch second parser in joda time drops the milliseconds after the comma
     // but is able to parse the rest
     // as this feature is supported it also makes sense to make it exact
-    public void testEpochSecondParser() {
+    public void testEpochSecondParserWithFraction() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_second");
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("1234.1234567890"));
+        TemporalAccessor accessor = formatter.parse("1234.1");
+        Instant instant = DateFormatters.from(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(1234L));
+        assertThat(DateFormatters.from(accessor).toInstant().getNano(), is(100_000_000));
+
+        accessor = formatter.parse("1234");
+        instant = DateFormatters.from(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(1234L));
+        assertThat(instant.getNano(), is(0));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("abc"));
+        assertThat(e.getMessage(), is("failed to parse date field [abc] with format [epoch_second]"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("1234.abc"));
+        assertThat(e.getMessage(), is("failed to parse date field [1234.abc] with format [epoch_second]"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("1234.1234567890"));
         assertThat(e.getMessage(), is("failed to parse date field [1234.1234567890] with format [epoch_second]"));
-        e = expectThrows(IllegalArgumentException .class, () -> formatter.parse("1234.123456789013221"));
-        assertThat(e.getMessage(), containsString("[1234.123456789013221]"));
-        e = expectThrows(IllegalArgumentException .class, () -> formatter.parse("abc"));
-        assertThat(e.getMessage(), containsString("[abc]"));
-        e = expectThrows(IllegalArgumentException .class, () -> formatter.parse("1234.abc"));
-        assertThat(e.getMessage(), containsString("[1234.abc]"));
     }
 
     public void testEpochMilliParsersWithDifferentFormatters() {

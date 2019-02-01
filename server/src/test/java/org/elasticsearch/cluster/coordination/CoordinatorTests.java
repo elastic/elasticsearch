@@ -1050,15 +1050,9 @@ public class CoordinatorTests extends ESTestCase {
         }
         assertEquals(0, newNode.getLastAppliedClusterState().version());
 
-        // reset clusterUUIDCommitted (and node / cluster state term) to let node join again
-        // TODO: use elasticsearch-node detach-cluster tool once it's implemented
         final ClusterNode detachedNode = newNode.restartedNode(
-            metaData -> MetaData.builder(metaData)
-                .clusterUUIDCommitted(false)
-                .coordinationMetaData(CoordinationMetaData.builder(metaData.coordinationMetaData())
-                    .term(0L).build())
-                .build(),
-            term -> 0L);
+            metaData -> DetachClusterCommand.updateMetaData(metaData),
+            term -> DetachClusterCommand.updateCurrentTerm());
         cluster1.clusterNodes.replaceAll(cn -> cn == newNode ? detachedNode : cn);
         cluster1.stabilise();
     }

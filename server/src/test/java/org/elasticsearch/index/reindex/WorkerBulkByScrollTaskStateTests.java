@@ -33,10 +33,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Delayed;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
@@ -149,9 +146,9 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
         int batchSizeForMaxDelay = (int) (maxDelay.seconds() * originalRequestsPerSecond);
         ThreadPool threadPool = new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
                 assertThat(delay.nanos(), both(greaterThanOrEqualTo(0L)).and(lessThanOrEqualTo(maxDelay.nanos())));
-                return super.schedule(delay, name, command);
+                return super.schedule(command, delay, name);
             }
         };
         try {
@@ -202,8 +199,8 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
     public void testDelayNeverNegative() throws IOException {
         // Thread pool that returns a ScheduledFuture that claims to have a negative delay
         ThreadPool threadPool = new TestThreadPool("test") {
-            public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
-                return new ScheduledFuture<Void>() {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+                return new ScheduledCancellable() {
                     @Override
                     public long getDelay(TimeUnit unit) {
                         return -1;
@@ -215,27 +212,12 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
                     }
 
                     @Override
-                    public boolean cancel(boolean mayInterruptIfRunning) {
+                    public boolean cancel() {
                         throw new UnsupportedOperationException();
                     }
 
                     @Override
                     public boolean isCancelled() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public boolean isDone() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public Void get() throws InterruptedException, ExecutionException {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public Void get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
                         throw new UnsupportedOperationException();
                     }
                 };

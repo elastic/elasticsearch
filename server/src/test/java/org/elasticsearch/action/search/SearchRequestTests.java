@@ -22,12 +22,12 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.AbstractSearchTestCase;
-import org.elasticsearch.search.RandomSearchRequestGenerator;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
@@ -48,19 +48,23 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     @Override
     protected SearchRequest createSearchRequest() throws IOException {
+        SearchRequest request = super.createSearchRequest();
         if (randomBoolean()) {
-            return super.createSearchRequest();
+            return request;
         }
         //clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
-        SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong());
-        RandomSearchRequestGenerator.randomSearchRequest(searchRequest, this::createSearchSourceBuilder);
-        return searchRequest;
+        return SearchRequest.withLocalReduction(request, request.indices(),
+            randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong());
     }
 
-    public void testClusterAliasValidation() {
-        expectThrows(NullPointerException.class, () -> new SearchRequest(null, 0));
-        expectThrows(IllegalArgumentException.class, () -> new SearchRequest("", -1));
-        SearchRequest searchRequest = new SearchRequest("", 0);
+    public void testWithLocalReduction() {
+        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(null, Strings.EMPTY_ARRAY, "", 0));
+        SearchRequest request = new SearchRequest();
+        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(request, null, "", 0));
+        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(request, new String[]{null}, "", 0));
+        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(request, Strings.EMPTY_ARRAY, null, 0));
+        expectThrows(IllegalArgumentException.class, () -> SearchRequest.withLocalReduction(request, Strings.EMPTY_ARRAY, "", -1));
+        SearchRequest searchRequest = SearchRequest.withLocalReduction(request, Strings.EMPTY_ARRAY, "", 0);
         assertNull(searchRequest.validate());
     }
 
@@ -72,10 +76,15 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertNotSame(deserializedRequest, searchRequest);
     }
 
-    public void testClusterAliasSerialization() throws IOException {
+    public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         Version version = VersionUtils.randomVersion(random());
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
+        if (version.before(Version.V_7_0_0)) {
+            assertTrue(deserializedRequest.isCcsMinimizeRoundtrips());
+        } else {
+            assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
+        }
         if (version.before(Version.V_6_7_0)) {
             assertNull(deserializedRequest.getLocalClusterAlias());
             assertAbsoluteStartMillisIsCurrentTime(deserializedRequest);
@@ -93,6 +102,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertArrayEquals(new String[]{"index"}, searchRequest.indices());
             assertNull(searchRequest.getLocalClusterAlias());
             assertAbsoluteStartMillisIsCurrentTime(searchRequest);
+            assertTrue(searchRequest.isCcsMinimizeRoundtrips());
         }
     }
 
@@ -215,6 +225,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         mutators.add(() -> mutation.searchType(randomValueOtherThan(searchRequest.searchType(),
             () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))));
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
+        mutators.add(() -> mutation.setCcsMinimizeRoundtrips(searchRequest.isCcsMinimizeRoundtrips() == false));
         randomFrom(mutators).run();
         return mutation;
     }

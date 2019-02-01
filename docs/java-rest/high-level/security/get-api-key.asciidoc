@@ -10,7 +10,7 @@
 API Key(s) information can be retrieved using this API.
 
 [id="{upid}-{api}-request"]
-==== Invalidate API Key Request
+==== Get API Key Request
 The +{request}+ supports retrieving API key information of
 
 . A specific API key

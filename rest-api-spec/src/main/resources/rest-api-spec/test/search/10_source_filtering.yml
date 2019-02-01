@@ -2,19 +2,18 @@
 setup:
   - do:
       indices.create:
+          include_type_name: false
           index:  test
           body:
             mappings:
-              test:
-                properties:
-                  bigint:
-                    type: keyword
+              properties:
+                bigint:
+                  type: keyword
 
 
   - do:
       index:
         index:  test_1
-        type:   test
         id:     1
         body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1, "bigint": 72057594037927936 }
   - do:

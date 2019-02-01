@@ -1009,7 +1009,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an enum with type E that was serialized based on the value of it's ordinal
+     * Reads an enum with type E that was serialized based on the value of its ordinal
      */
     public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
         int ordinal = readVInt();

@@ -143,6 +143,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38212")
     public void testClientSucceedsWithVerificationDisabled() throws IOException {
         assertFalse("Cannot disable verification in FIPS JVM", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();

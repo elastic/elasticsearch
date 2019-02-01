@@ -28,6 +28,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -100,6 +101,8 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             expectedDoc.put(INDEX.getFieldName(), index);
             if (useExplicitType) {
                 expectedDoc.put(TYPE.getFieldName(), type);
+            } else {
+                expectedDoc.put(TYPE.getFieldName(), "_type");
             }
             expectedDoc.put(ID.getFieldName(), id);
             expectedDoc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
@@ -163,6 +166,8 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
                         String value = randomAlphaOfLengthBetween(1, 10);
                         doc.put(field.getFieldName(), value);
                         expectedDoc.put(field.getFieldName(), value);
+                    } else {
+                        expectedDoc.put(field.getFieldName(), "_type");
                     }
                 } else {
                     if (randomBoolean()) {

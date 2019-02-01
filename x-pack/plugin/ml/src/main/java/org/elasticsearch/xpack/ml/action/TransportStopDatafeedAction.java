@@ -194,7 +194,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                         }
                         if (slot == startedDatafeeds.size()) {
                             sendResponseOrFailure(request.getDatafeedId(), listener, failures);
-                       }
+                        }
                     }
                 });
             } else {

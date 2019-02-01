@@ -433,7 +433,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         });
     }
 
-    private void ensureWatcherTemplatesAdded() throws Exception {
+    protected void ensureWatcherTemplatesAdded() throws Exception {
         // Verify that the index templates exist:
         assertBusy(() -> {
             GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(HISTORY_TEMPLATE_NAME).get();

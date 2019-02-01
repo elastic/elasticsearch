@@ -92,6 +92,8 @@ The action state of a newly-created watch is `awaits_successful_execution`:
 --------------------------------------------------
 {
   "found": true,
+  "_seq_no": 0,
+  "_primary_term": 1,
   "_version": 1,
   "_id": "my_watch",
   "status": {
@@ -136,6 +138,8 @@ and the action is now in `ackable` state:
 {
   "found": true,
   "_id": "my_watch",
+  "_seq_no": 1,
+  "_primary_term": 1,
   "_version": 2,
   "status": {
     "version": 2,
@@ -185,6 +189,8 @@ GET _watcher/watch/my_watch
 {
   "found": true,
   "_id": "my_watch",
+  "_seq_no": 2,
+  "_primary_term": 1,
   "_version": 3,
   "status": {
     "version": 3,

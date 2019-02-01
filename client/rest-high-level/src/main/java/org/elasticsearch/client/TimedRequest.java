@@ -38,26 +38,10 @@ public abstract class TimedRequest implements Validatable {
 
     /**
      * Sets the timeout to wait for the all the nodes to acknowledge
-     * @param timeout timeout as a string (e.g. 1s)
-     */
-    public void setTimeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, this.timeout, getClass().getSimpleName() + ".timeout");
-    }
-
-    /**
-     * Sets the timeout to wait for the all the nodes to acknowledge
      * @param timeout timeout as a {@link TimeValue}
      */
     public void setTimeout(TimeValue timeout) {
         this.timeout = timeout;
-    }
-
-    /**
-     * Sets the timeout to connect to the master node
-     * @param masterTimeout timeout as a string (e.g. 1s)
-     */
-    public void setMasterTimeout(String masterTimeout) {
-        this.masterTimeout = (TimeValue.parseTimeValue(masterTimeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
     }
 
     /**

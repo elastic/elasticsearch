@@ -19,22 +19,37 @@
 
 package org.elasticsearch.client.indices.rollover;
 
+import org.elasticsearch.action.admin.indices.rollover.Condition;
+import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.Collections;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public class RolloverResponseTests extends ESTestCase {
-    private static List<String> conditionSuppliers = Arrays.asList(
-        RolloverRequest.AGE_CONDITION, RolloverRequest.DOCS_CONDITION, RolloverRequest.SIZE_CONDITION);
+
+    private static final List<Supplier<Condition<?>>> conditionSuppliers = new ArrayList<>();
+    static {
+        conditionSuppliers.add(() -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
+    }
 
     public void testFromXContent() throws IOException {
         xContentTester(
@@ -57,8 +72,8 @@ public class RolloverResponseTests extends ESTestCase {
 
         Map<String, Boolean> results = new HashMap<>();
         int numResults = randomIntBetween(0, 3);
-        List<String> conditions = randomSubsetOf(numResults, conditionSuppliers);
-        conditions.forEach(condition -> results.put(condition, randomBoolean()));
+        List<Supplier<Condition<?>>> conditions = randomSubsetOf(numResults, conditionSuppliers);
+        conditions.forEach(condition -> results.put(condition.get().name(), randomBoolean()));
 
         return new RolloverResponse(oldIndex, newIndex, results, dryRun, rolledOver, acknowledged, shardsAcknowledged);
     }
@@ -68,9 +83,18 @@ public class RolloverResponseTests extends ESTestCase {
     }
 
     private static void toXContent(RolloverResponse response, XContentBuilder builder) throws IOException {
-        builder.startObject();
-        builder.field("acknowledged", response.isAcknowledged());
-        response.addCustomFields(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
+        Params params = new ToXContent.MapParams(
+            Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "false"));
+        org.elasticsearch.action.admin.indices.rollover.RolloverResponse serverResponse =
+            new org.elasticsearch.action.admin.indices.rollover.RolloverResponse(
+                response.getOldIndex(),
+                response.getNewIndex(),
+                response.getConditionStatus(),
+                response.isDryRun(),
+                response.isRolledOver(),
+                response.isAcknowledged(),
+                response.isShardsAcknowledged()
+            );
+        serverResponse.toXContent(builder, params);
     }
 }

@@ -1833,11 +1833,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // tag::rollover-index-request-timeout
         request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
-        request.setTimeout("2m"); // <2>
         // end::rollover-index-request-timeout
         // tag::rollover-index-request-masterTimeout
         request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.setMasterTimeout("1m"); // <2>
         // end::rollover-index-request-masterTimeout
         // tag::rollover-index-request-dryRun
         request.dryRun(true); // <1>

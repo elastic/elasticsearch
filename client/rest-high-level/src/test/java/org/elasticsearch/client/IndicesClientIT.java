@@ -100,6 +100,7 @@ import org.elasticsearch.rest.action.admin.indices.RestGetMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -1102,6 +1103,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
         {
+            String mappings = "{\"properties\":{\"field2\":{\"type\":\"keyword\"}}}";
+            rolloverRequest.getCreateIndexRequest().mapping(mappings, XContentType.JSON);
             rolloverRequest.dryRun(false);
             rolloverRequest.addMaxIndexSizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
             RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
@@ -1116,6 +1119,31 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test", rolloverResponse.getOldIndex());
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
+    }
+
+    public void testRolloverWithTypes() throws IOException {
+        highLevelClient().indices().create(new CreateIndexRequest("test").alias(new Alias("alias")), RequestOptions.DEFAULT);
+        highLevelClient().index(new IndexRequest("test").id("1").source("field", "value"), RequestOptions.DEFAULT);
+        highLevelClient().index(new IndexRequest("test").id("2").source("field", "value")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
+
+        org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest =
+            new org.elasticsearch.action.admin.indices.rollover.RolloverRequest("alias", "test_new");
+        rolloverRequest.addMaxIndexDocsCondition(1);
+        rolloverRequest.getCreateIndexRequest().mapping("_doc", "field2", "type=keyword");
+
+        org.elasticsearch.action.admin.indices.rollover.RolloverResponse rolloverResponse = execute(
+            rolloverRequest,
+            highLevelClient().indices()::rollover,
+            highLevelClient().indices()::rolloverAsync,
+            expectWarnings(RestRolloverIndexAction.TYPES_DEPRECATION_MESSAGE)
+        );
+        assertTrue(rolloverResponse.isRolledOver());
+        assertFalse(rolloverResponse.isDryRun());
+        Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
+        assertTrue(conditionStatus.get("[max_docs: 1]"));
+        assertEquals("test", rolloverResponse.getOldIndex());
+        assertEquals("test_new", rolloverResponse.getNewIndex());
     }
 
     public void testGetAlias() throws IOException {

@@ -18,7 +18,12 @@
  */
 package org.elasticsearch.client.indices.rollover;
 
+import org.elasticsearch.action.admin.indices.rollover.Condition;
+import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.client.TimedRequest;
+import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -29,26 +34,34 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Request class to swap index under an alias upon satisfying conditions
  */
 public class RolloverRequest extends TimedRequest implements Validatable, ToXContentObject {
 
-    static final String AGE_CONDITION = "max_age";
-    static final String DOCS_CONDITION = "max_docs";
-    static final String SIZE_CONDITION = "max_size";
-
     private String alias;
     private String newIndexName;
     private boolean dryRun;
-    private Map<String, Object> conditions = new HashMap<>(2);
+    private Map<String, Condition<?>> conditions = new HashMap<>(2);
     //the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
     public RolloverRequest(String alias, String newIndexName) {
         this.alias = alias;
         this.newIndexName = newIndexName;
+    }
+
+    @Override
+    public Optional<ValidationException> validate() {
+        if (alias == null) {
+            ValidationException validationException = new ValidationException();
+            validationException.addValidationError("index alias is missing");
+            return Optional.of(validationException);
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**
@@ -98,10 +111,11 @@ public class RolloverRequest extends TimedRequest implements Validatable, ToXCon
      * Adds condition to check if the index is at least <code>age</code> old
      */
     public RolloverRequest addMaxIndexAgeCondition(TimeValue age) {
-        if (conditions.containsKey(AGE_CONDITION)) {
-            throw new IllegalArgumentException(AGE_CONDITION + " condition is already set");
+        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(age);
+        if (this.conditions.containsKey(maxAgeCondition.name())) {
+            throw new IllegalArgumentException(maxAgeCondition.name() + " condition is already set");
         }
-        this.conditions.put(AGE_CONDITION, age);
+        this.conditions.put(maxAgeCondition.name(), maxAgeCondition);
         return this;
     }
 
@@ -109,26 +123,28 @@ public class RolloverRequest extends TimedRequest implements Validatable, ToXCon
      * Adds condition to check if the index has at least <code>numDocs</code>
      */
     public RolloverRequest addMaxIndexDocsCondition(long numDocs) {
-        if (conditions.containsKey(DOCS_CONDITION)) {
-            throw new IllegalArgumentException(DOCS_CONDITION + " condition is already set");
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(numDocs);
+        if (this.conditions.containsKey(maxDocsCondition.name())) {
+            throw new IllegalArgumentException(maxDocsCondition.name() + " condition is already set");
         }
-        this.conditions.put(DOCS_CONDITION, numDocs);
+        this.conditions.put(maxDocsCondition.name(), maxDocsCondition);
         return this;
     }
     /**
      * Adds a size-based condition to check if the index size is at least <code>size</code>.
      */
     public RolloverRequest addMaxIndexSizeCondition(ByteSizeValue size) {
-        if (conditions.containsKey(SIZE_CONDITION)) {
-            throw new IllegalArgumentException(SIZE_CONDITION + " condition is already set");
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(size);
+        if (this.conditions.containsKey(maxSizeCondition.name())) {
+            throw new IllegalArgumentException(maxSizeCondition + " condition is already set");
         }
-        this.conditions.put(SIZE_CONDITION, size);
+        this.conditions.put(maxSizeCondition.name(), maxSizeCondition);
         return this;
     }
     /**
      * Returns all set conditions
      */
-    public Map<String, Object> getConditions() {
+    public Map<String, Condition<?>> getConditions() {
         return conditions;
     }
 
@@ -145,17 +161,8 @@ public class RolloverRequest extends TimedRequest implements Validatable, ToXCon
         createIndexRequest.innerToXContent(builder, params);
 
         builder.startObject("conditions");
-        for (Map.Entry<String, Object> entry : conditions.entrySet())
-        {
-            String name = entry.getKey();
-            Object value = entry.getValue();
-            if (value instanceof TimeValue) {
-                builder.field(name, ((TimeValue) value).getStringRep());
-            } else if (value instanceof ByteSizeValue) {
-                builder.field(name, ((ByteSizeValue) value).getStringRep());
-            } else { //instance of Long
-                builder.field(name, (long) value);
-            }
+        for (Condition<?> condition : conditions.values()) {
+            condition.toXContent(builder, params);
         }
         builder.endObject();
 

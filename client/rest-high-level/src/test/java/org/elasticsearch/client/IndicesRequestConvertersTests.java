@@ -828,7 +828,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RolloverRequest rolloverRequest = new RolloverRequest(ESTestCase.randomAlphaOfLengthBetween(3, 10),
                 ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLengthBetween(3, 10));
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomTimeout(rolloverRequest::setTimeout, rolloverRequest.timeout(), expectedParams);
+        RequestConvertersTests.setRandomTimeout(rolloverRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(rolloverRequest, expectedParams);
         if (ESTestCase.randomBoolean()) {
             rolloverRequest.dryRun(ESTestCase.randomBoolean());

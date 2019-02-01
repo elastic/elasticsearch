@@ -39,24 +39,20 @@ include-tagged::{doc-tests-file}[{api}-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the index is opened
 as a `TimeValue`
-<2> Timeout to wait for the all the nodes to acknowledge the index is opened
-as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
-<2> Timeout to connect to the master node as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-waitForActiveShards]
 --------------------------------------------------
-<1> The number of active shard copies to wait for before the rollover index API
-returns a response
-<2> The number of active shard copies to wait for before the rollover index API
-returns a response
+<1> Sets the number of active shard copies to wait for before the rollover
+index API returns a response
+<2> Resets the number of active shard copies to wait for to the default value
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

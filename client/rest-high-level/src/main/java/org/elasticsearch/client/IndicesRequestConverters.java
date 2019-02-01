@@ -367,8 +367,9 @@ final class IndicesRequestConverters {
         if (rolloverRequest.isDryRun()) {
             params.putParam("dry_run", Boolean.TRUE.toString());
         }
-
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
         request.setEntity(RequestConverters.createEntity(rolloverRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+
         return request;
     }
 

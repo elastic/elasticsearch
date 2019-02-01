@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -70,8 +71,13 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.settings(parser.map()),
             CreateIndexRequest.SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> {
-            for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
-                request.createIndexRequest.mapping(mappingsEntry.getKey(), (Map<String, Object>) mappingsEntry.getValue());
+            if (request.includedTypeNameForMappingParsing) {
+                for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
+                    request.createIndexRequest.mapping(mappingsEntry.getKey(), (Map<String, Object>) mappingsEntry.getValue());
+                }
+            } else {
+                // a type is not included, add a dummy _doc type
+                request.createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, parser.map());
             }
         }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
@@ -81,6 +87,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String alias;
     private String newIndexName;
     private boolean dryRun;
+    private boolean includedTypeNameForMappingParsing = true; // a helper value to decide how mappings should be parsed from XContent
     private Map<String, Condition<?>> conditions = new HashMap<>(2);
     //the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
@@ -209,6 +216,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     public String getNewIndexName() {
         return newIndexName;
+    }
+
+    public void setNoTypeNameForMappingParsing() {
+        includedTypeNameForMappingParsing = false;
     }
 
     /**

@@ -157,10 +157,10 @@ public final class RetentionLease implements Writeable {
         return String.format(
                 Locale.ROOT,
                 "id:%s;retaining_seq_no:%d;timestamp:%d;source:%s",
-                retentionLease.id(),
-                retentionLease.retainingSequenceNumber(),
-                retentionLease.timestamp(),
-                retentionLease.source());
+                retentionLease.id,
+                retentionLease.retainingSequenceNumber,
+                retentionLease.timestamp,
+                retentionLease.source);
     }
 
     /**

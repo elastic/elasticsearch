@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
@@ -16,7 +17,7 @@ import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
@@ -516,6 +517,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 int max = ordinalReference.size();
 
                 for (Order order : orderBy.order()) {
+                    Expression child = order.child();
                     Integer ordinal = findOrdinal(order.child());
                     if (ordinal != null) {
                         changed = true;
@@ -524,7 +526,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                                     order.nullsPosition()));
                         }
                         else {
-                            throw new AnalysisException(order, "Invalid %d specified in OrderBy (valid range is [1, %d])", ordinal, max);
+                            // report error
+                            String message = LoggerMessageFormat.format("Invalid ordinal [{}] specified in {} (valid range is [1, {}])",
+                                    ordinal, orderBy.sourceText(), max);
+                            UnresolvedAttribute ua = new UnresolvedAttribute(child.source(), child.sourceText(), null, message);
+                            newOrder.add(new Order(order.source(), ua, order.direction(), order.nullsPosition()));
                         }
                     }
                     else {
@@ -554,14 +560,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         if (ordinal > 0 && ordinal <= max) {
                             NamedExpression reference = aggregates.get(ordinal - 1);
                             if (containsAggregate(reference)) {
-                                throw new AnalysisException(exp, "Group ordinal " + ordinal + " refers to an aggregate function "
-                                        + reference.nodeName() + " which is not compatible/allowed with GROUP BY");
+                                throw new AnalysisException(exp,
+                                        "Group ordinal {} refers to an aggregate function [{}] which is not compatible/allowed with GROUP BY",
+                                        ordinal, reference.source());
                             }
                             newGroupings.add(reference);
                         }
                         else {
-                            throw new AnalysisException(exp, "Invalid ordinal " + ordinal
-                                    + " specified in Aggregate (valid range is [1, " + max + "])");
+                            throw new AnalysisException(exp, "Invalid ordinal [{}] specified in {} (valid range is [1, {}])",
+                                    agg.sourceText(), ordinal, max);
                         }
                     }
                     else {
@@ -576,10 +583,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         private Integer findOrdinal(Expression expression) {
-            if (expression instanceof Literal) {
-                Literal l = (Literal) expression;
-                if (l.dataType().isInteger()) {
-                    Object v = l.value();
+            if (expression.foldable()) {
+                if (expression.dataType().isInteger()) {
+                    Object v = Foldables.valueOf(expression);
                     if (v instanceof Number) {
                         return Integer.valueOf(((Number) v).intValue());
                     }

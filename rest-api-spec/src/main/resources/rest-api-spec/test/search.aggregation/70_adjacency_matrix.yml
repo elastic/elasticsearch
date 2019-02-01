@@ -1,35 +1,32 @@
 setup:
   - do:
       indices.create:
+          include_type_name: false
           index: test
           body:
             settings:
               number_of_shards: 1
               number_of_replicas: 0
             mappings:
-              test:
-                properties:
-                  num:
-                    type: integer
+              properties:
+                num:
+                  type: integer
 
   - do:
         index:
           index: test
-          type: test
           id: 1
           body: { "num": [1, 2] }
 
   - do:
       index:
         index: test
-        type: test
         id: 2
         body: { "num": [2, 3] }
 
   - do:
       index:
         index: test
-        type: test
         id: 3
         body: { "num": [3, 4] }
 
@@ -60,4 +57,3 @@ setup:
 
   - match: { aggregations.conns.buckets.3.doc_count: 1 }
   - match: { aggregations.conns.buckets.3.key: "4" }
-

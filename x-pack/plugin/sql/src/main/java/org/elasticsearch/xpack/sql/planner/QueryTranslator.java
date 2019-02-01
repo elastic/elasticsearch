@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
@@ -28,6 +31,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
@@ -76,6 +80,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.PercentileRanksAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.PercentilesAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.StatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.SumAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.TopHitsAgg;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchQuery;
@@ -138,7 +143,9 @@ final class QueryTranslator {
             new PercentilesAggs(),
             new PercentileRanksAggs(),
             new CountAggs(),
-            new DateTimes()
+            new DateTimes(),
+            new Firsts(),
+            new Lasts()
             );
 
     static class QueryTranslation {
@@ -451,6 +458,17 @@ final class QueryTranslator {
         }
         throw new SqlIllegalArgumentException("Does not know how to convert argument {} for function {}", arg.nodeString(),
                 af.nodeString());
+    }
+
+    private static String topAggsField(AggregateFunction af, Expression e) {
+        if (e == null) {
+            return null;
+        }
+        if (e instanceof FieldAttribute) {
+            return ((FieldAttribute) e).exactAttribute().name();
+        }
+        throw new SqlIllegalArgumentException("Does not know how to convert argument {} for function {}", e.nodeString(),
+            af.nodeString());
     }
 
     // TODO: need to optimize on ngram
@@ -832,6 +850,24 @@ final class QueryTranslator {
         }
     }
 
+    static class Firsts extends TopHitsAggTranslator<First> {
+
+        @Override
+        protected LeafAgg toAgg(String id, First f) {
+            return new TopHitsAgg(id, topAggsField(f, f.field()), f.dataType(),
+                topAggsField(f, f.orderField()), f.orderField() == null ? null : f.orderField().dataType(), SortOrder.ASC);
+        }
+    }
+
+    static class Lasts extends TopHitsAggTranslator<Last> {
+
+        @Override
+        protected LeafAgg toAgg(String id, Last l) {
+            return new TopHitsAgg(id, topAggsField(l, l.field()), l.dataType(),
+                topAggsField(l, l.orderField()), l.orderField() == null ? null : l.orderField().dataType(), SortOrder.DESC);
+        }
+    }
+
     static class StatsAggs extends CompoundAggTranslator<Stats> {
 
         @Override
@@ -912,6 +948,15 @@ final class QueryTranslator {
         protected abstract LeafAgg toAgg(String id, C f);
     }
 
+    abstract static class TopHitsAggTranslator<C extends TopHits> extends AggTranslator<C> {
+
+        @Override
+        protected final LeafAgg asAgg(String id, C function) {
+            return toAgg(id, function);
+        }
+
+        protected abstract LeafAgg toAgg(String id, C f);
+    }
 
     abstract static class ExpressionTranslator<E extends Expression> {
 

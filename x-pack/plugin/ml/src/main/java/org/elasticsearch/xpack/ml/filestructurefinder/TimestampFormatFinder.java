@@ -472,8 +472,7 @@ public final class TimestampFormatFinder {
                     case "UNIX":
                         return Stream.of("epoch_second");
                     default:
-                        // TODO: remove the "8" prefix when Java time formats are the default
-                        return Stream.of("8" + format);
+                        return Stream.of(format);
                 }
             }).collect(Collectors.joining("||"));
             if (formats.isEmpty() == false) {

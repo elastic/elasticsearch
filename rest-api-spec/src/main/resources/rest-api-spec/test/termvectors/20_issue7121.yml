@@ -7,6 +7,7 @@ setup:
 "Term vector API should return 'found: false' for docs between index and refresh":
   - do:
       indices.create:
+          include_type_name: false
           index: testidx
           body:
             settings:
@@ -16,11 +17,10 @@ setup:
                 number_of_replicas: 0
                 refresh_interval: -1
             mappings:
-              _doc:
-                properties:
-                  text:
-                     type : "text"
-                     term_vector : "with_positions_offsets"
+              properties:
+                text:
+                   type : "text"
+                   term_vector : "with_positions_offsets"
 
   - do:
       cluster.health:
@@ -29,7 +29,6 @@ setup:
   - do:
       index:
         index: testidx
-        type:  _doc
         id:    1
         body:
             text : "foo bar"

@@ -55,8 +55,8 @@
 "PUT mapping with _doc on an index that has types":
 
  - skip:
-      version: " - 6.99.99"
-      reason: Backport first
+      version: " - 6.6.99"
+      reason: include_type_name is only supported as of 6.7
 
 
  - do:

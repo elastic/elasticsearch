@@ -115,11 +115,7 @@ final class SearchResponseMerger {
         //if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         //we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {
-            SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
-            InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits,
-                InternalAggregations.EMPTY, null, null, false, null, 0);
-            return new SearchResponse(internalSearchResponse, null, 0, 0, 0, searchTimeProvider.buildTookInMillis(),
-                ShardSearchFailure.EMPTY_ARRAY, clusters);
+            return SearchResponse.empty(searchTimeProvider::buildTookInMillis, clusters);
         }
         int totalShards = 0;
         int skippedShards = 0;

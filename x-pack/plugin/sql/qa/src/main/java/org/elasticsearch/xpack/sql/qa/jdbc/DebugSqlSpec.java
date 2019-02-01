@@ -16,7 +16,7 @@ public abstract class DebugSqlSpec extends SqlSpecTestCase {
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = specParser();
-        return readScriptSpec("/datetime.sql-spec", parser);
+        return readScriptSpec("/agg-ordering.sql-spec", parser);
     }
 
     public DebugSqlSpec(String fileName, String groupName, String testName, Integer lineNumber, String query) {

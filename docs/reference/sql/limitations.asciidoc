@@ -67,8 +67,18 @@ a field is an array (has multiple values) or not, so without reading all the dat
 === Sorting by aggregation
 
 When doing aggregations (`GROUP BY`) {es-sql} relies on {es}'s `composite` aggregation for its support for paginating results.
-But this type of aggregation does come with a limitation: sorting can only be applied on the key used for the aggregation's buckets. This
-means that queries like `SELECT * FROM test GROUP BY age ORDER BY COUNT(*)` are not possible.
+However this type of aggregation does come with a limitation: sorting can only be applied on the key used for the aggregation's buckets. 
+{es-sql} overcomes this limitation by doing client-side sorting however as a safety measure, allows only up to *512* rows.
+
+It is recommended to use `LIMIT` for queries that use sorting by aggregation, essentially indicating the top N results that are desired:
+
+[source, sql]
+--------------------------------------------------
+SELECT * FROM test GROUP BY age ORDER BY COUNT(*) LIMIT 100;
+--------------------------------------------------
+
+It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*512*) is passed, an exception will be
+returned as {es-sql} is unable to track (and sort) all the results returned.
 
 [float]
 === Using a sub-select

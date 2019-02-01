@@ -157,7 +157,7 @@ public class Querier {
         private final AtomicInteger counter = new AtomicInteger();
         private volatile Schema schema;
 
-        private static final int MAXIMUM_SIZE = 250;
+        private static final int MAXIMUM_SIZE = 512;
         private final boolean noLimit;
 
         LocalAggregationSorterListener(ActionListener<SchemaRowSet> listener, List<Tuple<Integer, Comparator>> sortingColumns, int limit) {

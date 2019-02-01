@@ -17,6 +17,15 @@ SELECT MAX(salary) AS m FROM test_emp ORDER BY m;
 maxWithAliasWithImplicitGroupByAndHaving
 SELECT MAX(salary) AS m FROM test_emp HAVING COUNT(*) > 1 ORDER BY m;
 
+multipleOrderWithImplicitGroupByWithHaving
+SELECT MAX(salary) AS m FROM test_emp HAVING MIN(salary) > 1 ORDER BY COUNT(*), m DESC;
+
+multipleOrderWithImplicitGroupByWithoutAlias
+SELECT MAX(salary) AS m FROM test_emp HAVING MIN(salary) > 1 ORDER BY COUNT(*), MIN(salary) DESC;
+
+multipleOrderWithImplicitGroupByOfOrdinals
+SELECT MAX(salary) AS max, MIN(salary) AS min FROM test_emp HAVING MIN(salary) > 1 ORDER BY 1, COUNT(*), 2 DESC;
+
 aggWithoutAlias
 SELECT MAX(salary) AS max FROM test_emp GROUP BY gender ORDER BY MAX(salary);
 
@@ -26,14 +35,29 @@ SELECT MAX(salary) AS m FROM test_emp GROUP BY gender ORDER BY m;
 multipleAggsThatGetRewrittenWithoutAlias
 SELECT MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY gender ORDER BY MAX(salary);
 
+multipleAggsThatGetRewrittenWithAliasDesc
+SELECT MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY gender ORDER BY 1 DESC;
+
 multipleAggsThatGetRewrittenWithAlias
 SELECT MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY gender ORDER BY max;
 
 aggNotSpecifiedInTheAggregate
 SELECT MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender ORDER BY MAX(salary);
 
+aggNotSpecifiedInTheAggregatePlusOrdinal
+SELECT MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender ORDER BY MAX(salary), 2 DESC;
+
 aggNotSpecifiedInTheAggregateWithHaving
 SELECT MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY MAX(salary);
+
+aggNotSpecifiedInTheAggregateWithHavingDesc
+SELECT MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY MAX(salary) DESC;
+
+aggNotSpecifiedInTheAggregateAndGroupWithHaving
+SELECT gender, MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY MAX(salary), gender;
+
+groupAndAggNotSpecifiedInTheAggregateWithHaving
+SELECT gender, MIN(salary) AS min, COUNT(*) AS c FROM test_emp GROUP BY gender HAVING c > 1 ORDER BY gender, MAX(salary);
 
 multipleAggsThatGetRewrittenWithAliasOnAMediumGroupBy
 SELECT languages, MAX(salary) AS max, MIN(salary) AS min FROM test_emp GROUP BY languages ORDER BY max;

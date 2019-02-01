@@ -38,6 +38,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -273,7 +275,10 @@ public class MetaDataMappingService {
                 updateList.add(indexMetaData);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 DocumentMapper newMapper;
-                DocumentMapper existingMapper = getMapperForUpdate(mapperService, mappingType);
+                DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
+                if (existingMapper == null && isMappingSourceTyped(mapperService, mappingUpdateSource, request.type()) == false) {
+                    existingMapper = getMapperForUpdate(mapperService, mappingType);
+                }
                 String typeForUpdate = existingMapper == null ? mappingType : existingMapper.type();
 
                 if (MapperService.DEFAULT_MAPPING.equals(typeForUpdate)) {
@@ -325,9 +330,16 @@ public class MetaDataMappingService {
                 // we use the exact same indexService and metadata we used to validate above here to actually apply the update
                 final Index index = indexMetaData.getIndex();
                 final MapperService mapperService = indexMapperServices.get(index);
+
+                // If the _type name is _doc and there is no _doc top-level key then this means that we
+                // are handling a typeless call. In such a case, we override _doc with the actual type
+                // name in the mappings. This allows to use typeless APIs on typed indices.
                 String typeForUpdate = mappingType;
                 CompressedXContent existingSource = null;
-                DocumentMapper existingMapper = getMapperForUpdate(mapperService, mappingType);
+                DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
+                if (existingMapper == null && isMappingSourceTyped(mapperService, mappingUpdateSource, request.type()) == false) {
+                    existingMapper = getMapperForUpdate(mapperService, mappingType);
+                }
                 if (existingMapper != null) {
                     typeForUpdate = existingMapper.type();
                     existingSource = existingMapper.mappingSource();
@@ -386,6 +398,15 @@ public class MetaDataMappingService {
         public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
             return String.join(", ", tasks.stream().map(t -> (CharSequence)t.type())::iterator);
         }
+    }
+
+    /**
+     * Returns {@code true} if the given {@code mappingSource} includes a type
+     * as a top-level object.
+     */
+    private static boolean isMappingSourceTyped(MapperService mapperService, CompressedXContent mappingSource, String type) {
+        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
+        return root.size() == 1 && root.keySet().iterator().next().equals(type);
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {

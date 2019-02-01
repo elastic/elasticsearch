@@ -48,9 +48,9 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestGetFieldMappingAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get field mapping " +
-        "requests is deprecated. The parameter include_type_name should be provided and set to false to be " +
-        "compatible with the next major version.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of get field " +
+        "mapping requests will change in 7.0. Please start using the include_type_name parameter set to false " +
+        "to move to the new, typeless response format that will become the default.";
 
     public RestGetFieldMappingAction(Settings settings, RestController controller) {
         super(settings);

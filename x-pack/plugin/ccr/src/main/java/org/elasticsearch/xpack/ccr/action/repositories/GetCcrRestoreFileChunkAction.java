@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
@@ -68,7 +67,7 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkR
                                                      IndexNameExpressionResolver resolver,
                                                      ActionFilters actionFilters, CcrRestoreSourceService restoreSourceService) {
             super(settings, NAME, transportService.getThreadPool(), transportService, actionFilters, resolver,
-                GetCcrRestoreFileChunkRequest::new);
+                GetCcrRestoreFileChunkRequest::new, ThreadPool.Names.GENERIC);
             TransportActionProxy.registerProxyAction(transportService, NAME, GetCcrRestoreFileChunkResponse::new);
             this.threadPool = transportService.getThreadPool();
             this.restoreSourceService = restoreSourceService;
@@ -77,29 +76,21 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkR
 
         @Override
         protected void doExecute(GetCcrRestoreFileChunkRequest request, ActionListener<GetCcrRestoreFileChunkResponse> listener) {
-            threadPool.generic().execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
+            int bytesRequested = request.getSize();
+            ByteArray array = bigArrays.newByteArray(bytesRequested, false);
+            String fileName = request.getFileName();
+            String sessionUUID = request.getSessionUUID();
+            // This is currently safe to do because calling `onResponse` will serialize the bytes to the network layer data
+            // structure on the same thread. So the bytes will be copied before the reference is released.
+            try (ReleasablePagedBytesReference reference = new ReleasablePagedBytesReference(array, bytesRequested, array)) {
+                try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
+                    long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
+                    long offsetBeforeRead = offsetAfterRead - reference.length();
+                    listener.onResponse(new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
                 }
-
-                @Override
-                protected void doRun() throws Exception {
-                    int bytesRequested = request.getSize();
-                    ByteArray array = bigArrays.newByteArray(bytesRequested, false);
-                    String fileName = request.getFileName();
-                    String sessionUUID = request.getSessionUUID();
-                    // This is currently safe to do because calling `onResponse` will serialize the bytes to the network layer data
-                    // structure on the same thread. So the bytes will be copied before the reference is released.
-                    try (ReleasablePagedBytesReference reference = new ReleasablePagedBytesReference(array, bytesRequested, array)) {
-                        try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
-                            long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
-                            long offsetBeforeRead = offsetAfterRead - reference.length();
-                            listener.onResponse(new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
-                        }
-                    }
-                }
-            });
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
         }
     }
 

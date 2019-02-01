@@ -144,14 +144,14 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
         try (Directory dir = newDirectory();
                 IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
 
-            long millis1 = DateFormatters.toZonedDateTime(format.parse("2018-03-11T11:55:00")).toInstant().toEpochMilli();
+            long millis1 = DateFormatters.from(format.parse("2018-03-11T11:55:00")).toInstant().toEpochMilli();
             w.addDocument(documentForDate(DATE_FIELD_NAME, millis1));
-            long millis2 = DateFormatters.toZonedDateTime(format.parse("2017-10-30T18:13:00")).toInstant().toEpochMilli();
+            long millis2 = DateFormatters.from(format.parse("2017-10-30T18:13:00")).toInstant().toEpochMilli();
             w.addDocument(documentForDate(DATE_FIELD_NAME, millis2));
 
             try (IndexReader readerThatDoesntCross = DirectoryReader.open(w)) {
 
-                long millis3 = DateFormatters.toZonedDateTime(format.parse("2018-03-25T02:44:00")).toInstant().toEpochMilli();
+                long millis3 = DateFormatters.from(format.parse("2018-03-25T02:44:00")).toInstant().toEpochMilli();
                 w.addDocument(documentForDate(DATE_FIELD_NAME, millis3));
 
                 try (IndexReader readerThatCrosses = DirectoryReader.open(w)) {

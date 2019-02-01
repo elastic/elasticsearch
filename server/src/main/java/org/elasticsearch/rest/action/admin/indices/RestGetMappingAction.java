@@ -59,9 +59,9 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestGetMappingAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get" +
-        " mapping requests is deprecated. The parameter will be removed in the next major version.";
-
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of get mapping " +
+        "requests will change in 7.0. Please start using the include_type_name parameter set to false to " +
+        "move to the new, typeless response format that will become the default.";
 
     public RestGetMappingAction(final Settings settings, final RestController controller) {
         super(settings);

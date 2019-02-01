@@ -641,7 +641,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         DateTime jodaDateTime = jodaFormatter.parseJoda(input);
 
         TemporalAccessor javaTimeAccessor = javaFormatter.parse(input);
-        ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
+        ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
 
         String msg = String.format(Locale.ROOT, "Input [%s] Format [%s] Joda [%s], Java [%s]", input, format, jodaDateTime,
             DateTimeFormatter.ISO_INSTANT.format(zonedDateTime.toInstant()));

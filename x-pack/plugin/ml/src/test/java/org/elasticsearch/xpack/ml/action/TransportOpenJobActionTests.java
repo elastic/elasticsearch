@@ -552,7 +552,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
             new Assignment(nodeId, "test assignment"));
         if (jobState != null) {
             builder.updateTaskState(MlTasks.jobTaskId(jobId),
-                new JobTaskState(jobState, builder.getLastAllocationId() - (isStale ? 1 : 0)));
+                new JobTaskState(jobState, builder.getLastAllocationId() - (isStale ? 1 : 0), null));
         }
     }
 

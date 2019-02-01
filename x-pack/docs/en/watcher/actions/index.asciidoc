@@ -16,8 +16,7 @@ The following snippet shows a simple `index` action definition:
     "transform": { ... }, <3>
     "index" : {
       "index" : "my-index", <4>
-      "doc_type" : "my-type", <5>
-      "doc_id": "my-id" <6>
+      "doc_id": "my-id" <5>
     }
   }
 }
@@ -27,8 +26,7 @@ The following snippet shows a simple `index` action definition:
 <2> An optional <<condition, condition>> to restrict action execution
 <3> An optional <<transform, transform>> to transform the payload and prepare the data that should be indexed
 <4> The elasticsearch index to store the data to
-<5> The document type to store the data as
-<6> An optional `_id` for the document, if it should always be the same document.
+<5> An optional `_id` for the document, if it should always be the same document.
 
 
 [[index-action-attributes]]
@@ -40,7 +38,6 @@ The following snippet shows a simple `index` action definition:
 
 | `index`                 | yes        | -          | The Elasticsearch index to index into.
 
-| `doc_type`              | yes        | -          | The type of the document the data will be indexed as.
 
 | `doc_id`                | no         | -          | The optional `_id` of the document.
 
@@ -75,5 +72,5 @@ When a `_doc` field exists, if the field holds an object, it is extracted and in
 as a single document. If the field holds an array of objects, each object is treated as
 a document and the index action indexes all of them in a bulk.
 
-An `_index`, `_type` or `_id` value can be added per document to dynamically set the ID
+An `_index`, or `_id` value can be added per document to dynamically set the ID
 of the indexed document.

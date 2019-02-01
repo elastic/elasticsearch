@@ -31,6 +31,10 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         assertThat(readLine(), containsString(HEADER_SEPARATOR));
         assertThat(readLine(), RegexMatcher.matches("\\s*AVG\\s*\\|\\s*AGGREGATE\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*COUNT\\s*\\|\\s*AGGREGATE\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*FIRST\\s*\\|\\s*AGGREGATE\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*FIRST_VALUE\\s*\\|\\s*AGGREGATE\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*LAST\\s*\\|\\s*AGGREGATE\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*LAST_VALUE\\s*\\|\\s*AGGREGATE\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*MAX\\s*\\|\\s*AGGREGATE\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*MIN\\s*\\|\\s*AGGREGATE\\s*"));
         String line = readLine();
@@ -58,6 +62,8 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
     public void testShowFunctionsLikePrefix() throws IOException {
         assertThat(command("SHOW FUNCTIONS LIKE 'L%'"), RegexMatcher.matches("\\s*name\\s*\\|\\s*type\\s*"));
         assertThat(readLine(), containsString(HEADER_SEPARATOR));
+        assertThat(readLine(), RegexMatcher.matches("\\s*LAST\\s*\\|\\s*AGGREGATE\\s*"));
+        assertThat(readLine(), RegexMatcher.matches("\\s*LAST_VALUE\\s*\\|\\s*AGGREGATE\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LEAST\\s*\\|\\s*CONDITIONAL\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LOG\\s*\\|\\s*SCALAR\\s*"));
         assertThat(readLine(), RegexMatcher.matches("\\s*LOG10\\s*\\|\\s*SCALAR\\s*"));

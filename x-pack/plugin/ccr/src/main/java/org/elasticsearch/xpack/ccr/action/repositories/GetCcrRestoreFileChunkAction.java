@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -58,7 +57,7 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
         @Inject
         public TransportGetCcrRestoreFileChunkAction(BigArrays bigArrays, TransportService transportService, ActionFilters actionFilters,
                                                      CcrRestoreSourceService restoreSourceService) {
-            super(NAME, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new);
+            super(NAME, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new, ThreadPool.Names.GENERIC);
             TransportActionProxy.registerProxyAction(transportService, NAME, GetCcrRestoreFileChunkResponse::new);
             this.threadPool = transportService.getThreadPool();
             this.restoreSourceService = restoreSourceService;
@@ -68,29 +67,21 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
         @Override
         protected void doExecute(Task task, GetCcrRestoreFileChunkRequest request,
                                  ActionListener<GetCcrRestoreFileChunkResponse> listener) {
-            threadPool.generic().execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
+            int bytesRequested = request.getSize();
+            ByteArray array = bigArrays.newByteArray(bytesRequested, false);
+            String fileName = request.getFileName();
+            String sessionUUID = request.getSessionUUID();
+            // This is currently safe to do because calling `onResponse` will serialize the bytes to the network layer data
+            // structure on the same thread. So the bytes will be copied before the reference is released.
+            try (ReleasablePagedBytesReference reference = new ReleasablePagedBytesReference(array, bytesRequested, array)) {
+                try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
+                    long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
+                    long offsetBeforeRead = offsetAfterRead - reference.length();
+                    listener.onResponse(new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
                 }
-
-                @Override
-                protected void doRun() throws Exception {
-                    int bytesRequested = request.getSize();
-                    ByteArray array = bigArrays.newByteArray(bytesRequested, false);
-                    String fileName = request.getFileName();
-                    String sessionUUID = request.getSessionUUID();
-                    // This is currently safe to do because calling `onResponse` will serialize the bytes to the network layer data
-                    // structure on the same thread. So the bytes will be copied before the reference is released.
-                    try (ReleasablePagedBytesReference reference = new ReleasablePagedBytesReference(array, bytesRequested, array)) {
-                        try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
-                            long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
-                            long offsetBeforeRead = offsetAfterRead - reference.length();
-                            listener.onResponse(new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
-                        }
-                    }
-                }
-            });
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
         }
     }
 

@@ -209,7 +209,7 @@ public final class PutWatchRequest extends ActionRequest {
 
         return validationException;
     }
-    
+
     public static boolean isValidId(String id) {
         return Strings.isEmpty(id) == false && NO_WS_PATTERN.matcher(id).matches();
     }

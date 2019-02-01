@@ -58,7 +58,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         null, null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .put("monitoring_user", new RoleDescriptor("monitoring_user",
-                        new String[] { "cluster:monitor/main" },
+                        new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info" },
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .indices(".monitoring-*").privileges("read", "read_cross_cluster").build()

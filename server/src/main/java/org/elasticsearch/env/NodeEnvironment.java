@@ -36,6 +36,7 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -146,6 +147,7 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     private final Logger logger = LogManager.getLogger(NodeEnvironment.class);
+    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private final NodePath[] nodePaths;
     private final Path sharedDataPath;
     private final Lock[] locks;
@@ -319,14 +321,16 @@ public final class NodeEnvironment  implements Closeable {
                     try {
                         ensureNoIndexMetaData(nodePaths);
                     } catch (IllegalStateException e) {
-                        logger.warn(e.getMessage() + ", this should be cleaned up (will refuse to start in 7.0). Beware of data-loss.");
+                        deprecationLogger.deprecated(e.getMessage()
+                            + ", this should be cleaned up (will refuse to start in 7.0). Create a backup copy before removing.");
                     }
                 }
 
                 try {
                     ensureNoShardData(nodePaths);
                 } catch (IllegalStateException e) {
-                    logger.warn(e.getMessage() + ", this should be cleaned up (will refuse to start in 7.0). Beware of data-loss.");
+                    deprecationLogger.deprecated(e.getMessage()
+                        + ", this should be cleaned up (will refuse to start in 7.0). Create a backup copy before removing.");
                 }
             }
 

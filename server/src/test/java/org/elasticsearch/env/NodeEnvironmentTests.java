@@ -496,7 +496,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             public void append(LogEvent event) {
                 if (event.getLevel() == Level.WARN
                     && event.getMessage().getFormattedMessage()
-                    .endsWith(", this should be cleaned up (will refuse to start in 7.0). Beware of data-loss.")) {
+                    .endsWith(", this should be cleaned up (will refuse to start in 7.0). Create a backup copy before removing.")) {
+                    assertWarnings(event.getMessage().getFormattedMessage());
                     throw new LoggingException(new IllegalStateException(event.getMessage().getFormattedMessage()));
                 }
             }
@@ -515,7 +516,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             }
         });
         appender.start();
-        Logger nodeEnvironmentLogger = LogManager.getLogger(NodeEnvironment.class);
+        Logger nodeEnvironmentLogger = LogManager.getLogger(NodeEnvironment.class.getName().replace("org.elasticsearch.",
+            "org.elasticsearch.deprecation."));
         Loggers.addAppender(nodeEnvironmentLogger, appender);
         try {
             testEnsureNoShardDataOrIndexMetaData();

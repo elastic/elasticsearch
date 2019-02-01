@@ -42,10 +42,9 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
             LogManager.getLogger(RestPutIndexTemplateAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in put index " +
-            "template requests is deprecated. Any doc types should be removed from the `mapping` section"
-            + " and the parameter include_type_name should be provided and set to false to be " +
-            "compatible with the next major version.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in put index template " +
+            "requests is deprecated. To be compatible with 7.0, the mapping definition should not be nested under " +
+            "the type name, and the parameter include_type_name must be provided and set to false.";
 
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);

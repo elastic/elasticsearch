@@ -7,7 +7,6 @@ setup:
 "Term vector API should return 'found: false' for docs between index and refresh":
   - do:
       indices.create:
-          include_type_name: false
           index: testidx
           body:
             settings:

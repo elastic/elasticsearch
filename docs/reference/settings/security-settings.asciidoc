@@ -145,6 +145,22 @@ The length of time that a token is valid for. By default this value is `20m` or
 20 minutes. The maximum value is 1 hour.
 
 [float]
+[[api-key-service-settings]]
+==== API key service settings
+
+You can set the following API key service settings in
+`elasticsearch.yml`.
+
+`xpack.security.authc.api_key.enabled`::
+Set to `false` to disable the built-in API key service. Defaults to `true` unless
+ `xpack.security.http.ssl.enabled` is `false`. This prevents sniffing the API key
+  from a connection over plain http.
+
+`xpack.security.authc.api_key_hashing.algorithm`::
+Specifies the hashing algorithm that is used for securing API key credentials. 
+See <<password-hashing-algorithms>>. Defaults to `pbkdf2`.
+
+[float]
 [[realm-settings]]
 ==== Realm settings
 You configure realm settings in the `xpack.security.authc.realms`

@@ -48,7 +48,6 @@ public class Role {
         this.runAs = Objects.requireNonNull(runAs);
     }
 
-
     public String[] names() {
         return names;
     }

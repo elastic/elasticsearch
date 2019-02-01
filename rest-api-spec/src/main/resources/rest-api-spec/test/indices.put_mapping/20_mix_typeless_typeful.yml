@@ -42,11 +42,41 @@
                       type: "keyword" # also test no-op updates that trigger special logic wrt the mapping version
 
  - do:
-      catch: bad_request
+      catch: /the final mapping would have more than 1 type/
       indices.put_mapping:
           index: index
+          type: some_other_type
           body:
               some_other_type:
+                  properties:
+                      bar:
+                          type: "long"
+
+
+---
+"PUT mapping with _doc on an index that has types":
+
+ - skip:
+      version: " - 5.99.99"
+      reason: 5.x indices can have types that start with an `_`
+
+ - do:
+      indices.create:
+          index: index
+          body:
+              mappings:
+                  my_type:
+                      properties:
+                          foo:
+                              type: "keyword"
+
+ - do:
+      catch: /the final mapping would have more than 1 type/
+      indices.put_mapping:
+          index: index
+          type: _doc
+          body:
+              _doc:
                   properties:
                       bar:
                           type: "long"

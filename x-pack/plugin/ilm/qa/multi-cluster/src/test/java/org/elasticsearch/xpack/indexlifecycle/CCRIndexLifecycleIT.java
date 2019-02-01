@@ -332,29 +332,32 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         String policyName = "shrink-leader-test-policy";
         if ("leader".equals(targetCluster)) {
+            // Set up the policy and index, but don't attach the policy yet,
+            // otherwise it'll proceed through shrink before we can set up the
+            // follower
             putShrinkOnlyPolicy(client(), policyName);
-
-            // Stop ILM to let us set up the follower before the policy swings into action and shrinks the index
-            stopILM(client());
-            assertBusy(() -> assertEquals("STOPPED", ilmStatus(client())));
             Settings indexSettings = Settings.builder()
                 .put("index.soft_deletes.enabled", true)
                 .put("index.number_of_shards", 2)
                 .put("index.number_of_replicas", 0)
-                .put("index.lifecycle.name", policyName)
                 .build();
             createIndex(indexName, indexSettings, "", "");
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
 
             try (RestClient leaderClient = buildLeaderClient()) {
-
                 // Policy with the same name must exist in follower cluster too:
                 putUnfollowOnlyPolicy(client(), policyName);
                 followIndex(indexName, indexName);
                 ensureGreen(indexName);
 
-                startILM(leaderClient);
+                // Now we can set up the leader to use the policy
+                Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
+                final StringEntity changePolicyEntity = new StringEntity("{ \"index.lifecycle.name\": \"" + policyName + "\" }",
+                    ContentType.APPLICATION_JSON);
+                changePolicyRequest.setEntity(changePolicyEntity);
+                assertOK(leaderClient.performRequest(changePolicyRequest));
+
                 index(leaderClient, indexName, "1");
                 assertDocumentExists(leaderClient, indexName, "1");
 

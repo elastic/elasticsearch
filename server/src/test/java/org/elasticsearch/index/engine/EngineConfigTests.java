@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -59,7 +60,7 @@ public class EngineConfigTests extends ESTestCase {
                 null,
                 null,
                 null,
-                Collections::emptyList,
+                () -> RetentionLeases.EMPTY,
                 null,
                 null);
 

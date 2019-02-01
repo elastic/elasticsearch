@@ -25,11 +25,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-
-import java.io.IOException;
 
 /**
  * Specialization of {@link AtomicNumericFieldData} for integers.
@@ -50,54 +45,6 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
     @Override
     public long ramBytesUsed() {
         return ramBytesUsed;
-    }
-
-    @Override
-    public final ScriptDocValues<?> getLegacyFieldValues() {
-        switch (numericType) {
-            case DATE:
-                final ScriptDocValues.Dates dv = new ScriptDocValues.Dates(getLongValues(), false);
-                return new ScriptDocValues<DateTime>() {
-
-                    @Override
-                    public int size() {
-                        return dv.size();
-                    }
-
-                    @Override
-                    public DateTime get(int index) {
-                        JodaCompatibleZonedDateTime dt = dv.get(index);
-                        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.UTC);
-                    }
-
-                    @Override
-                    public void setNextDocId(int docId) throws IOException {
-                        dv.setNextDocId(docId);
-                    }
-                };
-            case DATE_NANOSECONDS:
-                final ScriptDocValues.Dates realDV = new ScriptDocValues.Dates(getLongValues(), true);
-                return new ScriptDocValues<DateTime>() {
-
-                    @Override
-                    public int size() {
-                        return realDV.size();
-                    }
-
-                    @Override
-                    public DateTime get(int index) {
-                        JodaCompatibleZonedDateTime dt = realDV.get(index);
-                        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.UTC);
-                    }
-
-                    @Override
-                    public void setNextDocId(int docId) throws IOException {
-                        realDV.setNextDocId(docId);
-                    }
-                };
-            default:
-                return getScriptValues();
-        }
     }
 
     @Override

@@ -193,6 +193,7 @@ response:
   "docs": [
     {
       "doc": {
+        "_type": "_type",
         "_index": "_index",
         "_id": "_id",
         "_source": {
@@ -253,6 +254,7 @@ POST _ingest/pipeline/_simulate
   "docs": [
     {
       "doc": {
+        "_type": "_type",
         "_index": "_index",
         "_id": "_id",
         "_source": {

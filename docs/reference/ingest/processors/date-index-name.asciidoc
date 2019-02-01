@@ -112,6 +112,7 @@ and the result:
       "doc" : {
         "_id" : "_id",
         "_index" : "<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>",
+        "_type" : "_type",
         "_source" : {
           "date1" : "2016-04-25T12:02:01.789Z"
         },

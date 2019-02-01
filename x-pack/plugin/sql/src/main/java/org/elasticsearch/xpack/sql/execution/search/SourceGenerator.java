@@ -112,12 +112,12 @@ public abstract class SourceGenerator {
 
                     sortBuilder = fieldSort(fa.name())
                             .missing(as.missing().position())
-                            .unmappedType(fa.dataType().esType);
+                            .unmappedType(fa.dataType().esType());
                     
                     if (fa.isNested()) {
                         FieldSortBuilder fieldSort = fieldSort(fa.name())
                                 .missing(as.missing().position())
-                                .unmappedType(fa.dataType().esType);
+                                .unmappedType(fa.dataType().esType());
 
                         NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
                         NestedSortBuilder nestedSort = fieldSort.getNestedSort();

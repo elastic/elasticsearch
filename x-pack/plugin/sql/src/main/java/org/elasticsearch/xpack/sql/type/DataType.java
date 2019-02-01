@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.JDBCType;
@@ -126,9 +127,9 @@ public enum DataType {
 
 
     /**
-     * Elasticsearch type name
+     * Lowercase type name
      */
-    public final String esType;
+    public final String esSQLType;
 
     /**
      * Compatible JDBC type
@@ -176,7 +177,7 @@ public enum DataType {
 
     DataType(SQLType sqlType, int size, int defaultPrecision, int displaySize, boolean isInteger,
             boolean isRational, boolean defaultDocValues) {
-        this.esType = name().toLowerCase(Locale.ROOT);
+        this.esSQLType = name().toLowerCase(Locale.ROOT);
         this.sqlType = sqlType;
         this.size = size;
         this.defaultPrecision = defaultPrecision;
@@ -184,6 +185,16 @@ public enum DataType {
         this.isInteger = isInteger;
         this.isRational = isRational;
         this.defaultDocValues = defaultDocValues;
+    }
+
+    public String esType() {
+        if (this == DATE || DataTypes.isInterval(this)) {
+            throw new SqlIllegalArgumentException("{} doesn't have a corresponding ES data type", this);
+        }
+        if (this == DATETIME) {
+            return "date";
+        }
+        return esSQLType;
     }
 
     public String sqlName() {
@@ -228,8 +239,6 @@ public enum DataType {
     
     /**
      * Creates returns DataType enum corresponding to the specified es type
-     * <p>
-     * For any dataType DataType.fromTypeName(dataType.esType) == dataType
      */
     public static DataType fromTypeName(String esType) {
         String uppercase = esType.toUpperCase(Locale.ROOT);

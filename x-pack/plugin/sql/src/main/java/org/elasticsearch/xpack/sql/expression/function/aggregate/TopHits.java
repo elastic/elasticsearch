@@ -46,7 +46,7 @@ public abstract class TopHits extends AggregateFunction {
             ((FieldAttribute) field()).exactAttribute();
         } catch (MappingException ex) {
             return new TypeResolution(format(null, "[{}] cannot operate on first argument field of data type [{}]",
-                functionName(), field().dataType().esType));
+                functionName(), field().dataType().esSQLType));
         }
 
         if (orderField() != null) {
@@ -59,7 +59,7 @@ public abstract class TopHits extends AggregateFunction {
                 ((FieldAttribute) orderField()).exactAttribute();
             } catch (MappingException ex) {
                 return new TypeResolution(format(null, "[{}] cannot operate on second argument field of data type [{}]",
-                    functionName(), orderField().dataType().esType));
+                    functionName(), orderField().dataType().esSQLType));
             }
         }
         return TypeResolution.TYPE_RESOLVED;

@@ -33,6 +33,6 @@ public class TopHitsAggRef extends AggRef {
 
     @Override
     public String toString() {
-        return ">" + name + "[" + fieldDataType.esType + "]";
+        return ">" + name + "[" + fieldDataType.esSQLType + "]";
     }
 }

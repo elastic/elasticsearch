@@ -202,7 +202,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     }
 
     public void testFollowIndexWithConcurrentMappingChanges() throws Exception {
-        for (int n = 0; n < 10; ++n) {
+        for (int n = 0; n < 5; ++n) {
             logger.error("Follow Iteration: " + n);
             final int numberOfPrimaryShards = randomIntBetween(1, 3);
             final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),

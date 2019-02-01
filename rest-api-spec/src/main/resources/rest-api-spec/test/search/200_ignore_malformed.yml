@@ -6,7 +6,6 @@ setup:
 
   - do:
       indices.create:
-          include_type_name: false
           index:  test
           body:
             mappings:

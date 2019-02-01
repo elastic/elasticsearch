@@ -2,7 +2,6 @@
 "Test percolator basics via rest":
   - do:
       indices.create:
-        include_type_name: false
         index: queries_index
         body:
           mappings:

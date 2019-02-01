@@ -202,8 +202,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             super(in);
             remoteCluster = in.readString();
             leaderIndex = in.readString();
-            // TODO: Update after backport
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
                 waitForActiveShards(ActiveShardCount.readFrom(in));
             }
             followRequest = new ResumeFollowAction.Request(in);
@@ -214,8 +213,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             super.writeTo(out);
             out.writeString(remoteCluster);
             out.writeString(leaderIndex);
-            // TODO: Update after backport
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
                 waitForActiveShards.writeTo(out);
             }
             followRequest.writeTo(out);

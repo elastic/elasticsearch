@@ -171,6 +171,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
             Aggregations aggregations = searchResponse.getAggregations();
             LongTerms longTerms = aggregations.get("terms");
+            assertEquals(2, longTerms.getBuckets().size());
         }
     }
 }

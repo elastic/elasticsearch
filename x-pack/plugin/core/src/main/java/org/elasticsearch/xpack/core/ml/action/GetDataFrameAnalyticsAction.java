@@ -9,9 +9,11 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 
+import java.io.IOException;
 import java.util.Collections;
 
 public class GetDataFrameAnalyticsAction extends Action<GetDataFrameAnalyticsAction.Response> {
@@ -30,6 +32,12 @@ public class GetDataFrameAnalyticsAction extends Action<GetDataFrameAnalyticsAct
 
     public static class Request extends AbstractGetResourcesRequest {
 
+        public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            readFrom(in);
+        }
+
         @Override
         public String getResourceIdField() {
             return DataFrameAnalyticsConfig.ID.getPreferredName();
@@ -39,6 +47,8 @@ public class GetDataFrameAnalyticsAction extends Action<GetDataFrameAnalyticsAct
     public static class Response extends AbstractGetResourcesResponse<DataFrameAnalyticsConfig> {
 
         public static final ParseField RESULTS_FIELD = new ParseField("data_frame_analytics");
+
+        public Response() {}
 
         public Response(QueryPage<DataFrameAnalyticsConfig> analytics) {
             super(analytics);

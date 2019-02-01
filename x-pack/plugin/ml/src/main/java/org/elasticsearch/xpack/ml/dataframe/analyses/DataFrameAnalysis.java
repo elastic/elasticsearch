@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.analyses;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.util.Locale;
@@ -16,7 +17,11 @@ public interface DataFrameAnalysis extends ToXContentObject {
         OUTLIER_DETECTION;
 
         public static Type fromString(String value) {
-            return Type.valueOf(value.toUpperCase(Locale.ROOT));
+            try {
+                return Type.valueOf(value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new ElasticsearchParseException("Unknown analysis type [{}]", value);
+            }
         }
 
         @Override

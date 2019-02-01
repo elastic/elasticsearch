@@ -33,13 +33,10 @@ public final class DataFrameAnalysesUtils {
         Map<String, Object> configMap = config.asMap();
         DataFrameAnalysis.Type analysisType = DataFrameAnalysis.Type.fromString(configMap.keySet().iterator().next());
         DataFrameAnalysis.Factory factory = factories.get(analysisType);
-        if (factory == null) {
-            throw new ElasticsearchParseException("Unknown analysis type [{}]", analysisType);
-        }
         Map<String, Object> analysisConfig = castAsMapAndCopy(analysisType, configMap.get(analysisType.toString()));
         DataFrameAnalysis dataFrameAnalysis = factory.create(analysisConfig);
         if (analysisConfig.isEmpty() == false) {
-            throw new ElasticsearchParseException("Data frame analysis [{}] does not support one or more provided parameters: {}",
+            throw new ElasticsearchParseException("Data frame analysis [{}] does not support one or more provided parameters {}",
                 analysisType, analysisConfig.keySet());
         }
         return dataFrameAnalysis;
@@ -62,8 +59,8 @@ public final class DataFrameAnalysesUtils {
         try {
             return (int) value;
         } catch (ClassCastException e) {
-            throw new ElasticsearchParseException("Property [{}] of analysis [{}] should be of type int but was [{}]",
-                property, analysisType, value.getClass().getName());
+            throw new ElasticsearchParseException("Property [{}] of analysis [{}] should be of type [Integer] but was [{}]",
+                property, analysisType, value.getClass().getSimpleName());
         }
     }
 
@@ -76,8 +73,8 @@ public final class DataFrameAnalysesUtils {
         try {
             return (String) value;
         } catch (ClassCastException e) {
-            throw new ElasticsearchParseException("Property [{}] of analysis [{}] should be of string int but was [{}]",
-                property, analysisType, value.getClass().getName());
+            throw new ElasticsearchParseException("Property [{}] of analysis [{}] should be of type [String] but was [{}]",
+                property, analysisType, value.getClass().getSimpleName());
         }
     }
 }

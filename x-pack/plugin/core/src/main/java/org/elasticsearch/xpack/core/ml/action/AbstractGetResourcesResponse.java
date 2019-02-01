@@ -24,6 +24,8 @@ public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writea
 
     private QueryPage<T> resources;
 
+    protected AbstractGetResourcesResponse() {}
+
     protected AbstractGetResourcesResponse(QueryPage<T> resources) {
         this.resources = Objects.requireNonNull(resources);
     }

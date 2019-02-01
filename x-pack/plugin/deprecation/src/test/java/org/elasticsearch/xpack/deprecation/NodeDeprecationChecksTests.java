@@ -80,19 +80,21 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#audit-logfile-local-node-info",
             "the audit log is now structured JSON");
-        assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_host_address", Boolean.toString(randomBoolean()), expected);
+        assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_host_address",
+            Boolean.toString(randomBoolean()), expected);
         assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_host_name", Boolean.toString(randomBoolean()), expected);
         assertSettingsAndIssue("xpack.security.audit.logfile.prefix.emit_node_name", Boolean.toString(randomBoolean()), expected);
     }
 
     public void testAuditIndexSettingsCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL, "Audit index output type removed",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" + "#remove-audit-index-output",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
+                    + "#remove-audit-index-output",
                 "recommended replacement is the logfile audit output type");
         assertSettingsAndIssue("xpack.security.audit.outputs", randomFrom("[index]", "[\"index\", \"logfile\"]"), expected);
         assertSettingsAndIssue("xpack.security.audit.index.events.emit_request_body", Boolean.toString(randomBoolean()), expected);
-        assertSettingsAndIssue("xpack.security.audit.index.client.xpack.security.transport.ssl.enabled", Boolean.toString(randomBoolean()),
-                expected);
+        assertSettingsAndIssue("xpack.security.audit.index.client.xpack.security.transport.ssl.enabled",
+            Boolean.toString(randomBoolean()), expected);
         assertSettingsAndIssue("xpack.security.audit.index.client.cluster.name", randomAlphaOfLength(4), expected);
         assertSettingsAndIssue("xpack.security.audit.index.settings.index.number_of_shards", Integer.toString(randomInt()), expected);
         assertSettingsAndIssue("xpack.security.audit.index.events.include",
@@ -143,7 +145,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "account authentication settings must use the keystore");
         assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".url", randomAlphaOfLength(4), expected);
         assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".user", randomAlphaOfLength(4), expected);
-        assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".password", randomAlphaOfLength(4), expected);
+        assertSettingsAndIssue("xpack.notification.jira.account." + randomAlphaOfLength(4) + ".password",
+            randomAlphaOfLength(4), expected);
         expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Watcher notification accounts' authentication settings must be defined securely",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html"
@@ -206,7 +209,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 discoveryNode, hostsProviderSettings, osInfo, null, null,
                 null, null, null, pluginsAndModules, null, null));
 
-            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(hostsProviderSettings, pluginsAndModules));
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS,
+                c -> c.apply(hostsProviderSettings, pluginsAndModules));
             assertTrue(issues.isEmpty());
         }
 
@@ -218,7 +222,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 discoveryNode, hostsProviderSettings, osInfo, null, null,
                 null, null, null, pluginsAndModules, null, null));
 
-            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(hostsProviderSettings, pluginsAndModules));
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS,
+                c -> c.apply(hostsProviderSettings, pluginsAndModules));
             assertTrue(issues.isEmpty());
         }
 
@@ -234,7 +239,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_discovery_configuration_is_required_in_production",
                 "");
-            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(hostsProviderSettings, pluginsAndModules));
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS,
+                c -> c.apply(hostsProviderSettings, pluginsAndModules));
             assertEquals(singletonList(expected), issues);
         }
 

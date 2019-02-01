@@ -81,7 +81,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
@@ -204,7 +203,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     public void testFollowIndexWithConcurrentMappingChanges() throws Exception {
         for (int n = 0; n < 10; ++n) {
-            logger.error("FUCK " + n);
+            logger.error("Follow Iteration: " + n);
             final int numberOfPrimaryShards = randomIntBetween(1, 3);
             final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
                 singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));

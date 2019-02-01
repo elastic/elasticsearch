@@ -464,16 +464,14 @@ final class StoreRecovery {
             repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(),
                 restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
             final Store store = indexShard.store();
-            store.bootstrapNewHistory();
+//            store.bootstrapNewHistory();
             final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
             final long maxSeqNo = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.MAX_SEQ_NO));
             final long localCheckpoint =  Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            if (maxSeqNo != localCheckpoint) {
-                int i = 0;
-            }
-            logger.error("FUCK: " + localCheckpoint);
+            logger.error("Max Sequence Number: " + maxSeqNo);
+            logger.error("Local Checkpoint: " + localCheckpoint);
             final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId, indexShard.getPendingPrimaryTerm());
+                indexShard.shardPath().resolveTranslog(), localCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             indexShard.openEngineAndRecoverFromTranslog();

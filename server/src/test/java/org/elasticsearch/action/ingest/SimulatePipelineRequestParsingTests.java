@@ -102,7 +102,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             if (useExplicitType) {
                 expectedDoc.put(TYPE.getFieldName(), type);
             } else {
-                expectedDoc.put(TYPE.getFieldName(), "_type");
+                expectedDoc.put(TYPE.getFieldName(), "_doc");
             }
             expectedDoc.put(ID.getFieldName(), id);
             expectedDoc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
@@ -127,7 +127,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         assertThat(actualRequest.getPipeline().getDescription(), nullValue());
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(1));
         if (useExplicitType) {
-            assertWarnings("Specifying _type in pipeline simulation requests is deprecated.");
+            assertWarnings("[types removal] specifying _type in pipeline simulation requests is deprecated");
         }
     }
 
@@ -167,7 +167,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
                         doc.put(field.getFieldName(), value);
                         expectedDoc.put(field.getFieldName(), value);
                     } else {
-                        expectedDoc.put(field.getFieldName(), "_type");
+                        expectedDoc.put(field.getFieldName(), "_doc");
                     }
                 } else {
                     if (randomBoolean()) {
@@ -236,7 +236,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         assertThat(actualRequest.getPipeline().getDescription(), nullValue());
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(numProcessors));
         if (useExplicitType) {
-            assertWarnings("Specifying _type in pipeline simulation requests is deprecated.");
+            assertWarnings("[types removal] specifying _type in pipeline simulation requests is deprecated");
         }
     }
 

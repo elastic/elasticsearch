@@ -94,6 +94,10 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                         if (rarely()) {
                             builder.field("_index", "");
                         }
+                        if (defaultType == null || randomBoolean()) {
+                            types[i] = randomAlphaOfLength(5);
+                            builder.field("_type", types[i]);
+                        }
                         if (randomBoolean()) {
                             ids[i] = randomAlphaOfLength(10);
                             builder.field("_id", ids[i]);
@@ -158,6 +162,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                     builder.startObject("index");
                     {
                         builder.field("_index", "");
+                        builder.field("_type", "doc");
                         builder.field("_id", String.valueOf(i));
                     }
                     builder.endObject();
@@ -203,6 +208,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                 builder.startObject("index");
                 {
                     builder.field("_index", indexName);
+                    builder.field("_type", "doc");
                 }
                 builder.endObject();
             }
@@ -226,7 +232,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("unrecognized index name [" + indexName + "]"));
         //This test's JSON contains outdated references to types
         assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
-
     }
 
     public void testSerialization() throws IOException {

@@ -34,6 +34,10 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
@@ -41,6 +45,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -65,6 +70,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -109,6 +115,22 @@ public class AuthorizationService {
         this.rbacEngine = new RBACEngine(settings, rolesStore);
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.settings = settings;
+    }
+
+    public void checkPrivileges(Authentication authentication, HasPrivilegesRequest request,
+                                Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
+                                ActionListener<HasPrivilegesResponse> listener) {
+        getAuthorizationEngine(authentication).checkPrivileges(authentication, getAuthorizationInfoFromContext(), request,
+            applicationPrivilegeDescriptors, wrapPreservingContext(listener, threadContext));
+    }
+
+    public void retrieveUserPrivileges(Authentication authentication, GetUserPrivilegesRequest request,
+                                       ActionListener<GetUserPrivilegesResponse> listener) {
+        getAuthorizationEngine(authentication).getUserPrivileges(authentication, getAuthorizationInfoFromContext(), request, listener);
+    }
+
+    private AuthorizationInfo getAuthorizationInfoFromContext() {
+        return Objects.requireNonNull(threadContext.getTransient(AUTHORIZATION_INFO_KEY), "authorization info is missing from context");
     }
 
     /**

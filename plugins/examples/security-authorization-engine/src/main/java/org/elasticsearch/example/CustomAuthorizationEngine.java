@@ -21,21 +21,35 @@ package org.elasticsearch.example;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse.Indices;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * A custom implementation of an authorization engine. This engine is extremely basic in that it
@@ -102,6 +116,89 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
         } else {
             listener.onResponse(Collections.emptyList());
         }
+    }
+
+    @Override
+    public void checkPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo,
+                                HasPrivilegesRequest hasPrivilegesRequest,
+                                Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
+                                ActionListener<HasPrivilegesResponse> listener) {
+        if (isSuperuser(authentication.getUser())) {
+            listener.onResponse(getHasPrivilegesResponse(authentication, hasPrivilegesRequest, true));
+        } else {
+            listener.onResponse(getHasPrivilegesResponse(authentication, hasPrivilegesRequest, false));
+        }
+    }
+
+    @Override
+    public void getUserPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo, GetUserPrivilegesRequest request,
+                                  ActionListener<GetUserPrivilegesResponse> listener) {
+        if (isSuperuser(authentication.getUser())) {
+            listener.onResponse(getUserPrivilegesResponse(true));
+        } else {
+            listener.onResponse(getUserPrivilegesResponse(false));
+        }
+    }
+
+    private HasPrivilegesResponse getHasPrivilegesResponse(Authentication authentication, HasPrivilegesRequest hasPrivilegesRequest,
+                                                           boolean authorized) {
+        Map<String, Boolean> clusterPrivMap = new HashMap<>();
+        for (String clusterPriv : hasPrivilegesRequest.clusterPrivileges()) {
+            clusterPrivMap.put(clusterPriv, authorized);
+        }
+        final Map<String, ResourcePrivileges> indices = new LinkedHashMap<>();
+        for (IndicesPrivileges check : hasPrivilegesRequest.indexPrivileges()) {
+            for (String index : check.getIndices()) {
+                final Map<String, Boolean> privileges = new HashMap<>();
+                final HasPrivilegesResponse.ResourcePrivileges existing = indices.get(index);
+                if (existing != null) {
+                    privileges.putAll(existing.getPrivileges());
+                }
+                for (String privilege : check.getPrivileges()) {
+                    privileges.put(privilege, authorized);
+                }
+                indices.put(index, new ResourcePrivileges(index, privileges));
+            }
+        }
+        final Map<String, Collection<ResourcePrivileges>> privilegesByApplication = new HashMap<>();
+        Set<String> applicationNames = Arrays.stream(hasPrivilegesRequest.applicationPrivileges())
+            .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
+            .collect(Collectors.toSet());
+        for (String applicationName : applicationNames) {
+            final Map<String, HasPrivilegesResponse.ResourcePrivileges> appPrivilegesByResource = new LinkedHashMap<>();
+            for (RoleDescriptor.ApplicationResourcePrivileges p : hasPrivilegesRequest.applicationPrivileges()) {
+                if (applicationName.equals(p.getApplication())) {
+                    for (String resource : p.getResources()) {
+                        final Map<String, Boolean> privileges = new HashMap<>();
+                        final HasPrivilegesResponse.ResourcePrivileges existing = appPrivilegesByResource.get(resource);
+                        if (existing != null) {
+                            privileges.putAll(existing.getPrivileges());
+                        }
+                        for (String privilege : p.getPrivileges()) {
+                            privileges.put(privilege, authorized);
+                        }
+                        appPrivilegesByResource.put(resource, new HasPrivilegesResponse.ResourcePrivileges(resource, privileges));
+                    }
+                }
+            }
+            privilegesByApplication.put(applicationName, appPrivilegesByResource.values());
+        }
+        return new HasPrivilegesResponse(authentication.getUser().principal(), authorized, clusterPrivMap, indices.values(),
+            privilegesByApplication);
+    }
+
+    private GetUserPrivilegesResponse getUserPrivilegesResponse(boolean isSuperuser) {
+        final Set<String> cluster = isSuperuser ? Collections.singleton("ALL") : Collections.emptySet();
+        final Set<ConditionalClusterPrivilege> conditionalCluster = Collections.emptySet();
+        final Set<GetUserPrivilegesResponse.Indices> indices = isSuperuser ? Collections.singleton(new Indices(Collections.singleton("*"),
+            Collections.singleton("*"), Collections.emptySet(), Collections.emptySet(), true)) : Collections.emptySet();
+
+        final Set<RoleDescriptor.ApplicationResourcePrivileges> application = isSuperuser ?
+            Collections.singleton(
+                RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build()) :
+            Collections.emptySet();
+        final Set<String> runAs = isSuperuser ? Collections.singleton("*") : Collections.emptySet();
+        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
     }
 
     public static class CustomAuthorizationInfo implements AuthorizationInfo {

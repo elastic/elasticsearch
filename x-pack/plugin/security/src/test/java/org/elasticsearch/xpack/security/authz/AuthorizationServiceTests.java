@@ -93,6 +93,10 @@ import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAc
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
@@ -107,6 +111,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -1357,6 +1362,20 @@ public class AuthorizationServiceTests extends ESTestCase {
             @Override
             public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                               Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener) {
+                throw new UnsupportedOperationException("not implemented");
+            }
+
+            @Override
+            public void checkPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo,
+                                        HasPrivilegesRequest hasPrivilegesRequest,
+                                        Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
+                                        ActionListener<HasPrivilegesResponse> listener) {
+                throw new UnsupportedOperationException("not implemented");
+            }
+
+            @Override
+            public void getUserPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo,
+                                          GetUserPrivilegesRequest request, ActionListener<GetUserPrivilegesResponse> listener) {
                 throw new UnsupportedOperationException("not implemented");
             }
         };

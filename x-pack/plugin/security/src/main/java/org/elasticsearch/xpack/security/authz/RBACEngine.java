@@ -6,6 +6,11 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -21,6 +26,9 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -28,28 +36,50 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
+import static org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction.getApplicationNames;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 
 public class RBACEngine implements AuthorizationEngine {
@@ -61,10 +91,12 @@ public class RBACEngine implements AuthorizationEngine {
     private static final String DELETE_SUB_REQUEST_PRIMARY = DeleteAction.NAME + "[p]";
     private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
 
+    private static final Logger logger = LogManager.getLogger(RBACEngine.class);
+
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
 
-    RBACEngine(Settings settings, CompositeRolesStore rolesStore) {
+    public RBACEngine(Settings settings, CompositeRolesStore rolesStore) {
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
     }
@@ -282,6 +314,200 @@ public class RBACEngine implements AuthorizationEngine {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
         }
+    }
+
+    @Override
+    public void checkPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo,
+                                HasPrivilegesRequest request,
+                                Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
+                                ActionListener<HasPrivilegesResponse> listener) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
+            listener.onFailure(
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
+            return;
+        }
+        final Role userRole = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+        logger.trace(() -> new ParameterizedMessage("Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
+            Strings.arrayToCommaDelimitedString(userRole.names()),
+            Strings.arrayToCommaDelimitedString(request.clusterPrivileges()),
+            Strings.arrayToCommaDelimitedString(request.indexPrivileges()),
+            Strings.arrayToCommaDelimitedString(request.applicationPrivileges())
+        ));
+
+        Map<String, Boolean> cluster = new HashMap<>();
+        for (String checkAction : request.clusterPrivileges()) {
+            final ClusterPrivilege checkPrivilege = ClusterPrivilege.get(Collections.singleton(checkAction));
+            final ClusterPrivilege rolePrivilege = userRole.cluster().privilege();
+            cluster.put(checkAction, testPrivilege(checkPrivilege, rolePrivilege.getAutomaton()));
+        }
+        boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
+
+        final Map<IndicesPermission.Group, Automaton> predicateCache = new HashMap<>();
+
+        final Map<String, HasPrivilegesResponse.ResourcePrivileges> indices = new LinkedHashMap<>();
+        for (RoleDescriptor.IndicesPrivileges check : request.indexPrivileges()) {
+            for (String index : check.getIndices()) {
+                final Map<String, Boolean> privileges = new HashMap<>();
+                final HasPrivilegesResponse.ResourcePrivileges existing = indices.get(index);
+                if (existing != null) {
+                    privileges.putAll(existing.getPrivileges());
+                }
+                for (String privilege : check.getPrivileges()) {
+                    if (testIndexMatch(index, check.allowRestrictedIndices(), privilege, userRole, predicateCache)) {
+                        logger.debug(() -> new ParameterizedMessage("Role [{}] has [{}] on index [{}]",
+                            Strings.arrayToCommaDelimitedString(userRole.names()), privilege, index));
+                        privileges.put(privilege, true);
+                    } else {
+                        logger.debug(() -> new ParameterizedMessage("Role [{}] does not have [{}] on index [{}]",
+                            Strings.arrayToCommaDelimitedString(userRole.names()), privilege, index));
+                        privileges.put(privilege, false);
+                        allMatch = false;
+                    }
+                }
+                indices.put(index, new HasPrivilegesResponse.ResourcePrivileges(index, privileges));
+            }
+        }
+
+        final Map<String, Collection<HasPrivilegesResponse.ResourcePrivileges>> privilegesByApplication = new HashMap<>();
+        for (String applicationName : getApplicationNames(request)) {
+            logger.debug("Checking privileges for application {}", applicationName);
+            final Map<String, HasPrivilegesResponse.ResourcePrivileges> appPrivilegesByResource = new LinkedHashMap<>();
+            for (RoleDescriptor.ApplicationResourcePrivileges p : request.applicationPrivileges()) {
+                if (applicationName.equals(p.getApplication())) {
+                    for (String resource : p.getResources()) {
+                        final Map<String, Boolean> privileges = new HashMap<>();
+                        final HasPrivilegesResponse.ResourcePrivileges existing = appPrivilegesByResource.get(resource);
+                        if (existing != null) {
+                            privileges.putAll(existing.getPrivileges());
+                        }
+                        for (String privilege : p.getPrivileges()) {
+                            if (testResourceMatch(applicationName, resource, privilege, userRole, applicationPrivileges)) {
+                                logger.debug(() -> new ParameterizedMessage("Role [{}] has [{} {}] on resource [{}]",
+                                    Strings.arrayToCommaDelimitedString(userRole.names()), applicationName, privilege, resource));
+                                privileges.put(privilege, true);
+                            } else {
+                                logger.debug(() -> new ParameterizedMessage("Role [{}] does not have [{} {}] on resource [{}]",
+                                    Strings.arrayToCommaDelimitedString(userRole.names()), applicationName, privilege, resource));
+                                privileges.put(privilege, false);
+                                allMatch = false;
+                            }
+                        }
+                        appPrivilegesByResource.put(resource, new HasPrivilegesResponse.ResourcePrivileges(resource, privileges));
+                    }
+                }
+            }
+            privilegesByApplication.put(applicationName, appPrivilegesByResource.values());
+        }
+
+        listener.onResponse(new HasPrivilegesResponse(request.username(), allMatch, cluster, indices.values(), privilegesByApplication));
+    }
+
+
+    @Override
+    public void getUserPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo, GetUserPrivilegesRequest request,
+                                  ActionListener<GetUserPrivilegesResponse> listener) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
+            listener.onFailure(
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
+        } else {
+            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+            listener.onResponse(buildUserPrivilegesResponseObject(role));
+        }
+    }
+
+    GetUserPrivilegesResponse buildUserPrivilegesResponseObject(Role userRole) {
+        logger.trace(() -> new ParameterizedMessage("List privileges for role [{}]", arrayToCommaDelimitedString(userRole.names())));
+
+        // We use sorted sets for Strings because they will typically be small, and having a predictable order allows for simpler testing
+        final Set<String> cluster = new TreeSet<>();
+        // But we don't have a meaningful ordering for objects like ConditionalClusterPrivilege, so the tests work with "random" ordering
+        final Set<ConditionalClusterPrivilege> conditionalCluster = new HashSet<>();
+        for (Tuple<ClusterPrivilege, ConditionalClusterPrivilege> tup : userRole.cluster().privileges()) {
+            if (tup.v2() == null) {
+                if (ClusterPrivilege.NONE.equals(tup.v1()) == false) {
+                    cluster.addAll(tup.v1().name());
+                }
+            } else {
+                conditionalCluster.add(tup.v2());
+            }
+        }
+
+        final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
+        for (IndicesPermission.Group group : userRole.indices().groups()) {
+            final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
+            final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = group.getFieldPermissions().hasFieldLevelSecurity()
+                ? group.getFieldPermissions().getFieldPermissionsDefinition().getFieldGrantExcludeGroups() : Collections.emptySet();
+            indices.add(new GetUserPrivilegesResponse.Indices(
+                Arrays.asList(group.indices()),
+                group.privilege().name(),
+                fieldSecurity,
+                queries,
+                group.allowRestrictedIndices()
+            ));
+        }
+
+        final Set<RoleDescriptor.ApplicationResourcePrivileges> application = new LinkedHashSet<>();
+        for (String applicationName : userRole.application().getApplicationNames()) {
+            for (ApplicationPrivilege privilege : userRole.application().getPrivileges(applicationName)) {
+                final Set<String> resources = userRole.application().getResourcePatterns(privilege);
+                if (resources.isEmpty()) {
+                    logger.trace("No resources defined in application privilege {}", privilege);
+                } else {
+                    application.add(RoleDescriptor.ApplicationResourcePrivileges.builder()
+                        .application(applicationName)
+                        .privileges(privilege.name())
+                        .resources(resources)
+                        .build());
+                }
+            }
+        }
+
+        final Privilege runAsPrivilege = userRole.runAs().getPrivilege();
+        final Set<String> runAs;
+        if (Operations.isEmpty(runAsPrivilege.getAutomaton())) {
+            runAs = Collections.emptySet();
+        } else {
+            runAs = runAsPrivilege.name();
+        }
+
+        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
+    }
+
+    private boolean testIndexMatch(String checkIndexPattern, boolean allowRestrictedIndices, String checkPrivilegeName, Role userRole,
+                                   Map<IndicesPermission.Group, Automaton> predicateCache) {
+        final IndexPrivilege checkPrivilege = IndexPrivilege.get(Collections.singleton(checkPrivilegeName));
+
+        final Automaton checkIndexAutomaton = IndicesPermission.Group.buildIndexMatcherAutomaton(allowRestrictedIndices, checkIndexPattern);
+
+        List<Automaton> privilegeAutomatons = new ArrayList<>();
+        for (IndicesPermission.Group group : userRole.indices().groups()) {
+            final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group,
+                g -> IndicesPermission.Group.buildIndexMatcherAutomaton(g.allowRestrictedIndices(), g.indices()));
+            if (Operations.subsetOf(checkIndexAutomaton, groupIndexAutomaton)) {
+                final IndexPrivilege rolePrivilege = group.privilege();
+                if (rolePrivilege.name().contains(checkPrivilegeName)) {
+                    return true;
+                }
+                privilegeAutomatons.add(rolePrivilege.getAutomaton());
+            }
+        }
+        return testPrivilege(checkPrivilege, Automatons.unionAndMinimize(privilegeAutomatons));
+    }
+
+    private static boolean testPrivilege(Privilege checkPrivilege, Automaton roleAutomaton) {
+        return Operations.subsetOf(checkPrivilege.getAutomaton(), roleAutomaton);
+    }
+
+    private boolean testResourceMatch(String application, String checkResource, String checkPrivilegeName, Role userRole,
+                                      Collection<ApplicationPrivilegeDescriptor> privileges) {
+        final Set<String> nameSet = Collections.singleton(checkPrivilegeName);
+        final ApplicationPrivilege checkPrivilege = ApplicationPrivilege.get(application, nameSet, privileges);
+        assert checkPrivilege.getApplication().equals(application)
+            : "Privilege " + checkPrivilege + " should have application " + application;
+        assert checkPrivilege.name().equals(nameSet)
+            : "Privilege " + checkPrivilege + " should have name " + nameSet;
+
+        return userRole.application().grants(checkPrivilege, checkResource);
     }
 
     static List<String> resolveAuthorizedIndicesFromRole(Role role, String action, Map<String, AliasOrIndex> aliasAndIndexLookup) {

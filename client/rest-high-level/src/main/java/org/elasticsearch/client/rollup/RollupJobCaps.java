@@ -19,7 +19,6 @@
 package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -27,13 +26,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Represents the Rollup capabilities for a specific job on a single rollup index
@@ -45,15 +45,12 @@ public class RollupJobCaps implements ToXContentObject {
     private static final ParseField FIELDS = new ParseField("fields");
     private static final String NAME = "rollup_job_caps";
 
-    public static final ConstructingObjectParser<RollupJobCaps, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    public static final ConstructingObjectParser<RollupJobCaps, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
         a -> {
             @SuppressWarnings("unchecked")
-            List<Tuple<String, RollupFieldCaps>> caps = (List<Tuple<String, RollupFieldCaps>>) a[3];
-            if (caps.isEmpty()) {
-                return new RollupJobCaps((String) a[0], (String) a[1], (String) a[2], Collections.emptyMap());
-            }
-            Map<String, RollupFieldCaps> mapCaps = new HashMap<>(caps.size());
-            caps.forEach(c -> mapCaps.put(c.v1(), c.v2()));
+            List<Map.Entry<String, RollupFieldCaps>> caps = (List<Map.Entry<String, RollupFieldCaps>>) a[3];
+            Map<String, RollupFieldCaps> mapCaps =
+                new TreeMap<>(caps.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
             return new RollupJobCaps((String) a[0], (String) a[1], (String) a[2], mapCaps);
         });
 
@@ -62,7 +59,7 @@ public class RollupJobCaps implements ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ROLLUP_INDEX);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_PATTERN);
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
-            (p, c, name) -> new Tuple<>(name, RollupFieldCaps.fromXContent(p)), FIELDS);
+            (p, c, name) -> new AbstractMap.SimpleEntry<>(name, RollupFieldCaps.fromXContent(p)), FIELDS);
     }
 
     private final String jobID;
@@ -140,16 +137,6 @@ public class RollupJobCaps implements ToXContentObject {
         private static final String NAME = "rollup_field_caps";
         private final List<Map<String, Object>> aggs;
 
-        public static final Function<String, ConstructingObjectParser<RollupFieldCaps, Void>> PARSER = fieldName -> {
-            @SuppressWarnings("unchecked")
-            ConstructingObjectParser<RollupFieldCaps, Void> parser
-                = new ConstructingObjectParser<>(NAME, a -> new RollupFieldCaps((List<Map<String, Object>>) a[0]));
-
-            parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.map(), new ParseField(fieldName));
-            return parser;
-        };
-
         RollupFieldCaps(final List<Map<String, Object>> aggs) {
             this.aggs = Collections.unmodifiableList(Objects.requireNonNull(aggs));
         }
@@ -170,12 +157,11 @@ public class RollupJobCaps implements ToXContentObject {
             List<Map<String, Object>> aggs = new ArrayList<>();
             if (parser.nextToken().equals(XContentParser.Token.START_ARRAY)) {
                 while (parser.nextToken().equals(XContentParser.Token.START_OBJECT)) {
-                    aggs.add(Collections.unmodifiableMap(parser.map()));
+                    aggs.add(parser.map());
                 }
             }
-            return new RollupFieldCaps(Collections.unmodifiableList(aggs));
+            return new RollupFieldCaps(aggs);
         }
-
 
         @Override
         public boolean equals(Object other) {

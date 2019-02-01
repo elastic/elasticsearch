@@ -90,7 +90,7 @@
 "Test put config with unknown field in outlier detection analysis":
 
   - do:
-      catch: /Data frame analysis \[outlier_detection\] does not support one or more provided parameters[:] \[unknown_field\]/
+      catch: /Data frame analysis \[outlier_detection\] does not support one or more provided parameters \[unknown_field\]/
       ml.put_data_frame_analytics:
         id: "unknown_field"
         body: >

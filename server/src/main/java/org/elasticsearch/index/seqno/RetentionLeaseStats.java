@@ -88,6 +88,7 @@ public final class RetentionLeaseStats implements ToXContentFragment, Writeable 
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject("retention_leases");
         {
+            builder.field("primary_term", retentionLeases.primaryTerm());
             builder.field("version", retentionLeases.version());
             builder.startArray("leases");
             {

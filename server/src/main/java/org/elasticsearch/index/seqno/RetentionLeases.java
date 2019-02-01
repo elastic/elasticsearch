@@ -70,7 +70,7 @@ public class RetentionLeases implements Writeable {
      * @return true if this retention leases collection supercedes the specified retention lease collection, otherwise false
      */
     public boolean supersedes(final RetentionLeases that) {
-        return primaryTerm() > that.primaryTerm() || primaryTerm() == that.primaryTerm() && version() > that.version();
+        return primaryTerm > that.primaryTerm || primaryTerm == that.primaryTerm && version > that.version;
     }
 
     private final Map<String, RetentionLease> leases;
@@ -170,9 +170,9 @@ public class RetentionLeases implements Writeable {
         return String.format(
                 Locale.ROOT,
                 "primary_term:%d;version:%d;%s",
-                retentionLeases.primaryTerm(),
-                retentionLeases.version(),
-                retentionLeases.leases().stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(",")));
+                retentionLeases.primaryTerm,
+                retentionLeases.version,
+                retentionLeases.leases.values().stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(",")));
     }
 
     /**

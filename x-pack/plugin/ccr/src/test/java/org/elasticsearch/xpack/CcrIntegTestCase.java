@@ -487,14 +487,15 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         return docs;
     }
 
-    protected void atLeastDocsIndexed(Client client, String index, long numDocsReplicated) throws InterruptedException {
+    protected void atLeastDocsIndexed(Client client, String index, long numDocsReplicated) throws Exception {
         logger.info("waiting for at least [{}] documents to be indexed into index [{}]", numDocsReplicated, index);
-        awaitBusy(() -> {
+        assertBusy(() -> {
             refresh(client, index);
             SearchRequest request = new SearchRequest(index);
             request.source(new SearchSourceBuilder().size(0));
             SearchResponse response = client.search(request).actionGet();
-            return response.getHits().getTotalHits().value >= numDocsReplicated;
+            assertNotNull(response.getHits().getTotalHits());
+            assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(numDocsReplicated));
         }, 60, TimeUnit.SECONDS);
     }
 

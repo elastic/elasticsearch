@@ -374,9 +374,10 @@ public class FollowersChecker {
                 public void run() {
                     synchronized (mutex) {
                         if (running() == false) {
-                            logger.debug("{} condition no longer applies, not marking faulty", discoveryNode);
+                            logger.trace("{} no longer running, not marking faulty", FollowerChecker.this);
                             return;
                         }
+                        logger.debug("{} marking node as faulty", FollowerChecker.this);
                         faultyNodes.add(discoveryNode);
                         followerCheckers.remove(discoveryNode);
                     }
@@ -391,7 +392,7 @@ public class FollowersChecker {
         }
 
         private void scheduleNextWakeUp() {
-            transportService.getThreadPool().schedule(followerCheckInterval, Names.SAME, new Runnable() {
+            transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {
                     handleWakeUp();
@@ -401,7 +402,7 @@ public class FollowersChecker {
                 public String toString() {
                     return FollowerChecker.this + "::handleWakeUp";
                 }
-            });
+            }, followerCheckInterval, Names.SAME);
         }
 
         @Override

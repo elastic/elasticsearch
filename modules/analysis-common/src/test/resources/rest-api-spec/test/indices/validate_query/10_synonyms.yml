@@ -2,6 +2,7 @@
 "validate query with synonyms":
   - do:
       indices.create:
+        include_type_name: false
         index: test
         body:
           settings:
@@ -16,11 +17,10 @@
                     tokenizer: standard
                     filter: [ syns ]
           mappings:
-            test:
-              properties:
-                field:
-                  type: text
-                  analyzer: syns
+            properties:
+              field:
+                type: text
+                analyzer: syns
 
   - do:
       indices.validate_query:
@@ -77,6 +77,3 @@
   - is_true: valid
   - length: { explanations: 1 }
   - match: { explanations.0.explanation: "field:\"foo (one* two*)\"" }
-
-
-

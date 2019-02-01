@@ -235,8 +235,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 BytesRefIterator refIterator = reference.iterator();
                 BytesRef ref;
                 while ((ref = refIterator.next()) != null) {
-                    byte[] refBytes = ref.bytes;
-                    indexInput.readBytes(refBytes, 0, refBytes.length);
+                    indexInput.readBytes(ref.bytes, ref.offset, ref.length);
                 }
 
                 long offsetAfterRead = indexInput.getFilePointer();

@@ -20,13 +20,11 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -246,7 +244,8 @@ public class SearchResponseTests extends ESTestCase {
                     new InternalSearchResponse(
                         new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null, null, false, null, 1
                     ),
-                null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY, new SearchResponse.Clusters(5, 3, 2));
+                null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
+                new SearchResponse.Clusters(5, 3, 2));
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -279,24 +278,18 @@ public class SearchResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         SearchResponse searchResponse = createTestItem(false);
-        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-        searchResponse.writeTo(bytesStreamOutput);
-        try (StreamInput in = new NamedWriteableAwareStreamInput(
-                StreamInput.wrap(bytesStreamOutput.bytes().toBytesRef().bytes), namedWriteableRegistry)) {
-            SearchResponse serialized = new SearchResponse();
-            serialized.readFrom(in);
-            if (searchResponse.getHits().getTotalHits() == null) {
-                assertNull(serialized.getHits().getTotalHits());
-            } else {
-                assertEquals(searchResponse.getHits().getTotalHits().value, serialized.getHits().getTotalHits().value);
-                assertEquals(searchResponse.getHits().getTotalHits().relation, serialized.getHits().getTotalHits().relation);
-            }
-            assertEquals(searchResponse.getHits().getHits().length, serialized.getHits().getHits().length);
-            assertEquals(searchResponse.getNumReducePhases(), serialized.getNumReducePhases());
-            assertEquals(searchResponse.getFailedShards(), serialized.getFailedShards());
-            assertEquals(searchResponse.getTotalShards(), serialized.getTotalShards());
-            assertEquals(searchResponse.getSkippedShards(), serialized.getSkippedShards());
-            assertEquals(searchResponse.getClusters(), serialized.getClusters());
+        SearchResponse deserialized = copyStreamable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        if (searchResponse.getHits().getTotalHits() == null) {
+            assertNull(deserialized.getHits().getTotalHits());
+        } else {
+            assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
+            assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
         }
+        assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
+        assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());
+        assertEquals(searchResponse.getFailedShards(), deserialized.getFailedShards());
+        assertEquals(searchResponse.getTotalShards(), deserialized.getTotalShards());
+        assertEquals(searchResponse.getSkippedShards(), deserialized.getSkippedShards());
+        assertEquals(searchResponse.getClusters(), deserialized.getClusters());
     }
 }

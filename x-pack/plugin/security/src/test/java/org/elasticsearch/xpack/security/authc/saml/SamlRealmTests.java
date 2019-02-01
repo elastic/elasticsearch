@@ -66,6 +66,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -118,6 +119,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testReadIdpMetadataFromHttps() throws Exception {
+        final String serverProtocol = randomFrom("TLSv1", "TLSv1.1", "TLSv1.2");
         final Path path = getDataPath("idp1.xml");
         final String body = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
         final MockSecureSettings mockSecureSettings = new MockSecureSettings();
@@ -134,7 +136,7 @@ public class SamlRealmTests extends SamlTestCase {
             .setSecureSettings(mockSecureSettings)
             .build();
         TestsSSLService sslService = new TestsSSLService(settings, TestEnvironment.newEnvironment(settings));
-        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(Settings.EMPTY), false)) {
+        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(Settings.EMPTY), false, singletonList(serverProtocol))) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
@@ -153,6 +155,12 @@ public class SamlRealmTests extends SamlTestCase {
             } finally {
                 tuple.v1().destroy();
             }
+        }
+
+        if (serverProtocol.equals("TLSv1")) {
+            assertWarnings("a TLS v1.0 session was used for [http connection to localhost]," +
+                " this protocol will be disabled by default in a future version." +
+                " The [xpack.security.authc.realms.my-saml.ssl.supported_protocols] setting can be used to control this.");
         }
     }
 
@@ -245,13 +253,13 @@ public class SamlRealmTests extends SamlTestCase {
 
         initializeRealms(realm, lookupRealm);
 
-        final SamlToken token = new SamlToken(new byte[0], Collections.singletonList("<id>"));
+        final SamlToken token = new SamlToken(new byte[0], singletonList("<id>"));
 
         final SamlAttributes attributes = new SamlAttributes(
                 new SamlNameId(NameIDType.PERSISTENT, nameIdValue, idp.getEntityID(), sp.getEntityId(), null),
                 randomAlphaOfLength(16),
                 Arrays.asList(
-                        new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.1", "uid", Collections.singletonList(uidValue)),
+                        new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.1", "uid", singletonList(uidValue)),
                         new SamlAttributes.SamlAttribute("urn:oid:1.3.6.1.4.1.5923.1.5.1.1", "groups", Arrays.asList("avengers", "shield")),
                         new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", Arrays.asList("cbarton@shield.gov"))
                 ));
@@ -293,7 +301,7 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlAttributes attributes = new SamlAttributes(
                 new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
                 randomAlphaOfLength(16),
-                Collections.singletonList(new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail",
+                singletonList(new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail",
                         Arrays.asList("john.smith@personal.example.net", "john.smith@corporate.example.com", "jsmith@corporate.example.com")
                 )));
 
@@ -350,14 +358,14 @@ public class SamlRealmTests extends SamlTestCase {
         final RealmConfig config = realmConfigFromRealmSettings(realmSettings);
 
         final SamlRealm realm = new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp);
-        final SamlToken token = new SamlToken(new byte[0], Collections.singletonList("<id>"));
+        final SamlToken token = new SamlToken(new byte[0], singletonList("<id>"));
 
         for (String mail : Arrays.asList("john@your-corp.example.com", "john@mycorp.example.com.example.net", "john")) {
             final SamlAttributes attributes = new SamlAttributes(
                     new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(12), null, null, null),
                     randomAlphaOfLength(16),
-                    Collections.singletonList(
-                            new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", Collections.singletonList(mail))
+                    singletonList(
+                            new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", singletonList(mail))
                     ));
             when(authenticator.authenticate(token)).thenReturn(attributes);
 
@@ -379,7 +387,7 @@ public class SamlRealmTests extends SamlTestCase {
         final PrivateKey encryptionKey = PemUtils.readPrivateKey(encryptionKeyPath, "encryption"::toCharArray);
         final Path encryptionCertPath = getDataPath("encryption.crt");
         final Path destEncryptionCertPath = dir.resolve("encryption.crt");
-        final X509Certificate encryptionCert = CertParsingUtils.readX509Certificates(Collections.singletonList(encryptionCertPath))[0];
+        final X509Certificate encryptionCert = CertParsingUtils.readX509Certificates(singletonList(encryptionCertPath))[0];
         Files.copy(encryptionKeyPath, destEncryptionKeyPath);
         Files.copy(encryptionCertPath, destEncryptionCertPath);
         builder.put(REALM_SETTINGS_PREFIX + ".encryption.key", destEncryptionKeyPath);
@@ -583,8 +591,8 @@ public class SamlRealmTests extends SamlTestCase {
         final EntityDescriptor idp = mockIdp();
         final IDPSSODescriptor role = mock(IDPSSODescriptor.class);
         final SingleLogoutService slo = SamlUtils.buildObject(SingleLogoutService.class, SingleLogoutService.DEFAULT_ELEMENT_NAME);
-        when(idp.getRoleDescriptors(IDPSSODescriptor.DEFAULT_ELEMENT_NAME)).thenReturn(Collections.singletonList(role));
-        when(role.getSingleLogoutServices()).thenReturn(Collections.singletonList(slo));
+        when(idp.getRoleDescriptors(IDPSSODescriptor.DEFAULT_ELEMENT_NAME)).thenReturn(singletonList(role));
+        when(role.getSingleLogoutServices()).thenReturn(singletonList(slo));
         slo.setBinding(SAMLConstants.SAML2_REDIRECT_BINDING_URI);
         slo.setLocation("https://logout.saml/");
 

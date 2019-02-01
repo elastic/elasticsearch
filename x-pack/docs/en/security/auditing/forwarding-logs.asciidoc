@@ -1,6 +1,9 @@
 [role="xpack"]
 [[forwarding-audit-logfiles]]
 === Forwarding audit logs to a remote cluster
+deprecated[6.7.0, Forwarding audit logs is a feature of the index audit output
+type which is deprecated and will be removed in 7.0. All settings under the
+`xpack.security.audit.index` namespace are deprecated.]
 
 When you are auditing security events, you can optionally store the logs in an 
 {es} index on a remote cluster.  The logs are sent to the remote cluster by 
@@ -96,4 +99,4 @@ bin/elasticsearch-keystore add xpack.security.audit.index.client.xpack.ssl.secur
 . Restart {es}.
 
 When these steps are complete, your audit logs are stored in {es} rolling 
-indices on the remote cluster. 
+indices on the remote cluster.

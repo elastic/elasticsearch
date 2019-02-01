@@ -133,6 +133,7 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
+import org.elasticsearch.xpack.core.ssl.TLSv1DeprecationHandler;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
@@ -254,6 +255,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_PREFIX;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
@@ -274,7 +276,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                     s -> s.keySet().contains(SecurityField.setting("audit.outputs"))
                             ? Collections.emptyList()
                             : Collections.singletonList(LoggingAuditTrail.NAME),
-                    Property.NodeScope);
+                    Property.NodeScope, Property.Deprecated);
 
     public static final Setting<Boolean> INDICES_ADMIN_FILTERED_FIELDS_SETTING = Setting.boolSetting("indices.admin.filtered_fields", true,
             Property.NodeScope, Property.Dynamic, Property.Deprecated);
@@ -431,6 +433,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                         auditTrails.add(new DeprecatedLoggingAuditTrail(settings, clusterService, threadPool));
                         break;
                     case IndexAuditTrail.NAME:
+                        new DeprecationLogger(LOGGER).deprecated("The [index] audit type is deprecated and will be removed in 7.0");
                         indexAuditTrail.set(new IndexAuditTrail(settings, client, threadPool, clusterService));
                         auditTrails.add(indexAuditTrail.get());
                         break;
@@ -1030,7 +1033,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
         final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
         boolean extractClientCertificate = ssl && getSslService().isSSLClientAuthEnabled(httpSSLConfig);
-        return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), handler, extractClientCertificate);
+        final TLSv1DeprecationHandler tlsDeprecationHandler = ssl ?
+            new TLSv1DeprecationHandler(HTTP_SSL_PREFIX, settings, LOGGER) : TLSv1DeprecationHandler.disabled();
+        return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), handler, extractClientCertificate,
+            tlsDeprecationHandler);
     }
 
     @Override

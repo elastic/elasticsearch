@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -138,16 +139,15 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     private void upgradedClusterTests() throws Exception {
-        // wait for the closed job and datafeed to be migrated
-        waitForMigration(Collections.singletonList(OLD_CLUSTER_CLOSED_JOB_ID),
-                Collections.singletonList(OLD_CLUSTER_STOPPED_DATAFEED_ID),
-                Collections.singletonList(OLD_CLUSTER_OPEN_JOB_ID),
-                Collections.singletonList(OLD_CLUSTER_STARTED_DATAFEED_ID));
+        // wait for the closed and open jobs and datafeed to be migrated
+        waitForMigration(Arrays.asList(OLD_CLUSTER_CLOSED_JOB_ID, OLD_CLUSTER_OPEN_JOB_ID),
+                Arrays.asList(OLD_CLUSTER_STOPPED_DATAFEED_ID, OLD_CLUSTER_STARTED_DATAFEED_ID));
 
-        // the job and datafeed left open during upgrade should
-        // be assigned to a node
         waitForJobToBeAssigned(OLD_CLUSTER_OPEN_JOB_ID);
         waitForDatafeedToBeAssigned(OLD_CLUSTER_STARTED_DATAFEED_ID);
+        // The persistent task params for the job & datafeed left open
+        // during upgrade should be updated with new fields
+        checkTaskParamsAreUpdated(OLD_CLUSTER_OPEN_JOB_ID, OLD_CLUSTER_STARTED_DATAFEED_ID);
 
         // open the migrated job and datafeed
         Request openJob = new Request("POST", "_xpack/ml/anomaly_detectors/" + OLD_CLUSTER_CLOSED_JOB_ID + "/_open");
@@ -164,9 +164,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
         // now all jobs should be migrated
         waitForMigration(Arrays.asList(OLD_CLUSTER_CLOSED_JOB_ID, OLD_CLUSTER_OPEN_JOB_ID),
-                Arrays.asList(OLD_CLUSTER_STOPPED_DATAFEED_ID, OLD_CLUSTER_STARTED_DATAFEED_ID),
-                Collections.emptyList(),
-                Collections.emptyList());
+                Arrays.asList(OLD_CLUSTER_STOPPED_DATAFEED_ID, OLD_CLUSTER_STARTED_DATAFEED_ID));
     }
 
     @SuppressWarnings("unchecked")
@@ -203,8 +201,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     @SuppressWarnings("unchecked")
-    private void waitForMigration(List<String> expectedMigratedJobs, List<String> expectedMigratedDatafeeds,
-                                  List<String> unMigratedJobs, List<String> unMigratedDatafeeds) throws Exception {
+    private void waitForMigration(List<String> expectedMigratedJobs, List<String> expectedMigratedDatafeeds) throws Exception {
 
         // After v6.6.0 jobs are created in the index so no migration will take place
         if (getOldClusterVersion().onOrAfter(Version.V_6_6_0)) {
@@ -219,48 +216,58 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
             List<Map<String, Object>> jobs =
                     (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.jobs", responseMap);
-            assertNotNull(jobs);
 
-            for (String jobId : expectedMigratedJobs) {
-                assertJob(jobId, jobs, false);
-            }
-
-            for (String jobId : unMigratedJobs) {
-                assertJob(jobId, jobs, true);
+            if (jobs != null) {
+                for (String jobId : expectedMigratedJobs) {
+                    assertJobNotPresent(jobId, jobs);
+                }
             }
 
             List<Map<String, Object>> datafeeds =
                     (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.datafeeds", responseMap);
-            assertNotNull(datafeeds);
 
-            for (String datafeedId : expectedMigratedDatafeeds) {
-                assertDatafeed(datafeedId, datafeeds, false);
+            if (datafeeds != null) {
+                for (String datafeedId : expectedMigratedDatafeeds) {
+                    assertDatafeedNotPresent(datafeedId, datafeeds);
+                }
             }
-
-            for (String datafeedId : unMigratedDatafeeds) {
-                assertDatafeed(datafeedId, datafeeds, true);
-            }
-
         }, 30, TimeUnit.SECONDS);
     }
 
-    private void assertDatafeed(String datafeedId, List<Map<String, Object>> datafeeds, boolean expectedToBePresent) {
-        Optional<Object> config = datafeeds.stream().map(map -> map.get("datafeed_id"))
-                .filter(id -> id.equals(datafeedId)).findFirst();
-        if (expectedToBePresent) {
-            assertTrue(config.isPresent());
-        } else {
-            assertFalse(config.isPresent());
+    @SuppressWarnings("unchecked")
+    private void checkTaskParamsAreUpdated(String jobId, String datafeedId) throws Exception {
+        Request getClusterState = new Request("GET", "/_cluster/state/metadata");
+        Response response = client().performRequest(getClusterState);
+        Map<String, Object> responseMap = entityAsMap(response);
+
+        List<Map<String, Object>> tasks =
+                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", responseMap);
+        assertNotNull(tasks);
+        for (Map<String, Object> task : tasks) {
+            String id = (String) task.get("id");
+            assertNotNull(id);
+            if (id.equals(MlTasks.jobTaskId(jobId))) {
+                Object jobParam = XContentMapValues.extractValue("task.xpack/ml/job.params.job", task);
+                assertNotNull(jobParam);
+            }
+            else if (id.equals(MlTasks.datafeedTaskId(datafeedId))) {
+                Object jobIdParam = XContentMapValues.extractValue("task.xpack/ml/datafeed.params.job_id", task);
+                assertNotNull(jobIdParam);
+                Object indices = XContentMapValues.extractValue("task.xpack/ml/datafeed.params.indices", task);
+                assertNotNull(indices);
+            }
         }
     }
 
-    private void assertJob(String jobId, List<Map<String, Object>> jobs, boolean expectedToBePresent) {
+    private void assertDatafeedNotPresent(String datafeedId, List<Map<String, Object>> datafeeds) {
+        Optional<Object> config = datafeeds.stream().map(map -> map.get("datafeed_id"))
+                .filter(id -> id.equals(datafeedId)).findFirst();
+        assertFalse(config.isPresent());
+    }
+
+    private void assertJobNotPresent(String jobId, List<Map<String, Object>> jobs) {
         Optional<Object> config = jobs.stream().map(map -> map.get("job_id"))
                 .filter(id -> id.equals(jobId)).findFirst();
-        if (expectedToBePresent) {
-            assertTrue(config.isPresent());
-        } else {
-            assertFalse(config.isPresent());
-        }
+        assertFalse(config.isPresent());
     }
 }

@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
+import javax.net.ssl.SSLSession;
+import java.util.function.Consumer;
+
 public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     @Nullable private final IPFilter authenticator;
@@ -53,7 +56,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     @Override
     protected ServerChannelInitializer getSslChannelInitializer(final String name, final SSLConfiguration configuration) {
-        return new SecurityServerChannelInitializer(name, configuration);
+        return new SecurityServerChannelInitializer(name, configuration, getSslHandshakeListenerForProfile(name));
     }
 
     public class IPFilterServerChannelInitializer extends ServerChannelInitializer {
@@ -71,8 +74,8 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     public class SecurityServerChannelInitializer extends SslChannelInitializer {
 
-        SecurityServerChannelInitializer(final String name, final SSLConfiguration configuration) {
-            super(name, configuration);
+        SecurityServerChannelInitializer(final String name, final SSLConfiguration configuration, Consumer<SSLSession> handshakeListener) {
+            super(name, configuration, handshakeListener);
         }
 
         @Override

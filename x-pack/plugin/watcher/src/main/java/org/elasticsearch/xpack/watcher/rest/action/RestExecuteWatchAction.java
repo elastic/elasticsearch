@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,8 +50,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
             WatchField.INPUT.getPreferredName(), WatchField.CONDITION.getPreferredName(),
             WatchField.ACTIONS.getPreferredName(), WatchField.TRANSFORM.getPreferredName(),
             WatchField.THROTTLE_PERIOD.getPreferredName(), WatchField.THROTTLE_PERIOD_HUMAN.getPreferredName(),
-            WatchField.METADATA.getPreferredName(), WatchField.STATUS.getPreferredName(),
-            WatchField.VERSION.getPreferredName());
+            WatchField.METADATA.getPreferredName(), WatchField.STATUS.getPreferredName());
 
     public RestExecuteWatchAction(Settings settings, RestController controller) {
         super(settings);

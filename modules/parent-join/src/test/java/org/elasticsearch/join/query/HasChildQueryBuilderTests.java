@@ -256,6 +256,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "      \"from\" : 0,\n" +
                 "      \"size\" : 100,\n" +
                 "      \"version\" : false,\n" +
+                "      \"seq_no_primary_term\" : false,\n" +
                 "      \"explain\" : false,\n" +
                 "      \"track_scores\" : false,\n" +
                 "      \"sort\" : [ {\n" +

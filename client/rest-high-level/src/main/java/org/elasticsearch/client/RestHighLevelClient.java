@@ -2020,15 +2020,16 @@ public class RestHighLevelClient implements Closeable {
         Response response = responseException.getResponse();
         HttpEntity entity = response.getEntity();
         ElasticsearchStatusException elasticsearchException;
+        RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
+
         if (entity == null) {
             elasticsearchException = new ElasticsearchStatusException(
-                    responseException.getMessage(), RestStatus.fromCode(response.getStatusLine().getStatusCode()), responseException);
+                    responseException.getMessage(), restStatus, responseException);
         } else {
             try {
                 elasticsearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
                 elasticsearchException.addSuppressed(responseException);
             } catch (Exception e) {
-                RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
                 elasticsearchException = new ElasticsearchStatusException("Unable to parse response body", restStatus, responseException);
                 elasticsearchException.addSuppressed(e);
             }
@@ -2062,7 +2063,7 @@ public class RestHighLevelClient implements Closeable {
         return options.build();
     }
 
-    static boolean convertExistsResponse(Response response) {
+    protected static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
     }
 

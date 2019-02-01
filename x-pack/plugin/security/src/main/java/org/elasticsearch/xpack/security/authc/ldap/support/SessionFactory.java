@@ -10,8 +10,9 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
-import org.apache.logging.log4j.Logger;
+import com.unboundid.util.ssl.SSLSocketVerifier;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -25,8 +26,10 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySe
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.TLSv1DeprecationHandler;
 
 import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocket;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -161,7 +164,18 @@ public abstract class SessionFactory {
         } else {
             options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
         }
+        addTls1DeprecationChecks(options, config, logger);
         return options;
+    }
+
+    static void addTls1DeprecationChecks(LDAPConnectionOptions options, RealmConfig realmConfig, Logger logger) {
+        final String prefix = RealmSettings.getFullSettingKey(realmConfig, "ssl.");
+        final TLSv1DeprecationHandler deprecationHandler = new TLSv1DeprecationHandler(prefix, realmConfig.globalSettings(), logger);
+        if (deprecationHandler.shouldLogWarnings()) {
+            final SSLSocketVerifier existingVerifier = options.getSSLSocketVerifier();
+            assert existingVerifier != null : "LDAPConnectionOptions has null verifier";
+            options.setSSLSocketVerifier(new TlsDeprecationSocketVerifier(deprecationHandler, existingVerifier));
+        }
     }
 
     private LDAPServers ldapServers(Settings settings) {
@@ -259,6 +273,26 @@ public abstract class SessionFactory {
             }
 
             return allSecure;
+        }
+    }
+
+    static class TlsDeprecationSocketVerifier extends SSLSocketVerifier {
+        private final TLSv1DeprecationHandler deprecationHandler;
+        private final SSLSocketVerifier delegate;
+
+        TlsDeprecationSocketVerifier(TLSv1DeprecationHandler deprecationHandler, SSLSocketVerifier delegate) {
+            this.deprecationHandler = deprecationHandler;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void verifySSLSocket(String host, int port, SSLSocket sslSocket) throws LDAPException {
+            deprecationHandler.checkAndLog(sslSocket.getSession(), () -> "ldap host " + host);
+            delegate.verifySSLSocket(host, port, sslSocket);
+        }
+
+        SSLSocketVerifier getDelegate() {
+            return delegate;
         }
     }
 }

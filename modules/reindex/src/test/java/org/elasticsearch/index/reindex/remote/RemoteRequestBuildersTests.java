@@ -177,7 +177,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
             fetchVersion = randomBoolean();
             searchRequest.source().version(fetchVersion);
         }
-
+        
         Map<String, String> params = initialSearch(searchRequest, query, remoteVersion).getParameters();
 
         if (scroll == null) {

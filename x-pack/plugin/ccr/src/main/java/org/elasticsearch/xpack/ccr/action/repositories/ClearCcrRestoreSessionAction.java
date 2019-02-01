@@ -47,26 +47,21 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionR
         extends HandledTransportAction<ClearCcrRestoreSessionRequest, ClearCcrRestoreSessionResponse> {
 
         private final CcrRestoreSourceService ccrRestoreService;
-        private final ThreadPool threadPool;
 
         @Inject
         public TransportDeleteCcrRestoreSessionAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
                                                       IndexNameExpressionResolver resolver,
                                                       TransportService transportService, CcrRestoreSourceService ccrRestoreService) {
-            super(settings, NAME, threadPool, transportService, actionFilters, resolver, ClearCcrRestoreSessionRequest::new);
+            super(settings, NAME, threadPool, transportService, actionFilters, resolver, ClearCcrRestoreSessionRequest::new,
+                ThreadPool.Names.GENERIC);
             TransportActionProxy.registerProxyAction(transportService, NAME, ClearCcrRestoreSessionResponse::new);
             this.ccrRestoreService = ccrRestoreService;
-            this.threadPool = transportService.getThreadPool();
         }
 
         @Override
         protected void doExecute(ClearCcrRestoreSessionRequest request, ActionListener<ClearCcrRestoreSessionResponse> listener) {
-            // TODO: Currently blocking actions might occur in the session closed callbacks. This dispatch
-            //  may be unnecessary when we remove these callbacks.
-            threadPool.generic().execute(() ->  {
-                ccrRestoreService.closeSession(request.getSessionUUID());
-                listener.onResponse(new ClearCcrRestoreSessionResponse());
-            });
+            ccrRestoreService.closeSession(request.getSessionUUID());
+            listener.onResponse(new ClearCcrRestoreSessionResponse());
         }
     }
 

@@ -65,12 +65,6 @@ thirdPartyAudit.ignoreMissingClasses (
   'org.jmock.core.Constraint'
 )
 
-task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
-  checkForTestsInMain = true
-  javaHome = project.compilerJavaHome
-}
-precommit.dependsOn namingConventionsMain
-
 unitTest {
   systemProperty 'tests.gradle_index_compat_versions', bwcVersions.indexCompatible.join(',')
   systemProperty 'tests.gradle_wire_compat_versions', bwcVersions.wireCompatible.join(',')

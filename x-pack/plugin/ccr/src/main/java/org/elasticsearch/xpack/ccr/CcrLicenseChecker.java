@@ -25,6 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
@@ -94,28 +95,32 @@ public final class CcrLicenseChecker {
     }
 
     /**
-     * Fetches the leader index metadata and history UUIDs for leader index shards from the remote cluster.
-     * Before fetching the index metadata, the remote cluster is checked for license compatibility with CCR.
-     * If the remote cluster is not licensed for CCR, the {@code onFailure} consumer is is invoked. Otherwise,
-     * the specified consumer is invoked with the leader index metadata fetched from the remote cluster.
+     * Fetches the remote cluster state, leader index metadata, and history UUIDs for leader index shards from
+     * the remote cluster. Before fetching the index metadata, the remote cluster is checked for license
+     * compatibility with CCR. If the remote cluster is not licensed for CCR, the {@code onFailure} consumer
+     * is is invoked. Otherwise, the specified consumer is invoked with the cluster state and leader index metadata
+     * fetched from the remote cluster.
      *
      * @param client        the client
      * @param clusterAlias  the remote cluster alias
+     * @param fetchNodes    whether this request should fetch the nodes of the remote cluster
      * @param leaderIndex   the name of the leader index
      * @param onFailure     the failure consumer
      * @param consumer      the consumer for supplying the leader index metadata and historyUUIDs of all leader shards
      */
-    public void checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
+    public void checkRemoteClusterLicenseAndFetchClusterStateLeaderIndexMetadataAndHistoryUUIDs(
             final Client client,
             final String clusterAlias,
+            final boolean fetchNodes,
             final String leaderIndex,
             final Consumer<Exception> onFailure,
-            final BiConsumer<String[], IndexMetaData> consumer) {
+            final BiConsumer<String[], Tuple<ClusterState, IndexMetaData>> consumer) {
 
         final ClusterStateRequest request = new ClusterStateRequest();
         request.clear();
         request.metaData(true);
         request.indices(leaderIndex);
+        request.nodes(fetchNodes);
         checkRemoteClusterLicenseAndFetchClusterState(
                 client,
                 clusterAlias,
@@ -134,7 +139,7 @@ public final class CcrLicenseChecker {
                     hasPrivilegesToFollowIndices(remoteClient, new String[] {leaderIndex}, e -> {
                         if (e == null) {
                             fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetaData, onFailure, historyUUIDs ->
-                                    consumer.accept(historyUUIDs, leaderIndexMetaData));
+                                    consumer.accept(historyUUIDs, new Tuple<>(remoteClusterState, leaderIndexMetaData)));
                         } else {
                             onFailure.accept(e);
                         }

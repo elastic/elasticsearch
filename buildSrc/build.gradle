@@ -224,11 +224,6 @@ if (project != rootProject) {
     exclude '**/ForbiddenPatternsTask.java'
   }
 
-  namingConventions {
-    testClass = 'org.elasticsearch.gradle.test.GradleUnitTestCase'
-    integTestClass = 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
-  }
-
   testingConventions {
     naming.clear()
     naming {

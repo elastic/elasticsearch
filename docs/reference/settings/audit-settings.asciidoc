@@ -19,9 +19,14 @@ Set to `true` to enable auditing on the node. The default value is `false`.
 Specifies where audit logs are output. For example: `[ index, logfile ]`. The
 default value is `logfile`, which puts the auditing events in a dedicated
 file named `<clustername>_audit.log` on each node.
++
 You can also specify `index`, which puts the auditing events in an {es} index
 that is prefixed with `.security_audit_log`. The index can reside on the same
-cluster or a separate cluster.
+cluster or a separate cluster. deprecated[6.7.0, The outputs setting will be
+removed in 7.0 as there will only be one supported output type (`logfile`).
+Users who wish to store their audit information in an Elasticsearch index
+should write to the log file output, and a use a file ingestion component to
+index it into Elasticsearch.]
 +
 For backwards compatibility reasons, if you use the logfile output type, a
 `<clustername>_access.log` file is also created. It contains the same
@@ -34,6 +39,8 @@ For more information, see <<configuring-logging-levels>>.
 TIP: If the index is unavailable, it is possible for auditing events to
 be lost. The `index` output type should therefore be used in conjunction with
 the `logfile` output type and the latter should be the official record of events.
+This unreliability is an important reason for why the `index` output type was
+deprecated in 6.7.0 and will be removed in 7.0.
 
 --
 
@@ -116,37 +123,39 @@ these values. If the event concerns several indices, some of which are
 
 [[index-audit-settings]]
 ==== Audit Log Indexing Configuration Settings
+deprecated[6.7.0, `xpack.security.audit.index` settings namespace refers to the
+`index` audit output type which is deprecated and will be removed in 7.0]
 
 `xpack.security.audit.index.bulk_size`::
 Controls how many audit events are batched into a single write. The default
-value is `1000`.
+value is `1000`. deprecated[6.7.0]
 
 `xpack.security.audit.index.flush_interval`::
 Controls how often buffered events are flushed to the index. The default value
-is `1s`.
+is `1s`. deprecated[6.7.0]
 
 `xpack.security.audit.index.rollover`::
 Controls how often to roll over to a new index: `hourly`, `daily`, `weekly`, or
-`monthly`. The default value is `daily`.
+`monthly`. The default value is `daily`. deprecated[6.7.0]
 
 `xpack.security.audit.index.events.include`::
 Specifies the audit events to be indexed. The default value is
 `anonymous_access_denied, authentication_failed, realm_authentication_failed, access_granted, access_denied, tampered_request, connection_granted, connection_denied, run_as_granted, run_as_denied`.
 See {xpack-ref}/audit-event-types.html[Audit Entry Types] for the
-complete list.
+complete list. deprecated[6.7.0]
 
 `xpack.security.audit.index.events.exclude`::
 Excludes the specified auditing events from indexing. By default, no events are
-excluded.
+excluded. deprecated[6.7.0]
 
 `xpack.security.audit.index.events.emit_request_body`::
 Specifies whether to include the request body from REST requests on certain
-event types such as `authentication_failed`. The default value is `false`.
+event types such as `authentication_failed`. The default value is `false`. deprecated[6.7.0]
 
 `xpack.security.audit.index.settings`::
 Specifies settings for the indices that the events are stored in. For example,
 the following configuration sets the number of shards and replicas to 1 for the
-audit indices:
+audit indices: deprecated[6.7.0]
 +
 --
 [source,yaml]
@@ -169,37 +178,39 @@ even if they are unspecified (i.e. left to defaults).
 
 [[remote-audit-settings]]
 ==== Remote Audit Log Indexing Configuration Settings
+deprecated[6.7.0, `xpack.security.audit.index` settings namespace refers to the
+`index` audit output type which is deprecated and will be removed in 7.0]
 
 To index audit events to a remote {es} cluster, you configure the following
 `xpack.security.audit.index.client` settings:
 
 `xpack.security.audit.index.client.hosts`::
 Specifies a comma-separated list of `host:port` pairs. These hosts should be
-nodes in the remote cluster. If you are using default values for the 
+nodes in the remote cluster. If you are using default values for the
 <<common-network-settings,`transport.port`>> setting, you can omit the
-`port` value. Otherwise, it must match the `transport.port` setting.
+`port` value. Otherwise, it must match the `transport.port` setting. deprecated[6.7.0]
 
 `xpack.security.audit.index.client.cluster.name`::
-Specifies the name of the remote cluster.
+Specifies the name of the remote cluster. deprecated[6.7.0]
 
 `xpack.security.audit.index.client.xpack.security.user`::
 Specifies the `username:password` pair that is used to authenticate with the
-remote cluster. This user must have authority to create the `.security-audit` 
-index on the remote cluster. 
+remote cluster. This user must have authority to create the `.security-audit`
+index on the remote cluster. deprecated[6.7.0]
 
-If the remote {es} cluster has Transport Layer Security (TLS/SSL) enabled, you 
+If the remote {es} cluster has Transport Layer Security (TLS/SSL) enabled, you
 must set the following setting to `true`:
 
 `xpack.security.audit.index.client.xpack.security.transport.ssl.enabled`::
-Used to enable or disable TLS/SSL for the transport client that forwards audit 
-logs to the remote cluster. The default is `false`. 
+Used to enable or disable TLS/SSL for the transport client that forwards audit
+logs to the remote cluster. The default is `false`. deprecated[6.7.0]
 
-You must also specify the information necessary to access certificates. See 
-<<auditing-tls-ssl-settings>>. 
+You must also specify the information necessary to access certificates. See
+<<auditing-tls-ssl-settings>>.
 
 You can pass additional settings to the remote client by specifying them in the
-`xpack.security.audit.index.client` namespace. For example, you can add 
-<<modules-transport,transport settings>> and 
+`xpack.security.audit.index.client` namespace. deprecated[6.7.0] For example,
+you can add <<modules-transport,transport settings>> and
 <<tcp-settings,advanced TCP settings>> in that namespace. To allow the remote
 client to discover all of the nodes in the remote cluster you can specify the
 `client.transport.sniff` setting:

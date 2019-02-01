@@ -20,8 +20,8 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -33,7 +33,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -60,6 +59,9 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestGetMappingAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of get mapping " +
+        "requests will change in 7.0. Please start using the include_type_name parameter set to false to " +
+        "move to the new, typeless response format that will become the default.";
 
     public RestGetMappingAction(final Settings settings, final RestController controller) {
         super(settings);
@@ -81,9 +83,17 @@ public class RestGetMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+
+        if (includeTypeName) {
+            deprecationLogger.deprecatedAndMaybeLog("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        } else if (types.length > 0) {
+            throw new IllegalArgumentException("Types cannot be provided in get mapping requests, unless" +
+                " include_type_name is set to true.");
+        }
+
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices).types(types);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
@@ -134,7 +144,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                         builder.field("error", message);
                         builder.field("status", status.getStatus());
                     }
-                    response.toXContent(builder, ToXContent.EMPTY_PARAMS, includeTypeName);
+                    response.toXContent(builder, request);
                 }
                 builder.endObject();
 

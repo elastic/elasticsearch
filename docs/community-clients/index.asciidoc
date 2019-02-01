@@ -128,7 +128,7 @@ The following project appears to be abandoned:
   Node.js client for the Elasticsearch REST API
 
 [[kotlin]]
-== kotlin
+== Kotlin
 
 * https://github.com/mbuhot/eskotlin[ES Kotlin]:
   Elasticsearch Query DSL for kotlin based on the {client}/java-api/current/index.html[official Elasticsearch Java client].

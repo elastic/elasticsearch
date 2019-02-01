@@ -206,7 +206,7 @@ integTestCluster {
   }
 }
 Closure notRunningFips = {
-  Boolean.parseBoolean(BuildPlugin.runJavascript(project, project.runtimeJavaHome,
+  Boolean.parseBoolean(BuildPlugin.runJavaAsScript(project, project.runtimeJavaHome,
           'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));')) == false
 }
 

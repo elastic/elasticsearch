@@ -27,6 +27,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.TLSv1DeprecationHandler;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter.Config;
@@ -201,7 +202,7 @@ public class HttpExporterTests extends ESTestCase {
 
     public void testExporterWithUnknownBlacklistedClusterAlerts() {
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
-        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
+        when(sslService.sslIOSessionStrategy(any(Settings.class), any(TLSv1DeprecationHandler.class))).thenReturn(sslStrategy);
 
         final List<String> blacklist = new ArrayList<>();
         blacklist.add("does_not_exist");
@@ -229,7 +230,7 @@ public class HttpExporterTests extends ESTestCase {
 
     public void testExporterWithHostOnly() throws Exception {
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
-        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
+        when(sslService.sslIOSessionStrategy(any(Settings.class), any(TLSv1DeprecationHandler.class))).thenReturn(sslStrategy);
 
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", "http")
@@ -243,7 +244,7 @@ public class HttpExporterTests extends ESTestCase {
     public void testCreateRestClient() throws IOException {
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
 
-        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
+        when(sslService.sslIOSessionStrategy(any(Settings.class), any(TLSv1DeprecationHandler.class))).thenReturn(sslStrategy);
 
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", "http")

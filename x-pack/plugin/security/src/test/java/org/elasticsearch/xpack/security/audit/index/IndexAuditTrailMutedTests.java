@@ -98,6 +98,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(message);
     }
 
@@ -108,6 +110,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(restRequest);
     }
 
@@ -126,6 +130,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(token, message);
     }
 
@@ -144,6 +150,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(token, restRequest);
     }
 
@@ -157,6 +165,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(token, message);
     }
 
@@ -169,6 +179,9 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         auditTrail.authenticationFailed(randomAlphaOfLengthBetween(6, 12), randomAlphaOfLengthBetween(2, 10), token, restRequest);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
+
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(token, restRequest);
     }
 
@@ -180,17 +193,25 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
             new String[] { "role" });
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
+
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(message);
     }
 
     public void testSystemAccessGrantedMuted() {
-        createAuditTrail(randomFrom(new String[] { "access_granted" }, null));
+        final String[] excludedEvents = randomFrom(new String[] { "access_granted" }, null);
+        createAuditTrail(excludedEvents);
         final TransportMessage message = mock(TransportMessage.class);
         final Authentication authentication = new Authentication(SystemUser.INSTANCE, new RealmRef(null, null, null), null);
         auditTrail.accessGranted(randomAlphaOfLengthBetween(6, 12), authentication, "internal:foo", message, new String[] { "role" });
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        if (excludedEvents != null) {
+            assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                    "in a future release! See the breaking changes documentation for the next major version.");
+        }
         verifyZeroInteractions(message);
     }
 
@@ -203,6 +224,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(message, authentication);
     }
 
@@ -221,6 +244,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(message, user);
     }
 
@@ -233,6 +258,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(address, rule);
     }
 
@@ -245,6 +272,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(address, rule);
     }
 
@@ -258,6 +287,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(message, authentication);
     }
 
@@ -271,6 +302,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(message, authentication);
     }
 
@@ -284,6 +317,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(restRequest);
     }
 
@@ -296,6 +331,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
+        assertWarnings("[xpack.security.audit.index.events.exclude] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
         verifyZeroInteractions(message, user);
     }
 

@@ -460,8 +460,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                     } else if ("update".equals(action)) {
-                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).parent(parent)
-                                .retryOnConflict(retryOnConflict).version(version).versionType(versionType)
+                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing)
+                                .retryOnConflict(retryOnConflict)
+                                .version(version).versionType(versionType)
+                                .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .routing(routing)
                                 .parent(parent);
                         // EMPTY is safe here because we never call namedObject

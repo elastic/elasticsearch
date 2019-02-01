@@ -182,14 +182,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             addValidationError("an id is required for a " + opType() + " operation", validationException);
         }
 
-        if (!versionType.validateVersionForWrites(resolvedVersion)) {
-            validationException = addValidationError("illegal version value [" + resolvedVersion + "] for version type ["
-                + versionType.name() + "]", validationException);
-        }
-
-        if (versionType == VersionType.FORCE) {
-            validationException = addValidationError("version type [force] may no longer be used", validationException);
-        }
+        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
         if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
             validationException = addValidationError("id is too long, must be no longer than 512 bytes but was: " +
@@ -204,18 +197,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             validationException = addValidationError("pipeline cannot be an empty string", validationException);
         }
 
-        if (ifSeqNo != UNASSIGNED_SEQ_NO && (
-            versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
-            )) {
-            validationException = addValidationError("compare and write operations can not use versioning", validationException);
-        }
-        if (ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM && ifSeqNo != UNASSIGNED_SEQ_NO) {
-            validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
-        }
-        if (ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM && ifSeqNo == UNASSIGNED_SEQ_NO) {
-            validationException =
-                addValidationError("ifSeqNo is unassigned, but primary term is [" + ifPrimaryTerm + "]", validationException);
-        }
 
         return validationException;
     }

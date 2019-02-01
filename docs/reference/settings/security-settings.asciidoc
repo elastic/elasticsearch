@@ -1455,7 +1455,7 @@ setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
 
 include::ssl-settings.asciidoc[]
 
-See also <<remote-audit-settings>>. 
+See also <<remote-audit-settings>>.
 
 [float]
 [[ip-filtering-settings]]

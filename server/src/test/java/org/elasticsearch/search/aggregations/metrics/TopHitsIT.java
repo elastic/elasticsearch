@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -85,6 +86,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -573,6 +575,7 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testFetchFeatures() {
+        final boolean seqNoAndTerm = randomBoolean();
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(matchQuery("text", "text").queryName("test"))
                 .addAggregation(terms("terms")
@@ -587,6 +590,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                             .scriptField("script", new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
                                             .fetchSource("text", null)
                                             .version(true)
+                                            .seqNoAndPrimaryTerm(seqNoAndTerm)
                                 )
                 )
                 .get();
@@ -613,6 +617,14 @@ public class TopHitsIT extends ESIntegTestCase {
 
             long version = hit.getVersion();
             assertThat(version, equalTo(1L));
+
+            if (seqNoAndTerm) {
+                assertThat(hit.getSeqNo(), greaterThanOrEqualTo(0L));
+                assertThat(hit.getPrimaryTerm(), greaterThanOrEqualTo(1L));
+            } else {
+                assertThat(hit.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+                assertThat(hit.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
+            }
 
             assertThat(hit.getMatchedQueries()[0], equalTo("test"));
 

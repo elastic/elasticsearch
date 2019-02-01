@@ -55,7 +55,7 @@ The log entries in the `<clustername>_audit.log` file have the following format:
 - A field's value, a request body as well, will be escaped as per the JSON RFC 4627.
 
 There is a list of <<audit-event-types, audit event types>> specifying the
-set of fields for each sog entry type.
+set of fields for each entry type.
 
 [float]
 [[deprecated-audit-log-entry-format]]

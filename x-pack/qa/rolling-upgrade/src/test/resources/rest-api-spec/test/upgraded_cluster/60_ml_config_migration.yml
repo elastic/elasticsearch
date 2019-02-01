@@ -7,7 +7,7 @@ setup:
           timeout: 70s
 
 ---
-"Test old cluster jobs and datafeeds and delete them":
+"Test old cluster jobs and datafeeds":
 
   - do:
       xpack.ml.get_jobs:
@@ -24,8 +24,6 @@ setup:
   - match: { jobs.0.state: closed }
   - is_false: jobs.0.node
   - match: { jobs.1.job_id: migration-old-cluster-open-job }
-  - match: { jobs.1.state: opened }
-  - is_false: jobs.1.assignment_explanation
 
   - do:
       xpack.ml.get_datafeeds:
@@ -40,7 +38,6 @@ setup:
       xpack.ml.get_datafeed_stats:
         datafeed_id: migration*
   - match: { datafeeds.0.datafeed_id: migration-old-cluster-started-datafeed }
-  - match: { datafeeds.0.state: started }
   - match: { datafeeds.1.datafeed_id: migration-old-cluster-stopped-datafeed }
   - match: { datafeeds.1.state: stopped }
   - is_false: datafeeds.1.node

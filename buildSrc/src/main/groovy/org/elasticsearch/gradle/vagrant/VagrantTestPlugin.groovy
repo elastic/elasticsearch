@@ -609,7 +609,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             void afterExecute(Task task, TaskState state) {
                 final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
                 if (state.failure != null) {
-                    println "REPRODUCE WITH: ${gradlew} ${reproTaskPath} -Dtests.seed=${project.testSeed} "
+                    println "REPRODUCE WITH: ${gradlew} \"${reproTaskPath}\" -Dtests.seed=${project.testSeed} "
                 }
             }
         }

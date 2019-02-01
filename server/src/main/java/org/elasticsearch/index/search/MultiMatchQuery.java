@@ -96,11 +96,10 @@ public class MultiMatchQuery extends MatchQuery {
                 // ignore unmapped fields
                 continue;
             }
-            Float boostValue = fieldNames.get(fieldName);
+            float boostValue = fieldNames.getOrDefault(fieldName, 1.0f);
             Query query = parse(type.matchQueryType(), fieldName, value);
             query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
             if (query != null
-                    && boostValue != null
                     && boostValue != AbstractQueryBuilder.DEFAULT_BOOST
                     && query instanceof MatchNoDocsQuery == false) {
                 query = new BoostQuery(query, boostValue);

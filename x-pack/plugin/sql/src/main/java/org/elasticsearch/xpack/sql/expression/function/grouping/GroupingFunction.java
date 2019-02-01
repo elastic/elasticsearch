@@ -26,28 +26,22 @@ import static java.util.Collections.singletonList;
 public abstract class GroupingFunction extends Function {
 
     private final Expression field;
-    private final List<Expression> extraChildren;
     private final List<Expression> parameters;
 
     private GroupingFunctionAttribute lazyAttribute;
 
-    protected GroupingFunction(Source source, Expression field, List<Expression> extraChildren) {
-        this(source, field, extraChildren, emptyList());
+    protected GroupingFunction(Source source, Expression field) {
+        this(source, field, emptyList());
     }
 
-    protected GroupingFunction(Source source, Expression field, List<Expression> extraChildren, List<Expression> parameters) {
-        super(source, CollectionUtils.combine(singletonList(field), extraChildren, parameters));
+    protected GroupingFunction(Source source, Expression field, List<Expression> parameters) {
+        super(source, CollectionUtils.combine(singletonList(field), parameters));
         this.field = field;
-        this.extraChildren = extraChildren == null ? emptyList() : extraChildren;
         this.parameters = parameters;
     }
 
     public Expression field() {
         return field;
-    }
-    
-    public List<Expression> extraChildren() {
-        return extraChildren;
     }
 
     public List<Expression> parameters() {
@@ -81,12 +75,11 @@ public abstract class GroupingFunction extends Function {
         }
         GroupingFunction other = (GroupingFunction) obj;
         return Objects.equals(other.field(), field())
-            && Objects.equals(other.extraChildren(), extraChildren())
             && Objects.equals(other.parameters(), parameters());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), extraChildren(), parameters());
+        return Objects.hash(field(), parameters());
     }
 }

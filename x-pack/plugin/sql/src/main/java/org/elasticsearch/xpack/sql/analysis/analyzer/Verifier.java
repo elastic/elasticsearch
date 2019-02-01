@@ -591,14 +591,14 @@ public final class Verifier {
         // check if the query has a grouping function (Histogram) but no GROUP BY
         if (p instanceof Project) {
             Project proj = (Project) p;
-            proj.projections().forEach(e -> e.forEachDown(f -> localFailures.add(fail(f, "[%s] needs to be part of the grouping",
-                    Expressions.name(f))), GroupingFunction.class));
+            proj.projections().forEach(e -> e.forEachDown(f -> 
+                localFailures.add(fail(f, "[%s] needs to be part of the grouping", Expressions.name(f))), GroupingFunction.class));
         } else if (p instanceof Aggregate) {
             // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms) 
             Aggregate a = (Aggregate) p;
             a.aggregates().forEach(agg -> agg.forEachDown(e -> {
-                if (Expressions.anyMatch(a.groupings(), g -> {return g instanceof Function && e.functionEquals((Function) g);}) == false
-                        || a.groupings().size() == 0) {
+                if (a.groupings().size() == 0 
+                        || Expressions.anyMatch(a.groupings(), g -> g instanceof Function && e.functionEquals((Function) g)) == false) {
                     localFailures.add(fail(e, "[%s] needs to be part of the grouping", Expressions.name(e)));
                 }
             }, GroupingFunction.class));

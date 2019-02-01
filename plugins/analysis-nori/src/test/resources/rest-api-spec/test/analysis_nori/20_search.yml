@@ -7,11 +7,10 @@
         index: test
         body:
           mappings:
-            type:
-              properties:
-                text:
-                  type:     text
-                  analyzer: nori
+            properties:
+              text:
+                type:     text
+                analyzer: nori
 
   - do:
       index:

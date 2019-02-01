@@ -7,16 +7,15 @@ setup:
         index: airline-data
         body:
           mappings:
-            response:
-              properties:
-                time:
-                  type: date
-                airline:
-                  type: keyword
-                airport:
-                  type: text
-                responsetime:
-                  type: float
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              airport:
+                type: text
+              responsetime:
+                type: float
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser

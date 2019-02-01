@@ -146,6 +146,22 @@ xpack.security.http.ssl.supported_protocols: [ "TLSv1.2", "TLSv1.1", "TLSv1" ]
 --------------------------------------------------
 
 [float]
+[[trial-explicit-security]]
+==== Security on Trial Licenses
+
+On trial licenses, `xpack.security.enabled` defaults to `false`.
+
+In prior versions, a trial license would automatically enable security if either
+
+* `xpack.security.transport.enabled` was `true`; _or_
+* the trial license was generated on a version of X-Pack from 6.2 or earlier.
+
+This behaviour has been now removed, so security is only enabled if:
+
+* `xpack.security.enabled` is `true`; _or_
+* `xpack.security.enabled` is not set, and a gold or platinum license is installed.
+
+[float]
 [[watcher-notifications-account-settings]]
 ==== Watcher notifications account settings
 

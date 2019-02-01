@@ -187,15 +187,14 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
 
                     @Override
                     public void onFailure(Exception e) {
+                        final int slot = counter.incrementAndGet();
                         if ((e instanceof ResourceNotFoundException &&
                             Strings.isAllOrWildcard(new String[]{request.getDatafeedId()})) == false) {
-
-                            final int slot = counter.incrementAndGet();
                             failures.set(slot - 1, e);
-                            if (slot == startedDatafeeds.size()) {
-                                sendResponseOrFailure(request.getDatafeedId(), listener, failures);
-                            }
                         }
+                        if (slot == startedDatafeeds.size()) {
+                            sendResponseOrFailure(request.getDatafeedId(), listener, failures);
+                       }
                     }
                 });
             } else {

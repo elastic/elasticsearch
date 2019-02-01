@@ -34,7 +34,10 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.common.Rounding.DateTimeUnit.DAY_OF_MONTH;
 
 @Fork(3)
 @Warmup(iterations = 10)
@@ -48,22 +51,12 @@ public class RoundingBenchmark {
     private final ZoneId zoneId = ZoneId.of("Europe/Amsterdam");
     private final DateTimeZone timeZone = DateUtils.zoneIdToDateTimeZone(zoneId);
 
+    private final long timestamp = 1548879021354L;
+
     private final org.elasticsearch.common.rounding.Rounding jodaRounding =
-            org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(timeZone).build();
+        org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(timeZone).build();
     private final Rounding javaRounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY)
         .timeZone(zoneId).build();
-
-    private final org.elasticsearch.common.rounding.Rounding jodaDayOfMonthRounding =
-            org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(timeZone).build();
-    private final Rounding javaDayOfMonthRounding = Rounding.builder(TimeValue.timeValueMinutes(60))
-        .timeZone(zoneId).build();
-
-    private final org.elasticsearch.common.rounding.Rounding timeIntervalRoundingJoda =
-            org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(timeZone).build();
-    private final Rounding timeIntervalRoundingJava = Rounding.builder(TimeValue.timeValueMinutes(60))
-        .timeZone(zoneId).build();
-
-    private final long timestamp = 1548879021354L;
 
     @Benchmark
     public long timeRoundingDateTimeUnitJoda() {
@@ -75,6 +68,11 @@ public class RoundingBenchmark {
         return javaRounding.round(timestamp);
     }
 
+    private final org.elasticsearch.common.rounding.Rounding jodaDayOfMonthRounding =
+        org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(timeZone).build();
+    private final Rounding javaDayOfMonthRounding = Rounding.builder(DAY_OF_MONTH)
+        .timeZone(zoneId).build();
+
     @Benchmark
     public long timeRoundingDateTimeUnitDayOfMonthJoda() {
         return jodaDayOfMonthRounding.round(timestamp);
@@ -85,6 +83,11 @@ public class RoundingBenchmark {
         return javaDayOfMonthRounding.round(timestamp);
     }
 
+    private final org.elasticsearch.common.rounding.Rounding timeIntervalRoundingJoda =
+        org.elasticsearch.common.rounding.Rounding.builder(TimeValue.timeValueMinutes(60)).timeZone(timeZone).build();
+    private final Rounding timeIntervalRoundingJava = Rounding.builder(TimeValue.timeValueMinutes(60))
+        .timeZone(zoneId).build();
+
     @Benchmark
     public long timeIntervalRoundingJava() {
         return timeIntervalRoundingJava.round(timestamp);
@@ -93,5 +96,20 @@ public class RoundingBenchmark {
     @Benchmark
     public long timeIntervalRoundingJoda() {
         return timeIntervalRoundingJoda.round(timestamp);
+    }
+
+    private final org.elasticsearch.common.rounding.Rounding timeUnitRoundingUtcMonthOfYearJoda =
+        org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.UTC).build();
+    private final Rounding timeUnitRoundingUtcMonthOfYearJava = Rounding.builder(DAY_OF_MONTH)
+        .timeZone(ZoneOffset.UTC).build();
+
+    @Benchmark
+    public long timeUnitRoundingUtcMonthOfYearJava() {
+        return timeUnitRoundingUtcMonthOfYearJava.round(timestamp);
+    }
+
+    @Benchmark
+    public long timeUnitRoundingUtcMonthOfYearJoda() {
+        return timeUnitRoundingUtcMonthOfYearJoda.round(timestamp);
     }
 }

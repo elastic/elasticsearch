@@ -70,10 +70,16 @@ public abstract class Rounding implements Writeable {
 
         private final byte id;
         private final TemporalField field;
+        private final long unitMillis;
 
         DateTimeUnit(byte id, TemporalField field) {
             this.id = id;
             this.field = field;
+            this.unitMillis = field.getBaseUnit().getDuration().toMillis();
+        }
+
+        public long getUnitMillis() {
+            return unitMillis;
         }
 
         public byte getId() {
@@ -182,12 +188,14 @@ public abstract class Rounding implements Writeable {
         private final DateTimeUnit unit;
         private final ZoneId timeZone;
         private final boolean unitRoundsToMidnight;
+        private final boolean isFixedOffset;
 
 
         TimeUnitRounding(DateTimeUnit unit, ZoneId timeZone) {
             this.unit = unit;
             this.timeZone = timeZone;
             this.unitRoundsToMidnight = this.unit.field.getBaseUnit().getDuration().toMillis() > 3600000L;
+            this.isFixedOffset = timeZone.getRules().isFixedOffset();
         }
 
         TimeUnitRounding(StreamInput in) throws IOException {
@@ -236,7 +244,20 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        public long round(final long utcMillis) {
+        public long round(long utcMillis) {
+            // this works as long as the offset doesn't change.  It is worth getting this case out of the way first, as
+            // the calculations for fixing things near to offset changes are a little expensive and are unnecessary in the common case
+            // of working in UTC.
+            if (isFixedOffset) {
+                long unitMillis = unit.getUnitMillis();
+                if (utcMillis >= 0) {
+                    return utcMillis - utcMillis % unitMillis;
+                } else {
+                    utcMillis += 1;
+                    return utcMillis - utcMillis % unitMillis - unitMillis;
+                }
+            }
+
             Instant instant = Instant.ofEpochMilli(utcMillis);
             if (unitRoundsToMidnight) {
                 final LocalDateTime localDateTime = LocalDateTime.ofInstant(instant, timeZone);

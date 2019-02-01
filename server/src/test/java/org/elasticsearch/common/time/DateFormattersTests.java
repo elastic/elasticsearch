@@ -79,12 +79,12 @@ public class DateFormattersTests extends ESTestCase {
         DateFormatter formatter = DateFormatters.forPattern("epoch_second");
 
         TemporalAccessor accessor = formatter.parse("1234.1");
-        Instant instant = DateFormatters.toZonedDateTime(accessor).toInstant();
+        Instant instant = DateFormatters.from(accessor).toInstant();
         assertThat(instant.getEpochSecond(), is(1234L));
-        assertThat(DateFormatters.toZonedDateTime(accessor).toInstant().getNano(), is(100_000_000));
+        assertThat(DateFormatters.from(accessor).toInstant().getNano(), is(100_000_000));
 
         accessor = formatter.parse("1234");
-        instant = DateFormatters.toZonedDateTime(accessor).toInstant();
+        instant = DateFormatters.from(accessor).toInstant();
         assertThat(instant.getEpochSecond(), is(1234L));
         assertThat(instant.getNano(), is(0));
 

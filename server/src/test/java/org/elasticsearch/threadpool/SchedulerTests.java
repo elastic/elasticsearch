@@ -19,6 +19,7 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -157,15 +158,19 @@ public class SchedulerTests extends ESTestCase {
         }
     }
 
+    @SuppressForbidden(reason = "this tests that the deprecated method still works")
     public void testDeprecatedSchedule() throws ExecutionException, InterruptedException {
-        verifyDeprecatedSchedule(((threadPool, runnable) -> threadPool.schedule(TimeValue.timeValueMillis(randomInt(10)), ThreadPool.Names.SAME, runnable)));
+        verifyDeprecatedSchedule(((threadPool, runnable)
+            -> threadPool.schedule(TimeValue.timeValueMillis(randomInt(10)), ThreadPool.Names.SAME, runnable)));
     }
 
     public void testThreadPoolScheduleDeprecated() throws ExecutionException, InterruptedException {
-        verifyDeprecatedSchedule(((threadPool, runnable) -> threadPool.scheduleDeprecated(TimeValue.timeValueMillis(randomInt(10)), ThreadPool.Names.SAME, runnable)));
+        verifyDeprecatedSchedule(((threadPool, runnable)
+            -> threadPool.scheduleDeprecated(TimeValue.timeValueMillis(randomInt(10)), ThreadPool.Names.SAME, runnable)));
     }
 
-    private void verifyDeprecatedSchedule(BiFunction<ThreadPool, Runnable, ScheduledFuture<?>> scheduleFunction) throws InterruptedException, ExecutionException {
+    private void verifyDeprecatedSchedule(BiFunction<ThreadPool,
+        Runnable, ScheduledFuture<?>> scheduleFunction) throws InterruptedException, ExecutionException {
         ThreadPool threadPool = new TestThreadPool("test");
         CountDownLatch missingExecutions = new CountDownLatch(1);
         try {

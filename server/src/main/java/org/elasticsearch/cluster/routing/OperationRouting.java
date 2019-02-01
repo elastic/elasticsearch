@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.node.ResponseCollectorService;
 
 import java.util.ArrayList;
@@ -125,7 +124,7 @@ public class OperationRouting {
                 for (String r : effectiveRouting) {
                     final int routingPartitionSize = indexMetaData.getRoutingPartitionSize();
                     for (int partitionOffset = 0; partitionOffset < routingPartitionSize; partitionOffset++) {
-                        set.add(shardRoutingTable(indexRouting, calculateScaledShardId(indexMetaData, r, partitionOffset)));
+                        set.add(RoutingTable.shardRoutingTable(indexRouting, calculateScaledShardId(indexMetaData, r, partitionOffset)));
                     }
                 }
             } else {
@@ -223,14 +222,6 @@ public class OperationRouting {
         } else {
             return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes);
         }
-    }
-
-    public static IndexShardRoutingTable shardRoutingTable(IndexRoutingTable indexRouting, int shardId) {
-        IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
-        if (indexShard == null) {
-            throw new ShardNotFoundException(new ShardId(indexRouting.getIndex(), shardId));
-        }
-        return indexShard;
     }
 
     protected IndexRoutingTable indexRoutingTable(ClusterState clusterState, String index) {

@@ -193,7 +193,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())
             .put(Node.NODE_DATA_SETTING.getKey(), true)
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
             // default the watermarks low values to prevent tests from failing on nodes without enough disk space
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")

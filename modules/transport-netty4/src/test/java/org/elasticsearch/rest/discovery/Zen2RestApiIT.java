@@ -52,11 +52,6 @@ import static org.hamcrest.core.Is.is;
 public class Zen2RestApiIT extends ESNetty4IntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(TestZenDiscovery.USE_ZEN2.getKey(), true).build();
-    }
-
-    @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
     }

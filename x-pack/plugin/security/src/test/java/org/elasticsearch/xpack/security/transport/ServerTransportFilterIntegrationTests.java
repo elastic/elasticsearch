@@ -108,12 +108,8 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
             .put("path.home", home)
             .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
-        if (getUseZen2() == false) {
-            nodeSettings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(),
-                ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(internalCluster().getInstance(Settings.class)));
-        }
+
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(
             LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class);
         addSSLSettingsForPEMFiles(
@@ -154,12 +150,8 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             .put("discovery.initial_state_timeout", "0s")
             .put("path.home", home)
             .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
-        if (getUseZen2() == false) {
-            nodeSettings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(),
-                ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(internalCluster().getInstance(Settings.class)));
-        }
+
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(
             LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class);
         addSSLSettingsForPEMFiles(

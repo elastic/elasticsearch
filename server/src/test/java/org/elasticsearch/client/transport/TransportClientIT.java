@@ -66,7 +66,6 @@ public class TransportClientIT extends ESIntegTestCase {
                 .put("transport.type", getTestTransportType())
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
-                .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
                 .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), "testNodeVersionIsUpdated")
                 .build(), Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class,
                                         MockHttpTransport.TestPlugin.class)).start()) {

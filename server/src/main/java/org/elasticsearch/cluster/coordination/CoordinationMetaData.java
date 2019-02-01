@@ -325,6 +325,8 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
     public static class VotingConfiguration implements Writeable, ToXContentFragment {
 
         public static final VotingConfiguration EMPTY_CONFIG = new VotingConfiguration(Collections.emptySet());
+        public static final VotingConfiguration MUST_JOIN_ELECTED_MASTER = new VotingConfiguration(Collections.singleton(
+                "_must_join_elected_master_"));
 
         private final Set<String> nodeIds;
 

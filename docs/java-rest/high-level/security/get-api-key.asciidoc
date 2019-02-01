@@ -21,7 +21,7 @@ The +{request}+ supports retrieving API key information of
 
 . All API keys for a specific user in a specific realm
 
-===== Specific API key by API key id
+===== Retrieve a specific API key by its id
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[get-api-key-id-request]

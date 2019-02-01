@@ -61,7 +61,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         List<NodeStats> nodeStats = Collections.singletonList(new NodeStats(discoveryNode, 0L, null,
             null, null, null, null, new FsInfo(0L, null, paths), null, null, null,
             null, null, null, null));
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(nodeInfos, nodeStats));
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
         assertEquals(singletonList(expected), issues);
     }
 
@@ -206,7 +206,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 discoveryNode, hostsProviderSettings, osInfo, null, null,
                 null, null, null, pluginsAndModules, null, null));
 
-            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(nodeInfos, nodeStats));
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(hostsProviderSettings, pluginsAndModules));
             assertTrue(issues.isEmpty());
         }
 
@@ -218,7 +218,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 discoveryNode, hostsProviderSettings, osInfo, null, null,
                 null, null, null, pluginsAndModules, null, null));
 
-            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(nodeInfos, nodeStats));
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(hostsProviderSettings, pluginsAndModules));
             assertTrue(issues.isEmpty());
         }
 
@@ -234,7 +234,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_discovery_configuration_is_required_in_production",
                 "nodes which do not have discovery configured: ");
-            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(nodeInfos, nodeStats));
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(hostsProviderSettings, pluginsAndModules));
             assertEquals(singletonList(expected), issues);
         }
 

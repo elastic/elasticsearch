@@ -6,10 +6,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -25,7 +22,6 @@ import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckRequest;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckResponse;
 
-import java.util.Collections;
 import java.util.List;
 
 public class TransportNodeDeprecationCheckAction extends TransportNodesAction<NodesDeprecationCheckRequest,
@@ -70,11 +66,8 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
 
     @Override
     protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request) {
-        NodeInfo nodeInfo = new NodeInfo(Version.CURRENT, Build.CURRENT, transportService.getLocalNode(), settings,
-            null, null, null, null, null, null,
-            (pluginsService == null ? null : pluginsService.info()), null, null);
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
-            (c) -> c.apply(Collections.singletonList(nodeInfo), null));
+            (c) -> c.apply(settings, pluginsService.info()));
 
         return new NodesDeprecationCheckAction.NodeResponse(transportService.getLocalNode(), issues);
     }

@@ -6,14 +6,11 @@
 package org.elasticsearch.xpack.deprecation;
 
 
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
@@ -24,12 +21,8 @@ import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVE
  */
 public class NodeDeprecationChecks {
 
-    static DeprecationIssue httpEnabledSettingRemoved(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-            .filter(nodeInfo -> nodeInfo.getSettings().hasValue(NetworkModule.HTTP_ENABLED.getKey()))
-            .map(nodeInfo -> nodeInfo.getNode().getName())
-            .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+    static DeprecationIssue httpEnabledSettingRemoved(Settings nodeSettings, PluginsAndModules plugins) {
+        if (nodeSettings.hasValue(NetworkModule.HTTP_ENABLED.getKey())) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "HTTP Enabled setting removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
@@ -39,12 +32,8 @@ public class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue auditLogPrefixSettingsCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-            .filter(nodeInfo -> nodeInfo.getSettings().getByPrefix("xpack.security.audit.logfile.prefix").isEmpty() == false)
-            .map(nodeInfo -> nodeInfo.getNode().getName())
-            .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+    static DeprecationIssue auditLogPrefixSettingsCheck(Settings nodeSettings, PluginsAndModules plugins) {
+        if (nodeSettings.getByPrefix("xpack.security.audit.logfile.prefix").isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Audit log node info settings renamed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
@@ -54,13 +43,10 @@ public class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue auditIndexSettingsCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-             .filter(nodeInfo -> (nodeInfo.getSettings().getByPrefix("xpack.security.audit.outputs").isEmpty() == false)
-                    || (nodeInfo.getSettings().getByPrefix("xpack.security.audit.index").isEmpty() == false))
-             .map(nodeInfo -> nodeInfo.getNode().getName())
-            .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+    static DeprecationIssue auditIndexSettingsCheck(Settings nodeSettings, PluginsAndModules plugins) {
+        if (nodeSettings.getByPrefix("xpack.security.audit.outputs").isEmpty() == false
+            || nodeSettings.getByPrefix("xpack.security.audit.index").isEmpty() == false) {
+
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Audit index output type removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
@@ -70,12 +56,8 @@ public class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue indexThreadPoolCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-            .filter(nodeInfo -> nodeInfo.getSettings().getByPrefix("thread_pool.index.").isEmpty() == false)
-            .map(nodeInfo -> nodeInfo.getNode().getName())
-            .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+    static DeprecationIssue indexThreadPoolCheck(Settings nodeSettings, PluginsAndModules plugins) {
+        if (nodeSettings.getByPrefix("thread_pool.index.").isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Index thread pool removed in favor of combined write thread pool",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
@@ -84,12 +66,9 @@ public class NodeDeprecationChecks {
         }
         return null;
     }
-    static DeprecationIssue bulkThreadPoolCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-            .filter(nodeInfo -> nodeInfo.getSettings().getByPrefix("thread_pool.bulk.").isEmpty() == false)
-            .map(nodeInfo -> nodeInfo.getNode().getName())
-            .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+
+    static DeprecationIssue bulkThreadPoolCheck(Settings nodeSettings, PluginsAndModules plugins) {
+        if (nodeSettings.getByPrefix("thread_pool.bulk.").isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Bulk thread pool renamed to write thread pool",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
@@ -99,12 +78,8 @@ public class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue tribeNodeCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-            .filter(nodeInfo -> nodeInfo.getSettings().getByPrefix("tribe.").isEmpty() == false)
-            .map(nodeInfo -> nodeInfo.getNode().getName())
-            .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+    static DeprecationIssue tribeNodeCheck(Settings nodeSettings, PluginsAndModules plugins) {
+        if (nodeSettings.getByPrefix("tribe.").isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Tribe Node removed in favor of Cross Cluster Search",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
@@ -114,13 +89,8 @@ public class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue authRealmsTypeCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-            .filter(nodeInfo -> nodeInfo.getSettings().getGroups("xpack.security.authc.realms").size() > 0)
-            .map(nodeInfo -> nodeInfo.getNode().getName())
-            .collect(Collectors.toList());
-
-        if (nodesFound.size() > 0) {
+    static DeprecationIssue authRealmsTypeCheck(Settings nodeSettings, PluginsAndModules plugins) {
+        if (nodeSettings.getGroups("xpack.security.authc.realms").size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Security realm settings structure changed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
@@ -130,12 +100,8 @@ public class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue httpPipeliningCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-            .filter(nodeInfo -> nodeInfo.getSettings().hasValue(HttpTransportSettings.SETTING_PIPELINING.getKey()))
-            .map(nodeInfo -> nodeInfo.getNode().getName())
-            .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+    static DeprecationIssue httpPipeliningCheck(Settings nodeSettings, PluginsAndModules plugins) {
+        if (nodeSettings.hasValue(HttpTransportSettings.SETTING_PIPELINING.getKey())) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "HTTP pipelining setting removed as pipelining is now mandatory",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
@@ -145,18 +111,13 @@ public class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue discoveryConfigurationCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-
-        List<String> nodesFound = nodeInfos.stream()
-            // These checks only apply in Zen2, which is the new default in 7.0 and can't be used in 6.x, so only apply the checks if this
-            // node does not have a discovery type explicitly set
-            .filter(nodeInfo -> nodeInfo.getSettings().hasValue(DISCOVERY_TYPE_SETTING.getKey()) == false)
+    static DeprecationIssue discoveryConfigurationCheck(Settings nodeSettings, PluginsAndModules plugins) {
+        // These checks only apply in Zen2, which is the new default in 7.0 and can't be used in 6.x, so only apply the checks if this
+        // node does not have a discovery type explicitly set
+        if (nodeSettings.hasValue(DISCOVERY_TYPE_SETTING.getKey()) == false
             // This only checks for `ping.unicast.hosts` and `hosts_provider` because `cluster.initial_master_nodes` does not exist in 6.x
-            .filter(nodeInfo -> nodeInfo.getSettings().hasValue(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()) == false)
-            .filter(nodeInfo -> nodeInfo.getSettings().hasValue(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()) == false)
-            .map(nodeInfo -> nodeInfo.getNode().getName())
-            .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+            && nodeSettings.hasValue(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()) == false
+            && nodeSettings.hasValue(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()) == false) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Discovery configuration is required in production mode",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
@@ -166,68 +127,48 @@ public class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue watcherNotificationsSecureSettingsCheck(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream().filter(nodeInfo ->
-                        (false == nodeInfo.getSettings().getByPrefix("xpack.notification.email.account.")
-                            .filter(s -> s.endsWith(".smtp.password")).isEmpty())
-                        || (false == nodeInfo.getSettings().getByPrefix("xpack.notification.hipchat.account.")
-                                .filter(s -> s.endsWith(".auth_token")).isEmpty())
-                        || (false == nodeInfo.getSettings().getByPrefix("xpack.notification.jira.account.")
-                                .filter(s -> s.endsWith(".url") || s.endsWith(".user") || s.endsWith(".password")).isEmpty())
-                        || (false == nodeInfo.getSettings().getByPrefix("xpack.notification.pagerduty.account.")
-                                .filter(s -> s.endsWith(".service_api_key")).isEmpty())
-                        || (false == nodeInfo.getSettings().getByPrefix("xpack.notification.slack.account.").filter(s -> s.endsWith(".url"))
-                                .isEmpty()))
-                .map(nodeInfo -> nodeInfo.getNode().getName()).collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+    static DeprecationIssue watcherNotificationsSecureSettingsCheck(Settings nodeSettings, PluginsAndModules plugins) {
+        if (false == nodeSettings.getByPrefix("xpack.notification.email.account.").filter(s -> s.endsWith(".smtp.password")).isEmpty()
+            || false == nodeSettings.getByPrefix("xpack.notification.hipchat.account.").filter(s -> s.endsWith(".auth_token")).isEmpty()
+            || false == nodeSettings.getByPrefix("xpack.notification.jira.account.")
+                .filter(s -> s.endsWith(".url") || s.endsWith(".user") || s.endsWith(".password")).isEmpty()
+            || false == nodeSettings.getByPrefix("xpack.notification.pagerduty.account.")
+                .filter(s -> s.endsWith(".service_api_key")).isEmpty()
+            || false == nodeSettings.getByPrefix("xpack.notification.slack.account.").filter(s -> s.endsWith(".url")).isEmpty()) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                    "Watcher notification accounts' authentication settings must be defined securely",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
-                        "#watcher-notifications-account-settings",
-                    "nodes which have insecure notification account settings are: ");
+                "Watcher notification accounts' authentication settings must be defined securely",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#watcher-notifications-account-settings",
+                "nodes which have insecure notification account settings are: ");
         }
         return null;
     }
 
-    static DeprecationIssue azureRepositoryChanges(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-            .filter(nodeInfo ->
-                nodeInfo.getPlugins().getPluginInfos().stream()
-                    .anyMatch(pluginInfo -> "repository-azure".equals(pluginInfo.getName()))
-            ).map(nodeInfo -> nodeInfo.getNode().getName()).collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+    static DeprecationIssue azureRepositoryChanges(Settings nodeSettings, PluginsAndModules plugins) {
+        if (plugins.getPluginInfos().stream().anyMatch(pluginInfo -> "repository-azure".equals(pluginInfo.getName()))) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Azure Repository settings changed",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_azure_repository_plugin",
                 "nodes with repository-azure installed: ");
         }
         return null;
     }
 
-    static DeprecationIssue gcsRepositoryChanges(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-            .filter(nodeInfo ->
-                nodeInfo.getPlugins().getPluginInfos().stream()
-                    .anyMatch(pluginInfo -> "repository-gcs".equals(pluginInfo.getName()))
-            ).map(nodeInfo -> nodeInfo.getNode().getName()).collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+    static DeprecationIssue gcsRepositoryChanges(Settings nodeSettings, PluginsAndModules plugins) {
+        if (plugins.getPluginInfos().stream().anyMatch(pluginInfo -> "repository-gcs".equals(pluginInfo.getName()))) {
+
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "GCS Repository settings changed",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#_google_cloud_storage_repository_plugin",
                 "nodes with repository-gcs installed: ");
         }
         return null;
     }
 
-    static DeprecationIssue fileDiscoveryPluginRemoved(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-            .filter(nodeInfo ->
-                nodeInfo.getPlugins().getPluginInfos().stream()
-                    .anyMatch(pluginInfo -> "discovery-file".equals(pluginInfo.getName()))
-            ).map(nodeInfo -> nodeInfo.getNode().getName()).collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+    static DeprecationIssue fileDiscoveryPluginRemoved(Settings nodeSettings, PluginsAndModules plugins) {
+        if (plugins.getPluginInfos().stream().anyMatch(pluginInfo -> "discovery-file".equals(pluginInfo.getName()))) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "File-based discovery is no longer a plugin and uses a different path",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
@@ -237,12 +178,8 @@ public class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue defaultSSLSettingsRemoved(List<NodeInfo> nodeInfos, List<NodeStats> nodeStats) {
-        List<String> nodesFound = nodeInfos.stream()
-            .filter(nodeInfo -> nodeInfo.getSettings().getByPrefix("xpack.ssl").isEmpty() == false)
-            .map(nodeInfo -> nodeInfo.getNode().getName())
-            .collect(Collectors.toList());
-        if (nodesFound.size() > 0) {
+    static DeprecationIssue defaultSSLSettingsRemoved(Settings nodeSettings, PluginsAndModules plugins) {
+        if (nodeSettings.getByPrefix("xpack.ssl").isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Default TLS/SSL settings have been removed",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +

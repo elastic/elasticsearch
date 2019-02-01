@@ -760,6 +760,7 @@ setup:
       index:
         refresh: true
         index: test_1
+        type: test
         id: 1
         routing: 1
         body: { "str": "abc" }
@@ -768,6 +769,7 @@ setup:
       index:
         refresh: true
         index: test_1
+        type: test
         id: 2
         routing: 1
         body: { "str": "abc" }
@@ -776,6 +778,7 @@ setup:
       index:
         refresh: true
         index: test_1
+        type: test
         id: 3
         routing: 1
         body: { "str": "bcd" }
@@ -788,7 +791,6 @@ setup:
         index: test_1
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "map" } } } }
 
-  - match: { hits.total.value: 3}
   - length: { aggregations.str_terms.buckets: 2 }
 
   - do:
@@ -804,7 +806,6 @@ setup:
         index: test_1
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "global_ordinals" } } } }
 
-  - match: { hits.total.value: 3}
   - length: { aggregations.str_terms.buckets: 2 }
 
   - do:

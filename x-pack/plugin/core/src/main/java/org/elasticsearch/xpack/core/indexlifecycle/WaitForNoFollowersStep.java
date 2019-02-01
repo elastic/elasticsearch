@@ -22,6 +22,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * A step that waits until the index it's used on is no longer a leader index.
+ * This is necessary as there are some actions which are not safe to perform on
+ * a leader index, such as those which delete the index, including Shrink and
+ * Delete.
+ */
 public class WaitForNoFollowersStep extends AsyncWaitStep {
 
     private static final Logger logger = LogManager.getLogger(WaitForNoFollowersStep.class);
@@ -66,11 +72,10 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
         static final ParseField MESSAGE_FIELD = new ParseField("message");
 
-        private final String message;
+        private static final String message = "this index is a leader index; waiting for all following indices to cease " +
+            "following before proceeding";
 
-        Info() {
-            this.message = "this index is a leader index; waiting for all following indices to cease following before proceeding";
-        }
+        Info() { }
 
         String getMessage() {
             return message;
@@ -86,10 +91,13 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Info info = (Info) o;
-            return Objects.equals(getMessage(), info.getMessage());
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            return true;
         }
 
         @Override

@@ -665,11 +665,15 @@ class ClusterFormationTasks {
     static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) { Exec exec ->
             exec.workingDir node.cwd
+            if (project.runtimeJavaHome.equals(project.compilerJavaHome)) {
+                // force JAVA_HOME to *not* be set
+                exec.environment.remove('JAVA_HOME')
+            } else {
+                exec.environment.put('JAVA_HOME', project.runtimeJavaHome)
+            }
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 exec.executable 'cmd'
                 exec.args '/C', 'call'
-                // force JAVA_HOME to *not* be set
-                exec.environment.remove('JAVA_HOME')
                 // On Windows the comma character is considered a parameter separator:
                 // argument are wrapped in an ExecArgWrapper that escapes commas
                 exec.args execArgs.collect { a -> new EscapeCommaWrapper(arg: a) }
@@ -686,6 +690,9 @@ class ClusterFormationTasks {
             ant.exec(executable: node.executable, spawn: node.config.daemonize, newenvironment: true,
                      dir: node.cwd, taskname: 'elasticsearch') {
                 node.env.each { key, value -> env(key: key, value: value) }
+                if (project.runtimeJavaHome.equals(project.compilerJavaHome) == false) {
+                    env(key: 'JAVA_HOME', value: project.runtimeJavaHome)
+                }
                 node.args.each { arg(value: it) }
             }
         }

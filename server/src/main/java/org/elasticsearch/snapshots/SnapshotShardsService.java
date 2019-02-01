@@ -67,6 +67,10 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestDeduplicator;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -85,7 +89,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
-import static org.elasticsearch.transport.EmptyTransportResponseHandler.INSTANCE_SAME;
 
 /**
  * This service runs on data and master nodes and controls currently snapshotted shards on these nodes. It is responsible for
@@ -111,6 +114,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     private final Condition shutdownCondition = shutdownLock.newCondition();
 
     private volatile Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> shardSnapshots = emptyMap();
+
+    // A map of snapshots to the shardIds that we already reported to the master as failed
+    private final TransportRequestDeduplicator<UpdateIndexShardSnapshotStatusRequest> remoteFailedRequestDeduplicator =
+        new TransportRequestDeduplicator<>();
 
     private final SnapshotStateExecutor snapshotStateExecutor = new SnapshotStateExecutor();
     private final UpdateSnapshotStatusAction updateSnapshotStatusHandler;
@@ -272,12 +279,11 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     // Abort all running shards for this snapshot
                     Map<ShardId, IndexShardSnapshotStatus> snapshotShards = shardSnapshots.get(entry.snapshot());
                     if (snapshotShards != null) {
-                        final String failure = "snapshot has been aborted";
                         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
-
                             final IndexShardSnapshotStatus snapshotStatus = snapshotShards.get(shard.key);
                             if (snapshotStatus != null) {
-                                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.abortIfNotCompleted(failure);
+                                final IndexShardSnapshotStatus.Copy lastSnapshotStatus =
+                                    snapshotStatus.abortIfNotCompleted("snapshot has been aborted");
                                 final Stage stage = lastSnapshotStatus.getStage();
                                 if (stage == Stage.FINALIZE) {
                                     logger.debug("[{}] trying to cancel snapshot on shard [{}] that is finalizing, " +
@@ -293,6 +299,15 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                         "updating status on the master", entry.snapshot(), shard.key);
                                     notifyFailedSnapshotShard(entry.snapshot(), shard.key, localNodeId, lastSnapshotStatus.getFailure());
                                 }
+                            }
+                        }
+                    } else {
+                        final Snapshot snapshot = entry.snapshot();
+                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> curr : entry.shards()) {
+                            // due to CS batching we might have missed the INIT state and straight went into ABORTED
+                            // notify master that abort has completed by moving to FAILED
+                            if (curr.value.state() == State.ABORTED) {
+                                notifyFailedSnapshotShard(snapshot, curr.key, localNodeId, curr.value.reason());
                             }
                         }
                     }
@@ -515,12 +530,33 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
     /** Updates the shard snapshot status by sending a {@link UpdateIndexShardSnapshotStatusRequest} to the master node */
     void sendSnapshotShardUpdate(final Snapshot snapshot, final ShardId shardId, final ShardSnapshotStatus status) {
-        try {
-            UpdateIndexShardSnapshotStatusRequest request = new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status);
-            transportService.sendRequest(transportService.getLocalNode(), UPDATE_SNAPSHOT_STATUS_ACTION_NAME, request, INSTANCE_SAME);
-        } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to update snapshot state", snapshot, status), e);
-        }
+        remoteFailedRequestDeduplicator.executeOnce(
+            new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status),
+            new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void aVoid) {
+                    logger.trace("[{}] [{}] updated snapshot state", snapshot, status);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(
+                        () -> new ParameterizedMessage("[{}] [{}] failed to update snapshot state", snapshot, status), e);
+                }
+            },
+            (req, reqListener) -> transportService.sendRequest(transportService.getLocalNode(), UPDATE_SNAPSHOT_STATUS_ACTION_NAME, req,
+                new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                    @Override
+                    public void handleResponse(TransportResponse.Empty response) {
+                        reqListener.onResponse(null);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        reqListener.onFailure(exp);
+                    }
+                })
+        );
     }
 
     /**

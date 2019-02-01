@@ -126,7 +126,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
+            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -170,7 +170,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
+            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -231,7 +231,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
+        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
     }
 
     public void testTwoNodesSingleDoc() throws Exception {

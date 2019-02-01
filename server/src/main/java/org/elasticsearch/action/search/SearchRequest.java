@@ -205,17 +205,14 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             localClusterAlias = in.readOptionalString();
             if (localClusterAlias != null) {
                 absoluteStartMillis = in.readVLong();
+                finalReduce = in.readBoolean();
             } else {
                 absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
+                finalReduce = true;
             }
         } else {
             localClusterAlias = null;
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
-        }
-        //TODO move to the 6_7_0 branch once backported to 6.x
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            finalReduce = in.readBoolean();
-        } else {
             finalReduce = true;
         }
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
@@ -245,11 +242,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             out.writeOptionalString(localClusterAlias);
             if (localClusterAlias != null) {
                 out.writeVLong(absoluteStartMillis);
+                out.writeBoolean(finalReduce);
             }
-        }
-        //TODO move to the 6_7_0 branch once backported to 6.x
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(finalReduce);
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeBoolean(ccsMinimizeRoundtrips);

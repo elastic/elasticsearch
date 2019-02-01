@@ -127,14 +127,12 @@
         body:  >
           {
             "mappings" : {
-              "test" : {
                 "properties" : {
                   "geoip.location" : {
                     "type": "geo_point"
                   }
                 }
               }
-            }
           }
   - match: { acknowledged: true }
 

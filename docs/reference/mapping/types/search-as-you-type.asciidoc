@@ -117,51 +117,16 @@ PUT my_index/_doc/1?refresh
 // CONSOLE
 // TEST[continued]
 
-To search for a document whose value for this field matches a complete shingle,
-use a series of match queries
+To search for documents with values of `my_field` that can complete the
+query text, use a `match_phrase_prefix` query
 
 [source,js]
 --------------------------------------------------
 GET my_index/_search
 {
   "query": {
-    "bool": {
-      "must": [
-        {
-          "match": {
-            "my_field": {
-              "query": "quick red",
-              "operator": "and"
-            }
-          }
-        }
-      ],
-      "should": [
-        {
-          "match": {
-            "my_field._2gram": {
-              "query": "quick red",
-              "operator": "or"
-            }
-          }
-        },
-        {
-          "match": {
-            "my_field._3gram": {
-              "query": "quick red",
-              "operator": "or"
-            }
-          }
-        },
-        {
-          "match": {
-            "my_field._4gram": {
-              "query": "quick red",
-              "operator": "or"
-            }
-          }
-        }
-      ]
+    "match_phrase_prefix": {
+      "my_field": "red f"
     }
   }
 }

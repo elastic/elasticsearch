@@ -23,10 +23,10 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -178,10 +178,9 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                        equalTo(1L));
 
             for (final SearchHit hit : hits.getHits()) {
-                assertMonitoringDoc(toMap(hit), system, "test", interval);
+                assertMonitoringDoc(toMap(hit), system, MapperService.SINGLE_MAPPING_NAME, interval);
             }
         });
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     /**

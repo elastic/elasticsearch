@@ -38,11 +38,11 @@ import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
@@ -54,6 +54,7 @@ import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 /**
  * This class is responsible for tracking the replication group with its progress and safety markers (local and global checkpoints).
@@ -157,7 +158,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * A callback when a new retention lease is created or an existing retention lease expires. In practice, this callback invokes the
      * retention lease sync action, to sync retention leases to replicas.
      */
-    private final BiConsumer<Collection<RetentionLease>, ActionListener<ReplicationResponse>> onSyncRetentionLeases;
+    private final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases;
 
     /**
      * This set contains allocation IDs for which there is a thread actively waiting for the local checkpoint to advance to at least the
@@ -170,12 +171,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     volatile ReplicationGroup replicationGroup;
 
-    private final Map<String, RetentionLease> retentionLeases = new HashMap<>();
-
-    private Collection<RetentionLease> copyRetentionLeases() {
-        assert Thread.holdsLock(this);
-        return Collections.unmodifiableCollection(new ArrayList<>(retentionLeases.values()));
-    }
+    /**
+     * The current retention leases.
+     */
+    private RetentionLeases retentionLeases = RetentionLeases.EMPTY;
 
     /**
      * Get all non-expired retention leases tracked on this shard. An unmodifiable copy of the retention leases is returned. Note that only
@@ -183,27 +182,25 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *
      * @return the retention leases
      */
-    public Collection<RetentionLease> getRetentionLeases() {
+    public RetentionLeases getRetentionLeases() {
         final boolean wasPrimaryMode;
-        final Collection<RetentionLease> nonExpiredRetentionLeases;
+        final RetentionLeases nonExpiredRetentionLeases;
         synchronized (this) {
             if (primaryMode) {
                 // the primary calculates the non-expired retention leases and syncs them to replicas
                 final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
                 final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
-                final Collection<RetentionLease> expiredRetentionLeases = retentionLeases
-                        .values()
+                final Map<Boolean, List<RetentionLease>> partitionByExpiration = retentionLeases
+                        .leases()
                         .stream()
-                        .filter(retentionLease -> currentTimeMillis - retentionLease.timestamp() > retentionLeaseMillis)
-                        .collect(Collectors.toList());
-                if (expiredRetentionLeases.isEmpty()) {
+                        .collect(Collectors.groupingBy(lease -> currentTimeMillis - lease.timestamp() > retentionLeaseMillis));
+                if (partitionByExpiration.get(true) == null) {
                     // early out as no retention leases have expired
-                    return copyRetentionLeases();
+                    return retentionLeases;
                 }
-                // clean up the expired retention leases
-                for (final RetentionLease expiredRetentionLease : expiredRetentionLeases) {
-                    retentionLeases.remove(expiredRetentionLease.id());
-                }
+                final Collection<RetentionLease> nonExpiredLeases =
+                        partitionByExpiration.get(false) != null ? partitionByExpiration.get(false) : Collections.emptyList();
+                retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
             }
             /*
              * At this point, we were either in primary mode and have updated the non-expired retention leases into the tracking map, or
@@ -211,7 +208,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
              * non-expired retention leases, instead receiving them on syncs from the primary.
              */
             wasPrimaryMode = primaryMode;
-            nonExpiredRetentionLeases = copyRetentionLeases();
+            nonExpiredRetentionLeases = retentionLeases;
         }
         if (wasPrimaryMode) {
             onSyncRetentionLeases.accept(nonExpiredRetentionLeases, ActionListener.wrap(() -> {}));
@@ -236,15 +233,18 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final ActionListener<ReplicationResponse> listener) {
         Objects.requireNonNull(listener);
         final RetentionLease retentionLease;
-        final Collection<RetentionLease> currentRetentionLeases;
+        final RetentionLeases currentRetentionLeases;
         synchronized (this) {
             assert primaryMode;
-            if (retentionLeases.containsKey(id)) {
+            if (retentionLeases.contains(id)) {
                 throw new IllegalArgumentException("retention lease with ID [" + id + "] already exists");
             }
             retentionLease = new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
-            retentionLeases.put(id, retentionLease);
-            currentRetentionLeases = copyRetentionLeases();
+            retentionLeases = new RetentionLeases(
+                    operationPrimaryTerm,
+                    retentionLeases.version() + 1,
+                    Stream.concat(retentionLeases.leases().stream(), Stream.of(retentionLease)).collect(Collectors.toList()));
+            currentRetentionLeases = retentionLeases;
         }
         onSyncRetentionLeases.accept(currentRetentionLeases, listener);
         return retentionLease;
@@ -261,18 +261,25 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized RetentionLease renewRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
         assert primaryMode;
-        if (retentionLeases.containsKey(id) == false) {
+        if (retentionLeases.contains(id) == false) {
             throw new IllegalArgumentException("retention lease with ID [" + id + "] does not exist");
         }
         final RetentionLease retentionLease =
                 new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
-        final RetentionLease existingRetentionLease = retentionLeases.put(id, retentionLease);
+        final RetentionLease existingRetentionLease = retentionLeases.get(id);
         assert existingRetentionLease != null;
         assert existingRetentionLease.retainingSequenceNumber() <= retentionLease.retainingSequenceNumber() :
                 "retention lease renewal for [" + id + "]"
                         + " from [" + source + "]"
                         + " renewed a lower retaining sequence number [" + retentionLease.retainingSequenceNumber() + "]"
                         + " than the current lease retaining sequence number [" + existingRetentionLease.retainingSequenceNumber() + "]";
+        retentionLeases = new RetentionLeases(
+                operationPrimaryTerm,
+                retentionLeases.version() + 1,
+                Stream.concat(
+                        retentionLeases.leases().stream().filter(lease -> lease.id().equals(id) == false),
+                        Stream.of(retentionLease))
+                        .collect(Collectors.toList()));
         return retentionLease;
     }
 
@@ -281,10 +288,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *
      * @param retentionLeases the retention leases
      */
-    public synchronized void updateRetentionLeasesOnReplica(final Collection<RetentionLease> retentionLeases) {
+    public synchronized void updateRetentionLeasesOnReplica(final RetentionLeases retentionLeases) {
         assert primaryMode == false;
-        this.retentionLeases.clear();
-        this.retentionLeases.putAll(retentionLeases.stream().collect(Collectors.toMap(RetentionLease::id, Function.identity())));
+        if (retentionLeases.supersedes(this.retentionLeases)) {
+            this.retentionLeases = retentionLeases;
+        }
     }
 
     public static class CheckpointState implements Writeable {
@@ -565,7 +573,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final long globalCheckpoint,
             final LongConsumer onGlobalCheckpointUpdated,
             final LongSupplier currentTimeMillisSupplier,
-            final BiConsumer<Collection<RetentionLease>, ActionListener<ReplicationResponse>> onSyncRetentionLeases) {
+            final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;

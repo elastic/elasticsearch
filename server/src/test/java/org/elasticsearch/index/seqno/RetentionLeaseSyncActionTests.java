@@ -43,7 +43,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.mockito.ArgumentCaptor;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -114,10 +113,8 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
                 new IndexNameExpressionResolver(Settings.EMPTY));
-        @SuppressWarnings("unchecked") final Collection<RetentionLease> retentionLeases =
-                (Collection<RetentionLease>) mock(Collection.class);
-        final RetentionLeaseSyncAction.Request request =
-                new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
+        final RetentionLeases retentionLeases = mock(RetentionLeases.class);
+        final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
         final TransportWriteAction.WritePrimaryResult<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> result =
                 action.shardOperationOnPrimary(request, indexShard);
@@ -155,10 +152,8 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
                 new IndexNameExpressionResolver(Settings.EMPTY));
-        @SuppressWarnings("unchecked") final Collection<RetentionLease> retentionLeases =
-                (Collection<RetentionLease>) mock(Collection.class);
-        final RetentionLeaseSyncAction.Request request =
-                new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
+        final RetentionLeases retentionLeases = mock(RetentionLeases.class);
+        final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
         final TransportWriteAction.WriteReplicaResult result = action.shardOperationOnReplica(request, indexShard);
         // the retention leases on the shard should be updated
@@ -190,8 +185,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
 
         final Logger retentionLeaseSyncActionLogger = mock(Logger.class);
 
-        @SuppressWarnings("unchecked") final Collection<RetentionLease> retentionLeases =
-                (Collection<RetentionLease>) mock(Collection.class);
+        final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final AtomicBoolean invoked = new AtomicBoolean();
         final RetentionLeaseSyncAction action = new RetentionLeaseSyncAction(
                 Settings.EMPTY,

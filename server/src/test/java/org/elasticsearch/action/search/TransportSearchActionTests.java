@@ -548,7 +548,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
             //give transport service enough time to realize that the node is down, and to notify the connection listeners
             //so that RemoteClusterConnection is left with no connected nodes, hence it will retry connecting next
-            assertTrue(disconnectedLatch.await(5, TimeUnit.SECONDS));
+            assertTrue(disconnectedLatch.await(30, TimeUnit.SECONDS));
 
             service.clearAllRules();
             if (randomBoolean()) {
@@ -610,7 +610,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, skippedClusters,
                     remoteIndicesByCluster, remoteClusterService, threadPool,
                     new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch));
-                awaitLatch(latch, 5, TimeUnit.SECONDS);
+                awaitLatch(latch, 30, TimeUnit.SECONDS);
                 assertEquals(0, skippedClusters.get());
                 assertNotNull(response.get());
                 Map<String, ClusterSearchShardsResponse> map = response.get();
@@ -629,7 +629,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), "index_not_found", null, skippedClusters,
                     remoteIndicesByCluster, remoteClusterService, threadPool,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch));
-                awaitLatch(latch, 5, TimeUnit.SECONDS);
+                awaitLatch(latch, 30, TimeUnit.SECONDS);
                 assertEquals(0, skippedClusters.get());
                 assertNotNull(failure.get());
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
@@ -667,7 +667,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, skippedClusters,
                     remoteIndicesByCluster, remoteClusterService, threadPool,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch));
-                awaitLatch(latch, 5, TimeUnit.SECONDS);
+                awaitLatch(latch, 30, TimeUnit.SECONDS);
                 assertEquals(0, skippedClusters.get());
                 assertNotNull(failure.get());
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
@@ -687,7 +687,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, skippedClusters,
                     remoteIndicesByCluster, remoteClusterService, threadPool,
                     new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch));
-                awaitLatch(latch, 5, TimeUnit.SECONDS);
+                awaitLatch(latch, 30, TimeUnit.SECONDS);
                 assertNotNull(response.get());
                 Map<String, ClusterSearchShardsResponse> map = response.get();
                 assertEquals(numClusters - disconnectedNodesIndices.size(), map.size());
@@ -704,7 +704,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
             //give transport service enough time to realize that the node is down, and to notify the connection listeners
             //so that RemoteClusterConnection is left with no connected nodes, hence it will retry connecting next
-            assertTrue(disconnectedLatch.await(5, TimeUnit.SECONDS));
+            assertTrue(disconnectedLatch.await(30, TimeUnit.SECONDS));
 
             service.clearAllRules();
             if (randomBoolean()) {
@@ -722,7 +722,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 TransportSearchAction.collectSearchShards(IndicesOptions.lenientExpandOpen(), null, null, skippedClusters,
                     remoteIndicesByCluster, remoteClusterService, threadPool,
                     new LatchedActionListener<>(ActionListener.wrap(response::set, e -> fail("no failures expected")), latch));
-                awaitLatch(latch, 5, TimeUnit.SECONDS);
+                awaitLatch(latch, 30, TimeUnit.SECONDS);
                 assertEquals(0, skippedClusters.get());
                 assertNotNull(response.get());
                 Map<String, ClusterSearchShardsResponse> map = response.get();

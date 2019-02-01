@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -134,7 +133,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
                 execution = ExecutionMode.MAP;
             }
-            final long maxOrd = getMaxOrd(context.searcher(), valuesSource, execution);
+            final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
             if (execution == null) {
                 execution = ExecutionMode.GLOBAL_ORDINALS;
             }
@@ -206,23 +205,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     }
 
     /**
-     * Get the maximum ordinal value for the provided {@link ValuesSource} or -1
+     * Get the maximum global ordinal value for the provided {@link ValuesSource} or -1
      * if the values source is not an instance of {@link ValuesSource.Bytes.WithOrdinals}.
      */
-    static long getMaxOrd(IndexSearcher searcher, ValuesSource source, ExecutionMode executionMode) throws IOException {
+    static long getMaxOrd(ValuesSource source, IndexSearcher searcher) throws IOException {
         if (source instanceof ValuesSource.Bytes.WithOrdinals) {
             ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) source;
-            if (executionMode == ExecutionMode.MAP) {
-                // global ordinals are not requested so we don't load them
-                // and return the biggest cardinality per segment instead.
-                long maxOrd = -1;
-                for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
-                    maxOrd = Math.max(maxOrd, valueSourceWithOrdinals.ordinalsValues(leaf).getValueCount());
-                }
-                return maxOrd;
-            } else {
-                return valueSourceWithOrdinals.globalMaxOrd(searcher);
-            }
+            return valueSourceWithOrdinals.globalMaxOrd(searcher);
         } else {
             return -1;
         }
@@ -267,7 +256,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                               List<PipelineAggregator> pipelineAggregators,
                               Map<String, Object> metaData) throws IOException {
 
-                final long maxOrd = getMaxOrd(context.searcher(), valuesSource, ExecutionMode.GLOBAL_ORDINALS);
+                final long maxOrd = getMaxOrd(valuesSource, context.searcher());
                 assert maxOrd != -1;
                 final double ratio = maxOrd / ((double) context.searcher().getIndexReader().numDocs());
 

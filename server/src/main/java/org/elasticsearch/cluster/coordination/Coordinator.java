@@ -1131,6 +1131,21 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return peerFinder.getFoundPeers();
     }
 
+    /**
+     * If there is any current committed publication, this method cancels it.
+     * This method is used exclusively by tests.
+     * @return true if publication was cancelled, false if there is no current committed publication.
+     */
+    boolean cancelCommittedPublication() {
+        synchronized (mutex) {
+            if (currentPublication.isPresent() && currentPublication.get().isCommitted()) {
+                currentPublication.get().cancel("cancelCommittedPublication");
+                return true;
+            }
+            return false;
+        }
+    }
+
     class CoordinatorPublication extends Publication {
 
         private final PublishRequest publishRequest;

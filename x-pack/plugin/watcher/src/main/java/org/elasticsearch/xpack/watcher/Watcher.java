@@ -645,7 +645,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
                 " for the next 6 months daily history indices are allowed to be created, but please make sure" +
                 " that any future history indices after 6 months with the pattern " +
-                "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
+                "[.watcher-history-yyyy.MM.dd] are allowed to be created", value);
     }
 
     // These are all old templates from pre 6.0 era, that need to be deleted

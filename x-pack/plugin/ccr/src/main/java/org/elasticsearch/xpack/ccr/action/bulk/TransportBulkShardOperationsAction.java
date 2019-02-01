@@ -63,6 +63,9 @@ public class TransportBulkShardOperationsAction
     @Override
     protected WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
             final BulkShardOperationsRequest request, final IndexShard primary) throws Exception {
+        if (logger.isTraceEnabled()) {
+            logger.trace("index [{}] on the following primary shard {}", request.getOperations(), primary.routingEntry());
+        }
         return shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(), request.getOperations(),
             request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
     }
@@ -156,6 +159,9 @@ public class TransportBulkShardOperationsAction
     @Override
     protected WriteReplicaResult<BulkShardOperationsRequest> shardOperationOnReplica(
             final BulkShardOperationsRequest request, final IndexShard replica) throws Exception {
+        if (logger.isTraceEnabled()) {
+            logger.trace("index [{}] on the following replica shard {}", request.getOperations(), replica.routingEntry());
+        }
         return shardOperationOnReplica(request, replica, logger);
     }
 

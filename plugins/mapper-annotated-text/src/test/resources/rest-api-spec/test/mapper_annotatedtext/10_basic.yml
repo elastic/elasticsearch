@@ -9,24 +9,23 @@
 
   - do:
       indices.create:
+        include_type_name: false
         index: annotated
         body:
           settings:
             number_of_shards: "1"
             number_of_replicas: "0"
           mappings:
-            doc:
-              properties:
-                text:
-                  type: annotated_text
-                entityID:
-                  type: keyword
+            properties:
+              text:
+                type: annotated_text
+              entityID:
+                type: keyword
 
   - do:
       index:
         index: annotated
-        type: doc
-        body: 
+        body:
             "text" : "The [quick brown fox](entity_3789) is brown."
             "entityID": "entity_3789"
         refresh: true

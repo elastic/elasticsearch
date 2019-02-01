@@ -12,7 +12,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         refresh: true
         body:    { "name": "bob! house" }

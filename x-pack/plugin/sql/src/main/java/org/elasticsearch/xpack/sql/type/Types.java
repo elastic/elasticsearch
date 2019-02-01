@@ -87,12 +87,7 @@ public abstract class Types {
                     field = new KeywordEsField(name, properties, docValues, length, normalized);
                     break;
                 case DATETIME:
-                    Object fmt = content.get("format");
-                    if (fmt != null) {
-                        field = new DateEsField(name, properties, docValues, Strings.delimitedListToStringArray(fmt.toString(), "||"));
-                    } else {
-                        field = new DateEsField(name, properties, docValues);
-                    }
+                    field = new DateEsField(name, properties, docValues);
                     break;
                 case UNSUPPORTED:
                     String type = content.get("type").toString();

@@ -6,37 +6,34 @@ setup:
 
   - do:
       indices.create:
+          include_type_name: false
           index:  test
           body:
             mappings:
-              _doc:
-                properties:
-                  my_date:
-                    type: date
-                    ignore_malformed: true
-                    store: true
-                  my_ip:
-                    type: ip
-                    ignore_malformed: true
+              properties:
+                my_date:
+                  type: date
+                  ignore_malformed: true
+                  store: true
+                my_ip:
+                  type: ip
+                  ignore_malformed: true
 
   - do:
       index:
         index:  test
-        type:   _doc
         id:     1
         body:   { "my_date": "2018-05-11", "my_ip": ":::1" }
 
   - do:
       index:
         index:  test
-        type:   _doc
         id:     2
         body:   { "my_date": "bar", "my_ip": "192.168.1.42" }
 
   - do:
       index:
         index:  test
-        type:   _doc
         id:     3
         body:   { "my_date": "bar", "my_ip": "quux" }
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.fields;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -49,7 +48,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
 import org.joda.time.format.DateTimeFormat;
 
 import java.time.ZoneOffset;
@@ -804,13 +802,12 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo((Object) 4L));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
-        DateTime dateField = searchResponse.getHits().getAt(0).getFields().get("date_field").getValue();
-        assertThat(dateField.getMillis(), equalTo(date.toInstant().toEpochMilli()));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
+                equalTo(DateFormatter.forPattern("dateOptionalTime").format(date)));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(),
-                equalTo(new BytesRef(new byte[] {42, 100})));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
 
         builder = client().prepareSearch().setQuery(matchAllQuery())
@@ -830,13 +827,12 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo((Object) 4L));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo((Object) 6.0d));
-        dateField = searchResponse.getHits().getAt(0).getFields().get("date_field").getValue();
-        assertThat(dateField.getMillis(), equalTo(date.toInstant().toEpochMilli()));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
+                equalTo(DateFormatter.forPattern("dateOptionalTime").format(date)));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("boolean_field").getValue(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("text_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
-        assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(),
-            equalTo(new BytesRef(new byte[] {42, 100})));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
 
         builder = client().prepareSearch().setQuery(matchAllQuery())
@@ -1001,9 +997,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         DocumentField dateField = fields.get("date_field");
         assertThat(dateField.getName(), equalTo("date_field"));
-
-        ReadableDateTime fetchedDate = dateField.getValue();
-        assertThat(fetchedDate.getMillis(), equalTo(date.toInstant().getMillis()));
+        assertThat(dateField.getValue(), equalTo("1990-12-29"));
     }
 
     public void testWildcardDocValueFieldsWithFieldAlias() throws Exception {
@@ -1065,9 +1059,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         DocumentField dateField = fields.get("date_field");
         assertThat(dateField.getName(), equalTo("date_field"));
-
-        ReadableDateTime fetchedDate = dateField.getValue();
-        assertThat(fetchedDate.getMillis(), equalTo(date.toInstant().getMillis()));
+        assertThat(dateField.getValue(), equalTo("1990-12-29"));
     }
 
 

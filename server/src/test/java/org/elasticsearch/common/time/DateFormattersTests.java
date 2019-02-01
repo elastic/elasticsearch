@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DateFormattersTests extends ESTestCase {
 
@@ -55,35 +56,50 @@ public class DateFormattersTests extends ESTestCase {
             assertThat(instant.getEpochSecond(), is(0L));
             assertThat(instant.getNano(), is(0));
         }
+        {
+            Instant instant = Instant.from(formatter.parse("123.123456"));
+            assertThat(instant.getEpochSecond(), is(0L));
+            assertThat(instant.getNano(), is(123123456));
+        }
     }
 
     public void testEpochMilliParser() {
-        DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
+        DateFormatter formatter = DateFormatter.forPattern("8epoch_millis");
         DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("invalid"));
         assertThat(e.getMessage(), containsString("could not be parsed"));
 
         e = expectThrows(DateTimeParseException.class, () -> formatter.parse("123.1234567"));
-        assertThat(e.getMessage(), containsString("unparsed text found at index 3"));
+        assertThat(e.getMessage(), containsString("unparsed text found"));
     }
 
     // this is not in the duelling tests, because the epoch second parser in joda time drops the milliseconds after the comma
     // but is able to parse the rest
     // as this feature is supported it also makes sense to make it exact
-    public void testEpochSecondParser() {
+    public void testEpochSecondParserWithFraction() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_second");
 
-        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.1"));
-        assertThat(e.getMessage(), is("Text '1234.1' could not be parsed, unparsed text found at index 4"));
-        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234."));
-        assertThat(e.getMessage(), is("Text '1234.' could not be parsed, unparsed text found at index 4"));
-        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("abc"));
+        TemporalAccessor accessor = formatter.parse("1234.1");
+        Instant instant = DateFormatters.toZonedDateTime(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(1234L));
+        assertThat(DateFormatters.toZonedDateTime(accessor).toInstant().getNano(), is(100_000_000));
+
+        accessor = formatter.parse("1234");
+        instant = DateFormatters.toZonedDateTime(accessor).toInstant();
+        assertThat(instant.getEpochSecond(), is(1234L));
+        assertThat(instant.getNano(), is(0));
+
+        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("abc"));
         assertThat(e.getMessage(), is("Text 'abc' could not be parsed, unparsed text found at index 0"));
+
         e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.abc"));
-        assertThat(e.getMessage(), is("Text '1234.abc' could not be parsed, unparsed text found at index 4"));
+        assertThat(e.getMessage(), is("Text '1234.abc' could not be parsed, unparsed text found at index 5"));
+
+        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.1234567890"));
+        assertThat(e.getMessage(), is("Text '1234.1234567890' could not be parsed, unparsed text found at index 14"));
     }
 
     public void testEpochMilliParsersWithDifferentFormatters() {
-        DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
+        DateFormatter formatter = DateFormatter.forPattern("8strict_date_optional_time||epoch_millis");
         TemporalAccessor accessor = formatter.parse("123");
         assertThat(DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli(), is(123L));
         assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
@@ -148,6 +164,26 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(formatter, instanceOf(JavaDateFormatter.class));
     }
 
+    public void testEpochFormatting() {
+        long seconds = randomLongBetween(0, 130L * 365 * 86400); // from 1970 epoch till around 2100
+        long nanos = randomLongBetween(0, 999_999_999L);
+        Instant instant = Instant.ofEpochSecond(seconds, nanos);
+
+        DateFormatter millisFormatter = DateFormatter.forPattern("8epoch_millis");
+        String millis = millisFormatter.format(instant);
+        Instant millisInstant = Instant.from(millisFormatter.parse(millis));
+        assertThat(millisInstant.toEpochMilli(), is(instant.toEpochMilli()));
+        assertThat(millisFormatter.format(Instant.ofEpochSecond(42, 0)), is("42000"));
+        assertThat(millisFormatter.format(Instant.ofEpochSecond(42, 123456789L)), is("42123.456789"));
+
+        DateFormatter secondsFormatter = DateFormatter.forPattern("8epoch_second");
+        String formattedSeconds = secondsFormatter.format(instant);
+        Instant secondsInstant = Instant.from(secondsFormatter.parse(formattedSeconds));
+        assertThat(secondsInstant.getEpochSecond(), is(instant.getEpochSecond()));
+
+        assertThat(secondsFormatter.format(Instant.ofEpochSecond(42, 0)), is("42"));
+    }
+
     public void testParsingStrictNanoDates() {
         DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time_nanos");
         formatter.format(formatter.parse("2016-01-01T00:00:00.000"));
@@ -185,6 +221,7 @@ public class DateFormattersTests extends ESTestCase {
     }
 
     private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
+        assertThat(format, startsWith("8"));
         JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
         dateFormatter.parse(input);
         DateTimeFormatter roundUpFormatter = dateFormatter.getRoundupParser();

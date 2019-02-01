@@ -48,6 +48,6 @@ public class NodesDeprecationCheckResponse extends BaseNodesResponse<NodesDeprec
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClusterName(), getNodes());
+        return Objects.hash(getClusterName(), getNodes(), failures());
     }
 }

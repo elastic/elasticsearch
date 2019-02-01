@@ -88,9 +88,9 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     List<String> failedNodeIds = response.failures().stream()
                         .map(failure -> failure.nodeId() + ": " + failure.getMessage())
                         .collect(Collectors.toList());
-                    logger.error("Nodes failed to run deprecation checks: {}", failedNodeIds);
+                    logger.warn("nodes failed to run deprecation checks: {}", failedNodeIds);
                     for (FailedNodeException failure : response.failures()) {
-                        logger.debug("Node {} failed to run deprecation checks: {}", failure.nodeId(), failure);
+                        logger.debug("node {} failed to run deprecation checks: {}", failure.nodeId(), failure);
                     }
                 }
                 getDatafeedConfigs(ActionListener.wrap(

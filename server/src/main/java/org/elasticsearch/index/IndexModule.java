@@ -357,7 +357,7 @@ public final class IndexModule {
 
     public static Type defaultStoreType(final boolean allowMmap) {
         if (allowMmap && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
-            return Type.HYBRIDFS;
+            return Type.MMAPFS;
         } else if (Constants.WINDOWS) {
             return Type.SIMPLEFS;
         } else {

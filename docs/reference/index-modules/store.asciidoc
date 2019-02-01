@@ -40,7 +40,7 @@ The following sections lists all the different storage types supported.
 `fs`::
 
 Default file system implementation. This will pick the best implementation
-depending on the operating environment, which is currently `hybridfs` on all
+depending on the operating environment, which is currently `mmapfs` on all
 supported systems but is subject to change.
 
 [[simplefs]]`simplefs`::

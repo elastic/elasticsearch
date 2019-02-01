@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
+import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -40,20 +41,17 @@ public class SqlSession {
     private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
-
+    private final PlanExecutor planExecutor;
+    
     private final Configuration configuration;
-
-    public SqlSession(SqlSession other) {
-        this(other.configuration, other.client, other.functionRegistry, other.indexResolver,
-             other.preAnalyzer, other.verifier, other.optimizer, other.planner);
-    }
 
     public SqlSession(Configuration configuration, Client client, FunctionRegistry functionRegistry,
             IndexResolver indexResolver,
             PreAnalyzer preAnalyzer,
             Verifier verifier,
             Optimizer optimizer,
-            Planner planner) {
+            Planner planner,
+            PlanExecutor planExecutor) {
         this.client = client;
         this.functionRegistry = functionRegistry;
 
@@ -64,6 +62,7 @@ public class SqlSession {
         this.verifier = verifier;
 
         this.configuration = configuration;
+        this.planExecutor = planExecutor;
     }
 
     public FunctionRegistry functionRegistry() {
@@ -88,6 +87,10 @@ public class SqlSession {
     
     public Verifier verifier() {
         return verifier;
+    }
+
+    public PlanExecutor planExecutor() {
+        return planExecutor;
     }
 
     private LogicalPlan doParse(String sql, List<SqlTypedParamValue> params) {

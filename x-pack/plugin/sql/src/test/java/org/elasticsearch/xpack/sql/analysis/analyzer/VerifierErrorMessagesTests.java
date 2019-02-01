@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -50,9 +49,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(String sql) {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
-        EsIndex test = new EsIndex("test", mapping);
+        EsIndex test = getTestEsIndex();
         return accept(IndexResolution.valid(test), sql);
+    }
+
+    private EsIndex getTestEsIndex() {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
+        return new EsIndex("test", mapping);
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
@@ -196,6 +199,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testExtractNonDateTime() {
         assertEquals("1:8: Invalid datetime field [ABS]. Use any datetime function.", error("SELECT EXTRACT(ABS FROM date) FROM test"));
+    }
+
+    public void testSubtractFromInterval() {
+        assertEquals("1:8: Cannot subtract a datetime[CAST('2000-01-01' AS DATETIME)] " +
+                "from an interval[INTERVAL 1 MONTH]; do you mean the reverse?",
+            error("SELECT INTERVAL 1 MONTH - CAST('2000-01-01' AS DATETIME)"));
     }
 
     public void testMultipleColumns() {
@@ -377,11 +386,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT AVG(date) FROM test"));
     }
 
-    public void testNotSupportedAggregateOnString() {
-        assertEquals("1:8: [MAX(keyword)] argument must be [numeric or date], found value [keyword] type [keyword]",
-            error("SELECT MAX(keyword) FROM test"));
-    }
-
     public void testInvalidTypeForStringFunction_WithOneArg() {
         assertEquals("1:8: [LENGTH] argument must be [string], found value [1] type [integer]",
             error("SELECT LENGTH(1)"));
@@ -533,19 +537,48 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
-        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
-            "SELECT PERCENTILE(int, ABS(int)) FROM test"), true));
-        assertEquals("2nd argument of PERCENTILE must be constant, received [ABS(int)]",
-            e.getMessage());
+        assertEquals("1:8: Second argument of PERCENTILE must be a constant, received [ABS(int)]",
+            error("SELECT PERCENTILE(int, ABS(int)) FROM test"));
     }
 
     public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
-        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> analyzer.analyze(parser.createStatement(
-            "SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"), true));
-        assertEquals("2nd argument of PERCENTILE_RANK must be constant, received [ABS(int)]",
-            e.getMessage());
+        assertEquals("1:8: Second argument of PERCENTILE_RANK must be a constant, received [ABS(int)]",
+            error("SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"));
+    }
+
+    public void testTopHitsFirstArgConstant() {
+        assertEquals("1:8: First argument of [FIRST] must be a table column, found constant ['foo']",
+            error("SELECT FIRST('foo', int) FROM test"));
+    }
+
+    public void testTopHitsSecondArgConstant() {
+        assertEquals("1:8: Second argument of [LAST] must be a table column, found constant [10]",
+            error("SELECT LAST(int, 10) FROM test"));
+    }
+
+    public void testTopHitsFirstArgTextWithNoKeyword() {
+        assertEquals("1:8: [FIRST] cannot operate on first argument field of data type [text]",
+            error("SELECT FIRST(text) FROM test"));
+    }
+
+    public void testTopHitsSecondArgTextWithNoKeyword() {
+        assertEquals("1:8: [LAST] cannot operate on second argument field of data type [text]",
+            error("SELECT LAST(keyword, text) FROM test"));
+    }
+
+    public void testTopHitsGroupByHavingUnsupported() {
+        assertEquals("1:50: HAVING filter is unsupported for function [FIRST(int)]",
+            error("SELECT FIRST(int) FROM test GROUP BY text HAVING FIRST(int) > 10"));
+    }
+
+    public void testMinOnKeywordGroupByHavingUnsupported() {
+        assertEquals("1:52: HAVING filter is unsupported for function [MIN(keyword)]",
+            error("SELECT MIN(keyword) FROM test GROUP BY text HAVING MIN(keyword) > 10"));
+    }
+
+    public void testMaxOnKeywordGroupByHavingUnsupported() {
+        assertEquals("1:52: HAVING filter is unsupported for function [MAX(keyword)]",
+            error("SELECT MAX(keyword) FROM test GROUP BY text HAVING MAX(keyword) > 10"));
     }
 }
 

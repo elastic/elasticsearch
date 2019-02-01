@@ -30,7 +30,6 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -158,7 +157,7 @@ final class TransportKeepAlive implements Closeable {
 
         void ensureStarted() {
             if (isStarted.get() == false && isStarted.compareAndSet(false, true)) {
-                threadPool.schedule(pingInterval, ThreadPool.Names.GENERIC, this);
+                threadPool.schedule(this, pingInterval, ThreadPool.Names.GENERIC);
             }
         }
 
@@ -185,15 +184,7 @@ final class TransportKeepAlive implements Closeable {
 
         @Override
         protected void onAfterInLifecycle() {
-            try {
-                threadPool.schedule(pingInterval, ThreadPool.Names.GENERIC, this);
-            } catch (EsRejectedExecutionException ex) {
-                if (ex.isExecutorShutdown()) {
-                    logger.debug("couldn't schedule new ping execution, executor is shutting down", ex);
-                } else {
-                    throw ex;
-                }
-            }
+            threadPool.scheduleUnlessShuttingDown(pingInterval, ThreadPool.Names.GENERIC, this);
         }
 
         @Override

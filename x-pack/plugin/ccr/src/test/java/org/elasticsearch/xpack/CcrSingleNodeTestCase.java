@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -98,6 +99,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         request.setRemoteCluster("local");
         request.setLeaderIndex(leaderIndex);
         request.setFollowRequest(getResumeFollowRequest(followerIndex));
+        request.waitForActiveShards(ActiveShardCount.ONE);
         return request;
     }
 

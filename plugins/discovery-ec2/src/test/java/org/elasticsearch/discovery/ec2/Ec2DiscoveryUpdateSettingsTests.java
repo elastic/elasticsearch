@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.ec2;
 
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -41,13 +42,14 @@ public class Ec2DiscoveryUpdateSettingsTests extends AbstractAwsTestCase {
                 .build();
         internalCluster().startNode(nodeSettings);
 
-        // We try to update minimum_master_nodes now
-        ClusterUpdateSettingsResponse response = client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("discovery.zen.minimum_master_nodes", 1))
-                .setTransientSettings(Settings.builder().put("discovery.zen.minimum_master_nodes", 1))
+        // We try to update a setting now
+        final String expectedValue = UUIDs.randomBase64UUID(random());
+        final String settingName = "cluster.routing.allocation.exclude.any_attribute";
+        final ClusterUpdateSettingsResponse response = client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(settingName, expectedValue))
                 .get();
 
-        Integer min = response.getPersistentSettings().getAsInt("discovery.zen.minimum_master_nodes", null);
-        assertThat(min, is(1));
+        final String value = response.getPersistentSettings().get(settingName);
+        assertThat(value, is(expectedValue));
     }
 }

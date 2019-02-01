@@ -175,12 +175,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMissingColumnInOrderBy() {
-        // xxx offset is that of the order by field
         assertEquals("1:29: Unknown column [xxx]", error("SELECT * FROM test ORDER BY xxx"));
     }
 
     public void testMissingColumnFunctionInOrderBy() {
-        // xxx offset is that of the order by field
         assertEquals("1:41: Unknown column [xxx]", error("SELECT * FROM test ORDER BY DAY_oF_YEAR(xxx)"));
     }
 
@@ -208,7 +206,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMultipleColumns() {
-        // xxx offset is that of the order by field
         assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
                 error("SELECT xxx FROM test GROUP BY DAY_oF_YEAR(xxx)"));
     }
@@ -248,7 +245,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByScalarOverNonGrouped() {
-        assertEquals("1:50: Cannot order by non-grouped column [YEAR(date)], expected [text]",
+        assertEquals("1:50: Cannot order by non-grouped column [YEAR(date)], expected [text] or an aggregate function",
                 error("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
     }
 
@@ -258,7 +255,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
-        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date)], expected [text]",
+        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date)], expected [text] or an aggregate function",
             error("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY YEAR(date)"));
     }
 
@@ -316,23 +313,25 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT * FROM test ORDER BY unsupported"));
     }
 
-    //    public void testGroupByOrderByNonKey() {
-    //        assertEquals("1:52: Cannot order by non-grouped column [a], expected [bool]",
-    //                error("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a"));
-    //    }
+    public void testGroupByOrderByAggregate() {
+        accept("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a");
+    }
 
     public void testGroupByOrderByAggs() {
         accept("SELECT int FROM test GROUP BY int ORDER BY COUNT(*)");
     }
 
     public void testGroupByOrderByAggAndGroupedColumn() {
-        assertEquals("1:49: Cannot order by aggregated [MAX(int)] and non-aggregated [int] columns"
-                + " at the same time; use either one or the other",
-                error("SELECT int FROM test GROUP BY int ORDER BY int, MAX(int)"));
+        accept("SELECT int FROM test GROUP BY int ORDER BY int, MAX(int)");
+    }
+
+    public void testGroupByOrderByNonAggAndNonGroupedColumn() {
+        assertEquals("1:44: Cannot order by non-grouped column [bool], expected [int]",
+                error("SELECT int FROM test GROUP BY int ORDER BY bool"));
     }
 
     public void testGroupByOrderByScore() {
-        assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int]",
+        assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int] or an aggregate function",
                 error("SELECT int FROM test GROUP BY int ORDER BY SCORE()"));
     }
 

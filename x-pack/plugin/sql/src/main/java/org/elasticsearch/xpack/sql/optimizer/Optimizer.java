@@ -87,13 +87,13 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.sql.expression.predicate.Predicates.combineAnd;
@@ -861,36 +861,43 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(OrderBy ob) {
             List<Order> order = ob.order();
 
-            // remove constants
-            List<Order> nonConstant = order.stream().filter(o -> !o.child().foldable()).collect(toList());
+            // remove constants and put the items in reverse order so the iteration happens back to front
+            List<Order> nonConstant = new LinkedList<>();
+            for (Order o : order) {
+                if (o.child().foldable() == false) {
+                    nonConstant.add(0, o);
+                }
+            }
 
-            // TODO: handle HAVING case - maybe simply use a transformation
+            Holder<Boolean> foundAggregate = new Holder<>(Boolean.FALSE);
 
-            // if the sort points to an agg, change the agg order based on the order
-            if (ob.child() instanceof Aggregate) {
-                Aggregate a = (Aggregate) ob.child();
-                List<Expression> groupings = new ArrayList<>(a.groupings());
-                boolean orderChanged = false;
+            // if the first found aggregate has no grouping, there's no need to do ordering
+            return ob.transformDown(a -> {
+                // take into account
+                if (foundAggregate.get() == Boolean.TRUE) {
+                    return a;
+                }
+                foundAggregate.set(Boolean.TRUE);
 
-                for (int orderIndex = 0; orderIndex < nonConstant.size(); orderIndex++) {
-                    Order o = nonConstant.get(orderIndex);
+                List<Expression> groupings = new LinkedList<>(a.groupings());
+
+                for (Order o : nonConstant) {
                     Expression fieldToOrder = o.child();
                     for (Expression group : a.groupings()) {
                         if (Expressions.equalsAsAttribute(fieldToOrder, group)) {
                             // move grouping in front
                             groupings.remove(group);
-                            groupings.add(orderIndex, group);
-                            orderChanged = true;
+                            groupings.add(0, group);
                         }
                     }
                 }
 
-                if (orderChanged) {
-                    Aggregate newAgg = new Aggregate(a.source(), a.child(), groupings, a.aggregates());
-                    return new OrderBy(ob.source(), newAgg, ob.order());
+                if (groupings.equals(a.groupings()) == false) {
+                    return new Aggregate(a.source(), a.child(), groupings, a.aggregates());
                 }
-            }
-            return ob;
+
+                return a;
+            }, Aggregate.class);
         }
     }
 

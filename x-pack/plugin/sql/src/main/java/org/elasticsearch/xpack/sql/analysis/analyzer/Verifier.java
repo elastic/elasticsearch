@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.Holder;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -316,31 +315,11 @@ public final class Verifier {
 
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
 
-                // track aggs and non-aggs - to keep the final modifier, use an array
-                final Holder<Expression> aggExp = new Holder<>();
-                final Holder<Expression> nonAggExp = new Holder<>();
-
                 o.order().forEach(oe -> {
                     Expression e = oe.child();
 
+                    // aggregates are allowed
                     if (Functions.isAggregate(e) || e instanceof AggregateFunctionAttribute) {
-                        if (aggExp.get() != null) {
-                            return;
-                        } else {
-                            aggExp.set(e);
-                            if (nonAggExp.get() == null) {
-                                return;
-                            }
-                        }
-                    } else {
-                        nonAggExp.set(e);
-                    }
-
-                    if (nonAggExp.get() != null && aggExp.get() != null) {
-                        localFailures.add(fail(oe,
-                                "Cannot order by aggregated [{}] and non-aggregated [{}] columns at the same time; "
-                                        + "use either one or the other",
-                                Expressions.name(aggExp.get()), Expressions.name(nonAggExp.get())));
                         return;
                     }
 
@@ -374,7 +353,8 @@ public final class Verifier {
                     String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
                     // get the location of the first missing expression as the order by might be on a different line
                     localFailures.add(
-                            fail(missing.values().iterator().next(), "Cannot order by non-grouped column" + plural + " {}, expected {}",
+                            fail(missing.values().iterator().next(),
+                                    "Cannot order by non-grouped column" + plural + " {}, expected {} or an aggregate function",
                                     Expressions.names(missing.keySet()),
                                     Expressions.names(a.groupings())));
                     groupingFailures.add(a);

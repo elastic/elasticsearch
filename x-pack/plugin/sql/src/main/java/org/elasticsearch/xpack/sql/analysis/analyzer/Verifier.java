@@ -324,10 +324,10 @@ public final class Verifier {
                     Expression e = oe.child();
 
                     if (Functions.isAggregate(e) || e instanceof AggregateFunctionAttribute) {
-                        if (nonAggExp.get() != null) {
+                        if (aggExp.get() != null) {
                             return;
                         } else {
-                            nonAggExp.set(e);
+                            aggExp.set(e);
                             if (nonAggExp.get() == null) {
                                 return;
                             }
@@ -410,7 +410,7 @@ public final class Verifier {
                 if (!unsupported.isEmpty()) {
                     String plural = unsupported.size() > 1 ? "s" : StringUtils.EMPTY;
                     localFailures.add(
-                        fail(condition, "HAVING filter is unsupported for function" + plural + " %s",
+                        fail(condition, "HAVING filter is unsupported for function" + plural + " {}",
                             Expressions.names(unsupported)));
                     groupingFailures.add(a);
                     return false;

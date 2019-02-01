@@ -5361,7 +5361,9 @@ public class InternalEngineTests extends EngineTestCase {
                     equalTo(engine.getMinRetainedSeqNo()));
                 final RetentionLeases leases = retentionLeasesHolder.get();
                 if (leases.leases().isEmpty()) {
-                    assertThat(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES), equalTo(""));
+                    assertThat(
+                            engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES),
+                            equalTo("primary_term:" + primaryTerm + ";version:" + retentionLeasesVersion.get() + ";"));
                 } else {
                     assertThat(
                             engine.getLastCommittedSegmentInfos().getUserData().get(Engine.RETENTION_LEASES),

@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 
 import javax.security.auth.x500.X500Principal;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -154,7 +153,7 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
     }
 
     public static void main(String[] args) throws Exception {
-        new CertificateGenerateTool().main(args, Terminal.DEFAULT);
+        exit(new CertificateGenerateTool().main(args, Terminal.DEFAULT));
     }
 
     @Override

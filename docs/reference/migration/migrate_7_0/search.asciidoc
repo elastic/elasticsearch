@@ -123,6 +123,16 @@ Search requests with extra content after the main object will no longer be accep
 by the `_search` endpoint. A parsing exception will be thrown instead.
 
 [float]
+==== Doc-value fields default format
+
+The format of doc-value fields is changing to be the same as what could be
+obtained in 6.x with the special `use_field_mapping` format. This is mostly a
+change for date fields, which are now formatted based on the format that is
+configured in the mappings by default. This behavior can be changed by
+specifying a <<search-request-docvalue-fields,`format`>> within the doc-value
+field.
+
+[float]
 ==== Context Completion Suggester
 
 The ability to query and index context enabled suggestions without context,
@@ -149,8 +159,8 @@ instead which is a more appropriate value for a scenario where scores are not av
 [float]
 ==== Negative boosts are not allowed
 
-Setting a negative `boost` in a query, deprecated in 6x, are not allowed in this version.
-To deboost a specific query you can use a `boost` comprise between 0 and 1.
+Setting a negative `boost` for a query or a field, deprecated in 6x, is not allowed in this version.
+To deboost a specific query or field you can use a `boost` comprise between 0 and 1.
 
 [float]
 ==== Negative scores are not allowed in Function Score Query

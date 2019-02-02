@@ -466,6 +466,24 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         expectThrows(ResponseException.class, this::indexDocument);
     }
 
+    public void testShrinkSameShards() throws Exception {
+        int numberOfShards = randomFrom(1, 2);
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy("warm", new ShrinkAction(numberOfShards));
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            assertTrue(indexExists(index));
+            assertFalse(indexExists(shrunkenIndex));
+            assertFalse(aliasExists(shrunkenIndex, index));
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(numberOfShards)));
+            assertNull(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()));
+        });
+    }
+
     public void testShrinkDuringSnapshot() throws Exception {
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         // Create the repository before taking the snapshot.
@@ -757,6 +775,42 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         // Wait for everything to be copacetic
         assertBusy(() -> assertThat(getStepKeyForIndex(originalIndex), equalTo(TerminalPolicyStep.KEY)));
+    }
+
+    public void testMoveToInjectedStep() throws Exception {
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
+        createNewSingletonPolicy("warm", new ShrinkAction(1), TimeValue.timeValueHours(12));
+
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+
+        assertBusy(() -> assertThat(getStepKeyForIndex(index), equalTo(new StepKey("new", "complete", "complete"))));
+
+        // Move to a step from the injected unfollow action
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": { \n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+            "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": { \n" +
+            "    \"phase\": \"warm\",\n" +
+            "    \"action\": \"unfollow\",\n" +
+            "    \"name\": \"wait-for-indexing-complete\"\n" +
+            "  }\n" +
+            "}");
+        // If we get an OK on this request we have successfully moved to the injected step
+        assertOK(client().performRequest(moveToStepRequest));
+
+        // Make sure we actually move on to and execute the shrink action
+        assertBusy(() -> {
+            assertTrue(indexExists(shrunkenIndex));
+            assertTrue(aliasExists(shrunkenIndex, index));
+            assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
+        });
     }
 
     private void createFullPolicy(TimeValue hotTime) throws IOException {

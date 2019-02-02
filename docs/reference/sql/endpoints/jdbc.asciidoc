@@ -115,8 +115,6 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 
 `ssl.truststore.pass`:: trust store password
 
-`ssl.cert.allow.self.signed` (default `false`):: Whether or not to allow self signed certificates
-
 `ssl.protocol`(default `TLS`):: SSL protocol to be used
 
 [float]

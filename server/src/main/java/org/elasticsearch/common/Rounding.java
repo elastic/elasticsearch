@@ -80,13 +80,11 @@ public abstract class Rounding implements Writeable {
                 case MONTH_OF_YEAR:
                     int currentYear = DateUtils.getYear(utcMillis);
                     int currentMonth = DateUtils.getMonthOfYear(utcMillis, currentYear);
-                    LocalDate localDate = LocalDate.of(currentYear, currentMonth, 1);
-                    return LocalDateTime.of(localDate, LocalTime.MIDNIGHT).toInstant(ZoneOffset.UTC).toEpochMilli();
+                    return DateUtils.of(currentYear, currentMonth, 1);
                 case QUARTER_OF_YEAR:
                     int year = DateUtils.getYear(utcMillis);
                     int month = DateUtils.getMonthOfYear(utcMillis, year);
-                    return LocalDateTime.of(year, Month.of(month).firstMonthOfQuarter(), 1, 0, 0)
-                        .toInstant(ZoneOffset.UTC).toEpochMilli();
+                    return DateUtils.of(year, Month.of(month).firstMonthOfQuarter().getValue(), 1);
                 case YEAR_OF_CENTURY:
                     return DateUtils.getFirstDayOfYearMillis(utcMillis);
                 case WEEK_OF_WEEKYEAR:

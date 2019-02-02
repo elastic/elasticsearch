@@ -198,4 +198,48 @@ public class DateUtils {
         int year = getYear(utcMillis);
         return calculateFirstDayOfYearMillis(year);
     }
+
+    public static long of(int year, int month, int dayOfMonth) {
+        long millis = getYearMillis(year);
+        millis += getTotalMillisByYearMonth(year, month);
+        return millis + (dayOfMonth - 1) * (long) MILLIS_PER_DAY;
+    }
+
+    private static long getTotalMillisByYearMonth(int year, int month) {
+        if (isLeapYear(year)) {
+            return MAX_TOTAL_MILLIS_BY_MONTH_ARRAY[month - 1];
+        } else {
+            return MIN_TOTAL_MILLIS_BY_MONTH_ARRAY[month - 1];
+        }
+    }
+
+    private static final long[] MIN_TOTAL_MILLIS_BY_MONTH_ARRAY;
+    private static final long[] MAX_TOTAL_MILLIS_BY_MONTH_ARRAY;
+    private static final int[] MIN_DAYS_PER_MONTH_ARRAY = {
+        31,28,31,30,31,30,31,31,30,31,30,31
+    };
+    private static final int[] MAX_DAYS_PER_MONTH_ARRAY = {
+        31,29,31,30,31,30,31,31,30,31,30,31
+    };
+
+    static {
+        MIN_TOTAL_MILLIS_BY_MONTH_ARRAY = new long[12];
+        MAX_TOTAL_MILLIS_BY_MONTH_ARRAY = new long[12];
+
+        long minSum = 0;
+        long maxSum = 0;
+        for (int i = 0; i < 11; i++) {
+            long millis = MIN_DAYS_PER_MONTH_ARRAY[i]
+                * (long)MILLIS_PER_DAY;
+            minSum += millis;
+            MIN_TOTAL_MILLIS_BY_MONTH_ARRAY[i + 1] = minSum;
+
+            millis = MAX_DAYS_PER_MONTH_ARRAY[i]
+                * (long)MILLIS_PER_DAY;
+            maxSum += millis;
+            MAX_TOTAL_MILLIS_BY_MONTH_ARRAY[i + 1] = maxSum;
+        }
+    }
+
+
 }

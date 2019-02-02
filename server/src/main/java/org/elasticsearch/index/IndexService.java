@@ -941,7 +941,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     final class AsyncRetentionLeaseBackgroundSyncTask extends BaseAsyncTask {
 
-        public AsyncRetentionLeaseBackgroundSyncTask(final IndexService indexService) {
+        AsyncRetentionLeaseBackgroundSyncTask(final IndexService indexService) {
             super(indexService, RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings()));
         }
 

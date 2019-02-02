@@ -847,10 +847,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 Predicate<String> ignoreRolesPredicate, Predicate<String> ignoreIndicesPredicate) {
             this.name = name;
             // "null" values are "unexpected" and should not match any ignore policy
-            this.ignorePrincipalsPredicate = principal -> principal != null && ignorePrincipalsPredicate.test(principal);
-            this.ignoreRealmsPredicate = realm -> realm != null && ignoreRealmsPredicate.test(realm);
-            this.ignoreRolesPredicate = role -> role != null && ignoreRolesPredicate.test(role);
-            this.ignoreIndicesPredicate = index -> index != null && ignoreIndicesPredicate.test(index);
+            this.ignorePrincipalsPredicate = ignorePrincipalsPredicate;
+            this.ignoreRealmsPredicate = ignoreRealmsPredicate;
+            this.ignoreRolesPredicate = ignoreRolesPredicate;
+            this.ignoreIndicesPredicate = ignoreIndicesPredicate;
         }
 
         private EventFilterPolicy changePrincipalsFilter(List<String> filtersList) {
@@ -896,8 +896,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
          * predicate of the corresponding field.
          */
         Predicate<AuditEventMetaInfo> ignorePredicate() {
-            return eventInfo -> ignorePrincipalsPredicate.test(eventInfo.principal) && ignoreRealmsPredicate.test(eventInfo.realm)
-                    && eventInfo.roles.get().allMatch(ignoreRolesPredicate) && eventInfo.indices.get().allMatch(ignoreIndicesPredicate);
+            return eventInfo -> eventInfo.principal != null && ignorePrincipalsPredicate.test(eventInfo.principal)
+                    && eventInfo.realm != null && ignoreRealmsPredicate.test(eventInfo.realm)
+                    && eventInfo.roles.get().allMatch(role -> role != null && ignoreRolesPredicate.test(role))
+                    && eventInfo.indices.get().allMatch(index -> index != null && ignoreIndicesPredicate.test(index));
         }
 
         @Override

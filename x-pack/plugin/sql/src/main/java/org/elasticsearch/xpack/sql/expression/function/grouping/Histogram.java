@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.time.ZoneId;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -26,7 +26,7 @@ public class Histogram extends GroupingFunction {
     private final ZoneId zoneId;
 
     public Histogram(Source source, Expression field, Expression interval, ZoneId zoneId) {
-        super(source, field, Arrays.asList(interval));
+        super(source, field, Collections.singletonList(interval));
         this.interval = Literal.of(interval);
         this.zoneId = zoneId;
     }

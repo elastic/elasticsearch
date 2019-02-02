@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
-import org.elasticsearch.common.Nullable;
+import com.nimbusds.oauth2.sdk.id.State;
+import com.nimbusds.openid.connect.sdk.Nonce;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 /**
@@ -15,21 +16,21 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
  */
 public class OpenIdConnectToken implements AuthenticationToken {
 
-    private String redirectUri;
-    private String state;
-    @Nullable
-    private String nonce;
+    private String redirectUrl;
+    private State state;
+    private Nonce nonce;
 
     /**
-     * @param redirectUri The URI where the OP redirected the browser after the authentication event at the OP. This is passed as is from
-     *                    the facilitator entity (i.e. Kibana), so it is URL Encoded.
+     * @param redirectUrl The URI where the OP redirected the browser after the authentication event at the OP. This is passed as is from
+     *                    the facilitator entity (i.e. Kibana), so it is URL Encoded. It contains either the code or the id_token itself
+     *                    depending on the flow used
      * @param state       The state value that we generated for this specific flow and should be stored at the user's session with the
      *                    facilitator.
      * @param nonce       The nonce value that we generated for this specific flow and should be stored at the user's session with the
      *                    facilitator.
      */
-    public OpenIdConnectToken(String redirectUri, String state, String nonce) {
-        this.redirectUri = redirectUri;
+    public OpenIdConnectToken(String redirectUrl, State state, Nonce nonce) {
+        this.redirectUrl = redirectUrl;
         this.state = state;
         this.nonce = nonce;
     }
@@ -41,23 +42,27 @@ public class OpenIdConnectToken implements AuthenticationToken {
 
     @Override
     public Object credentials() {
-        return redirectUri;
+        return redirectUrl;
     }
 
     @Override
     public void clearCredentials() {
-        this.redirectUri = null;
+        this.redirectUrl = null;
     }
 
-    public String getState() {
+    public State getState() {
         return state;
     }
 
-    public String getNonce() {
+    public Nonce getNonce() {
         return nonce;
     }
 
+    public String getRedirectUrl() {
+        return redirectUrl;
+    }
+
     public String toString() {
-        return getClass().getSimpleName() + "{ redirectUri=" + redirectUri + ", state=" + state + ", nonce=" + nonce + "}";
+        return getClass().getSimpleName() + "{ redirectUrl=" + redirectUrl + ", state=" + state + ", nonce=" + nonce + "}";
     }
 }

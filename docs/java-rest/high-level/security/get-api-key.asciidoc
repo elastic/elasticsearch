@@ -45,7 +45,7 @@ include-tagged::{doc-tests-file}[get-realm-api-keys-request]
 include-tagged::{doc-tests-file}[get-user-api-keys-request]
 --------------------------------------------------
 
-===== All API key for user in realm
+===== Retrieve all API keys for given user in a realm
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[get-user-realm-api-keys-request]

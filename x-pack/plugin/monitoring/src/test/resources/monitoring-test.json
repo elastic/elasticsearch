@@ -1,8 +1,10 @@
 {
   "index_patterns": ".monitoring-data-${monitoring.template.version}",
   "mappings": {
-    "_meta": {
-      "template.version": "${monitoring.template.version}"
+    "doc": {
+      "_meta": {
+        "template.version": "${monitoring.template.version}"
+      }
     }
   }
 }

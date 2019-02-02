@@ -59,8 +59,10 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         assertTemplate(source, equalTo("{\n" +
                 "  \"index_patterns\": \".monitoring-data-" + TEMPLATE_VERSION + "\",\n" +
                 "  \"mappings\": {\n" +
-                "    \"_meta\": {\n" +
-                "      \"template.version\": \"" + TEMPLATE_VERSION + "\"\n" +
+                "    \"doc\": {\n" +
+                "      \"_meta\": {\n" +
+                "        \"template.version\": \"" + TEMPLATE_VERSION + "\"\n" +
+                "      }\n" +
                 "    }\n" +
                 "  }\n" +
                 "}\n"));

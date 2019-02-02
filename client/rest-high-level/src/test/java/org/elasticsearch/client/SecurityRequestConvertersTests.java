@@ -32,6 +32,7 @@ import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
@@ -66,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.client.RequestConvertersTests.assertToXContentBody;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SecurityRequestConvertersTests extends ESTestCase {
 
@@ -435,6 +437,19 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_security/api_key", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(createApiKeyRequest, request.getEntity());
+    }
+
+    public void testGetApiKey() throws IOException {
+        String realmName = randomAlphaOfLength(5);
+        String userName = randomAlphaOfLength(7);
+        final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName(realmName, userName);
+        final Request request = SecurityRequestConverters.getApiKey(getApiKeyRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/api_key", request.getEndpoint());
+        Map<String, String> mapOfParameters = new HashMap<>();
+        mapOfParameters.put("realm_name", realmName);
+        mapOfParameters.put("username", userName);
+        assertThat(request.getParameters(), equalTo(mapOfParameters));
     }
 
     public void testInvalidateApiKey() throws IOException {

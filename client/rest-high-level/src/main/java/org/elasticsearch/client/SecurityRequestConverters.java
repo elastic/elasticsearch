@@ -34,6 +34,7 @@ import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
@@ -264,6 +265,23 @@ final class SecurityRequestConverters {
         request.setEntity(createEntity(createApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
         final RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(createApiKeyRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request getApiKey(final GetApiKeyRequest getApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpGet.METHOD_NAME, "/_security/api_key");
+        if (Strings.hasText(getApiKeyRequest.getId())) {
+            request.addParameter("id", getApiKeyRequest.getId());
+        }
+        if (Strings.hasText(getApiKeyRequest.getName())) {
+            request.addParameter("name", getApiKeyRequest.getName());
+        }
+        if (Strings.hasText(getApiKeyRequest.getUserName())) {
+            request.addParameter("username", getApiKeyRequest.getUserName());
+        }
+        if (Strings.hasText(getApiKeyRequest.getRealmName())) {
+            request.addParameter("realm_name", getApiKeyRequest.getRealmName());
+        }
         return request;
     }
 

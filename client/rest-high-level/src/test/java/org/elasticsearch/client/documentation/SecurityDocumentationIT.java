@@ -48,6 +48,8 @@ import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.ExpressionRoleMapping;
+import org.elasticsearch.client.security.GetApiKeyRequest;
+import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetPrivilegesResponse;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
@@ -73,6 +75,7 @@ import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
@@ -91,8 +94,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.hamcrest.Matchers;
 
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -107,15 +108,20 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
@@ -1819,6 +1825,132 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(future.get().getKey());
             assertNotNull(future.get().getExpiration());
         }
+    }
+
+    public void testGetApiKey() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        final TimeValue expiration = TimeValue.timeValueHours(24);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        // Create API Keys
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("k1", roles, expiration, refreshPolicy);
+        CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+        assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
+        assertNotNull(createApiKeyResponse1.getKey());
+
+        final ApiKey expectedApiKeyInfo = new ApiKey(createApiKeyResponse1.getName(), createApiKeyResponse1.getId(), Instant.now(),
+                Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file");
+        {
+            // tag::get-api-key-id-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+            // end::get-api-key-id-request
+
+            // tag::get-api-key-execute
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+            // end::get-api-key-execute
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            // tag::get-api-key-name-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyName(createApiKeyResponse1.getName());
+            // end::get-api-key-name-request
+
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            // tag::get-realm-api-keys-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingRealmName("default_file");
+            // end::get-realm-api-keys-request
+
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            // tag::get-user-api-keys-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingUserName("test_user");
+            // end::get-user-api-keys-request
+
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            // tag::get-user-realm-api-keys-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName("default_file", "test_user");
+            // end::get-user-realm-api-keys-request
+
+            // tag::get-api-key-response
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+            // end::get-api-key-response
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+
+            ActionListener<GetApiKeyResponse> listener;
+            // tag::get-api-key-execute-listener
+            listener = new ActionListener<GetApiKeyResponse>() {
+                @Override
+                public void onResponse(GetApiKeyResponse getApiKeyResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-api-key-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::get-api-key-execute-async
+            client.security().getApiKeyAsync(getApiKeyRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-api-key-execute-async
+
+            final GetApiKeyResponse response = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            assertThat(response.getApiKeyInfos(), is(notNullValue()));
+            assertThat(response.getApiKeyInfos().size(), is(1));
+            verifyApiKey(response.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+    }
+
+    private void verifyApiKey(final ApiKey actual, final ApiKey expected) {
+        assertThat(actual.getId(), is(expected.getId()));
+        assertThat(actual.getName(), is(expected.getName()));
+        assertThat(actual.getUsername(), is(expected.getUsername()));
+        assertThat(actual.getRealm(), is(expected.getRealm()));
+        assertThat(actual.isInvalidated(), is(expected.isInvalidated()));
+        assertThat(actual.getExpiration(), is(greaterThan(Instant.now())));
     }
 
     public void testInvalidateApiKey() throws Exception {

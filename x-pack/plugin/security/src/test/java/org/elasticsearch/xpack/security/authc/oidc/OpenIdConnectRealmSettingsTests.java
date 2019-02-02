@@ -24,13 +24,11 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullS
 public class OpenIdConnectRealmSettingsTests extends ESTestCase {
 
     private static final String REALM_NAME = "oidc1-realm";
-    private Settings globalSettings;
-    private Environment env;
     private ThreadContext threadContext;
 
     @Before
     public void setupEnv() {
-        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
+        Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         threadContext = new ThreadContext(globalSettings);
     }
 

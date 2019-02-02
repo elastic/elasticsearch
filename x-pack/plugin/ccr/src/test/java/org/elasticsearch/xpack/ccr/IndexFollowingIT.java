@@ -218,7 +218,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
             leaderClient().admin().indices().prepareFlush("index1").setForce(true).get();
 
-            int nThreads = 4;
+            int nThreads = 6;
             ExecutorService executorService = Executors.newFixedThreadPool(nThreads);
             AtomicBoolean isRunning = new AtomicBoolean(true);
             char[] chars = "abcde".toCharArray();
@@ -288,20 +288,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 for (int i = 0; i < nThreads; ++i) {
                     int currentDocId = 100000 * (i + 1);
                     for (int j = 0; j < chars.length * docsPerChar; ++j) {
-                        try {
-                            assertBusy(assertExpectedDocumentRunnable(currentDocId++));
-                        } catch (AssertionError e) {
-                            final Map<ShardId, Long> followerDocsPerShard = new HashMap<>();
-                            final ShardStats[] followerShardStats =
-                                leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
-                            for (final ShardStats shardStats : followerShardStats) {
-                                if (shardStats.getShardRouting().primary()) {
-                                    long value = shardStats.getStats().getIndexing().getTotal().getIndexCount() - 1;
-                                    followerDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
-                                }
-                            }
-                            int f = 0;
-                        }
+                        assertBusy(assertExpectedDocumentRunnable(currentDocId++));
                     }
                 }
             } finally {

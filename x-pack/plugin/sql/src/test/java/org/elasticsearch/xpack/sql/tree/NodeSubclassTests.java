@@ -253,8 +253,8 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              * the one property of the node that we intended to transform.
              */
             assertEquals(node.source(), transformed.source());
-            List<Object> op = node.properties();
-            List<Object> tp = transformed.properties();
+            List<Object> op = node.nodeProperties();
+            List<Object> tp = transformed.nodeProperties();
             for (int p = 0; p < op.size(); p++) {
                 if (p == changedArgOffset - 1) { // -1 because location isn't in the list
                     assertEquals(changedArgValue, tp.get(p));

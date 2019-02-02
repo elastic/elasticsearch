@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -70,76 +69,6 @@ import static org.hamcrest.Matchers.nullValue;
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class MasterDisruptionIT extends AbstractDisruptionTestCase {
-
-    /**
-     * Test that no split brain occurs under partial network partition. See https://github.com/elastic/elasticsearch/issues/2488
-     */
-    public void testFailWithMinimumMasterNodesConfigured() throws Exception {
-        List<String> nodes = startCluster(3);
-
-        // Figure out what is the elected master node
-        final String masterNode = internalCluster().getMasterName();
-        logger.info("---> legit elected master node={}", masterNode);
-
-        // Pick a node that isn't the elected master.
-        Set<String> nonMasters = new HashSet<>(nodes);
-        nonMasters.remove(masterNode);
-        final String unluckyNode = randomFrom(nonMasters.toArray(Strings.EMPTY_ARRAY));
-
-
-        // Simulate a network issue between the unlucky node and elected master node in both directions.
-
-        NetworkDisruption networkDisconnect = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(masterNode, unluckyNode),
-                new NetworkDisruption.NetworkDisconnect());
-        setDisruptionScheme(networkDisconnect);
-        networkDisconnect.startDisrupting();
-
-        // Wait until elected master has removed that the unlucky node...
-        ensureStableCluster(2, masterNode);
-
-        // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
-        // continuously ping until network failures have been resolved. However
-        // It may a take a bit before the node detects it has been cut off from the elected master
-        assertNoMaster(unluckyNode);
-
-        networkDisconnect.stopDisrupting();
-
-        // Wait until the master node sees all 3 nodes again.
-        ensureStableCluster(3);
-
-        // The elected master shouldn't have changed, since the unlucky node never could have elected himself as
-        // master since m_m_n of 2 could never be satisfied.
-        assertMaster(masterNode, nodes);
-    }
-
-    /**
-     * Verify that nodes fault detection works after master (re) election
-     */
-    public void testNodesFDAfterMasterReelection() throws Exception {
-        startCluster(4);
-
-        logger.info("--> stopping current master");
-        internalCluster().stopCurrentMasterNode();
-
-        ensureStableCluster(3);
-
-        String master = internalCluster().getMasterName();
-        String nonMaster = null;
-        for (String node : internalCluster().getNodeNames()) {
-            if (!node.equals(master)) {
-                nonMaster = node;
-            }
-        }
-
-        logger.info("--> isolating [{}]", nonMaster);
-        NetworkDisruption.TwoPartitions partitions = isolateNode(nonMaster);
-        NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
-        networkDisruption.startDisrupting();
-
-        logger.info("--> waiting for master to remove it");
-        ensureStableCluster(2, master);
-    }
 
     /**
      * Tests that emulates a frozen elected master node that unfreezes and pushes his cluster state to other nodes

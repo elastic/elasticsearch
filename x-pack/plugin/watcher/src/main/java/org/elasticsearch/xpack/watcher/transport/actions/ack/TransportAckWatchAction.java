@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.transport.actions.ack;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -102,12 +101,8 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
                             UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId());
                             // this may reject this action, but prevents concurrent updates from a watch execution
-                            if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_0_0)) {
-                                updateRequest.setIfSeqNo(getResponse.getSeqNo());
-                                updateRequest.setIfPrimaryTerm(getResponse.getPrimaryTerm());
-                            } else {
-                                updateRequest.version(getResponse.getVersion());
-                            }
+                            updateRequest.setIfSeqNo(getResponse.getSeqNo());
+                            updateRequest.setIfPrimaryTerm(getResponse.getPrimaryTerm());
                             updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                             XContentBuilder builder = jsonBuilder();
                             builder.startObject()

@@ -36,7 +36,7 @@ public class SysTypesTests extends ESTestCase {
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), false);
 
         IndexResolver resolver = mock(IndexResolver.class);
-        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null, null);
+        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 

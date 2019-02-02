@@ -66,7 +66,9 @@ public class RestCreateIndexAction extends BaseRestHandler {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
 
         if (request.hasContent()) {
-            Map<String, Object> sourceAsMap = prepareRequestSource(request, includeTypeName);
+            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
+                request.getXContentType()).v2();
+            sourceAsMap = prepareMappings(sourceAsMap, includeTypeName);
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
 
@@ -76,23 +78,22 @@ public class RestCreateIndexAction extends BaseRestHandler {
         return channel -> client.admin().indices().create(createIndexRequest, new RestToXContentListener<>(channel));
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> prepareRequestSource(RestRequest request, boolean includeTypeName) {
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
-            request.getXContentType()).v2();
 
-        if (includeTypeName || !sourceAsMap.containsKey("mappings")) {
-            return sourceAsMap;
+    static Map<String, Object> prepareMappings(Map<String, Object> source, boolean includeTypeName) {
+        if (includeTypeName || !source.containsKey("mappings")) {
+            return source;
         }
 
-        Map<String, Object> newSourceAsMap = new HashMap<>(sourceAsMap);
-        Map<String, Object> mappings = (Map<String, Object>) sourceAsMap.get("mappings");
+        Map<String, Object> newSource = new HashMap<>(source);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
         if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
             throw new IllegalArgumentException("The mapping definition cannot be nested under a type " +
                 "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
         }
 
-        newSourceAsMap.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
-        return newSourceAsMap;
+        newSource.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
+        return newSource;
     }
 }

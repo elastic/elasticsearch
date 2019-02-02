@@ -78,8 +78,10 @@ public abstract class Rounding implements Writeable {
         public long roundFloorUtc(long utcMillis) {
             switch (this) {
                 case MONTH_OF_YEAR:
-                    final LocalDateTime dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(utcMillis), ZoneOffset.UTC);
-                    return dt.toLocalDate().withDayOfMonth(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+                    int currentYear = DateUtils.getYear(utcMillis);
+                    int currentMonth = DateUtils.getMonthOfYear(utcMillis, currentYear);
+                    LocalDate localDate = LocalDate.of(currentYear, currentMonth, 1);
+                    return LocalDateTime.of(localDate, LocalTime.MIDNIGHT).toInstant(ZoneOffset.UTC).toEpochMilli();
                 case QUARTER_OF_YEAR:
                     int year = DateUtils.getYear(utcMillis);
                     int month = DateUtils.getMonthOfYear(utcMillis, year);

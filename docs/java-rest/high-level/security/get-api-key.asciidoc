@@ -59,7 +59,7 @@ include::../execution.asciidoc[]
 The returned +{response}+ contains the information regarding the API keys that were
 requested.
 
-`api_keys`:: Available using `getApiKeyInfos` list of API keys that were retrieved for this request.
+`api_keys`:: Available using `getApiKeyInfos`, contains list of API keys that were retrieved for this request.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

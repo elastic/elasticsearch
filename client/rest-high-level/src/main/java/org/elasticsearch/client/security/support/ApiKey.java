@@ -86,10 +86,16 @@ public final class ApiKey {
         return invalidated;
     }
 
+    /**
+     * @return the username for which this API key was created.
+     */
     public String getUsername() {
         return username;
     }
 
+    /**
+     * @return the realm name of the user for which this API key was created.
+     */
     public String getRealm() {
         return realm;
     }

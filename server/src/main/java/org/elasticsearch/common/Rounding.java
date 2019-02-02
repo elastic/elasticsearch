@@ -32,6 +32,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.Year;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -78,8 +79,36 @@ public abstract class Rounding implements Writeable {
             this.unitMillis = field.getBaseUnit().getDuration().toMillis();
         }
 
-        public long getUnitMillis() {
-            return unitMillis;
+        public long roundFloor(long utcMillis) {
+            switch (this) {
+                case MONTH_OF_YEAR:
+                    // TODO check if this can be done with static milliseconds, compare to joda impl
+                    final LocalDateTime dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(utcMillis), ZoneOffset.UTC);
+                    return dt.toLocalDate().withDayOfMonth(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+                case QUARTER_OF_YEAR:
+                    // TODO check if this can be done with static milliseconds, compare to joda impl... should work?!
+                    final LocalDateTime localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(utcMillis), ZoneOffset.UTC);
+                    LocalDate localDate = localDateTime.toLocalDate();
+                    return LocalDateTime.of(localDate.getYear(), localDate.getMonth().firstMonthOfQuarter(), 1, 0, 0)
+                        .toInstant(ZoneOffset.UTC).toEpochMilli();
+                case YEAR_OF_CENTURY:
+                    // TODO check if this can be done with static milliseconds, compare to joda impl
+                    final LocalDateTime dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(utcMillis), ZoneOffset.UTC);
+                    return Year.of(dateTime.getYear()).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+                case WEEK_OF_WEEKYEAR:
+                    return staticRoundFloor(utcMillis + 3 * 86400 * 1000L, 604800000) - 3 * 86400 * 1000L;
+                default:
+                    return staticRoundFloor(utcMillis, unitMillis);
+            }
+        }
+
+        private long staticRoundFloor(long utcMillis, long unitMillis) {
+            if (utcMillis >= 0) {
+                return utcMillis - utcMillis % unitMillis;
+            } else {
+                utcMillis += 1;
+                return utcMillis - utcMillis % unitMillis - unitMillis;
+            }
         }
 
         public byte getId() {
@@ -188,14 +217,13 @@ public abstract class Rounding implements Writeable {
         private final DateTimeUnit unit;
         private final ZoneId timeZone;
         private final boolean unitRoundsToMidnight;
-        private final boolean isFixedOffset;
-
+        private final boolean isUtcTimeZone;
 
         TimeUnitRounding(DateTimeUnit unit, ZoneId timeZone) {
             this.unit = unit;
             this.timeZone = timeZone;
             this.unitRoundsToMidnight = this.unit.field.getBaseUnit().getDuration().toMillis() > 3600000L;
-            this.isFixedOffset = timeZone.getRules().isFixedOffset();
+            this.isUtcTimeZone = timeZone.normalized().equals(ZoneOffset.UTC);
         }
 
         TimeUnitRounding(StreamInput in) throws IOException {
@@ -231,9 +259,7 @@ public abstract class Rounding implements Writeable {
                     return LocalDateTime.of(localDateTime.getYear(), localDateTime.getMonthValue(), 1, 0, 0);
 
                 case QUARTER_OF_YEAR:
-                    int quarter = (int) IsoFields.QUARTER_OF_YEAR.getFrom(localDateTime);
-                    int month = ((quarter - 1) * 3) + 1;
-                    return LocalDateTime.of(localDateTime.getYear(), month, 1, 0, 0);
+                    return LocalDateTime.of(localDateTime.getYear(), localDateTime.getMonth().firstMonthOfQuarter(), 1, 0, 0);
 
                 case YEAR_OF_CENTURY:
                     return LocalDateTime.of(LocalDate.of(localDateTime.getYear(), 1, 1), LocalTime.MIDNIGHT);
@@ -248,14 +274,8 @@ public abstract class Rounding implements Writeable {
             // this works as long as the offset doesn't change.  It is worth getting this case out of the way first, as
             // the calculations for fixing things near to offset changes are a little expensive and are unnecessary in the common case
             // of working in UTC.
-            if (isFixedOffset) {
-                long unitMillis = unit.getUnitMillis();
-                if (utcMillis >= 0) {
-                    return utcMillis - utcMillis % unitMillis;
-                } else {
-                    utcMillis += 1;
-                    return utcMillis - utcMillis % unitMillis - unitMillis;
-                }
+            if (isUtcTimeZone) {
+                return unit.roundFloor(utcMillis);
             }
 
             Instant instant = Instant.ofEpochMilli(utcMillis);

@@ -1511,6 +1511,33 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testExternalRefreshMetric() throws IOException {
+        IndexShard shard = newStartedShard();
+        assertThat(shard.externalRefreshStats().getTotal(), equalTo(2L)); // refresh on: finalize and end of recovery
+        long initialTotalTime = shard.externalRefreshStats().getTotalTimeInMillis();
+        // check time advances
+        for (int i = 1; shard.externalRefreshStats().getTotalTimeInMillis() == initialTotalTime; i++) {
+            indexDoc(shard, "_doc", "test");
+            assertThat(shard.externalRefreshStats().getTotal(), equalTo(2L + i - 1));
+            shard.refresh("test");
+            assertThat(shard.externalRefreshStats().getTotal(), equalTo(2L + i));
+            assertThat(shard.externalRefreshStats().getTotalTimeInMillis(), greaterThanOrEqualTo(initialTotalTime));
+        }
+        long externalRefreshCount = shard.externalRefreshStats().getTotal();
+
+        indexDoc(shard, "_doc", "test");
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "_doc", "test",
+            new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
+            assertThat(shard.externalRefreshStats().getTotal(), equalTo(externalRefreshCount));
+            assertThat(shard.externalRefreshStats().getTotal(), equalTo(shard.refreshStats().getTotal() - 1));
+        }
+        indexDoc(shard, "_doc", "test");
+        shard.writeIndexingBuffer();
+        assertThat(shard.externalRefreshStats().getTotal(), equalTo(externalRefreshCount));
+        assertThat(shard.externalRefreshStats().getTotal(), equalTo(shard.refreshStats().getTotal() - 2));
+        closeShards(shard);
+    }
+
     public void testIndexingOperationsListeners() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");

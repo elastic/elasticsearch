@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -89,6 +90,7 @@ public class RefreshListenersTests extends ESTestCase {
     private volatile int maxListeners;
     private ThreadPool threadPool;
     private Store store;
+    private MeanMetric refreshMetric;
 
     @Before
     public void setupListeners() throws Exception {
@@ -96,13 +98,15 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = randomIntBetween(1, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
+        refreshMetric = new MeanMetric();
         listeners = new RefreshListeners(
                 () -> maxListeners,
                 () -> engine.refresh("too-many-listeners"),
                 // Immediately run listeners rather than adding them to the listener thread pool like IndexShard does to simplify the test.
                 Runnable::run,
                 logger,
-                threadPool.getThreadContext());
+                threadPool.getThreadContext(),
+                refreshMetric);
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);

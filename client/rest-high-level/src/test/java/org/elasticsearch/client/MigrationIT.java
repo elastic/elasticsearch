@@ -82,6 +82,9 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
         DeprecationInfoRequest request = new DeprecationInfoRequest(Collections.singletonList("test"));
         DeprecationInfoResponse response = highLevelClient().migration().getDeprecationInfo(request, RequestOptions.DEFAULT);
         // a test like this cannot test actual deprecations
+        for (DeprecationInfoResponse.DeprecationIssue issue : response.getNodeSettingsIssues()) {
+            logger.error("Got deprecation issue: {}", issue.getMessage());
+        }
         assertThat(response.getClusterSettingsIssues().size(), equalTo(0));
         assertThat(response.getIndexSettingsIssues().size(), equalTo(0));
         assertThat(response.getNodeSettingsIssues().size(), equalTo(0));

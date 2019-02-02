@@ -22,7 +22,12 @@ public class CurrentDate extends ConfigurationFunction {
 
     public CurrentDate(Source source, Configuration configuration) {
         super(source, configuration, DataType.DATE);
-        this.date = datePrecision(configuration().now());
+        ZonedDateTime zdt = configuration().now();
+        if (zdt == null) {
+            this.date = null;
+        } else {
+            this.date = DateUtils.asDateOnly(configuration().now());
+        }
     }
 
     @Override
@@ -52,12 +57,5 @@ public class CurrentDate extends ConfigurationFunction {
 
         CurrentDate other = (CurrentDate) obj;
         return Objects.equals(date, other.date);
-    }
-
-    private static ZonedDateTime datePrecision(ZonedDateTime zdt) {
-        if (zdt == null) {
-            return null;
-        }
-        return DateUtils.asDateOnly(zdt);
     }
 }

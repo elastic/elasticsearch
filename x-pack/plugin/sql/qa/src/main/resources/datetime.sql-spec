@@ -120,6 +120,12 @@ SELECT DAY_OF_WEEK(birth_date) day, COUNT(*) c FROM test_emp WHERE DAY_OF_WEEK(b
 currentTimestampYear
 SELECT YEAR(CURRENT_TIMESTAMP()) AS result;
 
+orderByCurrentTimestamp
+SELECT first_name FROM test_emp ORDER BY NOW(), first_name LIMIT 5;
+
+groupByCurrentTimestamp
+SELECT MAX(salary) FROM test_emp GROUP BY NOW();
+
 //
 // H2 uses the local timezone instead of the specified one
 //
@@ -131,3 +137,4 @@ SELECT HOUR(CURRENT_TIMESTAMP()) AS result;
 
 currentTimestampMinute-Ignore
 SELECT MINUTE(CURRENT_TIMESTAMP()) AS result;
+

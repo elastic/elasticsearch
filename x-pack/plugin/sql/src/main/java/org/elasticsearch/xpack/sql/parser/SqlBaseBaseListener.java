@@ -652,18 +652,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterCurrentDateFunction(SqlBaseParser.CurrentDateFunctionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitCurrentDateFunction(SqlBaseParser.CurrentDateFunctionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx) { }
   /**
    * {@inheritDoc}
@@ -767,18 +755,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitCastTemplate(SqlBaseParser.CastTemplateContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterBuiltinDateFunction(SqlBaseParser.BuiltinDateFunctionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitBuiltinDateFunction(SqlBaseParser.BuiltinDateFunctionContext ctx) { }
   /**
    * {@inheritDoc}
    *

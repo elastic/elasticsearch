@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BuiltinDateFunctionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BuiltinDateTimeFunctionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastTemplateContext;
@@ -465,23 +464,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitBuiltinDateFunction(BuiltinDateFunctionContext ctx) {
-        // maps CURRENT_DATE to its respective function CURRENT_DATE()
-        // since the functions need access to the Configuration, the parser only registers the definition and not the actual function
-        Source source = source(ctx);
-
-        String functionName = ctx.name.getText();
-
-        if (ctx.name.getType() == SqlBaseLexer.CURRENT_DATE) {
-            return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
-        }
-
-        throw new ParsingException(source, "Unknown function [{}]", functionName);
-    }
-
-    @Override
     public Object visitBuiltinDateTimeFunction(BuiltinDateTimeFunctionContext ctx) {
-        // maps CURRENT_TIMESTAMP to its respective function CURRENT_TIMESTAMP()
+        // maps CURRENT_XXX to its respective function e.g: CURRENT_TIMESTAMP()
         // since the functions need access to the Configuration, the parser only registers the definition and not the actual function
         Source source = source(ctx);
         Literal p = null;
@@ -501,11 +485,14 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         
         String functionName = ctx.name.getText();
 
-        if (ctx.name.getType() == SqlBaseLexer.CURRENT_TIMESTAMP) {
-            return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, p != null ? singletonList(p) : emptyList());
+        switch (ctx.name.getType()) {
+            case SqlBaseLexer.CURRENT_DATE:
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
+            case SqlBaseLexer.CURRENT_TIMESTAMP:
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, p != null ? singletonList(p) : emptyList());
+            default:
+                throw new ParsingException(source, "Unknown function [{}]", functionName);
         }
-
-        throw new ParsingException(source, "Unknown function [{}]", functionName);
     }
 
     @Override

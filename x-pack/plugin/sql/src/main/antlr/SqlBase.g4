@@ -215,7 +215,6 @@ valueExpression
 primaryExpression
     : castExpression                                                                 #cast
     | extractExpression                                                              #extract
-    | builtinDateFunction                                                            #currentDateFunction
     | builtinDateTimeFunction                                                        #currentDateTimeFunction
     | constant                                                                       #constantDefault
     | (qualifiedName DOT)? ASTERISK                                                  #star
@@ -236,12 +235,9 @@ castTemplate
     : CAST '(' expression AS dataType ')'
     ;
 
-builtinDateFunction
-    : name=CURRENT_DATE ('(' ')')?
-    ;
-
 builtinDateTimeFunction
-    : name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
+    : name=CURRENT_DATE ('(' ')')?
+    | name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
     ;
     
 convertTemplate

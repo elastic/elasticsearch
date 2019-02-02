@@ -94,7 +94,7 @@ include-tagged::{sql-specs}/docs.csv-spec[dtIntervalMul]
 beta[]
 
 [[sql-functions-current-date]]
-==== `CURRENT_TIMESTAMP/CURDATE`
+==== `CURRENT_DATE/CURDATE`
 
 .Synopsis:
 [source, sql]
@@ -115,7 +115,7 @@ It can be used both as a keyword: `CURRENT_DATE` or as a function with no argume
 [NOTE]
 Unlike CURRENT_DATE, `CURDATE()` can only be used as a function with no arguments and not as a keyword.
 
-This method always returns the same value within a query.
+This method always returns the same value for its every occurrence within the same query.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -157,7 +157,7 @@ Returns the date/time when the current query reached the server.
 As a function, `CURRENT_TIMESTAMP()` accepts _precision_ as an optional
 parameter for rounding the second fractional digits (nanoseconds).
 
-This method always returns the same value within a query.
+This method always returns the same value for its every occurrence within the same query.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -464,7 +464,8 @@ NOW()
 .Description:
 
 This function offers the same functionality as <<sql-functions-current-timestamp,CURRENT_TIMESTAMP()>> function: returns
-the datetime when the current query reached the server. This method always returns the same value within a query.
+the datetime when the current query reached the server. This method always returns the same value for its every
+occurrence within the same query.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -543,7 +544,8 @@ TODAY()
 .Description:
 
 This function offers the same functionality as <<sql-functions-current-date,CURRENT_DATE()>> function: returns
-the date when the current query reached the server. This method always returns the same value within a query.
+the date when the current query reached the server. This method always returns the same value for its every occurrence
+within the same query.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------

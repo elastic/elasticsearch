@@ -311,6 +311,29 @@ SELECT HISTOGRAM(emp_no % 100, 10) AS h, COUNT(*) as c FROM test_emp GROUP BY h 
 0              |10   
 ;
 
+histogramGroupByWithoutAlias
+schema::h:ts|c:l
+SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY HISTOGRAM(birth_date, INTERVAL 1 YEAR) ORDER BY h DESC;
+
+         h          |       c       
+--------------------+---------------
+1964-02-02T00:00:00Z|5              
+1963-02-07T00:00:00Z|7              
+1962-02-12T00:00:00Z|6              
+1961-02-17T00:00:00Z|8              
+1960-02-23T00:00:00Z|7              
+1959-02-28T00:00:00Z|9              
+1958-03-05T00:00:00Z|6              
+1957-03-10T00:00:00Z|6              
+1956-03-15T00:00:00Z|4              
+1955-03-21T00:00:00Z|4              
+1954-03-26T00:00:00Z|7              
+1953-03-31T00:00:00Z|10             
+1952-04-05T00:00:00Z|10             
+1951-04-11T00:00:00Z|1              
+null                |10   
+;
+
 countAll
 schema::all_names:l|c:l
 SELECT COUNT(ALL first_name) all_names, COUNT(*) c FROM test_emp;

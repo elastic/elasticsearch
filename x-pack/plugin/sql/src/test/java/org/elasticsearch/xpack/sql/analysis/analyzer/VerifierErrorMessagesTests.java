@@ -506,7 +506,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testHistogramInFilter() {
-        assertEquals("1:63: Cannot filter on grouping function [HISTOGRAM(date)], use its argument instead",
+        assertEquals("1:63: Cannot filter on grouping function [HISTOGRAM(date,INTERVAL 1 MONTH)], use its argument instead",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test WHERE "
                         + "HISTOGRAM(date, INTERVAL 1 MONTH) > CAST('2000-01-01' AS DATE) GROUP BY h"));
     }
@@ -520,14 +520,49 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testGroupByScalarOnTopOfGrouping() {
         assertEquals(
-                "1:14: Cannot combine [HISTOGRAM(date)] grouping function inside GROUP BY, "
-                + "found [MONTH_OF_YEAR(HISTOGRAM(date) [Z])]; consider moving the expression inside the histogram",
+                "1:14: Cannot combine [HISTOGRAM(date,INTERVAL 1 MONTH)] grouping function inside GROUP BY, "
+                + "found [MONTH_OF_YEAR(HISTOGRAM(date,INTERVAL 1 MONTH) [Z])]; consider moving the expression inside the histogram",
                 error("SELECT MONTH(HISTOGRAM(date, INTERVAL 1 MONTH)) AS h FROM test GROUP BY h"));
     }
 
     public void testAggsInHistogram() {
         assertEquals("1:47: Cannot use an aggregate [MAX] for grouping",
                 error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
+    }
+    
+    public void testHistogramNotInGrouping() {
+        assertEquals("1:8: [HISTOGRAM(date,INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));
+    }
+    
+    public void testHistogramNotInGroupingWithCount() {
+        assertEquals("1:8: [HISTOGRAM(date,INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h, COUNT(*) FROM test"));
+    }
+    
+    public void testHistogramNotInGroupingWithMaxFirst() {
+        assertEquals("1:19: [HISTOGRAM(date,INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT MAX(date), HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));
+    }
+    
+    public void testHistogramWithoutAliasNotInGrouping() {
+        assertEquals("1:8: [HISTOGRAM(date,INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) FROM test"));
+    }
+    
+    public void testTwoHistogramsNotInGrouping() {
+        assertEquals("1:48: [HISTOGRAM(date,INTERVAL 1 DAY)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h, HISTOGRAM(date, INTERVAL 1 DAY) FROM test GROUP BY h"));
+    }
+    
+    public void testHistogramNotInGrouping_WithGroupByField() {
+        assertEquals("1:8: [HISTOGRAM(date,INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) FROM test GROUP BY date"));
+    }
+    
+    public void testScalarOfHistogramNotInGrouping() {
+        assertEquals("1:14: [HISTOGRAM(date,INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT MONTH(HISTOGRAM(date, INTERVAL 1 MONTH)) FROM test"));
     }
 
     public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {

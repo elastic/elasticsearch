@@ -75,10 +75,10 @@ public class GetApiKeyResponseTests extends ESTestCase {
         GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1));
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(response, (original) -> {
-            return new GetApiKeyResponse(Arrays.asList(original.getApiKeyInfos()));
+            return new GetApiKeyResponse(original.getApiKeyInfos());
         });
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(response, (original) -> {
-            return new GetApiKeyResponse(Arrays.asList(original.getApiKeyInfos()));
+            return new GetApiKeyResponse(original.getApiKeyInfos());
         }, GetApiKeyResponseTests::mutateTestItem);
     }
 

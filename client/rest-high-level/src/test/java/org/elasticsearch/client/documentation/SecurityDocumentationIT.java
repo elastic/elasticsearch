@@ -1852,8 +1852,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::get-api-key-execute
 
             assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
-            assertThat(getApiKeyResponse.getApiKeyInfos().length, is(1));
-            verifyApiKey(getApiKeyResponse.getApiKeyInfos()[0], expectedApiKeyInfo);
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
         }
 
         {
@@ -1864,8 +1864,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
 
             assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
-            assertThat(getApiKeyResponse.getApiKeyInfos().length, is(1));
-            verifyApiKey(getApiKeyResponse.getApiKeyInfos()[0], expectedApiKeyInfo);
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
         }
 
         {
@@ -1876,8 +1876,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
 
             assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
-            assertThat(getApiKeyResponse.getApiKeyInfos().length, is(1));
-            verifyApiKey(getApiKeyResponse.getApiKeyInfos()[0], expectedApiKeyInfo);
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
         }
 
         {
@@ -1888,8 +1888,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
 
             assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
-            assertThat(getApiKeyResponse.getApiKeyInfos().length, is(1));
-            verifyApiKey(getApiKeyResponse.getApiKeyInfos()[0], expectedApiKeyInfo);
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
         }
 
         {
@@ -1902,8 +1902,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::get-api-key-response
 
             assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
-            assertThat(getApiKeyResponse.getApiKeyInfos().length, is(1));
-            verifyApiKey(getApiKeyResponse.getApiKeyInfos()[0], expectedApiKeyInfo);
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
         }
 
         {
@@ -1939,8 +1939,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(response);
 
             assertThat(response.getApiKeyInfos(), is(notNullValue()));
-            assertThat(response.getApiKeyInfos().length, is(1));
-            verifyApiKey(response.getApiKeyInfos()[0], expectedApiKeyInfo);
+            assertThat(response.getApiKeyInfos().size(), is(1));
+            verifyApiKey(response.getApiKeyInfos().get(0), expectedApiKeyInfo);
         }
     }
 

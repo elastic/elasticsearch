@@ -862,9 +862,9 @@ public final class SecurityClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-api-key.html">
      * the docs</a> for more.
      *
-     * @param request the request to create api key
+     * @param request the request to create a API key
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the create api key call
+     * @return the response from the create API key call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public CreateApiKeyResponse createApiKey(final CreateApiKeyRequest request, final RequestOptions options) throws IOException {
@@ -877,7 +877,7 @@ public final class SecurityClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-api-key.html">
      * the docs</a> for more.
      *
-     * @param request the request to create api key
+     * @param request the request to create a API key
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
@@ -892,9 +892,9 @@ public final class SecurityClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-api-key.html">
      * the docs</a> for more.
      *
-     * @param request the request to retrieve api key(s)
+     * @param request the request to retrieve API key(s)
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the create api key call
+     * @return the response from the create API key call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetApiKeyResponse getApiKey(final GetApiKeyRequest request, final RequestOptions options) throws IOException {
@@ -907,7 +907,7 @@ public final class SecurityClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-api-key.html">
      * the docs</a> for more.
      *
-     * @param request the request to retrieve api key(s)
+     * @param request the request to retrieve API key(s)
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
@@ -922,9 +922,9 @@ public final class SecurityClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-api-key.html">
      * the docs</a> for more.
      *
-     * @param request the request to invalidate api key(s)
+     * @param request the request to invalidate API key(s)
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the invalidate api key call
+     * @return the response from the invalidate API key call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public InvalidateApiKeyResponse invalidateApiKey(final InvalidateApiKeyRequest request, final RequestOptions options)
@@ -938,7 +938,7 @@ public final class SecurityClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-api-key.html">
      * the docs</a> for more.
      *
-     * @param request the request to invalidate api key(s)
+     * @param request the request to invalidate API key(s)
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */

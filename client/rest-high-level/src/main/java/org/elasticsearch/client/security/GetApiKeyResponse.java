@@ -25,8 +25,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -39,24 +37,24 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public final class GetApiKeyResponse {
 
-    private final ApiKey[] foundApiKeysInfo;
+    private final List<ApiKey> foundApiKeysInfo;
 
-    public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
+    public GetApiKeyResponse(List<ApiKey> foundApiKeysInfo) {
         Objects.requireNonNull(foundApiKeysInfo, "found_api_keys_info must be provided");
-        this.foundApiKeysInfo = foundApiKeysInfo.toArray(new ApiKey[0]);
+        this.foundApiKeysInfo = Collections.unmodifiableList(foundApiKeysInfo);
     }
 
     public static GetApiKeyResponse emptyResponse() {
         return new GetApiKeyResponse(Collections.emptyList());
     }
 
-    public ApiKey[] getApiKeyInfos() {
+    public List<ApiKey> getApiKeyInfos() {
         return foundApiKeysInfo;
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(foundApiKeysInfo);
+        return Objects.hash(foundApiKeysInfo);
     }
 
     @Override
@@ -71,9 +69,7 @@ public final class GetApiKeyResponse {
             return false;
         }
         final GetApiKeyResponse other = (GetApiKeyResponse) obj;
-        if (!Arrays.equals(foundApiKeysInfo, other.foundApiKeysInfo))
-            return false;
-        return true;
+        return Objects.equals(foundApiKeysInfo, other.foundApiKeysInfo);
     }
 
     @SuppressWarnings("unchecked")

@@ -79,7 +79,7 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_REDIRECT_URI;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_RESPONSE_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES;
-import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_SIGNATURE_VERIFICATION_ALGORITHM;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_SIGNATURE_ALGORITHM;
 
 public class OpenIdConnectRealm extends Realm implements Releasable {
 
@@ -258,10 +258,10 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         if (requestedScope.contains("openid") == false) {
             requestedScope.add("openid");
         }
-        final JWSAlgorithm signatureVerificationAlgorithm = JWSAlgorithm.parse(require(config, RP_SIGNATURE_VERIFICATION_ALGORITHM));
+        final JWSAlgorithm signatureAlgorithm = JWSAlgorithm.parse(require(config, RP_SIGNATURE_ALGORITHM));
 
         return new RelyingPartyConfiguration(clientId, clientSecret, redirectUri, responseType, requestedScope,
-            signatureVerificationAlgorithm, postLogoutRedirectUri);
+            signatureAlgorithm, postLogoutRedirectUri);
     }
 
     private OpenIdConnectProviderConfiguration buildOpenIdConnectProviderConfiguration(RealmConfig config) {

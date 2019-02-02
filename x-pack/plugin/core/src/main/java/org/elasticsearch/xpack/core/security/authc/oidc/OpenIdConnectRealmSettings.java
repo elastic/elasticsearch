@@ -29,7 +29,7 @@ public class OpenIdConnectRealmSettings {
     private OpenIdConnectRealmSettings() {
     }
 
-    private static final List<String> signingAlgorithms = Collections.unmodifiableList(
+    private static final List<String> signatureAlgorithms = Collections.unmodifiableList(
         Arrays.asList("HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512"));
     private static final List<String> responseTypes = Arrays.asList("code", "id_token", "id_token token");
     public static final String TYPE = "oidc";
@@ -63,12 +63,12 @@ public class OpenIdConnectRealmSettings {
                 throw new IllegalArgumentException("Invalid value [" + v + "] for [" + key + "]. Allowed values are " + responseTypes + "");
             }
         }, Setting.Property.NodeScope));
-    public static final Setting.AffixSetting<String> RP_SIGNATURE_VERIFICATION_ALGORITHM
-        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.signature_verification_algorithm",
+    public static final Setting.AffixSetting<String> RP_SIGNATURE_ALGORITHM
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.signature_algorithm",
         key -> new Setting<>(key, "RS256", Function.identity(), v -> {
-            if (signingAlgorithms.contains(v) == false) {
+            if (signatureAlgorithms.contains(v) == false) {
                 throw new IllegalArgumentException(
-                    "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + signingAlgorithms + "}]");
+                    "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + signatureAlgorithms + "}]");
             }
         }, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<List<String>> RP_REQUESTED_SCOPES = Setting.affixKeySetting(
@@ -149,7 +149,7 @@ public class OpenIdConnectRealmSettings {
 
     public static Set<Setting.AffixSetting<?>> getSettings() {
         final Set<Setting.AffixSetting<?>> set = Sets.newHashSet(
-            RP_CLIENT_ID, RP_REDIRECT_URI, RP_RESPONSE_TYPE, RP_REQUESTED_SCOPES, RP_CLIENT_SECRET, RP_SIGNATURE_VERIFICATION_ALGORITHM,
+            RP_CLIENT_ID, RP_REDIRECT_URI, RP_RESPONSE_TYPE, RP_REQUESTED_SCOPES, RP_CLIENT_SECRET, RP_SIGNATURE_ALGORITHM,
             RP_POST_LOGOUT_REDIRECT_URI, OP_NAME, OP_AUTHORIZATION_ENDPOINT, OP_TOKEN_ENDPOINT, OP_USERINFO_ENDPOINT,
             OP_ENDSESSION_ENDPOINT, OP_ISSUER, OP_JWKSET_PATH, HTTP_CONNECT_TIMEOUT, HTTP_CONNECTION_READ_TIMEOUT, HTTP_SOCKET_TIMEOUT,
             HTTP_MAX_CONNECTIONS, HTTP_MAX_ENDPOINT_CONNECTIONS, ALLOWED_CLOCK_SKEW);
@@ -163,7 +163,6 @@ public class OpenIdConnectRealmSettings {
         set.addAll(MAIL_CLAIM.settings());
         return set;
     }
-
 
     /**
      * The OIDC realm offers a number of settings that rely on claim values that are populated by the OP in the ID Token or the User Info

@@ -11,7 +11,7 @@ API Key(s) information can be retrieved using this API.
 
 [id="{upid}-{api}-request"]
 ==== Get API Key Request
-The +{request}+ supports retrieving API key information of
+The +{request}+ supports retrieving API key information for
 
 . A specific API key
 

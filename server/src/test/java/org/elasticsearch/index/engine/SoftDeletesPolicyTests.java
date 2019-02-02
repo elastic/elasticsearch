@@ -24,15 +24,14 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -54,13 +53,13 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
         for (int i = 0; i < retainingSequenceNumbers.length; i++) {
             retainingSequenceNumbers[i] = new AtomicLong();
         }
-        final Supplier<Collection<RetentionLease>> retentionLeasesSupplier =
+        final Supplier<RetentionLeases> retentionLeasesSupplier =
                 () -> {
-                    final Set<RetentionLease> leases = new HashSet<>(retainingSequenceNumbers.length);
+                    final List<RetentionLease> leases = new ArrayList<>(retainingSequenceNumbers.length);
                     for (int i = 0; i < retainingSequenceNumbers.length; i++) {
                         leases.add(new RetentionLease(Integer.toString(i), retainingSequenceNumbers[i].get(), 0L, "test"));
                     }
-                    return leases;
+                    return new RetentionLeases(1, 1, leases);
                 };
         long safeCommitCheckpoint = globalCheckpoint.get();
         SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, between(1, 10000), retainedOps, retentionLeasesSupplier);
@@ -74,7 +73,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
             // Advances the global checkpoint and the local checkpoint of a safe commit
             globalCheckpoint.addAndGet(between(0, 1000));
             for (final AtomicLong retainingSequenceNumber : retainingSequenceNumbers) {
-                retainingSequenceNumber.set(randomLongBetween(retainingSequenceNumber.get(), globalCheckpoint.get()));
+                retainingSequenceNumber.set(randomLongBetween(retainingSequenceNumber.get(), Math.max(globalCheckpoint.get(), 0L)));
             }
             safeCommitCheckpoint = randomLongBetween(safeCommitCheckpoint, globalCheckpoint.get());
             policy.setLocalCheckpointOfSafeCommit(safeCommitCheckpoint);
@@ -126,16 +125,20 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
         for (int i = 0; i < numLeases; i++) {
             leases.add(new RetentionLease(Integer.toString(i), randomLongBetween(0, 1000), randomNonNegativeLong(), "test"));
         }
-        final Supplier<Collection<RetentionLease>> leasesSupplier = () -> Collections.unmodifiableCollection(new ArrayList<>(leases));
+        final Supplier<RetentionLeases> leasesSupplier =
+                () -> new RetentionLeases(
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        Collections.unmodifiableCollection(new ArrayList<>(leases)));
         final SoftDeletesPolicy policy =
                 new SoftDeletesPolicy(globalCheckpoint::get, randomIntBetween(1, 1000), randomIntBetween(0, 1000), leasesSupplier);
         if (randomBoolean()) {
             policy.acquireRetentionLock();
         }
         if (numLeases == 0) {
-            assertThat(policy.getRetentionPolicy().v2(), empty());
+            assertThat(policy.getRetentionPolicy().v2().leases(), empty());
         } else {
-            assertThat(policy.getRetentionPolicy().v2(), contains(leases.toArray(new RetentionLease[0])));
+            assertThat(policy.getRetentionPolicy().v2().leases(), contains(leases.toArray(new RetentionLease[0])));
         }
     }
 }

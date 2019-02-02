@@ -402,7 +402,7 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testCCSRemoteReduce() throws Exception {
-        int numClusters = randomIntBetween(2, 10);
+        int numClusters = randomIntBetween(1, 10);
         DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
         Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
         Settings.Builder builder = Settings.builder();
@@ -440,7 +440,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(0, searchResponse.getClusters().getSkipped());
                 assertEquals(totalClusters, searchResponse.getClusters().getTotal());
                 assertEquals(totalClusters, searchResponse.getClusters().getSuccessful());
-                assertEquals(totalClusters + 1, searchResponse.getNumReducePhases());
+                assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
             }
             {
                 SearchRequest searchRequest = new SearchRequest();
@@ -510,7 +510,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(failure.get());
                 assertThat(failure.get(), instanceOf(RemoteTransportException.class));
-                RemoteTransportException remoteTransportException = (RemoteTransportException) failure.get();
                 assertThat(failure.get().getMessage(), containsString("error while communicating with remote cluster ["));
                 assertThat(failure.get().getCause(), instanceOf(NodeDisconnectedException.class));
             }
@@ -583,7 +582,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(0, searchResponse.getClusters().getSkipped());
                 assertEquals(totalClusters, searchResponse.getClusters().getTotal());
                 assertEquals(totalClusters, searchResponse.getClusters().getSuccessful());
-                assertEquals(totalClusters + 1, searchResponse.getNumReducePhases());
+                assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
             }
             assertEquals(0, service.getConnectionManager().size());
         } finally {

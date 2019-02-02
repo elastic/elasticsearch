@@ -26,7 +26,6 @@ import org.junit.Before;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -194,6 +193,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Tests the reloading of SSLContext when the trust store is modified. The same store is used as a TrustStore (for the
      * reloadable SSLContext used in the HTTPClient) and as a KeyStore for the MockWebServer
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38247")
     public void testReloadingTrustStore() throws Exception {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path tempDir = createTempDir();
@@ -244,6 +244,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     /**
      * Test the reloading of SSLContext whose trust config is backed by PEM certificate files.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38247")
     public void testReloadingPEMTrustConfig() throws Exception {
         Path tempDir = createTempDir();
         Path serverCertPath = tempDir.resolve("testnode.crt");
@@ -263,7 +264,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         try (MockWebServer server = getSslServer(serverKeyPath, serverCertPath, "testnode")) {
             final Consumer<SSLContext> trustMaterialPreChecks = (context) -> {
                 try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
-                    privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close());
+                    privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())));//.close());
                 } catch (Exception e) {
                     throw new RuntimeException("Exception connecting to the mock server", e);
                 }
@@ -480,7 +481,9 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         try (InputStream is = Files.newInputStream(keyStorePath)) {
             keyStore.load(is, keyStorePass.toCharArray());
         }
-        final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, keyStorePass.toCharArray())
+        final SSLContext sslContext = new SSLContextBuilder()
+            .loadKeyMaterial(keyStore, keyStorePass.toCharArray())
+            .setProtocol("TLSv1.2")
             .build();
         MockWebServer server = new MockWebServer(sslContext, false);
         server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
@@ -494,7 +497,9 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         keyStore.load(null, password.toCharArray());
         keyStore.setKeyEntry("testnode_ec", PemUtils.readPrivateKey(keyPath, password::toCharArray), password.toCharArray(),
             CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
-        final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, password.toCharArray())
+        final SSLContext sslContext = new SSLContextBuilder()
+            .loadKeyMaterial(keyStore, password.toCharArray())
+            .setProtocol("TLSv1.2")
             .build();
         MockWebServer server = new MockWebServer(sslContext, false);
         server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
@@ -509,7 +514,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         try (InputStream is = Files.newInputStream(trustStorePath)) {
             trustStore.load(is, trustStorePass.toCharArray());
         }
-        final SSLContext sslContext = new SSLContextBuilder().loadTrustMaterial(trustStore, null).build();
+        final SSLContext sslContext = new SSLContextBuilder()
+            .loadTrustMaterial(trustStore, null)
+            .setProtocol("TLSv1.2")
+            .build();
         return HttpClients.custom().setSSLContext(sslContext).build();
     }
 
@@ -526,7 +534,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         for (Certificate cert : CertParsingUtils.readCertificates(trustedCertificatePaths)) {
             trustStore.setCertificateEntry(cert.toString(), cert);
         }
-        final SSLContext sslContext = new SSLContextBuilder().loadTrustMaterial(trustStore, null).build();
+        final SSLContext sslContext = new SSLContextBuilder()
+            .loadTrustMaterial(trustStore, null)
+            .setProtocol("TLSv1.2")
+            .build();
         return HttpClients.custom().setSSLContext(sslContext).build();
     }
 

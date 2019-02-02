@@ -9,6 +9,7 @@
 
    - do:
        indices.create:
+           include_type_name: true
            index: testidx
            body:
                mappings:

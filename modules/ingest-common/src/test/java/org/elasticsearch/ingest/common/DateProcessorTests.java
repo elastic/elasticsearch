@@ -45,9 +45,7 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     private TemplateScript.Factory templatize(ZoneId timezone) {
-        // prevent writing "UTC" as string, as joda time does not parse it
-        String id = timezone.equals(ZoneOffset.UTC) ? "UTC" : timezone.getId();
-        return new TestTemplateService.MockTemplateScript.Factory(id);
+        return new TestTemplateService.MockTemplateScript.Factory(timezone.getId());
     }
 
     public void testJavaPattern() {
@@ -186,7 +184,7 @@ public class DateProcessorTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> processor.execute(RandomDocumentPicks.randomIngestDocument(random(), document)));
         assertThat(e.getMessage(), equalTo("unable to parse date [2010]"));
-        assertThat(e.getCause().getMessage(), equalTo("The datetime zone id 'invalid_timezone' is not recognised"));
+        assertThat(e.getCause().getMessage(), equalTo("Unknown time-zone ID: invalid_timezone"));
     }
 
     public void testInvalidLocale() {

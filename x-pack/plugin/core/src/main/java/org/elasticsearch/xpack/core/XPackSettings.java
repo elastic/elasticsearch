@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKeyFactory;
+import javax.net.ssl.SSLContext;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -158,7 +160,20 @@ public class XPackSettings {
         }
     }, Setting.Property.NodeScope);
 
-    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1");
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
+
+    static {
+        boolean supportsTLSv13 = false;
+        try {
+            SSLContext.getInstance("TLSv1.3");
+            supportsTLSv13 = true;
+        } catch (NoSuchAlgorithmException e) {
+            LogManager.getLogger(XPackSettings.class).debug("TLSv1.3 is not supported", e);
+        }
+        DEFAULT_SUPPORTED_PROTOCOLS = supportsTLSv13 ?
+            Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1");
+    }
+
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
     public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;
     public static final VerificationMode VERIFICATION_MODE_DEFAULT = VerificationMode.FULL;

@@ -506,7 +506,8 @@ public class UpdateRequestTests extends ESTestCase {
         updateRequest.setIfPrimaryTerm(1L);
         updateRequest.doc("{}", XContentType.JSON);
         updateRequest.upsert(new IndexRequest("index","type", "id"));
-        assertThat(updateRequest.validate().validationErrors(), contains("upsert requests don't support `if_seq_no` and `if_primary_term`"));
+        assertThat(updateRequest.validate().validationErrors(),
+            contains("upsert requests don't support `if_seq_no` and `if_primary_term`"));
     }
 
     public void testToValidateUpsertRequestWithVersion() {

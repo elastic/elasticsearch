@@ -340,8 +340,8 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             for (int j = 0; j < innerLength; j++) {
                 leases.add(
                         new RetentionLease(i + "-" + j, randomNonNegativeLong(), randomNonNegativeLong(), randomAlphaOfLength(8)));
-                version++;
             }
+            version++;
             if (rarely()) {
                 primaryTerm++;
             }

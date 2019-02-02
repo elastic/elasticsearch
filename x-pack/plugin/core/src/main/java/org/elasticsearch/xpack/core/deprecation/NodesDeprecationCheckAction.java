@@ -23,18 +23,12 @@ import java.util.Objects;
  * Runs deprecation checks on each node. Deprecation checks are performed locally so that filtered settings
  * can be accessed in the deprecation checks.
  */
-public class NodesDeprecationCheckAction extends Action<NodesDeprecationCheckRequest, NodesDeprecationCheckResponse,
-                                                       NodesDeprecationCheckAction.RequestBuilder> {
+public class NodesDeprecationCheckAction extends Action<NodesDeprecationCheckResponse> {
     public static final NodesDeprecationCheckAction INSTANCE = new NodesDeprecationCheckAction();
     public static final String NAME = "cluster:admin/xpack/deprecation/nodes/info";
 
     private NodesDeprecationCheckAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE, new NodesDeprecationCheckRequest());
     }
 
     @Override
@@ -119,7 +113,7 @@ public class NodesDeprecationCheckAction extends Action<NodesDeprecationCheckReq
         NodesDeprecationCheckResponse, RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client,
-                                 Action<NodesDeprecationCheckRequest, NodesDeprecationCheckResponse, RequestBuilder> action,
+                                 Action<NodesDeprecationCheckResponse> action,
                                  NodesDeprecationCheckRequest request) {
             super(client, action, request);
         }

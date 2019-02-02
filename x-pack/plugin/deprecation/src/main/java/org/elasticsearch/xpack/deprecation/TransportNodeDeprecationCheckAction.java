@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -35,10 +34,8 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     @Inject
     public TransportNodeDeprecationCheckAction(Settings settings, ThreadPool threadPool,
                                                ClusterService clusterService, TransportService transportService,
-                                               PluginsService pluginsService, ActionFilters actionFilters,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, NodesDeprecationCheckAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver,
+                                               PluginsService pluginsService, ActionFilters actionFilters) {
+        super(NodesDeprecationCheckAction.NAME, threadPool, clusterService, transportService, actionFilters,
             NodesDeprecationCheckRequest::new,
             NodesDeprecationCheckAction.NodeRequest::new,
             ThreadPool.Names.GENERIC,

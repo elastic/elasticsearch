@@ -50,7 +50,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/38239")
     public void testAddOrRenewRetentionLease() {
         final AllocationId allocationId = AllocationId.newInitializing();
         long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);

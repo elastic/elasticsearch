@@ -79,19 +79,20 @@ public abstract class Rounding implements Writeable {
             this.unitMillis = field.getBaseUnit().getDuration().toMillis();
         }
 
-        public long roundFloor(long utcMillis) {
+        public long roundFloorUtc(long utcMillis) {
             switch (this) {
                 case MONTH_OF_YEAR:
-                    // TODO check if this can be done with static milliseconds, compare to joda impl
                     final LocalDateTime dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(utcMillis), ZoneOffset.UTC);
                     return dt.toLocalDate().withDayOfMonth(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
                 case QUARTER_OF_YEAR:
-                    // TODO check if this can be done with static milliseconds, compare to joda impl... should work?!
+                    // TODO 2x slower than joda
+                    // TODO check if this can be done with static milliseconds
                     final LocalDateTime localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(utcMillis), ZoneOffset.UTC);
                     LocalDate localDate = localDateTime.toLocalDate();
                     return LocalDateTime.of(localDate.getYear(), localDate.getMonth().firstMonthOfQuarter(), 1, 0, 0)
                         .toInstant(ZoneOffset.UTC).toEpochMilli();
                 case YEAR_OF_CENTURY:
+                    // TODO 10x slower than joda
                     // TODO check if this can be done with static milliseconds, compare to joda impl
                     final LocalDateTime dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(utcMillis), ZoneOffset.UTC);
                     return Year.of(dateTime.getYear()).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
@@ -275,7 +276,7 @@ public abstract class Rounding implements Writeable {
             // the calculations for fixing things near to offset changes are a little expensive and are unnecessary in the common case
             // of working in UTC.
             if (isUtcTimeZone) {
-                return unit.roundFloor(utcMillis);
+                return unit.roundFloorUtc(utcMillis);
             }
 
             Instant instant = Instant.ofEpochMilli(utcMillis);

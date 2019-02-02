@@ -691,7 +691,7 @@ public class RoundingTests extends ESTestCase {
     }
 
     /**
-     * perform a number on assertions and checks on {@link org.elasticsearch.common.rounding.Rounding.TimeUnitRounding} intervals
+     * perform a number on assertions and checks on {@link org.elasticsearch.common.Rounding.TimeUnitRounding} intervals
      * @param rounded the expected low end of the rounding interval
      * @param unrounded a date in the interval to be checked for rounding
      * @param nextRoundingValue the expected upper end of the rounding interval

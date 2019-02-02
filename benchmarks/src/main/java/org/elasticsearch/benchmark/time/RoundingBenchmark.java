@@ -38,7 +38,9 @@ import java.time.ZoneOffset;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.Rounding.DateTimeUnit.DAY_OF_MONTH;
+import static org.elasticsearch.common.Rounding.DateTimeUnit.MONTH_OF_YEAR;
 import static org.elasticsearch.common.Rounding.DateTimeUnit.QUARTER_OF_YEAR;
+import static org.elasticsearch.common.Rounding.DateTimeUnit.YEAR_OF_CENTURY;
 
 @Fork(2)
 @Warmup(iterations = 5)
@@ -99,19 +101,19 @@ public class RoundingBenchmark {
         return timeIntervalRoundingJoda.round(timestamp);
     }
 
-    private final org.elasticsearch.common.rounding.Rounding timeUnitRoundingUtcMonthOfYearJoda =
+    private final org.elasticsearch.common.rounding.Rounding timeUnitRoundingUtcDayOfMonthJoda =
         org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.UTC).build();
-    private final Rounding timeUnitRoundingUtcMonthOfYearJava = Rounding.builder(DAY_OF_MONTH)
+    private final Rounding timeUnitRoundingUtcDayOfMonthJava = Rounding.builder(DAY_OF_MONTH)
         .timeZone(ZoneOffset.UTC).build();
 
     @Benchmark
-    public long timeUnitRoundingUtcMonthOfYearJava() {
-        return timeUnitRoundingUtcMonthOfYearJava.round(timestamp);
+    public long timeUnitRoundingUtcDayOfMonthJava() {
+        return timeUnitRoundingUtcDayOfMonthJava.round(timestamp);
     }
 
     @Benchmark
-    public long timeUnitRoundingUtcMonthOfYearJoda() {
-        return timeUnitRoundingUtcMonthOfYearJoda.round(timestamp);
+    public long timeUnitRoundingUtcDayOfMonthJoda() {
+        return timeUnitRoundingUtcDayOfMonthJoda.round(timestamp);
     }
 
     private final org.elasticsearch.common.rounding.Rounding timeUnitRoundingUtcQuarterOfYearJoda =
@@ -129,4 +131,33 @@ public class RoundingBenchmark {
         return timeUnitRoundingUtcQuarterOfYearJoda.round(timestamp);
     }
 
+    private final org.elasticsearch.common.rounding.Rounding timeUnitRoundingUtcMonthOfYearJoda =
+        org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.MONTH_OF_YEAR).timeZone(DateTimeZone.UTC).build();
+    private final Rounding timeUnitRoundingUtcMonthOfYearJava = Rounding.builder(MONTH_OF_YEAR)
+        .timeZone(ZoneOffset.UTC).build();
+
+    @Benchmark
+    public long timeUnitRoundingUtcMonthOfYearJava() {
+        return timeUnitRoundingUtcMonthOfYearJava.round(timestamp);
+    }
+
+    @Benchmark
+    public long timeUnitRoundingUtcMonthOfYearJoda() {
+        return timeUnitRoundingUtcMonthOfYearJava.round(timestamp);
+    }
+
+    private final org.elasticsearch.common.rounding.Rounding timeUnitRoundingUtcYearOfCenturyJoda =
+        org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.YEAR_OF_CENTURY).timeZone(DateTimeZone.UTC).build();
+    private final Rounding timeUnitRoundingUtcYearOfCenturyJava = Rounding.builder(YEAR_OF_CENTURY)
+        .timeZone(ZoneOffset.UTC).build();
+
+    @Benchmark
+    public long timeUnitRoundingUtcYearOfCenturyJava() {
+        return timeUnitRoundingUtcYearOfCenturyJava.round(timestamp);
+    }
+
+    @Benchmark
+    public long timeUnitRoundingUtcYearOfCenturyJoda() {
+        return timeUnitRoundingUtcYearOfCenturyJoda.round(timestamp);
+    }
 }

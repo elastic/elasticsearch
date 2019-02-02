@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFuncti
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
@@ -229,6 +230,7 @@ public final class Verifier {
                 validateInExpression(p, localFailures);
                 validateConditional(p, localFailures);
 
+                checkGroupingFunctionInGroupBy(p, localFailures);
                 checkFilterOnAggs(p, localFailures);
                 checkFilterOnGrouping(p, localFailures);
 
@@ -585,6 +587,24 @@ public final class Verifier {
             return true;
         }
         return false;
+    }
+    
+    private static void checkGroupingFunctionInGroupBy(LogicalPlan p, Set<Failure> localFailures) {
+        // check if the query has a grouping function (Histogram) but no GROUP BY
+        if (p instanceof Project) {
+            Project proj = (Project) p;
+            proj.projections().forEach(e -> e.forEachDown(f -> 
+                localFailures.add(fail(f, "[{}] needs to be part of the grouping", Expressions.name(f))), GroupingFunction.class));
+        } else if (p instanceof Aggregate) {
+            // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms) 
+            Aggregate a = (Aggregate) p;
+            a.aggregates().forEach(agg -> agg.forEachDown(e -> {
+                if (a.groupings().size() == 0 
+                        || Expressions.anyMatch(a.groupings(), g -> g instanceof Function && e.functionEquals((Function) g)) == false) {
+                    localFailures.add(fail(e, "[{}] needs to be part of the grouping", Expressions.name(e)));
+                }
+            }, GroupingFunction.class));
+        }
     }
 
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures) {

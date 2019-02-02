@@ -32,7 +32,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.Year;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -54,10 +53,6 @@ import java.util.Objects;
  * The second one allows you to specify an interval to round to
  */
 public abstract class Rounding implements Writeable {
-
-    public static String format(long epochMillis) {
-        return Instant.ofEpochMilli(epochMillis) + "/" + epochMillis;
-    }
 
     public enum DateTimeUnit {
         WEEK_OF_WEEKYEAR(   (byte) 1, IsoFields.WEEK_OF_WEEK_BASED_YEAR),
@@ -92,10 +87,7 @@ public abstract class Rounding implements Writeable {
                     return LocalDateTime.of(localDate.getYear(), localDate.getMonth().firstMonthOfQuarter(), 1, 0, 0)
                         .toInstant(ZoneOffset.UTC).toEpochMilli();
                 case YEAR_OF_CENTURY:
-                    // TODO 10x slower than joda
-                    // TODO check if this can be done with static milliseconds, compare to joda impl
-                    final LocalDateTime dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(utcMillis), ZoneOffset.UTC);
-                    return Year.of(dateTime.getYear()).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+                    return DateUtils.getFirstDayOfYearMillis(utcMillis);
                 case WEEK_OF_WEEKYEAR:
                     return staticRoundFloor(utcMillis + 3 * 86400 * 1000L, 604800000) - 3 * 86400 * 1000L;
                 default:

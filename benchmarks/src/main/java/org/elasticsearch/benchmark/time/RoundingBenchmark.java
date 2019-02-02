@@ -21,7 +21,6 @@ package org.elasticsearch.benchmark.time;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTimeZone;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -37,9 +36,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.Rounding.DateTimeUnit.DAY_OF_MONTH;
-import static org.elasticsearch.common.Rounding.DateTimeUnit.MONTH_OF_YEAR;
-import static org.elasticsearch.common.Rounding.DateTimeUnit.QUARTER_OF_YEAR;
 import static org.elasticsearch.common.Rounding.DateTimeUnit.YEAR_OF_CENTURY;
 
 @Fork(2)
@@ -56,6 +52,7 @@ public class RoundingBenchmark {
 
     private final long timestamp = 1548879021354L;
 
+    /*
     private final org.elasticsearch.common.rounding.Rounding jodaRounding =
         org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(timeZone).build();
     private final Rounding javaRounding = Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY)
@@ -145,6 +142,8 @@ public class RoundingBenchmark {
     public long timeUnitRoundingUtcMonthOfYearJoda() {
         return timeUnitRoundingUtcMonthOfYearJava.round(timestamp);
     }
+
+    */
 
     private final org.elasticsearch.common.rounding.Rounding timeUnitRoundingUtcYearOfCenturyJoda =
         org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.YEAR_OF_CENTURY).timeZone(DateTimeZone.UTC).build();

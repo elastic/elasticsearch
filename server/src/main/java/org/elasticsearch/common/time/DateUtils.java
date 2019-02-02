@@ -77,4 +77,90 @@ public class DateUtils {
         }
         return ZoneId.of(zoneId).normalized();
     }
+
+    private static final int DAYS_0000_TO_1970 = 719527;
+    private static final int MILLIS_PER_DAY = 86_400_000;
+    private static final long MILLIS_PER_YEAR = 31556952000L;
+
+    private static boolean isLeapYear(int year) {
+        return ((year & 3) == 0) && ((year % 100) != 0 || (year % 400) == 0);
+    }
+
+    /**
+     * calculates the first day of a year in milliseconds since the epoch (assuming UTC)
+     *
+     * @param year the year
+     * @return the milliseconds since the epoch of the first of january at midnight of the specified year
+     */
+    private static long calculateFirstDayOfYearMillis(int year) {
+        // Initial value is just temporary.
+        int leapYears = year / 100;
+        if (year < 0) {
+            // Add 3 before shifting right since /4 and >>2 behave differently
+            // on negative numbers. When the expression is written as
+            // (year / 4) - (year / 100) + (year / 400),
+            // it works for both positive and negative values, except this optimization
+            // eliminates two divisions.
+            leapYears = ((year + 3) >> 2) - leapYears + ((leapYears + 3) >> 2) - 1;
+        } else {
+            leapYears = (year >> 2) - leapYears + (leapYears >> 2);
+            if (isLeapYear(year)) {
+                leapYears--;
+            }
+        }
+
+        return (year * 365L + (leapYears - DAYS_0000_TO_1970)) * MILLIS_PER_DAY; // millis per day
+    }
+
+    private static int getYear(long instant) {
+        // Get an initial estimate of the year, and the millis value that
+        // represents the start of that year. Then verify estimate and fix if
+        // necessary.
+
+        // Initial estimate uses values divided by two to avoid overflow.
+        long unitMillis = getAverageMillisPerYearDividedByTwo();
+        long i2 = (instant >> 1) + getApproxMillisAtEpochDividedByTwo();
+        if (i2 < 0) {
+            i2 = i2 - unitMillis + 1;
+        }
+        int year = (int) (i2 / unitMillis);
+
+        long yearStart = calculateFirstDayOfYearMillis(year);
+        long diff = instant - yearStart;
+
+        if (diff < 0) {
+            year--;
+        } else if (diff >= MILLIS_PER_DAY * 365L) {
+            // One year may need to be added to fix estimate.
+            long oneYear;
+            if (isLeapYear(year)) {
+                oneYear = MILLIS_PER_DAY * 366L;
+            } else {
+                oneYear = MILLIS_PER_DAY * 365L;
+            }
+
+            yearStart += oneYear;
+
+            if (yearStart <= instant) {
+                // Didn't go too far, so actually add one year.
+                year++;
+            }
+        }
+
+        return year;
+    }
+
+    private static long getApproxMillisAtEpochDividedByTwo() {
+        return (1970L * MILLIS_PER_YEAR) / 2;
+    }
+
+    private static long getAverageMillisPerYearDividedByTwo() {
+        return MILLIS_PER_YEAR / 2;
+    }
+
+
+    public static long getFirstDayOfYearMillis(long utcMillis) {
+        int year = getYear(utcMillis);
+        return calculateFirstDayOfYearMillis(year);
+    }
 }

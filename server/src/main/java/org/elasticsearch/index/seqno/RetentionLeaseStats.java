@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Objects;
 
 /**
@@ -34,24 +33,24 @@ import java.util.Objects;
  */
 public final class RetentionLeaseStats implements ToXContentFragment, Writeable {
 
-    private final Collection<RetentionLease> leases;
+    private final RetentionLeases retentionLeases;
 
     /**
-     * The underlying retention leases backing this stats object.
+     * The underlying retention lease collection backing this stats object.
      *
-     * @return the leases
+     * @return the retention lease collection
      */
-    public Collection<RetentionLease> leases() {
-        return leases;
+    public RetentionLeases retentionLeases() {
+        return retentionLeases;
     }
 
     /**
-     * Constructs a new retention lease stats object from the specified leases.
+     * Constructs a new retention lease stats object from the specified retention lease collection.
      *
-     * @param leases the leases
+     * @param retentionLeases the retention lease collection
      */
-    public RetentionLeaseStats(final Collection<RetentionLease> leases) {
-        this.leases = Objects.requireNonNull(leases);
+    public RetentionLeaseStats(final RetentionLeases retentionLeases) {
+        this.retentionLeases = Objects.requireNonNull(retentionLeases);
     }
 
     /**
@@ -62,7 +61,7 @@ public final class RetentionLeaseStats implements ToXContentFragment, Writeable 
      * @throws IOException if an I/O exception occurs reading from the stream
      */
     public RetentionLeaseStats(final StreamInput in) throws IOException {
-        leases = in.readList(RetentionLease::new);
+        retentionLeases = new RetentionLeases(in);
     }
 
     /**
@@ -74,7 +73,7 @@ public final class RetentionLeaseStats implements ToXContentFragment, Writeable 
      */
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeCollection(leases);
+        retentionLeases.writeTo(out);
     }
 
     /**
@@ -82,16 +81,18 @@ public final class RetentionLeaseStats implements ToXContentFragment, Writeable 
      *
      * @param builder the builder
      * @param params  the params
-     * @return the builder that these retention leases were converted to {@link org.elasticsearch.common.xcontent.XContent} into
+     * @return the builder that this retention lease collection was converted to {@link org.elasticsearch.common.xcontent.XContent} into
      * @throws IOException if an I/O exception occurs writing to the builder
      */
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject("retention_leases");
         {
+            builder.field("primary_term", retentionLeases.primaryTerm());
+            builder.field("version", retentionLeases.version());
             builder.startArray("leases");
             {
-                for (final RetentionLease retentionLease : leases) {
+                for (final RetentionLease retentionLease : retentionLeases.leases()) {
                     builder.startObject();
                     {
                         builder.field("id", retentionLease.id());
@@ -113,12 +114,12 @@ public final class RetentionLeaseStats implements ToXContentFragment, Writeable 
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final RetentionLeaseStats that = (RetentionLeaseStats) o;
-        return Objects.equals(leases, that.leases);
+        return Objects.equals(retentionLeases, that.retentionLeases);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(leases);
+        return Objects.hash(retentionLeases);
     }
 
 }

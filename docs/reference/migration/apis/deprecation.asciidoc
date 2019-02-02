@@ -68,7 +68,8 @@ Example response:
         "details" : "This index is named [logs:apache], which contains the illegal character ':'."
       }
     ]
-  }
+  },
+  "ml_settings" : [ ]
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -109,7 +110,8 @@ key. Similarly, any node-level warnings are found under `node_settings`. Since
 only a select subset of your nodes might incorporate these settings, it is
 important to read the `details` section for more information about which nodes
 are affected. Index warnings are sectioned off per index and can be filtered
-using an index-pattern in the query.
+using an index-pattern in the query. Machine Learning related deprecation
+warnings can be found under the `ml_settings` key.
 
 The following example request shows only index-level deprecations of all
 `logstash-*` indices:

@@ -2,7 +2,6 @@
 setup:
   - do:
         indices.create:
-          include_type_name: false
           index: test1
           body:
               mappings:
@@ -38,7 +37,6 @@ setup:
 
   - do:
         indices.create:
-          include_type_name: false
           index: test2
           body:
               mappings:
@@ -73,7 +71,6 @@ setup:
                             index: false
   - do:
         indices.create:
-          include_type_name: false
           index: test3
           body:
               mappings:

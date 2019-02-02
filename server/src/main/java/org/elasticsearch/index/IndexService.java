@@ -794,7 +794,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                                 && e instanceof IndexShardClosedException == false) {
                                             logger.warn(
                                                     new ParameterizedMessage(
-                                                            "{} failed to execute background " + source + " sync", shard.shardId()), e);
+                                                            "{} failed to execute background {} sync", shard.shardId(), source), e);
                                         }
                                     },
                                     ThreadPool.Names.SAME,

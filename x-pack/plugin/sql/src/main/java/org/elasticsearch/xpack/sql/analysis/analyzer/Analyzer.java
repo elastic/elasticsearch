@@ -52,6 +52,8 @@ import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.InvalidMappedField;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
+import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -106,7 +108,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveFunctions(),
                 new ResolveAliases(),
                 new ProjectedAggregations(),
-                new ResolveAggsInHaving()
+                new ResolveAggsInHaving(),
+                new ResolveAggsInOrderBy()
                 //new ImplicitCasting()
                 );
         Batch finish = new Batch("Finish Analysis",
@@ -926,7 +929,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     // Handle aggs in HAVING. To help folding any aggs not found in Aggregation
     // will be pushed down to the Aggregate and then projected. This also simplifies the Verifier's job.
     //
-    private class ResolveAggsInHaving extends AnalyzeRule<LogicalPlan> {
+    private class ResolveAggsInHaving extends AnalyzeRule<Filter> {
 
         @Override
         protected boolean skipResolved() {
@@ -934,54 +937,49 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
+        protected LogicalPlan rule(Filter f) {
             // HAVING = Filter followed by an Agg
-            if (plan instanceof Filter) {
-                Filter f = (Filter) plan;
-                if (f.child() instanceof Aggregate && f.child().resolved()) {
-                    Aggregate agg = (Aggregate) f.child();
+            if (f.child() instanceof Aggregate && f.child().resolved()) {
+                Aggregate agg = (Aggregate) f.child();
 
-                    Set<NamedExpression> missing = null;
-                    Expression condition = f.condition();
+                Set<NamedExpression> missing = null;
+                Expression condition = f.condition();
 
-                    // the condition might contain an agg (AVG(salary)) that could have been resolved
-                    // (salary cannot be pushed down to Aggregate since there's no grouping and thus the function wasn't resolved either)
+                // the condition might contain an agg (AVG(salary)) that could have been resolved
+                // (salary cannot be pushed down to Aggregate since there's no grouping and thus the function wasn't resolved either)
 
-                    // so try resolving the condition in one go through a 'dummy' aggregate
-                    if (!condition.resolved()) {
-                        // that's why try to resolve the condition
-                        Aggregate tryResolvingCondition = new Aggregate(agg.source(), agg.child(), agg.groupings(),
-                                combine(agg.aggregates(), new Alias(f.source(), ".having", condition)));
+                // so try resolving the condition in one go through a 'dummy' aggregate
+                if (!condition.resolved()) {
+                    // that's why try to resolve the condition
+                    Aggregate tryResolvingCondition = new Aggregate(agg.source(), agg.child(), agg.groupings(),
+                            combine(agg.aggregates(), new Alias(f.source(), ".having", condition)));
 
-                        tryResolvingCondition = (Aggregate) analyze(tryResolvingCondition, false);
+                    tryResolvingCondition = (Aggregate) analyze(tryResolvingCondition, false);
 
-                        // if it got resolved
-                        if (tryResolvingCondition.resolved()) {
-                            // replace the condition with the resolved one
-                            condition = ((Alias) tryResolvingCondition.aggregates()
-                                .get(tryResolvingCondition.aggregates().size() - 1)).child();
-                        } else {
-                            // else bail out
-                            return plan;
-                        }
+                    // if it got resolved
+                    if (tryResolvingCondition.resolved()) {
+                        // replace the condition with the resolved one
+                        condition = ((Alias) tryResolvingCondition.aggregates()
+                            .get(tryResolvingCondition.aggregates().size() - 1)).child();
+                    } else {
+                        // else bail out
+                        return f;
                     }
-
-                    missing = findMissingAggregate(agg, condition);
-
-                    if (!missing.isEmpty()) {
-                        Aggregate newAgg = new Aggregate(agg.source(), agg.child(), agg.groupings(),
-                                combine(agg.aggregates(), missing));
-                        Filter newFilter = new Filter(f.source(), newAgg, condition);
-                        // preserve old output
-                        return new Project(f.source(), newFilter, f.output());
-                    }
-
-                    return new Filter(f.source(), f.child(), condition);
                 }
-                return plan;
-            }
 
-            return plan;
+                missing = findMissingAggregate(agg, condition);
+
+                if (!missing.isEmpty()) {
+                    Aggregate newAgg = new Aggregate(agg.source(), agg.child(), agg.groupings(),
+                            combine(agg.aggregates(), missing));
+                    Filter newFilter = new Filter(f.source(), newAgg, condition);
+                    // preserve old output
+                    return new Project(f.source(), newFilter, f.output());
+                }
+
+                return new Filter(f.source(), f.child(), condition);
+            }
+            return f;
         }
 
         private Set<NamedExpression> findMissingAggregate(Aggregate target, Expression from) {
@@ -998,6 +996,66 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             }
 
             return missing;
+        }
+    }
+
+
+    //
+    // Handle aggs in ORDER BY. To help folding any aggs not found in Aggregation
+    // will be pushed down to the Aggregate and then projected. This also simplifies the Verifier's job.
+    // Similar to Having however using a different matching pattern since HAVING is always Filter with Agg,
+    // while an OrderBy can have multiple intermediate nodes (Filter,Project, etc...)
+    //
+    private static class ResolveAggsInOrderBy extends AnalyzeRule<OrderBy> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(OrderBy ob) {
+            List<Order> orders = ob.order();
+
+            // 1. collect aggs inside an order by
+            List<NamedExpression> aggs = new ArrayList<>();
+            for (Order order : orders) {
+                if (Functions.isAggregate(order.child())) {
+                    aggs.add(Expressions.wrapAsNamed(order.child()));
+                }
+            }
+            if (aggs.isEmpty()) {
+                return ob;
+            }
+
+            // 2. find first Aggregate child and update it
+            final Holder<Boolean> found = new Holder<>(Boolean.FALSE);
+
+            LogicalPlan plan = ob.transformDown(a -> {
+                if (found.get() == Boolean.FALSE) {
+                    found.set(Boolean.TRUE);
+
+                    List<NamedExpression> missing = new ArrayList<>();
+
+                    for (NamedExpression orderedAgg : aggs) {
+                        if (Expressions.anyMatch(a.aggregates(), e -> Expressions.equalsAsAttribute(e, orderedAgg)) == false) {
+                            missing.add(orderedAgg);
+                        }
+                    }
+                    // agg already contains all aggs
+                    if (missing.isEmpty() == false) {
+                        // save aggregates
+                        return new Aggregate(a.source(), a.child(), a.groupings(), CollectionUtils.combine(a.aggregates(), missing));
+                    }
+                }
+                return a;
+            }, Aggregate.class);
+
+            // if the plan was updated, project the initial aggregates
+            if (plan != ob) {
+                return new Project(ob.source(), plan, ob.output());
+            }
+            return ob;
         }
     }
 

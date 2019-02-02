@@ -31,6 +31,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Month;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -80,11 +81,9 @@ public abstract class Rounding implements Writeable {
                     final LocalDateTime dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(utcMillis), ZoneOffset.UTC);
                     return dt.toLocalDate().withDayOfMonth(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
                 case QUARTER_OF_YEAR:
-                    // TODO 2x slower than joda
-                    // TODO check if this can be done with static milliseconds
-                    final LocalDateTime localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(utcMillis), ZoneOffset.UTC);
-                    LocalDate localDate = localDateTime.toLocalDate();
-                    return LocalDateTime.of(localDate.getYear(), localDate.getMonth().firstMonthOfQuarter(), 1, 0, 0)
+                    int year = DateUtils.getYear(utcMillis);
+                    int month = DateUtils.getMonthOfYear(utcMillis, year);
+                    return LocalDateTime.of(year, Month.of(month).firstMonthOfQuarter(), 1, 0, 0)
                         .toInstant(ZoneOffset.UTC).toEpochMilli();
                 case YEAR_OF_CENTURY:
                     return DateUtils.getFirstDayOfYearMillis(utcMillis);

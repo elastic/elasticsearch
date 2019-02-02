@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
@@ -527,9 +526,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         }
                         else {
                             // report error
-                            String message = LoggerMessageFormat.format("Invalid ordinal [{}] specified in {} (valid range is [1, {}])",
+                            String message = LoggerMessageFormat.format("Invalid ordinal [{}] specified in [{}] (valid range is [1, {}])",
                                     ordinal, orderBy.sourceText(), max);
-                            UnresolvedAttribute ua = new UnresolvedAttribute(child.source(), child.sourceText(), null, message);
+                            UnresolvedAttribute ua = new UnresolvedAttribute(child.source(), orderBy.sourceText(), null, message);
                             newOrder.add(new Order(order.source(), ua, order.direction(), order.nullsPosition()));
                         }
                     }
@@ -557,18 +556,24 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     Integer ordinal = findOrdinal(exp);
                     if (ordinal != null) {
                         changed = true;
+                        String errorMessage = null;
                         if (ordinal > 0 && ordinal <= max) {
                             NamedExpression reference = aggregates.get(ordinal - 1);
                             if (containsAggregate(reference)) {
-                                throw new AnalysisException(exp,
-                                        "Group ordinal {} refers to an aggregate function [{}] which is not compatible/allowed with GROUP BY",
-                                        ordinal, reference.source());
+                                errorMessage = LoggerMessageFormat.format(
+                                        "Ordinal [{}] in [{}] refers to an invalid argument, aggregate function [{}]",
+                                        ordinal, agg.sourceText(), reference.sourceText());
+
+                            } else {
+                                newGroupings.add(reference);
                             }
-                            newGroupings.add(reference);
                         }
                         else {
-                            throw new AnalysisException(exp, "Invalid ordinal [{}] specified in {} (valid range is [1, {}])",
-                                    agg.sourceText(), ordinal, max);
+                            errorMessage = LoggerMessageFormat.format("Invalid ordinal [{}] specified in [{}] (valid range is [1, {}])",
+                                    ordinal, agg.sourceText(), max);
+                        }
+                        if (errorMessage != null) {
+                            newGroupings.add(new UnresolvedAttribute(exp.source(), agg.sourceText(), null, errorMessage));
                         }
                     }
                     else {

@@ -238,3 +238,21 @@
       indices.put_template:
         name: test
         body: {}
+
+---
+"Put template with explicit _doc type":
+  - skip:
+      version: " - 6.99.99"
+      reason: include_type_name defaults to true before 7.0
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_template:
+        name: test
+        body:
+          index_patterns: test-*
+          mappings:
+            _doc:
+              properties:
+                field:
+                  type: keyword

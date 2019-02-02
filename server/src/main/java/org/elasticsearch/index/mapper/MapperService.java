@@ -670,15 +670,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Returns {@code true} if the given {@code mappingSource} includes a type
      * as a top-level object.
      */
+    public static boolean isMappingSourceTyped(String type, Map<String, Object> mapping) {
+        return mapping.size() == 1 && mapping.keySet().iterator().next().equals(type);
+    }
+
+
     public static boolean isMappingSourceTyped(String type, CompressedXContent mappingSource) {
         Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
         return isMappingSourceTyped(type, root);
     }
-
-    private static boolean isMappingSourceTyped(String type, Map<String, Object> mapping) {
-        return mapping.size() == 1 && mapping.keySet().iterator().next().equals(type);
-    }
-
+    
     /**
      * Resolves a type from a mapping-related request into the type that should be used when
      * merging and updating mappings.

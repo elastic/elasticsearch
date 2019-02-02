@@ -135,3 +135,19 @@
             properties:
               "":
                 type:     keyword
+
+---
+"Create index with explicit _doc type":
+  - skip:
+      version: " - 6.99.99"
+      reason: include_type_name defaults to true before 7.0
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            _doc:
+              properties:
+                field:
+                  type: keyword

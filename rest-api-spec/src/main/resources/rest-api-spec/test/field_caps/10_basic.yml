@@ -5,101 +5,98 @@ setup:
           index: test1
           body:
               mappings:
-                t:
-                  properties:
-                    text:
-                      type:     text
-                    keyword:
-                      type:     keyword
-                    number:
-                      type:     double
-                    geo:
-                      type:     geo_point
-                    object:
-                      type: object
-                      properties:
-                        nested1 :
-                          type : text
-                          index: false
-                        nested2:
-                          type: float
-                          doc_values: false
-                    level1:
-                      type: nested
-                      properties:
-                        level2:
-                          type: object
-                          properties:
-                            leaf1:
-                              type: text
-                              index: false
+                properties:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  geo:
+                    type:     geo_point
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : text
+                        index: false
+                      nested2:
+                        type: float
+                        doc_values: false
+                  level1:
+                    type: nested
+                    properties:
+                      level2:
+                        type: object
+                        properties:
+                          leaf1:
+                            type: text
+                            index: false
 
   - do:
         indices.create:
           index: test2
           body:
               mappings:
-                t:
-                  properties:
-                    text:
-                      type:     text
-                    keyword:
-                      type:     keyword
-                    number:
-                      type:     double
-                    geo:
-                      type:     geo_point
-                    object:
-                      type: object
-                      properties:
-                        nested1 :
-                          type : text
-                          index: true
-                        nested2:
-                          type: float
-                          doc_values: true
-                    level1:
-                      type: nested
-                      properties:
-                        level2:
-                          type: object
-                          properties:
-                            leaf1:
-                              type: text
-                              index: false
+                properties:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  geo:
+                    type:     geo_point
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : text
+                        index: true
+                      nested2:
+                        type: float
+                        doc_values: true
+                  level1:
+                    type: nested
+                    properties:
+                      level2:
+                        type: object
+                        properties:
+                          leaf1:
+                            type: text
+                            index: false
   - do:
         indices.create:
           index: test3
           body:
               mappings:
-                t:
-                  properties:
-                    text:
-                      type:     text
-                    keyword:
-                      type:     keyword
-                    number:
-                      type:     long
-                    geo:
-                      type:     keyword
-                    object:
-                      type: nested
-                      properties:
-                        nested1 :
-                          type : long
-                          index: false
-                        nested2:
-                          type: keyword
-                          doc_values: false
-                    level1:
-                      type: object
-                      properties:
-                        level2:
-                          type: object
-                          properties:
-                            leaf1:
-                              type: text
-                              index: false
+                properties:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     long
+                  geo:
+                    type:     keyword
+                  object:
+                    type: nested
+                    properties:
+                      nested1 :
+                        type : long
+                        index: false
+                      nested2:
+                        type: keyword
+                        doc_values: false
+                  level1:
+                    type: object
+                    properties:
+                      level2:
+                        type: object
+                        properties:
+                          leaf1:
+                            type: text
+                            index: false
 
 ---
 "Get simple field caps":

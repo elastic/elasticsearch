@@ -49,9 +49,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(String sql) {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
-        EsIndex test = new EsIndex("test", mapping);
+        EsIndex test = getTestEsIndex();
         return accept(IndexResolution.valid(test), sql);
+    }
+
+    private EsIndex getTestEsIndex() {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
+        return new EsIndex("test", mapping);
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
@@ -171,12 +175,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMissingColumnInOrderBy() {
-        // xxx offset is that of the order by field
         assertEquals("1:29: Unknown column [xxx]", error("SELECT * FROM test ORDER BY xxx"));
     }
 
     public void testMissingColumnFunctionInOrderBy() {
-        // xxx offset is that of the order by field
         assertEquals("1:41: Unknown column [xxx]", error("SELECT * FROM test ORDER BY DAY_oF_YEAR(xxx)"));
     }
 
@@ -204,7 +206,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMultipleColumns() {
-        // xxx offset is that of the order by field
         assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
                 error("SELECT xxx FROM test GROUP BY DAY_oF_YEAR(xxx)"));
     }
@@ -244,7 +245,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByScalarOverNonGrouped() {
-        assertEquals("1:50: Cannot order by non-grouped column [YEAR(date)], expected [text]",
+        assertEquals("1:50: Cannot order by non-grouped column [YEAR(date)], expected [text] or an aggregate function",
                 error("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
     }
 
@@ -254,7 +255,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
-        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date)], expected [text]",
+        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date)], expected [text] or an aggregate function",
             error("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY YEAR(date)"));
     }
 
@@ -312,18 +313,25 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT * FROM test ORDER BY unsupported"));
     }
 
-    public void testGroupByOrderByNonKey() {
-        assertEquals("1:52: Cannot order by non-grouped column [a], expected [bool]",
-                error("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a"));
+    public void testGroupByOrderByAggregate() {
+        accept("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a");
     }
 
-    public void testGroupByOrderByFunctionOverKey() {
-        assertEquals("1:44: Cannot order by non-grouped column [MAX(int)], expected [int]",
-                error("SELECT int FROM test GROUP BY int ORDER BY MAX(int)"));
+    public void testGroupByOrderByAggs() {
+        accept("SELECT int FROM test GROUP BY int ORDER BY COUNT(*)");
+    }
+
+    public void testGroupByOrderByAggAndGroupedColumn() {
+        accept("SELECT int FROM test GROUP BY int ORDER BY int, MAX(int)");
+    }
+
+    public void testGroupByOrderByNonAggAndNonGroupedColumn() {
+        assertEquals("1:44: Cannot order by non-grouped column [bool], expected [int]",
+                error("SELECT int FROM test GROUP BY int ORDER BY bool"));
     }
 
     public void testGroupByOrderByScore() {
-        assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int]",
+        assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int] or an aggregate function",
                 error("SELECT int FROM test GROUP BY int ORDER BY SCORE()"));
     }
 
@@ -380,11 +388,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testNotSupportedAggregateOnDate() {
         assertEquals("1:8: [AVG(date)] argument must be [numeric], found value [date] type [datetime]",
             error("SELECT AVG(date) FROM test"));
-    }
-
-    public void testNotSupportedAggregateOnString() {
-        assertEquals("1:8: [MAX(keyword)] argument must be [date, datetime or numeric], found value [keyword] type [keyword]",
-            error("SELECT MAX(keyword) FROM test"));
     }
 
     public void testInvalidTypeForStringFunction_WithOneArg() {
@@ -545,6 +548,41 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
         assertEquals("1:8: Second argument of PERCENTILE_RANK must be a constant, received [ABS(int)]",
             error("SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"));
+    }
+
+    public void testTopHitsFirstArgConstant() {
+        assertEquals("1:8: First argument of [FIRST] must be a table column, found constant ['foo']",
+            error("SELECT FIRST('foo', int) FROM test"));
+    }
+
+    public void testTopHitsSecondArgConstant() {
+        assertEquals("1:8: Second argument of [LAST] must be a table column, found constant [10]",
+            error("SELECT LAST(int, 10) FROM test"));
+    }
+
+    public void testTopHitsFirstArgTextWithNoKeyword() {
+        assertEquals("1:8: [FIRST] cannot operate on first argument field of data type [text]",
+            error("SELECT FIRST(text) FROM test"));
+    }
+
+    public void testTopHitsSecondArgTextWithNoKeyword() {
+        assertEquals("1:8: [LAST] cannot operate on second argument field of data type [text]",
+            error("SELECT LAST(keyword, text) FROM test"));
+    }
+
+    public void testTopHitsGroupByHavingUnsupported() {
+        assertEquals("1:50: HAVING filter is unsupported for function [FIRST(int)]",
+            error("SELECT FIRST(int) FROM test GROUP BY text HAVING FIRST(int) > 10"));
+    }
+
+    public void testMinOnKeywordGroupByHavingUnsupported() {
+        assertEquals("1:52: HAVING filter is unsupported for function [MIN(keyword)]",
+            error("SELECT MIN(keyword) FROM test GROUP BY text HAVING MIN(keyword) > 10"));
+    }
+
+    public void testMaxOnKeywordGroupByHavingUnsupported() {
+        assertEquals("1:52: HAVING filter is unsupported for function [MAX(keyword)]",
+            error("SELECT MAX(keyword) FROM test GROUP BY text HAVING MAX(keyword) > 10"));
     }
 }
 

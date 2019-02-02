@@ -48,7 +48,7 @@ public class SetPriorityActionTests extends AbstractXContentTestCase<SetPriority
     }
 
     public void testNonPositivePriority() {
-        Exception e = expectThrows(Exception.class, () -> new SetPriorityAction(randomIntBetween(-100, 0)));
+        Exception e = expectThrows(Exception.class, () -> new SetPriorityAction(randomIntBetween(-100, -1)));
         assertThat(e.getMessage(), equalTo("[priority] must be 0 or greater"));
     }
 

@@ -47,9 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.After;
 import org.junit.Before;
@@ -74,7 +72,6 @@ import java.util.Date;
 import java.util.UUID;
 
 import static java.time.Instant.now;
-import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -82,10 +79,9 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class OpenIdConnectAuthenticatorTests extends ESTestCase {
+public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
     private OpenIdConnectAuthenticator authenticator;
-    private static String REALM_NAME = "oidc-realm";
     private Settings globalSettings;
     private Environment env;
     private ThreadContext threadContext;
@@ -104,13 +100,13 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
     }
 
     private OpenIdConnectAuthenticator buildAuthenticator() throws URISyntaxException {
-        final RealmConfig config = buildConfig(getBasicRealmSettings().build());
+        final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
         return new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(globalSettings, env), null);
     }
 
     private OpenIdConnectAuthenticator buildAuthenticator(OpenIdConnectProviderConfiguration opConfig, RelyingPartyConfiguration rpConfig,
                                                           OpenIdConnectAuthenticator.ReloadableJWKSource jwkSource) {
-        final RealmConfig config = buildConfig(getBasicRealmSettings().build());
+        final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
         final JWSVerificationKeySelector keySelector = new JWSVerificationKeySelector(rpConfig.getSignatureAlgorithm(), jwkSource);
         final IDTokenValidator validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), keySelector, null);
         return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(globalSettings, env), validator,
@@ -119,7 +115,7 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
 
     private OpenIdConnectAuthenticator buildAuthenticator(OpenIdConnectProviderConfiguration opConfig,
                                                           RelyingPartyConfiguration rpConfig) {
-        final RealmConfig config = buildConfig(getBasicRealmSettings().build());
+        final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
         final IDTokenValidator validator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(),
             rpConfig.getSignatureAlgorithm(), new Secret(rpConfig.getClientSecret().toString()));
         return new OpenIdConnectAuthenticator(config, opConfig, rpConfig, new SSLService(globalSettings, env), validator,
@@ -636,30 +632,14 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("Signed ID token expected"));
     }
 
-    private Settings.Builder getBasicRealmSettings() {
-        return Settings.builder()
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.org/login")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.org/token")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH), "https://op.example.org/jwks.json")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.elastic.co/cb")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), randomFrom("code", "id_token"))
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.GROUPS_CLAIM.getClaim()), "groups")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.MAIL_CLAIM.getClaim()), "mail")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.NAME_CLAIM.getClaim()), "name");
-    }
-
     private OpenIdConnectProviderConfiguration getOpConfig() throws URISyntaxException {
         return new OpenIdConnectProviderConfiguration("op_name",
             new Issuer("https://op.example.com"),
             "https://op.example.org/jwks.json",
             new URI("https://op.example.org/login"),
             new URI("https://op.example.org/token"),
-            null);
+            null,
+            new URI("https://op.example.org/logout"));
     }
 
     private RelyingPartyConfiguration getDefaultRpConfig() throws URISyntaxException {
@@ -669,9 +649,9 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
             new URI("https://rp.elastic.co/cb"),
             new ResponseType("id_token", "token"),
             new Scope("openid"),
-            JWSAlgorithm.RS384);
+            JWSAlgorithm.RS384,
+            new URI("https://rp.elastic.co/successfull_logout"));
     }
-
     private RelyingPartyConfiguration getRpConfig(String alg) throws URISyntaxException {
         return new RelyingPartyConfiguration(
             new ClientID("rp-my"),
@@ -679,7 +659,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
             new URI("https://rp.elastic.co/cb"),
             new ResponseType("id_token", "token"),
             new Scope("openid"),
-            JWSAlgorithm.parse(alg));
+            JWSAlgorithm.parse(alg),
+            new URI("https://rp.elastic.co/successfull_logout"));
     }
 
     private RelyingPartyConfiguration getRpConfigNoAccessToken(String alg) throws URISyntaxException {
@@ -689,15 +670,8 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
             new URI("https://rp.elastic.co/cb"),
             new ResponseType("id_token"),
             new Scope("openid"),
-            JWSAlgorithm.parse(alg));
-    }
-
-    private RealmConfig buildConfig(Settings realmSettings) {
-        final Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
-            .put(realmSettings).build();
-        final Environment env = TestEnvironment.newEnvironment(settings);
-        return new RealmConfig(new RealmConfig.RealmIdentifier("oidc", REALM_NAME), settings, env, threadContext);
+            JWSAlgorithm.parse(alg),
+            new URI("https://rp.elastic.co/successfull_logout"));
     }
 
     private String buildAuthResponse(JWT idToken, @Nullable AccessToken accessToken, State state, URI redirectUri) {
@@ -831,5 +805,4 @@ public class OpenIdConnectAuthenticatorTests extends ESTestCase {
             throw new IllegalArgumentException("Invalid hash size:" + size);
         }
     }
-
 }

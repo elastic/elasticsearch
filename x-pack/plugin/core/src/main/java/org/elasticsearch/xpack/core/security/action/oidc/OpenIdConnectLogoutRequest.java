@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 

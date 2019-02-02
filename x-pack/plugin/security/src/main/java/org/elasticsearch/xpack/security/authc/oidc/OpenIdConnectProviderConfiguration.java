@@ -19,12 +19,12 @@ public class OpenIdConnectProviderConfiguration {
     private final URI authorizationEndpoint;
     private final URI tokenEndpoint;
     private final URI userinfoEndpoint;
-    private final URI endsessionEndpoint;;
+    private final URI endsessionEndpoint;
     private final Issuer issuer;
     private final String jwkSetPath;
 
     public OpenIdConnectProviderConfiguration(String providerName, Issuer issuer, String jwkSetPath, URI authorizationEndpoint,
-                                              URI tokenEndpoint, @Nullable URI userinfoEndpoint, @Nullable URI endsessionEndpoint;) {
+                                              URI tokenEndpoint, @Nullable URI userinfoEndpoint, @Nullable URI endsessionEndpoint) {
         this.providerName = Objects.requireNonNull(providerName, "OP Name must be provided");
         this.authorizationEndpoint = Objects.requireNonNull(authorizationEndpoint, "Authorization Endpoint must be provided");
         this.tokenEndpoint = Objects.requireNonNull(tokenEndpoint, "Token Endpoint must be provided");

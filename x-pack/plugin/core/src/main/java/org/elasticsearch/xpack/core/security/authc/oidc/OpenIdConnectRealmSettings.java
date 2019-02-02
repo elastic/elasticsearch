@@ -47,6 +47,15 @@ public class OpenIdConnectRealmSettings {
                 throw new IllegalArgumentException("Invalid value [" + v + "] for [" + key + "]. Not a valid URI.", e);
             }
         }, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<String> RP_POST_LOGOUT_REDIRECT_URI
+        = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.post_logout_redirect_uri",
+        key -> Setting.simpleString(key, v -> {
+            try {
+                new URI(v);
+            } catch (URISyntaxException e) {
+                throw new IllegalArgumentException("Invalid value [" + v + "] for [" + key + "]. Not a valid URI.", e);
+            }
+        }, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<String> RP_RESPONSE_TYPE
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.response_type",
         key -> Setting.simpleString(key, v -> {
@@ -141,9 +150,9 @@ public class OpenIdConnectRealmSettings {
     public static Set<Setting.AffixSetting<?>> getSettings() {
         final Set<Setting.AffixSetting<?>> set = Sets.newHashSet(
             RP_CLIENT_ID, RP_REDIRECT_URI, RP_RESPONSE_TYPE, RP_REQUESTED_SCOPES, RP_CLIENT_SECRET, RP_SIGNATURE_VERIFICATION_ALGORITHM,
-            OP_NAME, OP_AUTHORIZATION_ENDPOINT, OP_TOKEN_ENDPOINT, OP_USERINFO_ENDPOINT, OP_ENDSESSION_ENDPOINT, OP_ISSUER,
-            OP_JWKSET_PATH, HTTP_CONNECT_TIMEOUT, HTTP_CONNECTION_READ_TIMEOUT, HTTP_SOCKET_TIMEOUT, HTTP_MAX_CONNECTIONS,
-            HTTP_MAX_ENDPOINT_CONNECTIONS, ALLOWED_CLOCK_SKEW);
+            RP_POST_LOGOUT_REDIRECT_URI, OP_NAME, OP_AUTHORIZATION_ENDPOINT, OP_TOKEN_ENDPOINT, OP_USERINFO_ENDPOINT,
+            OP_ENDSESSION_ENDPOINT, OP_ISSUER, OP_JWKSET_PATH, HTTP_CONNECT_TIMEOUT, HTTP_CONNECTION_READ_TIMEOUT, HTTP_SOCKET_TIMEOUT,
+            HTTP_MAX_CONNECTIONS, HTTP_MAX_ENDPOINT_CONNECTIONS, ALLOWED_CLOCK_SKEW);
         set.addAll(DelegatedAuthorizationSettings.getSettings(TYPE));
         set.addAll(RealmSettings.getStandardSettings(TYPE));
         set.addAll(SSLConfigurationSettings.getRealmSettings(TYPE));

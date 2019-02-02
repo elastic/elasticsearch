@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.action.oidc;
 
+import com.nimbusds.jwt.JWT;
+import com.nimbusds.jwt.JWTParser;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -22,11 +24,14 @@ import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResp
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 
 import java.io.IOException;
+import java.text.ParseException;
+import java.util.Map;
 
 /**
  * Transport action responsible for generating an OpenID connect logout request to be sent to an OpenID Connect Provider
@@ -53,7 +58,8 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
                 final String token = request.getToken();
                 tokenService.getAuthenticationAndMetaData(token, ActionListener.wrap(
                     tuple -> {
-                        Authentication authentication = tuple.v1();
+                        final Authentication authentication = tuple.v1();
+                        final Map<String, Object> tokenMetadata = tuple.v2();
                         tokenService.invalidateAccessToken(token, ActionListener.wrap(
                             result -> {
                                 if (logger.isTraceEnabled()) {
@@ -62,7 +68,7 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
                                         token.substring(0, 8),
                                         token.substring(token.length() - 8));
                                 }
-                                OpenIdConnectLogoutResponse response = buildResponse(authentication);
+                                OpenIdConnectLogoutResponse response = buildResponse(authentication, tokenMetadata);
                                 listener.onResponse(response);
                             }, listener::onFailure)
                         );
@@ -74,22 +80,62 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
         }, listener::onFailure));
     }
 
-    private OpenIdConnectLogoutResponse buildResponse(Authentication authentication) {
+    private OpenIdConnectLogoutResponse buildResponse(Authentication authentication, Map<String, Object> tokenMetadata) {
+        validateAuthenticationAndMetadata(authentication, tokenMetadata);
+        final String idTokenHint = (String) getFromMetadata(tokenMetadata, "id_token_hint");
+        final Realm realm = this.realms.realm(authentication.getAuthenticatedBy().getName());
+        final JWT idToken;
+        try {
+            idToken = JWTParser.parse(idTokenHint);
+        } catch (ParseException e) {
+            throw new ElasticsearchSecurityException("Token Metadata did not contain a valid IdToken", e);
+        }
+        return ((OpenIdConnectRealm) realm).buildLogoutResponse(idToken);
+    }
+
+    private void validateAuthenticationAndMetadata(Authentication authentication, Map<String, Object> tokenMetadata) {
+        if (tokenMetadata == null) {
+            throw new ElasticsearchSecurityException("Authentication did not contain metadata");
+        }
+        if (authentication == null) {
+            throw new ElasticsearchSecurityException("No active authentication");
+        }
+        final User user = authentication.getUser();
+        if (user == null) {
+            throw new ElasticsearchSecurityException("No active user");
+        }
+
         final Authentication.RealmRef ref = authentication.getAuthenticatedBy();
         if (ref == null || Strings.isNullOrEmpty(ref.getName())) {
-            throw new ElasticsearchSecurityException("Authentication {} has no authenticating realm", authentication);
+            throw new ElasticsearchSecurityException("Authentication {} has no authenticating realm",
+                authentication);
         }
         final Realm realm = this.realms.realm(authentication.getAuthenticatedBy().getName());
         if (realm == null) {
             throw new ElasticsearchSecurityException("Authenticating realm {} does not exist", ref.getName());
         }
-        if (realm instanceof OpenIdConnectRealm) {
-            return ((OpenIdConnectRealm) realm).buildLogoutResponse();
-        } else {
-            throw new ElasticsearchSecurityException("Authenticating realm {} is not a SAML realm", realm);
+        if (realm instanceof OpenIdConnectRealm == false) {
+            throw new ElasticsearchSecurityException("Authenticating realm {} is not an OpenID Connect realm",
+                realm);
+        }
+        final Object tokenRealm = getFromMetadata(tokenMetadata, "oidc_realm");
+        if (realm.name().equals(tokenRealm) == false) {
+            throw new ElasticsearchSecurityException("Authenticating realm [{}] does not match token realm [{}]", realm, tokenRealm);
         }
     }
 
+    private Object getFromMetadata(Map<String, Object> metadata, String key) {
+        if (metadata.containsKey(key) == false) {
+            throw new ElasticsearchSecurityException("Authentication token does not have OpenID Connect metadata [{}]", key);
+        }
+        Object value = metadata.get(key);
+        if (null != value && value instanceof String == false) {
+            throw new ElasticsearchSecurityException("In authentication token, OpenID Connect metadata [{}] is [{}] rather than " +
+                "String", key, value.getClass());
+        }
+        return value;
+
+    }
     private void invalidateRefreshToken(String refreshToken, ActionListener<TokensInvalidationResult> listener) {
         if (refreshToken == null) {
             listener.onResponse(null);

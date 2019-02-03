@@ -24,14 +24,14 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
     private String redirectUri;
 
     /**
-     * The state value that we generated for this specific flow and that should be stored at the user's session with
-     * the facilitator
+     * The state value that we generated or the facilitator provided for this specific flow and that should be stored at the user's session
+     * with the facilitator
      */
     private String state;
 
     /**
-     * The nonce value that we generated for this specific flow and that should be stored at the user's session with
-     * the facilitator
+     * The nonce value that we generated or the facilitator provided for this specific flow and that should be stored at the user's session
+     * with the facilitator
      */
     private String nonce;
 

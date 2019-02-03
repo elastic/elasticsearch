@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.SecureString;
@@ -282,14 +283,25 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
     /**
      * Creates the URI for an OIDC Authentication Request from the realm configuration using URI Query String Serialization and
-     * generates a state parameter and a nonce. It then returns the URI, state and nonce encapsulated in a
-     * {@link OpenIdConnectPrepareAuthenticationResponse}
+     * possibly generates a state parameter and a nonce. It then returns the URI, state and nonce encapsulated in a
+     * {@link OpenIdConnectPrepareAuthenticationResponse}. A facilitator can provide a state and a nonce parameter in two cases:
+     * <ul>
+     *     <li>In case of Kibana, it allows for a better UX by ensuring that all requests to an OpenID Connect Provider within
+     *     the same browser context (even across tabs) will use the same state and nonce values.</li>
+     *     <li>In case of custom facilitators, the implementer might require/support generating the state parameter in order
+     *     to tie this to an anti-XSRF token.</li>
+     * </ul>
+     *
+     *
+     * @param existingState An existing state that can be reused or null if we need to generate one
+     * @param existingNonce An existing nonce that can be reused or null if we need to generate one
      *
      * @return an {@link OpenIdConnectPrepareAuthenticationResponse}
      */
-    public OpenIdConnectPrepareAuthenticationResponse buildAuthenticationRequestUri() throws ElasticsearchException {
-        final State state = new State();
-        final Nonce nonce = new Nonce();
+    public OpenIdConnectPrepareAuthenticationResponse buildAuthenticationRequestUri(@Nullable String existingState,
+                                                                                    @Nullable String existingNonce) {
+        final State state = existingState != null ? new State(existingState) : new State();
+        final Nonce nonce = existingNonce != null ? new Nonce(existingNonce) : new Nonce();
         final AuthenticationRequest authenticationRequest = new AuthenticationRequest(
             opConfiguration.getAuthorizationEndpoint(),
             rpConfiguration.getResponseType(),

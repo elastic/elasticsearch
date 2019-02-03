@@ -337,7 +337,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                             updateCurrentIndexMappingsIfNecessary(clusterStateResponse.getState());
                         } else if (TemplateUtils.checkTemplateExistsAndVersionMatches(INDEX_TEMPLATE_NAME,
                                 SECURITY_VERSION_STRING, clusterStateResponse.getState(), logger,
-                                Version.CURRENT::onOrAfter) == false) {
+                                Version.CURRENT::onOrBefore) == false) {
                             putTemplate(customAuditIndexSettings(settings, logger),
                                     e -> {
                                         logger.error("failed to put audit trail template", e);

@@ -96,7 +96,7 @@ public class BulkProcessorTests extends ESTestCase {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {};
         BulkProcessor bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(), emptyListener(),
             0, 10, new ByteSizeValue(1000), null,
-            (delay, executor, command) -> null, () -> called.set(true), BulkRequest::new);
+            (command, delay, executor) -> null, () -> called.set(true), BulkRequest::new);
 
         assertFalse(called.get());
         bulkProcessor.awaitClose(100, TimeUnit.MILLISECONDS);

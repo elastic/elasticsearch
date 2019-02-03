@@ -606,7 +606,7 @@ public class ShardStateAction {
             if (in.getVersion().before(Version.V_6_3_0)) {
                 primaryTerm = in.readVLong();
                 assert primaryTerm == UNASSIGNED_PRIMARY_TERM : "shard is only started by itself: primary term [" + primaryTerm + "]";
-            } else if (in.getVersion().onOrAfter(Version.V_7_0_0)) {  // TODO update version to 6.7.0 after backport
+            } else if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
                 primaryTerm = in.readVLong();
             } else {
                 primaryTerm = UNASSIGNED_PRIMARY_TERM;
@@ -632,7 +632,7 @@ public class ShardStateAction {
             out.writeString(allocationId);
             if (out.getVersion().before(Version.V_6_3_0)) {
                 out.writeVLong(0L);
-            } else if (out.getVersion().onOrAfter(Version.V_7_0_0)) {  // TODO update version to 6.7.0 after backport
+            } else if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
                 out.writeVLong(primaryTerm);
             }
             out.writeString(message);

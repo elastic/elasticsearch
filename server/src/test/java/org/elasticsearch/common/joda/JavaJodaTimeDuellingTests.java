@@ -62,11 +62,14 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         formatter3.parse("20181126T121212.123-0830");
     }
 
+    public void testCustomTimeFormats() {
+        assertSameDate("2010 12 06 11:05:15", "yyyy dd MM HH:mm:ss");
+        assertSameDate("12/06", "dd/MM");
+        assertSameDate("Nov 24 01:29:01 -0800", "MMM dd HH:mm:ss Z");
+    }
+
     // this test requires tests to run with -Djava.locale.providers=COMPAT in order to work
-//    public void testCustomTimeFormats() {
-//        assertSameDate("2010 12 06 11:05:15", "yyyy dd MM HH:mm:ss");
-//        assertSameDate("12/06", "dd/MM");
-//        assertSameDate("Nov 24 01:29:01 -0800", "MMM dd HH:mm:ss Z");
+//    public void testCustomLocales() {
 //
 //        // also ensure that locale based dates are the same
 //        assertSameDate("Di., 05 Dez. 2000 02:55:00 -0800", "E, d MMM yyyy HH:mm:ss Z", LocaleUtils.parse("de"));
@@ -688,7 +691,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         DateTime jodaDateTime = jodaFormatter.parseJoda(input);
 
         TemporalAccessor javaTimeAccessor = javaFormatter.parse(input);
-        ZonedDateTime zonedDateTime = DateFormatters.toZonedDateTime(javaTimeAccessor);
+        ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
 
         String msg = String.format(Locale.ROOT, "Input [%s] Format [%s] Joda [%s], Java [%s]", input, format, jodaDateTime,
             DateTimeFormatter.ISO_INSTANT.format(zonedDateTime.toInstant()));

@@ -121,8 +121,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             body = new Body(in);
-            // TODO: Update after backport
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
                 waitForActiveShards(ActiveShardCount.readFrom(in));
             }
         }
@@ -131,8 +130,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             body.writeTo(out);
-            // TODO: Update after backport
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
                 waitForActiveShards.writeTo(out);
             }
         }

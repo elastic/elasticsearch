@@ -70,7 +70,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = transport.createTransportService(
+        transportService = transport.createCapturingTransportService(
                 clusterService.getSettings(),
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
@@ -113,7 +113,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver());
+                new IndexNameExpressionResolver(Settings.EMPTY));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseBackgroundSyncAction.Request request =
                 new RetentionLeaseBackgroundSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -148,7 +148,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver());
+                new IndexNameExpressionResolver(Settings.EMPTY));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseBackgroundSyncAction.Request request =
                 new RetentionLeaseBackgroundSyncAction.Request(indexShard.shardId(), retentionLeases);
@@ -190,7 +190,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver()) {
+                new IndexNameExpressionResolver(Settings.EMPTY)) {
 
             @Override
             protected void doExecute(Task task, Request request, ActionListener<ReplicationResponse> listener) {

@@ -83,7 +83,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
             .endObject()
             .startObject("mappings")
                 // Still need use type, RestPutIndexTemplateAction#prepareRequestSource has logic that adds type if missing
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("doc")
                     .startObject("_source")
                         .field("enabled", false)
                     .endObject()
@@ -197,7 +197,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         final String name = MonitoringTemplateUtils.templateName(system.getSystem());
 
         for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(name).get().getIndexTemplates()) {
-            final String docMapping = template.getMappings().get(MapperService.SINGLE_MAPPING_NAME).toString();
+            final String docMapping = template.getMappings().get("doc").toString();
 
             assertThat(docMapping, notNullValue());
             assertThat(docMapping, containsString("test"));

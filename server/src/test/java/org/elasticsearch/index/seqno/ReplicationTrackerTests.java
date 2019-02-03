@@ -687,7 +687,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final LongConsumer onUpdate = updatedGlobalCheckpoint -> {};
         final long primaryTerm = randomNonNegativeLong();
         final long globalCheckpoint = UNASSIGNED_SEQ_NO;
-        final BiConsumer<Collection<RetentionLease>, ActionListener<ReplicationResponse>> onNewRetentionLease =
+        final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onNewRetentionLease =
                 (leases, listener) -> {};
         ReplicationTracker oldPrimary = new ReplicationTracker(
                 shardId, aId.getId(), indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);

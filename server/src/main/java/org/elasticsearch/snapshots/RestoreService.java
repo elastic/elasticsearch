@@ -314,6 +314,12 @@ public class RestoreService implements ClusterStateApplier {
                                                                         currentIndexMetaData.getMappingVersion() + 1));
                                 indexMdBuilder.settingsVersion(Math.max(snapshotIndexMetaData.getSettingsVersion(),
                                                                         currentIndexMetaData.getSettingsVersion() + 1));
+
+                                for (int shard = 0; shard < snapshotIndexMetaData.getNumberOfShards(); shard++) {
+                                    indexMdBuilder.primaryTerm(shard,
+                                        Math.max(snapshotIndexMetaData.primaryTerm(shard), currentIndexMetaData.primaryTerm(shard)));
+                                }
+
                                 if (!request.includeAliases()) {
                                     // Remove all snapshot aliases
                                     if (!snapshotIndexMetaData.getAliases().isEmpty()) {

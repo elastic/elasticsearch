@@ -55,6 +55,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -279,7 +280,7 @@ public class MetaDataMappingService {
                 if (mappingType == null) {
                     mappingType = newMapper.type();
                 } else if (mappingType.equals(newMapper.type()) == false
-                        && (isMappingSourceTyped(mapperService, mappingUpdateSource, request.type())
+                        && (isMappingSourceTyped(request.type(), mappingUpdateSource)
                                 || mapperService.resolveDocumentType(mappingType).equals(newMapper.type()) == false)) {
                     throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition.");
                 }
@@ -304,7 +305,7 @@ public class MetaDataMappingService {
                 // are handling a typeless call. In such a case, we override _doc with the actual type
                 // name in the mappings. This allows to use typeless APIs on typed indices.
                 String typeForUpdate = mappingType; // the type to use to apply the mapping update
-                if (isMappingSourceTyped(mapperService, mappingUpdateSource, request.type()) == false) {
+                if (isMappingSourceTyped(request.type(), mappingUpdateSource) == false) {
                     typeForUpdate = mapperService.resolveDocumentType(mappingType);
                 }
 
@@ -369,15 +370,6 @@ public class MetaDataMappingService {
         public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
             return String.join(", ", tasks.stream().map(t -> (CharSequence)t.type())::iterator);
         }
-    }
-
-    /**
-     * Returns {@code true} if the given {@code mappingSource} includes a type
-     * as a top-level object.
-     */
-    private static boolean isMappingSourceTyped(MapperService mapperService, CompressedXContent mappingSource, String type) {
-        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
-        return root.size() == 1 && root.keySet().iterator().next().equals(type);
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {

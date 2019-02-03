@@ -8,42 +8,41 @@ setup:
           index: test
           body:
             mappings:
-              test:
-                "properties":
-                  "location":
-                    "type": "geo_point"
-                  "suggest_context":
-                     "type" : "completion"
-                     "contexts":
-                        -
-                          "name" : "color"
-                          "type" : "category"
-                  "suggest_context_with_path":
-                     "type" : "completion"
-                     "contexts":
-                        -
-                          "name" : "color"
-                          "type" : "category"
-                          "path" : "color"
-                  "suggest_geo":
-                     "type" : "completion"
-                     "contexts":
-                        -
-                          "name" : "location"
-                          "type" : "geo"
-                          "precision" : "5km"
-                  "suggest_multi_contexts":
-                     "type" : "completion"
-                     "contexts":
-                        -
-                          "name" : "location"
-                          "type" : "geo"
-                          "precision" : "5km"
-                          "path" : "location"
-                        -
-                          "name" : "color"
-                          "type" : "category"
-                          "path" : "color"
+              "properties":
+                "location":
+                  "type": "geo_point"
+                "suggest_context":
+                   "type" : "completion"
+                   "contexts":
+                      -
+                        "name" : "color"
+                        "type" : "category"
+                "suggest_context_with_path":
+                   "type" : "completion"
+                   "contexts":
+                      -
+                        "name" : "color"
+                        "type" : "category"
+                        "path" : "color"
+                "suggest_geo":
+                   "type" : "completion"
+                   "contexts":
+                      -
+                        "name" : "location"
+                        "type" : "geo"
+                        "precision" : "5km"
+                "suggest_multi_contexts":
+                   "type" : "completion"
+                   "contexts":
+                      -
+                        "name" : "location"
+                        "type" : "geo"
+                        "precision" : "5km"
+                        "path" : "location"
+                      -
+                        "name" : "color"
+                        "type" : "category"
+                        "path" : "color"
 
 ---
 "Simple context suggestion should work":
@@ -51,7 +50,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_context:
@@ -62,7 +60,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    2
         body:
           suggest_context:
@@ -95,7 +92,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_context_with_path:
@@ -106,7 +102,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    2
         body:
           suggest_context_with_path: "Foo blue"
@@ -168,7 +163,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_geo:
@@ -181,7 +175,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    2
         body:
           suggest_geo:
@@ -195,9 +188,7 @@ setup:
       indices.refresh: {}
 
   - do:
-      indices.get_mapping:
-        include_type_name: false
-
+      indices.get_mapping: {}
   - do:
       search:
         rest_total_hits_as_int: true
@@ -223,7 +214,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_multi_contexts: "Marriot in Amsterdam"
@@ -235,7 +225,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    2
         body:
           suggest_multi_contexts: "Marriot in Berlin"
@@ -248,8 +237,7 @@ setup:
       indices.refresh: {}
 
   - do:
-      indices.get_mapping:
-        include_type_name: false
+      indices.get_mapping: {}
 
   - do:
       search:
@@ -296,7 +284,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_context:
@@ -307,7 +294,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_context:
@@ -318,7 +304,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    2
         body:
           suggest_context:
@@ -355,7 +340,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    1
         body:
           suggest_context:
@@ -371,7 +355,6 @@ setup:
       catch: /Contexts are mandatory in context enabled completion field \[suggest_context\]/
       index:
         index: test
-        type:  test
         id:    2
         body:
           suggest_context:
@@ -379,7 +362,7 @@ setup:
 
   - do:
       indices.refresh: {}
-      
+
   - do:
       catch: /Missing mandatory contexts in context query/
       search:

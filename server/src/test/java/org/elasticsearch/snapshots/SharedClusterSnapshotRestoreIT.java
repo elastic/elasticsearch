@@ -3688,6 +3688,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         client.admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
                     assertThat(status.getSnapshots().iterator().next().getState(), equalTo(State.ABORTED));
                 } catch (Exception e) {
+                    // Force assertBusy to retry on every exception
                     throw new AssertionError(e);
                 }
             });

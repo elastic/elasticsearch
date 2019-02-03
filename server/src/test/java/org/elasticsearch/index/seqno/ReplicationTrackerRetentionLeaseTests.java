@@ -50,7 +50,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38245")
     public void testAddOrRenewRetentionLease() {
         final AllocationId allocationId = AllocationId.newInitializing();
         long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
@@ -72,13 +71,13 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         final int length = randomIntBetween(0, 8);
         final long[] minimumRetainingSequenceNumbers = new long[length];
         for (int i = 0; i < length; i++) {
-            minimumRetainingSequenceNumbers[i] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-            replicationTracker.addRetentionLease(
-                    Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.wrap(() -> {}));
             if (rarely() && primaryTerm < Long.MAX_VALUE) {
                 primaryTerm = randomLongBetween(primaryTerm + 1, Long.MAX_VALUE);
                 replicationTracker.setOperationPrimaryTerm(primaryTerm);
             }
+            minimumRetainingSequenceNumbers[i] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+            replicationTracker.addRetentionLease(
+                    Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.wrap(() -> {}));
             assertRetentionLeases(replicationTracker, i + 1, minimumRetainingSequenceNumbers, () -> 0L, primaryTerm, 1 + i, true);
         }
 

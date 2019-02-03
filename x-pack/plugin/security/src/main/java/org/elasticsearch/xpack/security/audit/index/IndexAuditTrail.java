@@ -393,7 +393,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                 if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster() || hasStaleMessage()) {
                     putAuditIndexMappingsAndStart(index);
                 } else {
-                    logger.trace("audit index [{}] is missing mapping for type [{}]", index, DOC_TYPE);
+                    logger.debug("audit index [{}] is missing mapping for type [{}]", index, DOC_TYPE);
                     transitionStartingToInitialized();
                 }
             } else {
@@ -411,10 +411,10 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                     if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster() || hasStaleMessage()) {
                         putAuditIndexMappingsAndStart(index);
                     } else if (versionString == null) {
-                        logger.trace("audit index [{}] mapping is missing meta field [{}]", index, SECURITY_VERSION_STRING);
+                        logger.debug("audit index [{}] mapping is missing meta field [{}]", index, SECURITY_VERSION_STRING);
                         transitionStartingToInitialized();
                     } else {
-                        logger.trace("audit index [{}] has the incorrect version [{}]", index, versionString);
+                        logger.debug("audit index [{}] has the incorrect version [{}]", index, versionString);
                         transitionStartingToInitialized();
                     }
                 }
@@ -427,7 +427,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private void putAuditIndexMappingsAndStart(String index) {
         putAuditIndexMappings(index, getPutIndexTemplateRequest(Settings.EMPTY).mappings().get(DOC_TYPE),
                 ActionListener.wrap(ignore -> {
-                    logger.trace("updated mappings on audit index [{}]", index);
+                    logger.debug("updated mappings on audit index [{}]", index);
                     innerStart();
                 }, e -> {
                     logger.error(new ParameterizedMessage("failed to update mappings on audit index [{}]", index), e);
@@ -451,7 +451,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             assert false : message;
             logger.error(message);
         } else {
-            logger.trace("successful state transition from starting to started, current value: [{}]", state.get());
+            logger.debug("successful state transition from starting to started, current value: [{}]", state.get());
         }
     }
 

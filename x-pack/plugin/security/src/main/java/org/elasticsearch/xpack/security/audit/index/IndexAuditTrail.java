@@ -400,22 +400,27 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                 @SuppressWarnings("unchecked")
                 Map<String, Object> meta = (Map<String, Object>) docMapping.sourceAsMap().get("_meta");
                 if (meta == null) {
-                    logger.info("Missing _meta field in mapping [{}] of index [{}]", docMapping.type(), index);
-                    throw new IllegalStateException("Cannot read security-version string in index " + index);
-                }
-
-                final String versionString = (String) meta.get(SECURITY_VERSION_STRING);
-                if (versionString != null && Version.fromString(versionString).onOrAfter(Version.CURRENT)) {
-                    innerStart();
-                } else {
+                    logger.warn("Missing _meta field in mapping [{}] of index [{}]", docMapping.type(), index);
                     if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster() || hasStaleMessage()) {
                         putAuditIndexMappingsAndStart(index);
-                    } else if (versionString == null) {
-                        logger.debug("audit index [{}] mapping is missing meta field [{}]", index, SECURITY_VERSION_STRING);
-                        transitionStartingToInitialized();
                     } else {
-                        logger.debug("audit index [{}] has the incorrect version [{}]", index, versionString);
+                        logger.debug("audit index [{}] is missing _meta for type [{}]", index, DOC_TYPE);
                         transitionStartingToInitialized();
+                    }
+                } else {
+                    final String versionString = (String) meta.get(SECURITY_VERSION_STRING);
+                    if (versionString != null && Version.fromString(versionString).onOrAfter(Version.CURRENT)) {
+                        innerStart();
+                    } else {
+                        if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster() || hasStaleMessage()) {
+                            putAuditIndexMappingsAndStart(index);
+                        } else if (versionString == null) {
+                            logger.debug("audit index [{}] mapping is missing meta field [{}]", index, SECURITY_VERSION_STRING);
+                            transitionStartingToInitialized();
+                        } else {
+                            logger.debug("audit index [{}] has the incorrect version [{}]", index, versionString);
+                            transitionStartingToInitialized();
+                        }
                     }
                 }
             }

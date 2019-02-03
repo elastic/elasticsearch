@@ -56,52 +56,64 @@ import java.util.Objects;
 public abstract class Rounding implements Writeable {
 
     public enum DateTimeUnit {
-        WEEK_OF_WEEKYEAR(   (byte) 1, IsoFields.WEEK_OF_WEEK_BASED_YEAR),
-        YEAR_OF_CENTURY(    (byte) 2, ChronoField.YEAR_OF_ERA),
-        QUARTER_OF_YEAR(    (byte) 3, IsoFields.QUARTER_OF_YEAR),
-        MONTH_OF_YEAR(      (byte) 4, ChronoField.MONTH_OF_YEAR),
-        DAY_OF_MONTH(       (byte) 5, ChronoField.DAY_OF_MONTH),
-        HOUR_OF_DAY(        (byte) 6, ChronoField.HOUR_OF_DAY),
-        MINUTES_OF_HOUR(    (byte) 7, ChronoField.MINUTE_OF_HOUR),
-        SECOND_OF_MINUTE(   (byte) 8, ChronoField.SECOND_OF_MINUTE);
+        WEEK_OF_WEEKYEAR((byte) 1, IsoFields.WEEK_OF_WEEK_BASED_YEAR) {
+            long roundFloor(long utcMillis) {
+                return DateUtils.roundFloor(utcMillis + 3 * 86400 * 1000L, 604800000) - 3 * 86400 * 1000L;
+            }
+        },
+        YEAR_OF_CENTURY((byte) 2, ChronoField.YEAR_OF_ERA) {
+            long roundFloor(long utcMillis) {
+                return DateUtils.getFirstDayOfYearMillis(utcMillis);
+            }
+        },
+        QUARTER_OF_YEAR((byte) 3, IsoFields.QUARTER_OF_YEAR) {
+            long roundFloor(long utcMillis) {
+                int year = DateUtils.getYear(utcMillis);
+                int month = DateUtils.getMonthOfYear(utcMillis, year);
+                return DateUtils.of(year, Month.of(month).firstMonthOfQuarter().getValue(), 1);
+            }
+        },
+        MONTH_OF_YEAR((byte) 4, ChronoField.MONTH_OF_YEAR) {
+            long roundFloor(long utcMillis) {
+                int year = DateUtils.getYear(utcMillis);
+                int month = DateUtils.getMonthOfYear(utcMillis, year);
+                return DateUtils.of(year, month, 1);
+            }
+        },
+        DAY_OF_MONTH((byte) 5, ChronoField.DAY_OF_MONTH) {
+            final long unitMillis = ChronoField.DAY_OF_MONTH.getBaseUnit().getDuration().toMillis();
+            long roundFloor(long utcMillis) {
+                return DateUtils.roundFloor(utcMillis, unitMillis);
+            }
+        },
+        HOUR_OF_DAY((byte) 6, ChronoField.HOUR_OF_DAY) {
+            final long unitMillis = ChronoField.HOUR_OF_DAY.getBaseUnit().getDuration().toMillis();
+            long roundFloor(long utcMillis) {
+                return DateUtils.roundFloor(utcMillis, unitMillis);
+            }
+        },
+        MINUTES_OF_HOUR((byte) 7, ChronoField.MINUTE_OF_HOUR) {
+            final long unitMillis = ChronoField.MINUTE_OF_HOUR.getBaseUnit().getDuration().toMillis();
+            long roundFloor(long utcMillis) {
+                return DateUtils.roundFloor(utcMillis, unitMillis);
+            }
+        },
+        SECOND_OF_MINUTE((byte) 8, ChronoField.SECOND_OF_MINUTE) {
+            final long unitMillis = ChronoField.SECOND_OF_MINUTE.getBaseUnit().getDuration().toMillis();
+            long roundFloor(long utcMillis) {
+                return DateUtils.roundFloor(utcMillis, unitMillis);
+            }
+        };
 
         private final byte id;
         private final TemporalField field;
-        private final long unitMillis;
 
         DateTimeUnit(byte id, TemporalField field) {
             this.id = id;
             this.field = field;
-            this.unitMillis = field.getBaseUnit().getDuration().toMillis();
         }
 
-        public long roundFloorUtc(long utcMillis) {
-            switch (this) {
-                case MONTH_OF_YEAR:
-                    int currentYear = DateUtils.getYear(utcMillis);
-                    int currentMonth = DateUtils.getMonthOfYear(utcMillis, currentYear);
-                    return DateUtils.of(currentYear, currentMonth, 1);
-                case QUARTER_OF_YEAR:
-                    int year = DateUtils.getYear(utcMillis);
-                    int month = DateUtils.getMonthOfYear(utcMillis, year);
-                    return DateUtils.of(year, Month.of(month).firstMonthOfQuarter().getValue(), 1);
-                case YEAR_OF_CENTURY:
-                    return DateUtils.getFirstDayOfYearMillis(utcMillis);
-                case WEEK_OF_WEEKYEAR:
-                    return staticRoundFloor(utcMillis + 3 * 86400 * 1000L, 604800000) - 3 * 86400 * 1000L;
-                default:
-                    return staticRoundFloor(utcMillis, unitMillis);
-            }
-        }
-
-        private long staticRoundFloor(long utcMillis, long unitMillis) {
-            if (utcMillis >= 0) {
-                return utcMillis - utcMillis % unitMillis;
-            } else {
-                utcMillis += 1;
-                return utcMillis - utcMillis % unitMillis - unitMillis;
-            }
-        }
+        abstract long roundFloor(long utcMillis);
 
         public byte getId() {
             return id;
@@ -267,7 +279,7 @@ public abstract class Rounding implements Writeable {
             // the calculations for fixing things near to offset changes are a little expensive and are unnecessary in the common case
             // of working in UTC.
             if (isUtcTimeZone) {
-                return unit.roundFloorUtc(utcMillis);
+                return unit.roundFloor(utcMillis);
             }
 
             Instant instant = Instant.ofEpochMilli(utcMillis);

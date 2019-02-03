@@ -78,9 +78,34 @@ public class DateUtils {
         return ZoneId.of(zoneId).normalized();
     }
 
+    /*
+     * begin of code that is partially copied from the joda time implementation in order to make calculations about utc rounding much
+     * faster than using java-time and assigning all those objects
+     *
+     */
+
     private static final int DAYS_0000_TO_1970 = 719527;
     private static final int MILLIS_PER_DAY = 86_400_000;
     private static final long MILLIS_PER_YEAR = 31556952000L;
+
+    /**
+     * Rounds the given utc milliseconds sicne the epoch down to the next unit millis
+     *
+     * Note: This does not check for correctness of the result, as this only works with units smaller or equal than a day
+     *       In order to ensure the performane of this methods, there are no guards or checks in it
+     *
+     * @param utcMillis   the milliseconds since the epoch
+     * @param unitMillis  the unit to round to
+     * @return            the rounded milliseconds since the epoch
+     */
+    public static long roundFloor(long utcMillis, long unitMillis) {
+        if (utcMillis >= 0) {
+            return utcMillis - utcMillis % unitMillis;
+        } else {
+            utcMillis += 1;
+            return utcMillis - utcMillis % unitMillis - unitMillis;
+        }
+    }
 
     private static boolean isLeapYear(int year) {
         return ((year & 3) == 0) && ((year % 100) != 0 || (year % 400) == 0);
@@ -240,6 +265,4 @@ public class DateUtils {
             MAX_TOTAL_MILLIS_BY_MONTH_ARRAY[i + 1] = maxSum;
         }
     }
-
-
 }

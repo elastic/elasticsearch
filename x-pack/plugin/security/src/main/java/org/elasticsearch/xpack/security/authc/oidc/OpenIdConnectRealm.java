@@ -338,10 +338,14 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
     }
 
     public OpenIdConnectLogoutResponse buildLogoutResponse(JWT idTokenHint) {
-        final State state = new State();
-        final LogoutRequest logoutRequest = new LogoutRequest(opConfiguration.getEndsessionEndpoint(), idTokenHint,
-            rpConfiguration.getPostLogoutRedirectUri(), state);
-        return new OpenIdConnectLogoutResponse(logoutRequest.toURI().toString());
+        if (opConfiguration.getEndsessionEndpoint() != null) {
+            final State state = new State();
+            final LogoutRequest logoutRequest = new LogoutRequest(opConfiguration.getEndsessionEndpoint(), idTokenHint,
+                rpConfiguration.getPostLogoutRedirectUri(), state);
+            return new OpenIdConnectLogoutResponse(logoutRequest.toURI().toString());
+        } else {
+            return new OpenIdConnectLogoutResponse((String) null);
+        }
     }
 
     @Override

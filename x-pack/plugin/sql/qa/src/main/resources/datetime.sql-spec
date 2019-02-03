@@ -121,10 +121,10 @@ currentTimestampYear
 SELECT YEAR(CURRENT_TIMESTAMP()) AS result;
 
 orderByCurrentTimestamp
-SELECT first_name FROM test_emp ORDER BY NOW(), first_name LIMIT 5;
+SELECT first_name FROM test_emp ORDER BY NOW(), first_name NULLS LAST LIMIT 5;
 
 groupByCurrentTimestamp
-SELECT MAX(salary) FROM test_emp GROUP BY NOW();
+SELECT MAX(salary) AS max FROM test_emp GROUP BY NOW();
 
 //
 // H2 uses the local timezone instead of the specified one

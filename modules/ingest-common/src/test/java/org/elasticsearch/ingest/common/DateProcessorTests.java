@@ -112,9 +112,8 @@ public class DateProcessorTests extends ESTestCase {
         }
     }
 
-    // this fails only on FIPS 140 JVM but we cannot mute selectively
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/31724")
     public void testJavaPatternLocale() {
+        assumeFalse("Can't run in a FIPS JVM, Joda parse date error", inFipsJvm()); // @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/31724")
         DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
             templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ITALIAN),
                 "date_as_string", Collections.singletonList("yyyy dd MMMM"), "date_as_date");

@@ -451,7 +451,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                     innerStart();
                 }, e2 -> {
                     // best effort only
-                    logger.debug("Failed to update mappings on next audit index [{}]", nextIndex, e2);
+                    logger.debug("Failed to update mappings on next audit index [{}]", nextIndex);
                     innerStart();
                 }));
             }, e -> {

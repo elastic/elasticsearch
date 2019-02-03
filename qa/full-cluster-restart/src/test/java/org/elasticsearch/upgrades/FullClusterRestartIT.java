@@ -26,6 +26,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
@@ -1059,15 +1060,19 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
             clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
             client().performRequest(clearRoutingFromSettings);
-        } catch (ResponseException e) {
-            if (e.getResponse().hasWarnings()
-                    && (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_6_5_0))) {
-                e.getResponse().getWarnings().stream().forEach(warning -> {
+        } catch (WarningFailureException e) {
+            /*
+             * If this test is executed on the upgraded mode before testRemoteClusterSettingsUpgraded,
+             * we will hit a warning exception because we put some deprecated settings in that test.
+             */
+            if (isRunningAgainstOldCluster() == false
+                && getOldClusterVersion().onOrAfter(Version.V_6_1_0) && getOldClusterVersion().before(Version.V_6_5_0)) {
+                for (String warning : e.getResponse().getWarnings()) {
                     assertThat(warning, containsString(
-                            "setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        "setting was deprecated in Elasticsearch and will be removed in a future release! "
                             + "See the breaking changes documentation for the next major version."));
                     assertThat(warning, startsWith("[search.remote."));
-                });
+                }
             } else {
                 throw e;
             }

@@ -539,6 +539,41 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:47: Cannot use an aggregate [MAX] for grouping",
                 error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
     }
+    
+    public void testHistogramNotInGrouping() {
+        assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));
+    }
+    
+    public void testHistogramNotInGroupingWithCount() {
+        assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h, COUNT(*) FROM test"));
+    }
+    
+    public void testHistogramNotInGroupingWithMaxFirst() {
+        assertEquals("1:19: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT MAX(date), HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));
+    }
+    
+    public void testHistogramWithoutAliasNotInGrouping() {
+        assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) FROM test"));
+    }
+    
+    public void testTwoHistogramsNotInGrouping() {
+        assertEquals("1:48: [HISTOGRAM(date, INTERVAL 1 DAY)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h, HISTOGRAM(date, INTERVAL 1 DAY) FROM test GROUP BY h"));
+    }
+    
+    public void testHistogramNotInGrouping_WithGroupByField() {
+        assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) FROM test GROUP BY date"));
+    }
+    
+    public void testScalarOfHistogramNotInGrouping() {
+        assertEquals("1:14: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT MONTH(HISTOGRAM(date, INTERVAL 1 MONTH)) FROM test"));
+    }
 
     public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
         assertEquals("1:8: Second argument of PERCENTILE must be a constant, received [ABS(int)]",

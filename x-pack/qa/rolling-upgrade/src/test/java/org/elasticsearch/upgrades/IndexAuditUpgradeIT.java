@@ -62,7 +62,6 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33867")
     public void testAuditLogs() throws Exception {
         assertBusy(() -> {
             assertAuditDocsExist();

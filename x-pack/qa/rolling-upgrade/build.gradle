@@ -175,6 +175,7 @@ subprojects {
         }
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
         setting 'logger.org.elasticsearch.xpack.ml.action', 'DEBUG'
+        setting 'logger.org.elasticsearch.xpack.security.audit.index', 'DEBUG'
       }
 
       if (version.onOrAfter('6.6.0')) {
@@ -234,6 +235,7 @@ subprojects {
           keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
         }
         setting 'logger.org.elasticsearch.xpack.ml.action', 'DEBUG'
+        setting 'logger.org.elasticsearch.xpack.security.audit.index', 'DEBUG'
       }
     }
 

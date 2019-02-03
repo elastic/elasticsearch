@@ -27,7 +27,6 @@
   - do:
       index:
         index: queries
-        type: doc
         id: q4
         refresh: true
         body:
@@ -134,6 +133,7 @@
 
   - do:
       indices.get_mapping:
+        include_type_name: false
         index: all-index
 
   - is_true: all-index.mappings._all

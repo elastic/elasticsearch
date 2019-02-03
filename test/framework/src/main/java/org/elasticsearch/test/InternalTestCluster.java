@@ -241,9 +241,6 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
     private Function<Client, Client> clientWrapper;
 
-    // If set to true only the first node in the cluster will be made a unicast node
-    private boolean hostsListContainsOnlyFirstNode;
-
     private int bootstrapMasterNodeIndex = -1;
 
     public InternalTestCluster(
@@ -1667,9 +1664,6 @@ public final class InternalTestCluster extends TestCluster {
         synchronized (discoveryFileMutex) {
             try {
                 Stream<NodeAndClient> unicastHosts = Stream.concat(nodes.values().stream(), newNodes.stream());
-                if (hostsListContainsOnlyFirstNode) {
-                    unicastHosts = unicastHosts.limit(1L);
-                }
                 List<String> discoveryFileContents = unicastHosts.map(
                         nac -> nac.node.injector().getInstance(TransportService.class)
                     ).filter(Objects::nonNull)
@@ -2205,10 +2199,6 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized int numMasterNodes() {
       return filterNodes(nodes, NodeAndClient::isMasterEligible).size();
-    }
-
-    public void setHostsListContainsOnlyFirstNode(boolean hostsListContainsOnlyFirstNode) {
-        this.hostsListContainsOnlyFirstNode = hostsListContainsOnlyFirstNode;
     }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {

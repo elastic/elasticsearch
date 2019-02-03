@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.protocol.xpack.watcher;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -110,10 +109,8 @@ public class PutWatchResponse extends ActionResponse implements ToXContentObject
         super.writeTo(out);
         out.writeString(id);
         out.writeVLong(version);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeZLong(seqNo);
-            out.writeVLong(primaryTerm);
-        }
+        out.writeZLong(seqNo);
+        out.writeVLong(primaryTerm);
         out.writeBoolean(created);
     }
 
@@ -122,13 +119,8 @@ public class PutWatchResponse extends ActionResponse implements ToXContentObject
         super.readFrom(in);
         id = in.readString();
         version = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            seqNo = in.readZLong();
-            primaryTerm = in.readVLong();
-        } else {
-            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-        }
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
         created = in.readBoolean();
     }
 

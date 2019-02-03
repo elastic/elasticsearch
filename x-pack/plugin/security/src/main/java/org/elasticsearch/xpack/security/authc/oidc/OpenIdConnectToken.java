@@ -24,10 +24,10 @@ public class OpenIdConnectToken implements AuthenticationToken {
      * @param redirectUrl The URI where the OP redirected the browser after the authentication event at the OP. This is passed as is from
      *                    the facilitator entity (i.e. Kibana), so it is URL Encoded. It contains either the code or the id_token itself
      *                    depending on the flow used
-     * @param state       The state value that we generated for this specific flow and should be stored at the user's session with the
-     *                    facilitator.
-     * @param nonce       The nonce value that we generated for this specific flow and should be stored at the user's session with the
-     *                    facilitator.
+     * @param state       The state value that we generated or the facilitator provided for this specific flow and should be stored at the
+     *                    user's session with the facilitator.
+     * @param nonce       The nonce value that we generated or the facilitator provided for this specific flow and should be stored at the
+     *                    user's session with the facilitator.
      */
     public OpenIdConnectToken(String redirectUrl, State state, Nonce nonce) {
         this.redirectUrl = redirectUrl;

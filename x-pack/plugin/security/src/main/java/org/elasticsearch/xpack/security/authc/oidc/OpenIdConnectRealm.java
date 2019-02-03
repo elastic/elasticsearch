@@ -327,8 +327,8 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
      * </ul>
      *
      *
-     * @param existingState A facilitator can provide a state parameter in two cases.
-     * @param existingNonce
+     * @param existingState An existing state that can be reused or null if we need to generate one
+     * @param existingNonce An existing nonce that can be reused or null if we need to generate one
      *
      * @return an {@link OpenIdConnectPrepareAuthenticationResponse}
      */

@@ -292,7 +292,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 super(in);
                 this.doc = Lucene.readScoreDoc(in);
                 if (in.readBoolean()) {
-                    this.hit = SearchHit.readSearchHit(in);
+                    this.hit = new SearchHit(in);
                 }
                 int contextSize = in.readInt();
                 this.contexts = new LinkedHashMap<>(contextSize);

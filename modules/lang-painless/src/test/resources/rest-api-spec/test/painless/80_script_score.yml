@@ -85,26 +85,22 @@ setup:
                 settings:
                     number_of_shards: 2
                 mappings:
-                    _doc:
-                        properties:
-                            f1:
-                                type: keyword
+                    properties:
+                        f1:
+                            type: keyword
     - do:
         index:
             index: test
-            type: _doc
             id: 1
             body: {"f1": "v1"}
     - do:
         index:
             index: test
-            type: _doc
             id: 2
             body: {"f1": "v2"}
     - do:
         index:
             index: test
-            type: _doc
             id: 3
             body: {"f1": "v3"}
 
@@ -144,22 +140,19 @@ setup:
                 settings:
                     number_of_shards: 1
                 mappings:
-                    _doc:
-                        properties:
-                            text-location:
-                                type: keyword
-                            location:
-                                type: geo_point
+                    properties:
+                        text-location:
+                            type: keyword
+                        location:
+                            type: geo_point
     - do:
         index:
             index: test
-            type: _doc
             id: 1
             body: { "text-location": "location1", "location" : {"lat" : 40.24, "lon" : -70.24} }
     - do:
         index:
             index: test
-            type: _doc
             id: 2
             body: { "text-location": "location2", "location" : {"lat" : 40.12, "lon" : -70.12} }
     - do:
@@ -239,13 +232,11 @@ setup:
     - do:
         index:
             index: test
-            type: _doc
             id: 1
             body: { "date": "2018-01-01T02:00:00Z"}
     - do:
         index:
             index: test
-            type: _doc
             id: 2
             body: { "date": "2018-01-01T01:00:00Z" }
     - do:
@@ -332,7 +323,6 @@ setup:
     - do:
         index:
             index: test
-            type: _doc
             id: 1
             body: { "ival" : 40, "lval" : 40, "fval": 40.0, "dval": 40.0}
 
@@ -340,7 +330,6 @@ setup:
     - do:
         index:
             index: test
-            type: _doc
             id: 2
             body: { "ival" : [50, 40, 20], "lval" : [50, 40, 20], "fval" : [50.0, 40.0, 20.0], "dval" : [50.0, 40.0, 20.0] }
     - do:

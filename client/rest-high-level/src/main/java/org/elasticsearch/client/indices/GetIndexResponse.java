@@ -22,7 +22,6 @@ package org.elasticsearch.client.indices;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -33,7 +32,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -42,17 +43,17 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class GetIndexResponse {
 
-    private ImmutableOpenMap<String, MappingMetaData> mappings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, List<AliasMetaData>> aliases = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
+    private Map<String, MappingMetaData> mappings;
+    private Map<String, List<AliasMetaData>> aliases;
+    private Map<String, Settings> settings;
+    private Map<String, Settings> defaultSettings;
     private String[] indices;
 
     GetIndexResponse(String[] indices,
-                     ImmutableOpenMap<String, MappingMetaData> mappings,
-                     ImmutableOpenMap<String, List<AliasMetaData>> aliases,
-                     ImmutableOpenMap<String, Settings> settings,
-                     ImmutableOpenMap<String, Settings> defaultSettings) {
+                     Map<String, MappingMetaData> mappings,
+                     Map<String, List<AliasMetaData>> aliases,
+                     Map<String, Settings> settings,
+                     Map<String, Settings> defaultSettings) {
         this.indices = indices;
         // to have deterministic order
         Arrays.sort(indices);
@@ -74,11 +75,11 @@ public class GetIndexResponse {
         return indices;
     }
 
-    public ImmutableOpenMap<String, MappingMetaData> getMappings() {
+    public Map<String, MappingMetaData> getMappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, List<AliasMetaData>> getAliases() {
+    public Map<String, List<AliasMetaData>> getAliases() {
         return aliases;
     }
 
@@ -90,11 +91,11 @@ public class GetIndexResponse {
      * via {@link #getSettings()}.
      * See also {@link GetIndexRequest#includeDefaults(boolean)}
      */
-    public ImmutableOpenMap<String, Settings> getDefaultSettings() {
+    public Map<String, Settings> getDefaultSettings() {
         return defaultSettings;
     }
 
-    public ImmutableOpenMap<String, Settings> getSettings() {
+    public Map<String, Settings> getSettings() {
         return settings;
     }
 
@@ -184,10 +185,10 @@ public class GetIndexResponse {
     }
 
     public static GetIndexResponse fromXContent(XContentParser parser) throws IOException {
-        ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
+        Map<String, List<AliasMetaData>> aliases = new HashMap<>();
+        Map<String, MappingMetaData> mappings = new HashMap<>();
+        Map<String, Settings> settings = new HashMap<>();
+        Map<String, Settings> defaultSettings = new HashMap<>();
         List<String> indices = new ArrayList<>();
 
         if (parser.currentToken() == null) {
@@ -216,10 +217,6 @@ public class GetIndexResponse {
                 parser.nextToken();
             }
         }
-        return
-            new GetIndexResponse(
-                indices.toArray(new String[0]), mappings.build(), aliases.build(),
-                settings.build(), defaultSettings.build()
-            );
+        return new GetIndexResponse(indices.toArray(new String[0]), mappings, aliases, settings, defaultSettings);
     }
 }

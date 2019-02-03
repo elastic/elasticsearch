@@ -73,7 +73,7 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
     public void testSelectOrderByScoreInAggContext() throws Exception {
         index("test", body -> body.field("foo", 1));
         assertFoundOneProblem(command("SELECT foo, COUNT(*) FROM test GROUP BY foo ORDER BY SCORE()"));
-        assertEquals("line 1:54: Cannot order by non-grouped column [SCORE()], expected [foo]" + END, readLine());
+        assertEquals("line 1:54: Cannot order by non-grouped column [SCORE()], expected [foo] or an aggregate function" + END, readLine());
     }
 
     @Override

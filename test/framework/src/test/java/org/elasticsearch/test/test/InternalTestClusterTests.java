@@ -56,16 +56,11 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
-import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.DATA;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.INGEST;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.MASTER;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
-import static org.elasticsearch.node.Node.NODE_MASTER_SETTING;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
@@ -101,7 +96,6 @@ public class InternalTestClusterTests extends ESTestCase {
             nodePrefix, Collections.emptyList(), Function.identity());
         // TODO: this is not ideal - we should have a way to make sure ports are initialized in the same way
         assertClusters(cluster0, cluster1, false);
-
     }
 
     /**
@@ -140,57 +134,29 @@ public class InternalTestClusterTests extends ESTestCase {
         }
     }
 
-    private void assertMMNinNodeSetting(InternalTestCluster cluster, int masterNodes) {
-        for (final String node : cluster.getNodeNames()) {
-            assertMMNinNodeSetting(node, cluster, masterNodes);
-        }
-    }
-
-    private void assertMMNinNodeSetting(String node, InternalTestCluster cluster, int masterNodes) {
-        final int minMasterNodes = masterNodes / 2 + 1;
-        Settings nodeSettings = cluster.client(node).admin().cluster().prepareNodesInfo(node).get().getNodes().get(0).getSettings();
-        assertEquals("node setting of node [" + node + "] has the wrong min_master_node setting: ["
-            + nodeSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) + "]",
-            DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(nodeSettings).intValue(), minMasterNodes);
-    }
-
-    private void assertMMNinClusterSetting(InternalTestCluster cluster, int masterNodes) {
-        for (final String node : cluster.getNodeNames()) {
-            assertMMNinClusterSetting(node, cluster, masterNodes);
-        }
-    }
-
-    private void assertMMNinClusterSetting(String node, InternalTestCluster cluster, int masterNodes) {
-        final int minMasterNodes = masterNodes / 2 + 1;
-        Settings stateSettings = cluster.client(node).admin().cluster().prepareState().setLocal(true)
-            .get().getState().getMetaData().settings();
-
-        assertEquals("dynamic setting for node [" + node + "] has the wrong min_master_node setting : ["
-                + stateSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) + "]",
-            DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(stateSettings).intValue(), minMasterNodes);
-    }
-
     public void testBeforeTest() throws Exception {
         final boolean autoManageMinMasterNodes = randomBoolean();
         long clusterSeed = randomLong();
         final boolean masterNodes;
         final int minNumDataNodes;
         final int maxNumDataNodes;
+        final int bootstrapMasterNodeIndex;
         if (autoManageMinMasterNodes) {
             masterNodes = randomBoolean();
             minNumDataNodes = randomIntBetween(0, 3);
             maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);
+            bootstrapMasterNodeIndex = -1;
         } else {
             // if we manage min master nodes, we need to lock down the number of nodes
             minNumDataNodes = randomIntBetween(0, 4);
             maxNumDataNodes = minNumDataNodes;
             masterNodes = false;
+            bootstrapMasterNodeIndex = maxNumDataNodes == 0 ? -1 : randomIntBetween(0, maxNumDataNodes - 1);
         }
         final int numClientNodes = randomIntBetween(0, 2);
         final String clusterName1 = "shared1";
         final String clusterName2 = "shared2";
         String transportClient = getTestTransportType();
-        final long bootstrapNodeSelectionSeed = randomLong();
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -204,17 +170,8 @@ public class InternalTestClusterTests extends ESTestCase {
                 if (autoManageMinMasterNodes == false) {
                     assert minNumDataNodes == maxNumDataNodes;
                     assert masterNodes == false;
-                    settings.put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minNumDataNodes / 2 + 1);
                 }
                 return settings.build();
-            }
-
-            @Override
-            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-                if (autoManageMinMasterNodes) {
-                    return allNodesSettings;
-                }
-                return addBootstrapConfiguration(new Random(bootstrapNodeSelectionSeed), allNodesSettings);
             }
 
             @Override
@@ -235,9 +192,12 @@ public class InternalTestClusterTests extends ESTestCase {
         InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
             nodePrefix, mockPlugins(), Function.identity());
+        cluster0.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
+
         InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             autoManageMinMasterNodes, minNumDataNodes, maxNumDataNodes, clusterName2, nodeConfigurationSource, numClientNodes,
             nodePrefix, mockPlugins(), Function.identity());
+        cluster1.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();
@@ -257,26 +217,11 @@ public class InternalTestClusterTests extends ESTestCase {
                 Client other = iterator1.next();
                 assertSettings(client.settings(), other.settings(), false);
             }
-            assertMMNinNodeSetting(cluster0, cluster0.numMasterNodes());
-            assertMMNinNodeSetting(cluster1, cluster0.numMasterNodes());
             cluster0.afterTest();
             cluster1.afterTest();
         } finally {
             IOUtils.close(cluster0, cluster1);
         }
-    }
-
-    private static List<Settings> addBootstrapConfiguration(Random random, List<Settings> allNodesSettings) {
-        final List<Settings> updatedSettings = new ArrayList<>(allNodesSettings);
-        final int bootstrapIndex = randomFrom(random, IntStream.range(0, updatedSettings.size())
-            .filter(i -> NODE_MASTER_SETTING.get(allNodesSettings.get(i))).boxed().collect(Collectors.toList()));
-        final Settings settings = updatedSettings.get(bootstrapIndex);
-        assertFalse(INITIAL_MASTER_NODES_SETTING.exists(settings));
-        assertTrue(NODE_MASTER_SETTING.get(settings));
-        updatedSettings.set(bootstrapIndex,
-            Settings.builder().put(settings).putList(INITIAL_MASTER_NODES_SETTING.getKey(), allNodesSettings.stream()
-                .filter(NODE_MASTER_SETTING::get).map(NODE_NAME_SETTING::get).collect(Collectors.toList())).build());
-        return updatedSettings;
     }
 
     public void testDataFolderAssignmentAndCleaning() throws IOException, InterruptedException {
@@ -320,7 +265,6 @@ public class InternalTestClusterTests extends ESTestCase {
         try {
             cluster.beforeTest(random(), 0.0);
             final int originalMasterCount = cluster.numMasterNodes();
-            assertMMNinNodeSetting(cluster, originalMasterCount);
             final Map<String,Path[]> shardNodePaths = new HashMap<>();
             for (String name: cluster.getNodeNames()) {
                 shardNodePaths.put(name, getNodePaths(cluster, name));
@@ -335,10 +279,6 @@ public class InternalTestClusterTests extends ESTestCase {
                 expectedMasterCount--;
             }
             cluster.stopRandomNode(InternalTestCluster.nameFilter(poorNode));
-            if (expectedMasterCount != originalMasterCount) {
-                // check for updated
-                assertMMNinClusterSetting(cluster, expectedMasterCount);
-            }
             assertFileExists(testMarker); // stopping a node half way shouldn't clean data
 
             final String stableNode = randomFrom(cluster.getNodeNames());
@@ -351,14 +291,8 @@ public class InternalTestClusterTests extends ESTestCase {
             expectedMasterCount++;
             assertThat(getNodePaths(cluster, newNode1)[0], equalTo(dataPath));
             assertFileExists(testMarker); // starting a node should re-use data folders and not clean it
-            if (expectedMasterCount > 1) { // this is the first master, it's in cluster state settings won't be updated
-                assertMMNinClusterSetting(cluster, expectedMasterCount);
-            }
-            assertMMNinNodeSetting(newNode1, cluster, expectedMasterCount);
-
             final String newNode2 =  cluster.startNode();
             expectedMasterCount++;
-            assertMMNinClusterSetting(cluster, expectedMasterCount);
             final Path newDataPath = getNodePaths(cluster, newNode2)[0];
             final Path newTestMarker = newDataPath.resolve("newTestMarker");
             assertThat(newDataPath, not(dataPath));
@@ -377,8 +311,6 @@ public class InternalTestClusterTests extends ESTestCase {
                 assertThat("data paths for " + name + " changed", getNodePaths(cluster, name),
                     equalTo(shardNodePaths.get(name)));
             }
-            assertMMNinNodeSetting(cluster, originalMasterCount);
-
         } finally {
             cluster.close();
         }
@@ -393,7 +325,6 @@ public class InternalTestClusterTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37462")
     public void testDifferentRolesMaintainPathOnRestart() throws Exception {
         final Path baseDir = createTempDir();
         final int numNodes = 5;
@@ -401,8 +332,6 @@ public class InternalTestClusterTests extends ESTestCase {
         String transportClient = getTestTransportType();
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false,
                 false, 0, 0, "test", new NodeConfigurationSource() {
-
-            private boolean bootstrapConfigurationSet;
 
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -416,16 +345,6 @@ public class InternalTestClusterTests extends ESTestCase {
                         .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
                         .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                         .build();
-            }
-
-            @Override
-            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-                if (bootstrapConfigurationSet || allNodesSettings.stream().noneMatch(NODE_MASTER_SETTING::get)) {
-                    return allNodesSettings;
-                }
-
-                bootstrapConfigurationSet = true;
-                return addBootstrapConfiguration(random(), allNodesSettings);
             }
 
             @Override
@@ -448,10 +367,7 @@ public class InternalTestClusterTests extends ESTestCase {
             roles.add(role);
         }
 
-        final long masterCount = roles.stream().filter(role -> role == MASTER).count();
-        final Settings minMasterNodes = Settings.builder()
-            .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), masterCount / 2 + 1)
-            .build();
+        cluster.setBootstrapMasterNodeIndex(randomIntBetween(0, (int) roles.stream().filter(role -> role.equals(MASTER)).count() - 1));
 
         try {
             Map<DiscoveryNode.Role, Set<String>> pathsPerRole = new HashMap<>();
@@ -460,13 +376,13 @@ public class InternalTestClusterTests extends ESTestCase {
                 final String node;
                 switch (role) {
                     case MASTER:
-                        node = cluster.startMasterOnlyNode(minMasterNodes);
+                        node = cluster.startMasterOnlyNode();
                         break;
                     case DATA:
-                        node = cluster.startDataOnlyNode(minMasterNodes);
+                        node = cluster.startDataOnlyNode();
                         break;
                     case INGEST:
-                        node = cluster.startCoordinatingOnlyNode(minMasterNodes);
+                        node = cluster.startCoordinatingOnlyNode(Settings.EMPTY);
                         break;
                     default:
                         throw new IllegalStateException("get your story straight");
@@ -476,6 +392,7 @@ public class InternalTestClusterTests extends ESTestCase {
                     assertTrue(rolePaths.add(path.toString()));
                 }
             }
+            cluster.validateClusterFormed();
             cluster.fullRestart();
 
             Map<DiscoveryNode.Role, Set<String>> result = new HashMap<>();
@@ -533,34 +450,18 @@ public class InternalTestClusterTests extends ESTestCase {
             plugins, Function.identity());
         try {
             cluster.beforeTest(random(), 0.0);
-            assertMMNinNodeSetting(cluster, 2);
             switch (randomInt(2)) {
                 case 0:
                     cluster.stopRandomDataNode();
-                    assertMMNinClusterSetting(cluster, 1);
                     cluster.startNode();
-                    assertMMNinClusterSetting(cluster, 2);
-                    assertMMNinNodeSetting(cluster, 2);
                     break;
                 case 1:
-                    cluster.rollingRestart(new InternalTestCluster.RestartCallback() {
-                        @Override
-                        public Settings onNodeStopped(String nodeName) throws Exception {
-                            for (String name : cluster.getNodeNames()) {
-                                if (name.equals(nodeName) == false) {
-                                    assertMMNinClusterSetting(name, cluster, 1);
-                                }
-                            }
-                            return super.onNodeStopped(nodeName);
-                        }
-                    });
-                    assertMMNinClusterSetting(cluster, 2);
+                    cluster.rollingRestart(InternalTestCluster.EMPTY_CALLBACK);
                     break;
                 case 2:
                     cluster.fullRestart();
                     break;
             }
-            assertMMNinNodeSetting(cluster, 2);
         } finally {
             cluster.close();
         }
@@ -585,6 +486,5 @@ public class InternalTestClusterTests extends ESTestCase {
             }
             return Settings.builder().put("node.attr.dummy", true).build();
         }
-
     }
 }

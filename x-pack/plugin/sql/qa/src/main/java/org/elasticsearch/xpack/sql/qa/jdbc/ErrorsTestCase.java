@@ -81,7 +81,9 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase implements org.elast
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () ->
                 c.prepareStatement("SELECT foo, COUNT(*) FROM test GROUP BY foo ORDER BY SCORE()").executeQuery());
-            assertEquals("Found 1 problem(s)\nline 1:54: Cannot order by non-grouped column [SCORE()], expected [foo]", e.getMessage());
+            assertEquals(
+                    "Found 1 problem(s)\nline 1:54: Cannot order by non-grouped column [SCORE()], expected [foo] or an aggregate function",
+                    e.getMessage());
         }
     }
 

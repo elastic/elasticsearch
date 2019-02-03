@@ -10,7 +10,9 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
@@ -143,6 +146,8 @@ public class FunctionRegistry {
         // Aggregate functions
         addToMap(def(Avg.class, Avg::new, "AVG"),
                 def(Count.class, Count::new, "COUNT"),
+                def(First.class, First::new, "FIRST", "FIRST_VALUE"),
+                def(Last.class, Last::new, "LAST", "LAST_VALUE"),
                 def(Max.class, Max::new, "MAX"),
                 def(Min.class, Min::new, "MIN"),
                 def(Sum.class, Sum::new, "SUM"));
@@ -480,7 +485,8 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function,
             BinaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            boolean isBinaryOptionalParamFunction = function.isAssignableFrom(Round.class) || function.isAssignableFrom(Truncate.class);
+            boolean isBinaryOptionalParamFunction = function.isAssignableFrom(Round.class) || function.isAssignableFrom(Truncate.class)
+                    || TopHits.class.isAssignableFrom(function);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
                 throw new IllegalArgumentException("expects one or two arguments");
             } else if (!isBinaryOptionalParamFunction && children.size() != 2) {

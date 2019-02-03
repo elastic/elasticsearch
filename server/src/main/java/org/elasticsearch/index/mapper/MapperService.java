@@ -679,7 +679,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
         return isMappingSourceTyped(type, root);
     }
-    
+
     /**
      * Resolves a type from a mapping-related request into the type that should be used when
      * merging and updating mappings.

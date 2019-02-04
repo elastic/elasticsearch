@@ -14,7 +14,7 @@ while handling a write operation, it may expose a version that will then be reus
 new primary.
 
 Due to that issue, internal versioning can no longer be used and is replaced by a new
-method based on sequence numbers. See <<concurrency-control>> for more details.
+method based on sequence numbers. See <<optimistic-concurrency-control>> for more details.
 
 Note that the `EXTERNAL` versioning type is still fully supported.
 

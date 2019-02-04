@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -47,6 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.InternalSettingsPlugin.TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 /** Unit test(s) for IndexService */
@@ -109,7 +111,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         latch2.get().countDown();
         assertEquals(2, count.get());
 
-
         task = new IndexService.BaseAsyncTask(indexService, TimeValue.timeValueMillis(1000000)) {
             @Override
             protected void runInternal() {
@@ -117,6 +118,34 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             }
         };
         assertTrue(task.mustReschedule());
+
+        // now close the index
+        final Index index = indexService.index();
+        assertAcked(client().admin().indices().prepareClose(index.getName()));
+        awaitBusy(() -> getInstanceFromNode(IndicesService.class).hasIndex(index));
+
+        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        assertNotSame(indexService, closedIndexService);
+        assertFalse(task.mustReschedule());
+        assertFalse(task.isClosed());
+        assertEquals(1000000, task.getInterval().millis());
+
+        // now reopen the index
+        assertAcked(client().admin().indices().prepareOpen(index.getName()));
+        awaitBusy(() -> getInstanceFromNode(IndicesService.class).hasIndex(index));
+        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        assertNotSame(closedIndexService, indexService);
+
+        task = new IndexService.BaseAsyncTask(indexService, TimeValue.timeValueMillis(100000)) {
+            @Override
+            protected void runInternal() {
+
+            }
+        };
+        assertTrue(task.mustReschedule());
+        assertFalse(task.isClosed());
+        assertTrue(task.isScheduled());
+
         indexService.close("simon says", false);
         assertFalse("no shards left", task.mustReschedule());
         assertTrue(task.isScheduled());
@@ -124,7 +153,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertFalse(task.isScheduled());
     }
 
-    public void testRefreshTaskIsUpdated() throws IOException {
+    public void testRefreshTaskIsUpdated() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
         IndexService.AsyncRefreshTask refreshTask = indexService.getRefreshTask();
         assertEquals(1000, refreshTask.getInterval().millis());
@@ -167,12 +196,35 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(refreshTask.isScheduled());
         assertFalse(refreshTask.isClosed());
         assertEquals(200, refreshTask.getInterval().millis());
+
+        // now close the index
+        final Index index = indexService.index();
+        assertAcked(client().admin().indices().prepareClose(index.getName()));
+        awaitBusy(() -> getInstanceFromNode(IndicesService.class).hasIndex(index));
+
+        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        assertNotSame(indexService, closedIndexService);
+        assertNotSame(refreshTask, closedIndexService.getRefreshTask());
+        assertFalse(closedIndexService.getRefreshTask().mustReschedule());
+        assertFalse(closedIndexService.getRefreshTask().isClosed());
+        assertEquals(200, closedIndexService.getRefreshTask().getInterval().millis());
+
+        // now reopen the index
+        assertAcked(client().admin().indices().prepareOpen(index.getName()));
+        awaitBusy(() -> getInstanceFromNode(IndicesService.class).hasIndex(index));
+        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        assertNotSame(closedIndexService, indexService);
+        refreshTask = indexService.getRefreshTask();
+        assertTrue(indexService.getRefreshTask().mustReschedule());
+        assertTrue(refreshTask.isScheduled());
+        assertFalse(refreshTask.isClosed());
+
         indexService.close("simon says", false);
         assertFalse(refreshTask.isScheduled());
         assertTrue(refreshTask.isClosed());
     }
 
-    public void testFsyncTaskIsRunning() throws IOException {
+    public void testFsyncTaskIsRunning() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC).build();
         IndexService indexService = createIndex("test", settings);
@@ -181,6 +233,28 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertEquals(5000, fsyncTask.getInterval().millis());
         assertTrue(fsyncTask.mustReschedule());
         assertTrue(fsyncTask.isScheduled());
+
+        // now close the index
+        final Index index = indexService.index();
+        assertAcked(client().admin().indices().prepareClose(index.getName()));
+        awaitBusy(() -> getInstanceFromNode(IndicesService.class).hasIndex(index));
+
+        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        assertNotSame(indexService, closedIndexService);
+        assertNotSame(fsyncTask, closedIndexService.getFsyncTask());
+        assertFalse(closedIndexService.getFsyncTask().mustReschedule());
+        assertFalse(closedIndexService.getFsyncTask().isClosed());
+        assertEquals(5000, closedIndexService.getFsyncTask().getInterval().millis());
+
+        // now reopen the index
+        assertAcked(client().admin().indices().prepareOpen(index.getName()));
+        awaitBusy(() -> getInstanceFromNode(IndicesService.class).hasIndex(index));
+        indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        assertNotSame(closedIndexService, indexService);
+        fsyncTask = indexService.getFsyncTask();
+        assertTrue(indexService.getRefreshTask().mustReschedule());
+        assertTrue(fsyncTask.isScheduled());
+        assertFalse(fsyncTask.isClosed());
 
         indexService.close("simon says", false);
         assertFalse(fsyncTask.isScheduled());

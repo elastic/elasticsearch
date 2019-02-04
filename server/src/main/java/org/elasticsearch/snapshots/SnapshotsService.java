@@ -121,6 +121,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final Map<Snapshot, List<ActionListener<SnapshotInfo>>> snapshotCompletionListeners = new ConcurrentHashMap<>();
 
+    // Set of snapshots that are currently being
+    private final Set<SnapshotId> endingSnapshots = new HashSet<>();
+
     @Inject
     public SnapshotsService(Settings settings, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                             RepositoriesService repositoriesService, ThreadPool threadPool) {
@@ -382,7 +385,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     metaData = builder.build();
                 }
 
-                repository.initializeSnapshot(snapshot.snapshot().getSnapshotId(), snapshot.indices(), metaData);
+                synchronized (endingSnapshots) {
+                    final SnapshotId snapshotId = snapshot.snapshot().getSnapshotId();
+                    if (endingSnapshots.contains(snapshotId)) {
+                        // Snapshot was already aborted concurrently, we're done here.
+                        userCreateSnapshotListener.onResponse(snapshot.snapshot());
+                        return;
+                    }
+                    repository.initializeSnapshot(snapshotId, snapshot.indices(), metaData);
+                }
                 snapshotCreated = true;
 
                 logger.info("snapshot [{}] started", snapshot.snapshot());
@@ -408,7 +419,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
 
                             if (entry.state() != State.ABORTED) {
-                                // Replace the snapshot that was just intialized
+                                // Replace the snapshot that was just initialized
                                 ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards =
                                         shards(currentState, entry.indices());
                                 if (!partial) {
@@ -443,8 +454,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 }
                             } else {
                                 assert entry.state() == State.ABORTED : "expecting snapshot to be aborted during initialization";
-                                failure = "snapshot was aborted during initialization";
-                                endSnapshot = entry;
                                 entries.add(endSnapshot);
                             }
                         }
@@ -995,6 +1004,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param failure failure reason or null if snapshot was successful
      */
     private void endSnapshot(final SnapshotsInProgress.Entry entry, final String failure) {
+        synchronized (endingSnapshots) {
+            if (endingSnapshots.add(entry.snapshot().getSnapshotId()) == false) {
+                return;
+            }
+        }
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
@@ -1075,6 +1089,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to remove snapshot metadata", snapshot), e);
+                endedSnapshot(snapshot.getSnapshotId());
                 if (listener != null) {
                     listener.onFailure(e);
                 }
@@ -1082,6 +1097,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onNoLongerMaster(String source) {
+                endedSnapshot(snapshot.getSnapshotId());
                 if (listener != null) {
                     listener.onNoLongerMaster();
                 }
@@ -1101,11 +1117,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         logger.warn("Failed to notify listeners", e);
                     }
                 }
+                endedSnapshot(snapshot.getSnapshotId());
                 if (listener != null) {
                     listener.onResponse(snapshotInfo);
                 }
             }
         });
+    }
+
+    private void endedSnapshot(SnapshotId snapshotId) {
+        synchronized (endingSnapshots) {
+            endingSnapshots.remove(snapshotId);
+        }
     }
 
     /**

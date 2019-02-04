@@ -421,8 +421,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 logger.info("snapshot [{}] started", snapshot.snapshot());
                 if (snapshot.indices().isEmpty()) {
                     // No indices in this snapshot - we are done
-                    endSnapshot(snapshot);
                     userCreateSnapshotListener.onResponse(snapshot.snapshot());
+                    endSnapshot(snapshot);
                     return;
                 }
                 clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshot() + "]", new ClusterStateUpdateTask() {

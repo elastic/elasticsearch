@@ -34,6 +34,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -83,13 +84,15 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so
  * their tests can use them. Most methods run in the listener thread pool because the are meant to be fast and don't expect to block.
  */
-public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>> {
+public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>,
+    Action extends TransportAction<Request, ?>> {
+
     protected final Logger logger;
     protected final BulkByScrollTask task;
     protected final WorkerBulkByScrollTaskState worker;
     protected final ThreadPool threadPool;
-    protected final ScriptService scriptService;
 
+    protected final Action mainAction;
     /**
      * The request for this action. Named mainRequest because we create lots of <code>request</code> variables all representing child
      * requests of this mainRequest.
@@ -113,7 +116,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
                                            boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
-                                           ThreadPool threadPool, Request mainRequest, ScriptService scriptService,
+                                           ThreadPool threadPool, Action mainAction, Request mainRequest, 
                                            ActionListener<BulkByScrollResponse> listener) {
 
         this.task = task;
@@ -125,7 +128,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.logger = logger;
         this.client = client;
         this.threadPool = threadPool;
-        this.scriptService = scriptService;
+        this.mainAction = mainAction;
         this.mainRequest = mainRequest;
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();

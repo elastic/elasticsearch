@@ -3706,7 +3706,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38223")
     public void testRestoreIncreasesPrimaryTerms() {
         final String indexName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
         createIndex(indexName, Settings.builder()
@@ -3719,7 +3718,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             // open and close the index to increase the primary terms
             for (int i = 0; i < randomInt(3); i++) {
                 assertAcked(client().admin().indices().prepareClose(indexName));
-                assertAcked(client().admin().indices().prepareOpen(indexName));
+                assertAcked(client().admin().indices().prepareOpen(indexName).setWaitForActiveShards(ActiveShardCount.DEFAULT));
             }
         }
 

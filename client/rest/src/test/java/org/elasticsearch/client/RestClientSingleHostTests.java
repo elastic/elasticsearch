@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.ConnectionClosedException;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
@@ -55,11 +56,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import javax.net.ssl.SSLHandshakeException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.SocketTimeoutException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -81,6 +84,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -123,6 +127,16 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                             throw new SocketTimeoutException();
                         } else if (request.getURI().getPath().equals("/coe")) {
                             throw new ConnectTimeoutException();
+                        } else if (request.getURI().getPath().equals("/ioe")) {
+                            throw new IOException();
+                        } else if (request.getURI().getPath().equals("/closed")) {
+                            throw new ConnectionClosedException();
+                        } else if (request.getURI().getPath().equals("/handshake")) {
+                            throw new SSLHandshakeException("");
+                        } else if (request.getURI().getPath().equals("/uri")) {
+                            throw new URISyntaxException("", "");
+                        } else if (request.getURI().getPath().equals("/runtime")) {
+                            throw new RuntimeException();
                         } else {
                             int statusCode = Integer.parseInt(request.getURI().getPath().substring(1));
                             StatusLine statusLine = new BasicStatusLine(new ProtocolVersion("http", 1, 1), statusCode, "");
@@ -255,14 +269,24 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
     }
 
-    public void testIOExceptions() {
+    public void testExceptions() throws IOException {
         for (String method : getHttpMethods()) {
             //IOExceptions should be let bubble up
+            try {
+                restClient.performRequest(new Request(method, "/ioe"));
+                fail("request should have failed");
+            } catch(IOException e) {
+                // And we do all that so the thrown exception has our method in the stacktrace
+                assertExceptionStackContainsCallingMethod(e);
+            }
+            failureListener.assertCalled(singletonList(node));
             try {
                 restClient.performRequest(new Request(method, "/coe"));
                 fail("request should have failed");
             } catch(IOException e) {
                 assertThat(e, instanceOf(ConnectTimeoutException.class));
+                // And we do all that so the thrown exception has our method in the stacktrace
+                assertExceptionStackContainsCallingMethod(e);
             }
             failureListener.assertCalled(singletonList(node));
             try {
@@ -270,6 +294,44 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 fail("request should have failed");
             } catch(IOException e) {
                 assertThat(e, instanceOf(SocketTimeoutException.class));
+                // And we do all that so the thrown exception has our method in the stacktrace
+                assertExceptionStackContainsCallingMethod(e);
+            }
+            failureListener.assertCalled(singletonList(node));
+            try {
+                restClient.performRequest(new Request(method, "/closed"));
+                fail("request should have failed");
+            } catch(IOException e) {
+                assertThat(e, instanceOf(ConnectionClosedException.class));
+                // And we do all that so the thrown exception has our method in the stacktrace
+                assertExceptionStackContainsCallingMethod(e);
+            }
+            failureListener.assertCalled(singletonList(node));
+            try {
+                restClient.performRequest(new Request(method, "/handshake"));
+                fail("request should have failed");
+            } catch(IOException e) {
+                assertThat(e, instanceOf(SSLHandshakeException.class));
+                // And we do all that so the thrown exception has our method in the stacktrace
+                assertExceptionStackContainsCallingMethod(e);
+            }
+            failureListener.assertCalled(singletonList(node));
+            try {
+                restClient.performRequest(new Request(method, "/uri"));
+                fail("request should have failed");
+            } catch (RuntimeException e) {
+                assertThat(e.getCause(), instanceOf(URISyntaxException.class));
+                // And we do all that so the thrown exception has our method in the stacktrace
+                assertExceptionStackContainsCallingMethod(e);
+            }
+            failureListener.assertCalled(singletonList(node));
+            try {
+                restClient.performRequest(new Request(method, "/runtime"));
+                fail("request should have failed");
+            } catch (RuntimeException e) {
+                assertNull(e.getCause());
+                // And we do all that so the thrown exception has our method in the stacktrace
+                assertExceptionStackContainsCallingMethod(e);
             }
             failureListener.assertCalled(singletonList(node));
         }
@@ -537,20 +599,19 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      * to make sure that the caller shows up in the exception. We use this
      * assertion to make sure that we don't break that "special care".
      */
-    //TODO do we still need this?
-    private static void assertExceptionStackContainsCallingMethod(Exception e) {
+    private static void assertExceptionStackContainsCallingMethod(Throwable t) {
         // 0 is getStackTrace
         // 1 is this method
         // 2 is the caller, what we want
         StackTraceElement myMethod = Thread.currentThread().getStackTrace()[2];
-        for (StackTraceElement se : e.getStackTrace()) {
+        for (StackTraceElement se : t.getStackTrace()) {
             if (se.getClassName().equals(myMethod.getClassName())
                 && se.getMethodName().equals(myMethod.getMethodName())) {
                 return;
             }
         }
         StringWriter stack = new StringWriter();
-        e.printStackTrace(new PrintWriter(stack));
+        t.printStackTrace(new PrintWriter(stack));
         fail("didn't find the calling method (looks like " + myMethod + ") in:\n" + stack);
     }
 }

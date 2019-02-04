@@ -57,7 +57,7 @@ public abstract class Rounding implements Writeable {
     public enum DateTimeUnit {
         WEEK_OF_WEEKYEAR((byte) 1, IsoFields.WEEK_OF_WEEK_BASED_YEAR) {
             long roundFloor(long utcMillis) {
-                return DateUtils.roundFloor(utcMillis + 3 * 86400 * 1000L, 604800000) - 3 * 86400 * 1000L;
+                return DateUtils.roundWeekOfWeekYear(utcMillis);
             }
         },
         YEAR_OF_CENTURY((byte) 2, ChronoField.YEAR_OF_ERA) {

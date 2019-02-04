@@ -970,10 +970,12 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertTrue(response.isIndexFollowingStarted());
 
         final PutFollowAction.Request followRequest2 = putFollow("index1", "index2");
-        expectThrows(SnapshotRestoreException.class,  () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest2).actionGet());
+        expectThrows(SnapshotRestoreException.class,
+            () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest2).actionGet());
 
         followerClient().admin().indices().prepareClose("index2").get();
-        expectThrows(ResourceAlreadyExistsException.class,  () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest2).actionGet());
+        expectThrows(ResourceAlreadyExistsException.class,
+            () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest2).actionGet());
     }
 
     public void testIndexFallBehind() throws Exception {

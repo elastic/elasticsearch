@@ -466,7 +466,7 @@ final class StoreRecovery {
             final Store store = indexShard.store();
             store.bootstrapNewHistory();
             final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-            final long localCheckpoint =  Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
             final String translogUUID = Translog.createEmptyTranslog(
                 indexShard.shardPath().resolveTranslog(), localCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);

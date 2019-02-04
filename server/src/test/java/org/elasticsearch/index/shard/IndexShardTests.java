@@ -2151,7 +2151,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard target = newStartedShard(true);
 
         indexDoc(source, "_doc", "0");
-        EngineTestCase.generateNewSeqNo(source.getEngine());
+        EngineTestCase.generateNewSeqNo(source.getEngine()); // create a gap in the history
         indexDoc(source, "_doc", "2");
         if (randomBoolean()) {
             source.refresh("test");

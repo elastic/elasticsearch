@@ -41,7 +41,6 @@ public final class DeprecationRoleDescriptorPreprocessor implements BiConsumer<S
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.cacheKeys = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
-            private static final long serialVersionUID = 1L;
             @Override
             protected boolean removeEldestEntry(final Map.Entry<String, Boolean> eldest) {
                 return size() > 128;
@@ -54,7 +53,7 @@ public final class DeprecationRoleDescriptorPreprocessor implements BiConsumer<S
         threadPool.generic().execute(() -> {
             final SortedMap<String, AliasOrIndex> aliasOrIndexMap = clusterService.state().metaData().getAliasAndIndexLookup();
             // stash context as we do not want to propagate deprecation response headers
-            try (final ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+            try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
                 // iterate on indices privileges of all effective role descriptors
                 for (final RoleDescriptor roleDescriptor : effectiveRoleDescriptors) {
                     for (final IndicesPrivileges indicesPrivilege : roleDescriptor.getIndicesPrivileges()) {

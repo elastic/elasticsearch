@@ -18,7 +18,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -108,7 +108,7 @@ public class AutoDetectResultProcessor {
     private volatile Date latestDateForEstablishedModelMemoryCalc;
     private volatile long latestEstablishedModelMemory;
     private volatile boolean haveNewLatestModelSizeStats;
-    private Future<?> scheduledEstablishedModelMemoryUpdate; // only accessed in synchronized methods
+    private Scheduler.Cancellable scheduledEstablishedModelMemoryUpdate; // only accessed in synchronized methods
 
     public AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
                                      JobResultsPersister persister, JobResultsProvider jobResultsProvider,
@@ -387,8 +387,8 @@ public class AutoDetectResultProcessor {
 
         if (scheduledEstablishedModelMemoryUpdate == null) {
             try {
-                scheduledEstablishedModelMemoryUpdate = client.threadPool().schedule(delay, MachineLearning.UTILITY_THREAD_POOL_NAME,
-                    () -> runEstablishedModelMemoryUpdate(false));
+                scheduledEstablishedModelMemoryUpdate = client.threadPool().schedule(
+                    () -> runEstablishedModelMemoryUpdate(false), delay, MachineLearning.UTILITY_THREAD_POOL_NAME);
                 LOGGER.trace("[{}] Scheduled established model memory update to run in [{}]", jobId, delay);
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
@@ -416,7 +416,7 @@ public class AutoDetectResultProcessor {
         if (scheduledEstablishedModelMemoryUpdate != null) {
             if (cancelExisting) {
                 LOGGER.debug("[{}] Bringing forward previously scheduled established model memory update", jobId);
-                FutureUtils.cancel(scheduledEstablishedModelMemoryUpdate);
+                scheduledEstablishedModelMemoryUpdate.cancel();
             }
             scheduledEstablishedModelMemoryUpdate = null;
             updateEstablishedModelMemoryOnJob();

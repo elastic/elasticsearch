@@ -18,7 +18,17 @@
  */
 package org.elasticsearch.env;
 
+import junit.framework.AssertionFailedError;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LoggingException;
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.ErrorHandler;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.lucene.index.SegmentInfos;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -31,6 +41,7 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -53,6 +64,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ESTestCase {
@@ -473,6 +485,159 @@ public class NodeEnvironmentTests extends ESTestCase {
             final Path targetTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
             assertFalse(targetTempFile + " should have been cleaned", Files.exists(targetTempFile));
         }
+    }
+
+    // backported from 7.0, but in 6.x this only prints warnings. We keep the original test as is to ease further backports and ensure
+    // that log messages convert into exceptions.
+    public void testEnsureNoShardDataOrIndexMetaData6x() throws IOException, IllegalAccessException {
+        // Convert warn log messages into exceptions and call original test case.
+        Appender appender = new AbstractAppender("convertToException", null, null, false) {
+            @Override
+            public void append(LogEvent event) {
+                if (event.getLevel() == Level.WARN
+                    && event.getMessage().getFormattedMessage()
+                    .endsWith(", this should be cleaned up (will refuse to start in 7.0). Create a backup copy before removing.")) {
+                    assertWarnings(event.getMessage().getFormattedMessage());
+                    throw new LoggingException(new IllegalStateException(event.getMessage().getFormattedMessage()));
+                }
+            }
+        };
+        appender.setHandler(new ErrorHandler() {
+            @Override
+            public void error(String msg) {
+            }
+
+            @Override
+            public void error(String msg, Throwable t) {
+            }
+
+            @Override
+            public void error(String msg, LogEvent event, Throwable t) {
+            }
+        });
+        appender.start();
+        Logger nodeEnvironmentLogger = LogManager.getLogger(NodeEnvironment.class.getName().replace("org.elasticsearch.",
+            "org.elasticsearch.deprecation."));
+        Loggers.addAppender(nodeEnvironmentLogger, appender);
+        try {
+            testEnsureNoShardDataOrIndexMetaData();
+        } finally {
+            Loggers.removeAppender(nodeEnvironmentLogger, appender);
+            appender.stop();
+        }
+    }
+
+    private static <T extends Throwable> T expectLoggingThrows(Class<T> expectedType,
+                                                               String noExceptionMessage,
+                                                               ThrowingRunnable runnable) {
+        try {
+            runnable.run();
+        } catch (Throwable e) {
+            if (e instanceof LoggingException) {
+                e = e.getCause();
+            }
+            if (expectedType.isInstance(e)) {
+                return expectedType.cast(e);
+            }
+            AssertionFailedError assertion =
+                new AssertionFailedError("Unexpected exception type, expected " + expectedType.getSimpleName() + " but got " + e);
+            assertion.initCause(e);
+            throw assertion;
+        }
+        throw new AssertionFailedError(noExceptionMessage);
+    }
+
+    // exact 7.0 copy (except private on purpose to disable test and expectLoggingThrows used)
+    private void testEnsureNoShardDataOrIndexMetaData() throws IOException {
+        Settings settings = buildEnvSettings(Settings.EMPTY);
+        Index index = new Index("test", "testUUID");
+
+        // build settings using same path.data as original but with node.data=false and node.master=false
+        Settings noDataNoMasterSettings = Settings.builder()
+            .put(settings)
+            .put(Node.NODE_DATA_SETTING.getKey(), false)
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .build();
+
+        // test that we can create data=false and master=false with no meta information
+        newNodeEnvironment(noDataNoMasterSettings).close();
+
+        Path indexPath;
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            for (Path path : env.indexPaths(index)) {
+                Files.createDirectories(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+            }
+            indexPath = env.indexPaths(index)[0];
+        }
+
+        verifyFailsOnMetaData(noDataNoMasterSettings, indexPath);
+
+        // build settings using same path.data as original but with node.data=false
+        Settings noDataSettings = Settings.builder()
+            .put(settings)
+            .put(Node.NODE_DATA_SETTING.getKey(), false).build();
+
+        String shardDataDirName = Integer.toString(randomInt(10));
+
+        // test that we can create data=false env with only meta information. Also create shard data for following asserts
+        try (NodeEnvironment env = newNodeEnvironment(noDataSettings)) {
+            for (Path path : env.indexPaths(index)) {
+                Files.createDirectories(path.resolve(shardDataDirName));
+            }
+        }
+
+        verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
+
+        // assert that we get the stricter message on meta-data when both conditions fail
+        verifyFailsOnMetaData(noDataNoMasterSettings, indexPath);
+
+        // build settings using same path.data as original but with node.master=false
+        Settings noMasterSettings = Settings.builder()
+            .put(settings)
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .build();
+
+        // test that we can create master=false env regardless of data.
+        newNodeEnvironment(noMasterSettings).close();
+
+        // test that we can create data=true, master=true env. Also remove state dir to leave only shard data for following asserts
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            for (Path path : env.indexPaths(index)) {
+                Files.delete(path.resolve(MetaDataStateFormat.STATE_DIR_NAME));
+            }
+        }
+
+        // assert that we fail on shard data even without the metadata dir.
+        verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
+        verifyFailsOnShardData(noDataNoMasterSettings, indexPath, shardDataDirName);
+    }
+
+    private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {
+        IllegalStateException ex = expectLoggingThrows(IllegalStateException.class,
+            "Must fail creating NodeEnvironment on a data path that has shard data if node.data=false",
+            () -> newNodeEnvironment(settings).close());
+
+        assertThat(ex.getMessage(),
+            containsString(indexPath.resolve(shardDataDirName).toAbsolutePath().toString()));
+        assertThat(ex.getMessage(),
+            startsWith("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false, but has shard data"));
+    }
+
+    private void verifyFailsOnMetaData(Settings settings, Path indexPath) {
+        IllegalStateException ex = expectLoggingThrows(IllegalStateException.class,
+            "Must fail creating NodeEnvironment on a data path that has index meta-data if node.data=false and node.master=false",
+            () -> newNodeEnvironment(settings).close());
+
+        assertThat(ex.getMessage(),
+            containsString(indexPath.resolve(MetaDataStateFormat.STATE_DIR_NAME).toAbsolutePath().toString()));
+        assertThat(ex.getMessage(),
+            startsWith("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false and "
+                + Node.NODE_MASTER_SETTING.getKey()
+                + "=false, but has index metadata"));
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */

@@ -35,6 +35,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -863,13 +864,17 @@ public final class TokenService extends AbstractComponent {
                             try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(authString))) {
                                 in.setVersion(authVersion);
                                 Authentication authentication = new Authentication(in);
-                                UpdateRequest updateRequest =
+                                UpdateRequestBuilder updateRequest =
                                     client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
-                                        .setVersion(response.getVersion())
                                         .setDoc("refresh_token", Collections.singletonMap("refreshed", true))
-                                        .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-                                        .request();
-                                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest,
+                                        .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+                                if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0)) {
+                                    updateRequest.setIfSeqNo(response.getSeqNo());
+                                    updateRequest.setIfPrimaryTerm(response.getPrimaryTerm());
+                                } else {
+                                    updateRequest.setVersion(response.getVersion());
+                                }
+                                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
                                     ActionListener.<UpdateResponse>wrap(
                                         updateResponse -> createUserToken(authentication, userAuth, listener, metadata, true),
                                         e -> {

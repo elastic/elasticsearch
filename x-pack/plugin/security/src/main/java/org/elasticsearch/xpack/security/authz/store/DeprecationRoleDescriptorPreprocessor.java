@@ -30,14 +30,15 @@ import java.util.function.Predicate;
 
 public final class DeprecationRoleDescriptorPreprocessor implements BiConsumer<Set<RoleDescriptor>, ActionListener<Set<RoleDescriptor>>> {
 
+    // package-private for testing
+    static final String DEPRECATION_STANZA = "Role [{}] grants index privileges over the [{}] alias and not over the [{}] index."
+            + " Granting privileges over an alias and hence granting privileges over all the indices that it points to is deprecated and"
+            + " will be removed in a future version of Elasticsearch. Instead define permissions exclusively on indices or index patterns.";
+
     private final DeprecationLogger deprecationLogger;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Set<String> cacheKeys;
-    // package-private for testing
-    final static String DEPRECATION_STANZA = "Role [{}] grants index privileges over the [{}] alias and not over the [{}] index."
-    + " Granting privileges over an alias and hence granting privileges over all the indices that it points to is deprecated and"
-    + " will be removed in a future version of Elasticsearch. Instead define permissions exclusively on indices or index patterns.";
 
     public DeprecationRoleDescriptorPreprocessor(ClusterService clusterService, ThreadPool threadPool,
                                                  DeprecationLogger deprecationLogger) {

@@ -91,14 +91,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (version.before(Version.V_6_7_0)) {
             assertNull(deserializedRequest.getLocalClusterAlias());
             assertAbsoluteStartMillisIsCurrentTime(deserializedRequest);
+            assertTrue(deserializedRequest.isFinalReduce());
         } else {
             assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
             assertEquals(searchRequest.getOrCreateAbsoluteStartMillis(), deserializedRequest.getOrCreateAbsoluteStartMillis());
-        }
-        //TODO move to the 6_7_0 branch once backported to 6.x
-        if (version.before(Version.V_7_0_0)) {
-            assertTrue(deserializedRequest.isFinalReduce());
-        } else {
             assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
         }
     }

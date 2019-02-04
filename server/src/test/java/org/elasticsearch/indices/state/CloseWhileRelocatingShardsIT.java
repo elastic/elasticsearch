@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.plugins.Plugin;
@@ -58,6 +59,7 @@ import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsOpened;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 
+@TestLogging("org.elasticsearch.cluster.metadata.MetaDataIndexStateService:DEBUG,org.elasticsearch.action.admin.indices.close:DEBUG")
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
 
@@ -80,8 +82,6 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
         return 3;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38090")
-    @TestLogging("org.elasticsearch.cluster.metadata.MetaDataIndexStateService:DEBUG,org.elasticsearch.action.admin.indices.close:DEBUG")
     public void testCloseWhileRelocatingShards() throws Exception {
         final String[] indices = new String[randomIntBetween(3, 5)];
         final Map<String, Long> docsPerIndex = new HashMap<>();
@@ -152,14 +152,17 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 targetTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, sourceNode.getName()),
                         (connection, requestId, action, request, options) -> {
                             if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action)) {
-                                logger.debug("blocking recovery of shard {}", ((StartRecoveryRequest) request).shardId());
+                                final ShardId recoveringShardId = ((StartRecoveryRequest) request).shardId();
+                                logger.debug("blocking recovery of shard {}", recoveringShardId);
                                 latch.countDown();
                                 try {
+                                    logger.debug("waiting for recovery of shard {} to be released", recoveringShardId);
                                     release.await();
-                                    logger.debug("releasing recovery of shard {}", ((StartRecoveryRequest) request).shardId());
+                                    logger.debug("releasing recovery of shard {}", recoveringShardId);
                                 } catch (InterruptedException e) {
                                     throw new AssertionError(e);
                                 }
+                                logger.debug("recovery of shard {} released", recoveringShardId);
                             }
                             connection.sendRequest(requestId, action, request, options);
                         }
@@ -174,16 +177,20 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             for (final String indexToClose : indices) {
                 final Thread thread = new Thread(() -> {
                     try {
+                        logger.debug("[{}] waiting for shards to start recovering", indexToClose);
                         latch.await();
+                        logger.debug("[{}] shards started to recover", indexToClose);
                     } catch (InterruptedException e) {
                         throw new AssertionError(e);
                     } finally {
                         release.countDown();
+                        logger.debug("[{}] releasing shard recovering", indexToClose);
                     }
                     // Closing is not always acknowledged when shards are relocating: this is the case when the target shard is initializing
                     // or is catching up operations. In these cases the TransportVerifyShardBeforeCloseAction will detect that the global
                     // and max sequence number don't match and will not ack the close.
                     AcknowledgedResponse closeResponse = client().admin().indices().prepareClose(indexToClose).get();
+                    logger.debug("[{}] index closing is {}", indexToClose, closeResponse.isAcknowledged());
                     if (closeResponse.isAcknowledged()) {
                         assertTrue("Index closing should not be acknowledged twice", acknowledgedCloses.add(indexToClose));
                     }
@@ -221,6 +228,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 }
             }
 
+            logger.debug("clearing transport service rules");
             targetTransportService.clearAllRules();
 
             assertThat("Consider that the test failed if no indices were successfully closed", acknowledgedCloses.size(), greaterThan(0));
@@ -232,6 +240,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 assertEquals("Expected " + docsPerIndex.get(index) + " docs in index " + index + " but got " + docsCount
                     + " (close acknowledged=" + acknowledgedCloses.contains(index) + ")", (long) docsPerIndex.get(index), docsCount);
             }
+            logger.debug("test done");
         } finally {
             assertAcked(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()

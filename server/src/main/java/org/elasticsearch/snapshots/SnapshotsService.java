@@ -287,10 +287,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                                 snapshotIndices,
                                                                 System.currentTimeMillis(),
                                                                 repositoryData.getGenId(),
-                                                                null,
                                                                 null);
-                    final boolean added = initializingSnapshots.add(newSnapshot.snapshot());
-                    assert added;
+                    initializingSnapshots.add(newSnapshot.snapshot());
                     snapshots = new SnapshotsInProgress(newSnapshot);
                 } else {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");

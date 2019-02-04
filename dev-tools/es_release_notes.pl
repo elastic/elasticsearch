@@ -29,7 +29,7 @@ my $Issue_URL  = "http://github.com/${User_Repo}issues/";
 
 my @Groups = (
     ">breaking",    ">breaking-java", ">deprecation", ">feature",
-    ">enhancement", ">bug",           ">regression",  ">upgrade"
+    ">enhancement", ">bug", ">regression",  ">upgrade", ">test-mute"
 );
 my %Ignore = map { $_ => 1 }
     ( ">non-issue", ">refactoring", ">docs", ">test", ">test-failure", ":Core/Infra/Build", "backport" );

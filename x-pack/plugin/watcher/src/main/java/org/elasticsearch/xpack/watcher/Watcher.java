@@ -176,12 +176,12 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.WeeklySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.YearlySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -609,7 +609,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         List<String> indices = new ArrayList<>();
         indices.add(".watches");
         indices.add(".triggered_watches");
-        DateTime now = new DateTime(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         indices.add(HistoryStoreField.getHistoryIndexNameForTime(now));
         indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1)));
         indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1)));
@@ -645,7 +645,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
                 " for the next 6 months daily history indices are allowed to be created, but please make sure" +
                 " that any future history indices after 6 months with the pattern " +
-                "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
+                "[.watcher-history-yyyy.MM.dd] are allowed to be created", value);
     }
 
     // These are all old templates from pre 6.0 era, that need to be deleted

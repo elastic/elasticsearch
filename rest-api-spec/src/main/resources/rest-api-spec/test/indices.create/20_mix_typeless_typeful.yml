@@ -2,8 +2,8 @@
 "Create a typeless index while there is a typed template":
 
  - skip:
-      version: " - 6.99.99"
-      reason: needs change to be backported to 6.7
+      version: " - 6.6.99"
+      reason: Merging typeless/typed mappings/templates was added in 6.7
 
  - do:
       indices.put_template:
@@ -19,7 +19,6 @@
 
  - do:
       indices.create:
-          include_type_name: false
           index: test-1
           body:
               mappings:
@@ -41,8 +40,8 @@
 "Create a typed index while there is a typeless template":
 
  - skip:
-      version: " - 6.99.99"
-      reason: needs change to be backported to 6.7
+      version: " - 6.6.99"
+      reason: Merging typeless/typed mappings/templates was added in 6.7
 
  - do:
       indices.put_template:
@@ -81,7 +80,7 @@
 
  - skip:
       version: " - 6.99.99"
-      reason: needs change to be backported to 6.7
+      reason: include_type_name only supported as of 6.7
 
  - do:
       indices.put_template:
@@ -123,7 +122,6 @@
  - do:
       index:
           index: test-1
-          type: my_type
           body: { bar: 42 }
 
  - do:

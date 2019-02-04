@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.Line;
 import org.elasticsearch.geo.geometry.MultiLine;
 import org.elasticsearch.geo.geometry.MultiPoint;
@@ -112,12 +113,32 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
     @Override
     public void testParseMultiPoint() throws IOException {
-        int numPoints = randomIntBetween(2, 100);
+        int numPoints = randomIntBetween(0, 100);
         List<Coordinate> coordinates = new ArrayList<>(numPoints);
         for (int i = 0; i < numPoints; ++i) {
             coordinates.add(new Coordinate(GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude()));
         }
 
+        List<org.elasticsearch.geo.geometry.Point> points = new ArrayList<>(numPoints);
+        for (int i = 0; i < numPoints; ++i) {
+            Coordinate c = coordinates.get(i);
+            points.add(new org.elasticsearch.geo.geometry.Point(c.y, c.x));
+        }
+
+        Geometry expectedGeom;
+        MultiPointBuilder actual;
+        if (numPoints == 0) {
+            expectedGeom = MultiPoint.EMPTY;
+            actual = new MultiPointBuilder();
+        } else {
+            expectedGeom = new MultiPoint(points);
+            actual = new MultiPointBuilder(coordinates);
+        }
+
+        assertExpected(expectedGeom, actual, false);
+        assertMalformed(actual);
+
+        assumeTrue("JTS test path cannot handle empty multipoints", numPoints > 1);
         Shape[] shapes = new Shape[numPoints];
         for (int i = 0; i < numPoints; ++i) {
             Coordinate c = coordinates.get(i);
@@ -125,14 +146,6 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         }
         ShapeCollection<?> expected = shapeCollection(shapes);
         assertExpected(expected, new MultiPointBuilder(coordinates), true);
-
-        List<org.elasticsearch.geo.geometry.Point> points = new ArrayList<>(numPoints);
-        for (int i = 0; i < numPoints; ++i) {
-            Coordinate c = coordinates.get(i);
-            points.add(new org.elasticsearch.geo.geometry.Point(c.y, c.x));
-        }
-        assertExpected(new MultiPoint(points), new MultiPointBuilder(coordinates), false);
-        assertMalformed(new MultiPointBuilder(coordinates));
     }
 
     private List<Coordinate> randomLineStringCoords() {
@@ -163,7 +176,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
     @Override
     public void testParseMultiLineString() throws IOException {
-        int numLineStrings = randomIntBetween(2, 8);
+        int numLineStrings = randomIntBetween(0, 8);
         List<LineString> lineStrings = new ArrayList<>(numLineStrings);
         MultiLineStringBuilder builder = new MultiLineStringBuilder();
         for (int j = 0; j < numLineStrings; ++j) {
@@ -173,18 +186,27 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             builder.linestring(new LineStringBuilder(lsc));
         }
 
-        MultiLineString expected = GEOMETRY_FACTORY.createMultiLineString(
-            lineStrings.toArray(new LineString[lineStrings.size()]));
-        assertExpected(jtsGeom(expected), builder, true);
-
         List<Line> lines = new ArrayList<>(lineStrings.size());
         for (int j = 0; j < lineStrings.size(); ++j) {
             Coordinate[] c = lineStrings.get(j).getCoordinates();
             lines.add(new Line(Arrays.stream(c).mapToDouble(i->i.y).toArray(),
                 Arrays.stream(c).mapToDouble(i->i.x).toArray()));
         }
-        assertExpected(new MultiLine(lines), builder, false);
+        Geometry expectedGeom;
+        if (lines.isEmpty()) {
+            expectedGeom = MultiLine.EMPTY;
+        } else if (lines.size() == 1) {
+            expectedGeom = new Line(lines.get(0).getLats(), lines.get(0).getLons());
+        } else {
+            expectedGeom = new MultiLine(lines);
+        }
+        assertExpected(expectedGeom, builder, false);
         assertMalformed(builder);
+
+        MultiLineString expected = GEOMETRY_FACTORY.createMultiLineString(
+            lineStrings.toArray(new LineString[lineStrings.size()]));
+        assumeTrue("JTS test path cannot handle empty multilinestrings", numLineStrings > 1);
+        assertExpected(jtsGeom(expected), builder, true);
     }
 
     @Override
@@ -201,7 +223,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
     @Override
     public void testParseMultiPolygon() throws IOException {
-        int numPolys = randomIntBetween(2, 8);
+        int numPolys = randomIntBetween(0, 8);
         MultiPolygonBuilder builder = new MultiPolygonBuilder();
         PolygonBuilder pb;
         Coordinate[] coordinates;
@@ -214,7 +236,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             shell = GEOMETRY_FACTORY.createLinearRing(coordinates);
             shapes[i] = GEOMETRY_FACTORY.createPolygon(shell, null);
         }
-
+        assumeTrue("JTS test path cannot handle empty multipolygon", numPolys > 1);
         Shape expected = shapeCollection(shapes);
         assertExpected(expected, builder, true);
         assertMalformed(builder);
@@ -429,7 +451,6 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertValidException(builder, IllegalArgumentException.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37894")
     @Override
     public void testParseGeometryCollection() throws IOException {
         if (rarely()) {

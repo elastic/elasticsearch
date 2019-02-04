@@ -49,8 +49,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
             WatchField.INPUT.getPreferredName(), WatchField.CONDITION.getPreferredName(),
             WatchField.ACTIONS.getPreferredName(), WatchField.TRANSFORM.getPreferredName(),
             WatchField.THROTTLE_PERIOD.getPreferredName(), WatchField.THROTTLE_PERIOD_HUMAN.getPreferredName(),
-            WatchField.METADATA.getPreferredName(), WatchField.STATUS.getPreferredName(),
-            WatchField.VERSION.getPreferredName());
+            WatchField.METADATA.getPreferredName(), WatchField.STATUS.getPreferredName());
 
     public RestExecuteWatchAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0

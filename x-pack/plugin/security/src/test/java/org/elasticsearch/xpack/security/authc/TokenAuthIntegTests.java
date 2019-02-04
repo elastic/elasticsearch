@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -330,7 +331,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertEquals("token has been invalidated", e.getHeader("error_description").get(0));
     }
 
-    public void testRefreshingMultipleTimes() {
+    public void testRefreshingMultipleTimesFails() throws Exception {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
                         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
@@ -343,12 +344,68 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertNotNull(createTokenResponse.getRefreshToken());
         CreateTokenResponse refreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
         assertNotNull(refreshResponse);
+        // We now have two documents, the original(now refreshed) token doc and the new one with the new access doc
+        AtomicReference<String> docId = new AtomicReference<>();
+        assertBusy(() -> {
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                .setSource(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.boolQuery()
+                        .must(QueryBuilders.termQuery("doc_type", "token"))
+                        .must(QueryBuilders.termQuery("refresh_token.refreshed", "true"))))
+                .setSize(1)
+                .setTerminateAfter(1)
+                .get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+            docId.set(searchResponse.getHits().getAt(0).getId());
+        });
+
+        // hack doc to modify the refresh time to 10 seconds ago so that we don't hit the lenient refresh case
+        Instant refreshed = Instant.now();
+        Instant aWhileAgo = refreshed.minus(10L, ChronoUnit.SECONDS);
+        assertTrue(Instant.now().isAfter(aWhileAgo));
+        client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
+            .setDoc("refresh_token", Collections.singletonMap("refresh_time", aWhileAgo.toEpochMilli()))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
 
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
                 () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
         assertEquals("invalid_grant", e.getMessage());
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertEquals("token has already been refreshed", e.getHeader("error_description").get(0));
+    }
+
+    public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
+        assertNotNull(createTokenResponse.getRefreshToken());
+
+        CreateTokenResponse refreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
+        assertNotNull(refreshResponse);
+        assertNotNull(refreshResponse.getRefreshToken());
+        assertNotEquals(refreshResponse.getRefreshToken(), createTokenResponse.getRefreshToken());
+        assertNotEquals(refreshResponse.getTokenString(), createTokenResponse.getTokenString());
+
+        assertNoTimeout(client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getTokenString()))
+            .admin().cluster().prepareHealth().get());
+
+        CreateTokenResponse secondRefreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
+        assertNotNull(secondRefreshResponse);
+        assertNotNull(secondRefreshResponse.getRefreshToken());
+        assertThat(secondRefreshResponse.getRefreshToken(), equalTo(refreshResponse.getRefreshToken()));
+        assertThat(secondRefreshResponse.getTokenString(), equalTo(refreshResponse.getTokenString()));
+
+        assertNoTimeout(
+            client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + secondRefreshResponse.getTokenString()))
+                .admin().cluster().prepareHealth().get());
     }
 
     public void testRefreshAsDifferentUser() {

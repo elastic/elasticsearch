@@ -165,6 +165,13 @@
             "refreshed" : {
               "type" : "boolean"
             },
+            "refresh_time": {
+              "type": "date",
+              "format": "epoch_millis"
+            },
+            "superseded_by": {
+              "type": "keyword"
+            },
             "invalidated" : {
               "type" : "boolean"
             },

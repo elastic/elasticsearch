@@ -113,7 +113,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
         assert destinationTransport.getLocalNode().equals(getLocalNode()) == false :
             "non-local message from " + getLocalNode() + " to itself";
 
-        execute(action, new Runnable() {
+        destinationTransport.execute(action, new Runnable() {
             @Override
             public void run() {
                 switch (getConnectionStatus(destinationTransport.getLocalNode())) {

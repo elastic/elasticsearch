@@ -3637,7 +3637,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     @TestLogging("org.elasticsearch.snapshots:TRACE")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38226")
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/38226")
     public void testAbortedSnapshotDuringInitDoesNotStart() throws Exception {
         final Client client = client();
 
@@ -3684,8 +3684,14 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
             // The deletion must set the snapshot in the ABORTED state
             assertBusy(() -> {
-                SnapshotsStatusResponse status = client.admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
-                assertThat(status.getSnapshots().iterator().next().getState(), equalTo(State.ABORTED));
+                try {
+                    SnapshotsStatusResponse status =
+                        client.admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
+                    assertThat(status.getSnapshots().iterator().next().getState(), equalTo(State.ABORTED));
+                } catch (Exception e) {
+                    // Force assertBusy to retry on every exception
+                    throw new AssertionError(e);
+                }
             });
 
             // Now unblock the repository

@@ -193,6 +193,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Tests the reloading of SSLContext when the trust store is modified. The same store is used as a TrustStore (for the
      * reloadable SSLContext used in the HTTPClient) and as a KeyStore for the MockWebServer
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38247")
     public void testReloadingTrustStore() throws Exception {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path tempDir = createTempDir();
@@ -243,6 +244,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     /**
      * Test the reloading of SSLContext whose trust config is backed by PEM certificate files.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38247")
     public void testReloadingPEMTrustConfig() throws Exception {
         Path tempDir = createTempDir();
         Path serverCertPath = tempDir.resolve("testnode.crt");

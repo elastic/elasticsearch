@@ -64,9 +64,9 @@ discovery.seed_hosts:
 <2> A hostname that resolves to multiple IP addresses will try all resolved
     addresses.
 
-Additionally, the `discovery.seed_resolver.max_concurrent_resolvers` configures
-the amount of time to wait for DNS lookups on each round of discovery. This is
-specified as a <<time-units, time unit>> and defaults to 5s.
+Additionally, the `discovery.seed_resolver.timeout` configures the amount of
+time to wait for DNS lookups on each round of discovery. This is specified as a
+<<time-units, time unit>> and defaults to 5s.
 
 Unicast discovery uses the <<modules-transport,transport>> module to perform the
 discovery.

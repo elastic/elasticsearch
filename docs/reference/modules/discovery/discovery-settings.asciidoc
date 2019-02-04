@@ -105,9 +105,10 @@ Discovery and cluster formation are affected by the following settings:
 `discovery.cluster_formation_warning_timeout`::
 
     Sets how long a node will try to form a cluster before logging a warning
-    that the cluster did not form. Defaults to `10s`. If a cluster has not 
+    that the cluster did not form. Defaults to `10s`. If a cluster has not
     formed after `discovery.cluster_formation_warning_timeout` has elapsed then
-    the node will log a warning message that starts with the phrase `master not discovered` which describes the current state of the discovery process.
+    the node will log a warning message that starts with the phrase `master not
+    discovered` which describes the current state of the discovery process.
 
 `discovery.find_peers_interval`::
 
@@ -129,8 +130,8 @@ Discovery and cluster formation are affected by the following settings:
     considering the request to have failed. Defaults to `3s`.    
 
 `discovery.seed_providers`::
-    Specifies which types of <<built-in-hosts-providers,seed provider>> provides
-    the list of seed nodes. By default, it is the 
+    Specifies which types of <<built-in-hosts-providers,seed provider>> provide
+    the addresses of seed nodes. By default, it is the
     <<settings-based-hosts-provider,settings-based hosts provider>>.
 
 [[no-master-block]]`discovery.zen.no_master_block`::

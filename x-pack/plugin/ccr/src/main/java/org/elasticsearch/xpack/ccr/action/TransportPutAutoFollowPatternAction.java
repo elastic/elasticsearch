@@ -134,14 +134,14 @@ public class TransportPutAutoFollowPatternAction extends
             headers = new HashMap<>();
         }
 
-        AutoFollowPattern previousPattern = patterns.get(request.getBody().getName());
+        AutoFollowPattern previousPattern = patterns.get(request.getName());
         final List<String> followedIndexUUIDs;
-        if (followedLeaderIndices.containsKey(request.getBody().getName())) {
-            followedIndexUUIDs = new ArrayList<>(followedLeaderIndices.get(request.getBody().getName()));
+        if (followedLeaderIndices.containsKey(request.getName())) {
+            followedIndexUUIDs = new ArrayList<>(followedLeaderIndices.get(request.getName()));
         } else {
             followedIndexUUIDs = new ArrayList<>();
         }
-        followedLeaderIndices.put(request.getBody().getName(), followedIndexUUIDs);
+        followedLeaderIndices.put(request.getName(), followedIndexUUIDs);
         // Mark existing leader indices as already auto followed:
         if (previousPattern != null) {
             markExistingIndicesAsAutoFollowedForNewPatterns(request.getBody().getLeaderIndexPatterns(), remoteClusterState.metaData(),
@@ -152,7 +152,7 @@ public class TransportPutAutoFollowPatternAction extends
         }
 
         if (filteredHeaders != null) {
-            headers.put(request.getBody().getName(), filteredHeaders);
+            headers.put(request.getName(), filteredHeaders);
         }
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
@@ -169,7 +169,7 @@ public class TransportPutAutoFollowPatternAction extends
             request.getBody().getMaxWriteBufferSize(),
             request.getBody().getMaxRetryDelay(),
             request.getBody().getReadPollTimeout());
-        patterns.put(request.getBody().getName(), autoFollowPattern);
+        patterns.put(request.getName(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);
         newState.metaData(MetaData.builder(localState.getMetaData())
             .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))

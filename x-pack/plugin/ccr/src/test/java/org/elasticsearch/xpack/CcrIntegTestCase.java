@@ -426,7 +426,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         PutFollowAction.Request request = new PutFollowAction.Request();
         request.getBody().setRemoteCluster("leader_cluster");
         request.getBody().setLeaderIndex(leaderIndex);
-        request.getBody().setFollowerIndex(followerIndex);
+        request.setFollowerIndex(followerIndex);
         request.getBody().setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.getBody().setReadPollTimeout(TimeValue.timeValueMillis(10));
         request.waitForActiveShards(waitForActiveShards);
@@ -435,9 +435,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     public static ResumeFollowAction.Request resumeFollow(String followerIndex) {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.getBody().setFollowerIndex(followerIndex);
-        request.getBody().setMaxRetryDelay(TimeValue.timeValueMillis(10));
-        request.getBody().setReadPollTimeout(TimeValue.timeValueMillis(10));
+        request.setFollowerIndex(followerIndex);
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
+        request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
         return request;
     }
 

@@ -186,7 +186,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         // Enabling auto following:
         PutAutoFollowPatternAction.Request.Body requestBody = new PutAutoFollowPatternAction.Request.Body();
-        requestBody.setName("my-pattern");
         requestBody.setRemoteCluster("leader_cluster");
         requestBody.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         // Need to set this, because following an index in the same cluster
@@ -222,6 +221,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             requestBody.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
         }
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setName("my-pattern");
         request.setBody(requestBody);
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
 
@@ -360,7 +360,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     private void putAutoFollowPatterns(String name, String[] patterns) {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.getBody().setName(name);
+        request.setName(name);
         request.getBody().setRemoteCluster("leader_cluster");
         request.getBody().setLeaderIndexPatterns(Arrays.asList(patterns));
         // Need to set this, because following an index in the same cluster

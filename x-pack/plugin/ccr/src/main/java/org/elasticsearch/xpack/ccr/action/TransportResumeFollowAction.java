@@ -16,13 +16,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +47,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
@@ -122,15 +122,15 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             return;
         }
 
-        final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getBody().getFollowerIndex());
+        final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
         if (followerIndexMetadata == null) {
-            listener.onFailure(new IndexNotFoundException(request.getBody().getFollowerIndex()));
+            listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));
             return;
         }
 
         final Map<String, String> ccrMetadata = followerIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         if (ccrMetadata == null) {
-            throw new IllegalArgumentException("follow index ["+ request.getBody().getFollowerIndex() + "] does not have ccr metadata");
+            throw new IllegalArgumentException("follow index ["+ request.getFollowerIndex() + "] does not have ccr metadata");
         }
         final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
         // Validates whether the leader cluster has been configured properly:
@@ -178,8 +178,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
 
         for (int shardId = 0; shardId < numShards; shardId++) {
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
-            logger.info("README: " + Strings.toString(request.getBody()));
-            final ShardFollowTask shardFollowTask = createShardFollowTask(shardId, clusterNameAlias, request.getBody(),
+            final ShardFollowTask shardFollowTask = createShardFollowTask(shardId, clusterNameAlias, request.getParameters(),
                 leaderIndexMetadata, followIndexMetadata, filteredHeaders);
             persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask, handler.getActionListener(shardId));
         }
@@ -191,7 +190,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             final IndexMetaData followIndex,
             final String[] leaderIndexHistoryUUID,
             final MapperService followerMapperService) {
-        ResumeFollowAction.Request.Body requestBody = request.getBody();
+        FollowParameters parameters = request.getParameters();
 
         Map<String, String> ccrIndexMetadata = followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         if (ccrIndexMetadata == null) {
@@ -200,7 +199,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         String leaderIndexUUID = leaderIndex.getIndex().getUUID();
         String recordedLeaderIndexUUID = ccrIndexMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
         if (leaderIndexUUID.equals(recordedLeaderIndexUUID) == false) {
-            throw new IllegalArgumentException("follow index [" + requestBody.getFollowerIndex() + "] should reference [" +
+            throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] should reference [" +
                 leaderIndexUUID + "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");
         }
 
@@ -210,7 +209,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             String recordedLeaderIndexHistoryUUID = recordedHistoryUUIDs[i];
             String actualLeaderIndexHistoryUUID = leaderIndexHistoryUUID[i];
             if (recordedLeaderIndexHistoryUUID.equals(actualLeaderIndexHistoryUUID) == false) {
-                throw new IllegalArgumentException("leader shard [" + requestBody.getFollowerIndex() + "][" + i + "] should reference [" +
+                throw new IllegalArgumentException("leader shard [" + request.getFollowerIndex() + "][" + i + "] should reference [" +
                     recordedLeaderIndexHistoryUUID + "] as history uuid but instead reference [" + actualLeaderIndexHistoryUUID +
                     "] as history uuid");
             }
@@ -222,7 +221,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
                 "] does not have soft deletes enabled");
         }
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(followIndex.getSettings()) == false) {
-            throw new IllegalArgumentException("follower index [" + requestBody.getFollowerIndex() +
+            throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() +
                 "] does not have soft deletes enabled");
         }
         if (leaderIndex.getNumberOfShards() != followIndex.getNumberOfShards()) {
@@ -237,7 +236,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             throw new IllegalArgumentException("leader and follow index must be open");
         }
         if (CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(followIndex.getSettings()) == false) {
-            throw new IllegalArgumentException("the following index [" + requestBody.getFollowerIndex() + "] is not ready " +
+            throw new IllegalArgumentException("the following index [" + request.getFollowerIndex() + "] is not ready " +
                     "to follow; the setting [" + CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey() + "] must be enabled.");
         }
         // Make a copy, remove settings that are allowed to be different and then compare if the settings are equal.
@@ -255,69 +254,69 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     private static ShardFollowTask createShardFollowTask(
         int shardId,
         String clusterAliasName,
-        ResumeFollowAction.Request.Body requestBody,
+        FollowParameters parameters,
         IndexMetaData leaderIndexMetadata,
         IndexMetaData followIndexMetadata,
         Map<String, String> filteredHeaders
     ) {
         int maxReadRequestOperationCount;
-        if (requestBody.getMaxReadRequestOperationCount() != null) {
-            maxReadRequestOperationCount = requestBody.getMaxReadRequestOperationCount();
+        if (parameters.getMaxReadRequestOperationCount() != null) {
+            maxReadRequestOperationCount = parameters.getMaxReadRequestOperationCount();
         } else {
             maxReadRequestOperationCount = DEFAULT_MAX_READ_REQUEST_OPERATION_COUNT;
         }
 
         ByteSizeValue maxReadRequestSize;
-        if (requestBody.getMaxReadRequestSize() != null) {
-            maxReadRequestSize = requestBody.getMaxReadRequestSize();
+        if (parameters.getMaxReadRequestSize() != null) {
+            maxReadRequestSize = parameters.getMaxReadRequestSize();
         } else {
             maxReadRequestSize = DEFAULT_MAX_READ_REQUEST_SIZE;
         }
 
         int maxOutstandingReadRequests;
-        if (requestBody.getMaxOutstandingReadRequests() != null){
-            maxOutstandingReadRequests = requestBody.getMaxOutstandingReadRequests();
+        if (parameters.getMaxOutstandingReadRequests() != null){
+            maxOutstandingReadRequests = parameters.getMaxOutstandingReadRequests();
         } else {
             maxOutstandingReadRequests = DEFAULT_MAX_OUTSTANDING_READ_REQUESTS;
         }
 
         final int maxWriteRequestOperationCount;
-        if (requestBody.getMaxWriteRequestOperationCount() != null) {
-            maxWriteRequestOperationCount = requestBody.getMaxWriteRequestOperationCount();
+        if (parameters.getMaxWriteRequestOperationCount() != null) {
+            maxWriteRequestOperationCount = parameters.getMaxWriteRequestOperationCount();
         } else {
             maxWriteRequestOperationCount = DEFAULT_MAX_WRITE_REQUEST_OPERATION_COUNT;
         }
 
         final ByteSizeValue maxWriteRequestSize;
-        if (requestBody.getMaxWriteRequestSize() != null) {
-            maxWriteRequestSize = requestBody.getMaxWriteRequestSize();
+        if (parameters.getMaxWriteRequestSize() != null) {
+            maxWriteRequestSize = parameters.getMaxWriteRequestSize();
         } else {
             maxWriteRequestSize = DEFAULT_MAX_WRITE_REQUEST_SIZE;
         }
 
         int maxOutstandingWriteRequests;
-        if (requestBody.getMaxOutstandingWriteRequests() != null) {
-            maxOutstandingWriteRequests = requestBody.getMaxOutstandingWriteRequests();
+        if (parameters.getMaxOutstandingWriteRequests() != null) {
+            maxOutstandingWriteRequests = parameters.getMaxOutstandingWriteRequests();
         } else {
             maxOutstandingWriteRequests = DEFAULT_MAX_OUTSTANDING_WRITE_REQUESTS;
         }
 
         int maxWriteBufferCount;
-        if (requestBody.getMaxWriteBufferCount() != null) {
-            maxWriteBufferCount = requestBody.getMaxWriteBufferCount();
+        if (parameters.getMaxWriteBufferCount() != null) {
+            maxWriteBufferCount = parameters.getMaxWriteBufferCount();
         } else {
             maxWriteBufferCount = DEFAULT_MAX_WRITE_BUFFER_COUNT;
         }
 
         ByteSizeValue maxWriteBufferSize;
-        if (requestBody.getMaxWriteBufferSize() != null) {
-            maxWriteBufferSize = requestBody.getMaxWriteBufferSize();
+        if (parameters.getMaxWriteBufferSize() != null) {
+            maxWriteBufferSize = parameters.getMaxWriteBufferSize();
         } else {
             maxWriteBufferSize = DEFAULT_MAX_WRITE_BUFFER_SIZE;
         }
 
-        TimeValue maxRetryDelay = requestBody.getMaxRetryDelay() == null ? DEFAULT_MAX_RETRY_DELAY : requestBody.getMaxRetryDelay();
-        TimeValue readPollTimeout = requestBody.getReadPollTimeout() == null ? DEFAULT_READ_POLL_TIMEOUT : requestBody.getReadPollTimeout();
+        TimeValue maxRetryDelay = parameters.getMaxRetryDelay() == null ? DEFAULT_MAX_RETRY_DELAY : parameters.getMaxRetryDelay();
+        TimeValue readPollTimeout = parameters.getReadPollTimeout() == null ? DEFAULT_READ_POLL_TIMEOUT : parameters.getReadPollTimeout();
 
         return new ShardFollowTask(
             clusterAliasName,

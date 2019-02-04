@@ -733,7 +733,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
         assertThat(e.getMessage(), equalTo("no such remote cluster: [another_cluster]"));
         PutAutoFollowPatternAction.Request putAutoFollowRequest = new PutAutoFollowPatternAction.Request();
-        putAutoFollowRequest.getBody().setName("name");
+        putAutoFollowRequest.setName("name");
         putAutoFollowRequest.getBody().setRemoteCluster("another_cluster");
         putAutoFollowRequest.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         e = expectThrows(NoSuchRemoteClusterException.class,

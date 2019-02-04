@@ -88,9 +88,9 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected ResumeFollowAction.Request getResumeFollowRequest(String followerIndex) {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.getBody().setFollowerIndex(followerIndex);
-        request.getBody().setMaxRetryDelay(TimeValue.timeValueMillis(1));
-        request.getBody().setReadPollTimeout(TimeValue.timeValueMillis(1));
+        request.setFollowerIndex(followerIndex);
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(1));
+        request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
         return request;
     }
 
@@ -98,7 +98,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         PutFollowAction.Request request = new PutFollowAction.Request();
         request.getBody().setRemoteCluster("local");
         request.getBody().setLeaderIndex(leaderIndex);
-        request.getBody().setFollowerIndex(followerIndex);
+        request.setFollowerIndex(followerIndex);
         request.getBody().setMaxRetryDelay(TimeValue.timeValueMillis(1));
         request.getBody().setReadPollTimeout(TimeValue.timeValueMillis(1));
         request.waitForActiveShards(ActiveShardCount.ONE);

@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.FOLLOWER_INDEX_FIELD;
 
 public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
@@ -53,25 +52,27 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         public static Request fromXContent(final XContentParser parser, final String followerIndex, ActiveShardCount waitForActiveShards)
             throws IOException {
             Body body = Body.PARSER.parse(parser, null);
-            if (followerIndex != null) {
-                if (body.getFollowerIndex() == null) {
-                    body.setFollowerIndex(followerIndex);
-                } else {
-                    if (body.getFollowerIndex().equals(followerIndex) == false) {
-                        throw new IllegalArgumentException("provided follower_index is not equal");
-                    }
-                }
-            }
+
             Request request = new Request();
+            request.setFollowerIndex(followerIndex);
             request.setBody(body);
             request.waitForActiveShards(waitForActiveShards);
             return request;
         }
 
+        private String followerIndex;
         private Body body = new Body();
         private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
 
         public Request() {
+        }
+
+        public String getFollowerIndex() {
+            return followerIndex;
+        }
+
+        public void setFollowerIndex(String followerIndex) {
+            this.followerIndex = followerIndex;
         }
 
         public Body getBody() {
@@ -105,12 +106,16 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return body.validate();
+            ActionRequestValidationException e = body.validate();
+            if (followerIndex == null) {
+                e = addValidationError("follower_index is missing", e);
+            }
+            return e;
         }
 
         @Override
         public String[] indices() {
-            return new String[]{body.getFollowerIndex()};
+            return new String[]{followerIndex};
         }
 
         @Override
@@ -120,7 +125,15 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            body = new Body(in);
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+                this.followerIndex = in.readString();
+                body = new Body(in);
+            } else {
+                String remoteCluster = in.readString();
+                String leaderIndex = in.readString();
+                this.followerIndex = in.readString();
+                body = new Body(in, remoteCluster, leaderIndex);
+            }
             if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
                 waitForActiveShards(ActiveShardCount.readFrom(in));
             }
@@ -129,7 +142,12 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            body.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                out.writeString(followerIndex);
+                body.writeTo(out);
+            } else {
+                body.writeTo(out, followerIndex);
+            }
             if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
                 waitForActiveShards.writeTo(out);
             }
@@ -145,12 +163,14 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(body, request.body);
+            return Objects.equals(followerIndex, request.followerIndex) &&
+                Objects.equals(body, request.body) &&
+                Objects.equals(waitForActiveShards, request.waitForActiveShards);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(body);
+            return Objects.hash(followerIndex, body, waitForActiveShards);
         }
 
         public static class Body extends FollowParameters implements ToXContentObject {
@@ -163,13 +183,11 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             static {
                 PARSER.declareString(Body::setRemoteCluster, REMOTE_CLUSTER_FIELD);
                 PARSER.declareString(Body::setLeaderIndex, LEADER_INDEX_FIELD);
-                PARSER.declareString(Body::setFollowerIndex, FOLLOWER_INDEX_FIELD);
                 initParser(PARSER);
             }
 
             private String remoteCluster;
             private String leaderIndex;
-            private String followerIndex;
 
             public Body() {
             }
@@ -190,14 +208,6 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
                 this.leaderIndex = leaderIndex;
             }
 
-            public String getFollowerIndex() {
-                return followerIndex;
-            }
-
-            public void setFollowerIndex(String followerIndex) {
-                this.followerIndex = followerIndex;
-            }
-
             @Override
             public ActionRequestValidationException validate() {
                 ActionRequestValidationException e = super.validate();
@@ -207,21 +217,29 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
                 if (leaderIndex == null) {
                     e = addValidationError(LEADER_INDEX_FIELD.getPreferredName() + " is missing", e);
                 }
-                if (followerIndex == null) {
-                    e = addValidationError(FOLLOWER_INDEX_FIELD.getPreferredName() + " is missing", e);
-                }
                 return e;
             }
 
             public Body(StreamInput in) throws IOException {
                 this.remoteCluster = in.readString();
                 this.leaderIndex = in.readString();
-                this.followerIndex = in.readString();
                 fromStreamInput(in);
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
+                out.writeString(remoteCluster);
+                out.writeString(leaderIndex);
+                super.writeTo(out);
+            }
+
+            private Body(StreamInput in, String remoteCluster, String leaderIndex) throws IOException {
+                this.remoteCluster = remoteCluster;
+                this.leaderIndex = leaderIndex;
+                fromStreamInput(in);
+            }
+
+            private void writeTo(StreamOutput out, String followerIndex) throws IOException {
                 out.writeString(remoteCluster);
                 out.writeString(leaderIndex);
                 out.writeString(followerIndex);
@@ -234,7 +252,6 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
                 {
                     builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                     builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
-                    builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
                     toXContentFragment(builder);
                 }
                 builder.endObject();
@@ -248,13 +265,12 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
                 if (!super.equals(o)) return false;
                 Body body = (Body) o;
                 return Objects.equals(remoteCluster, body.remoteCluster) &&
-                    Objects.equals(leaderIndex, body.leaderIndex) &&
-                    Objects.equals(followerIndex, body.followerIndex);
+                    Objects.equals(leaderIndex, body.leaderIndex);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(super.hashCode(), remoteCluster, leaderIndex, followerIndex);
+                return Objects.hash(super.hashCode(), remoteCluster, leaderIndex);
             }
         }
 

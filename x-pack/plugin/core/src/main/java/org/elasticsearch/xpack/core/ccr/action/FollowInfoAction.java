@@ -189,11 +189,7 @@ public class FollowInfoAction extends Action<FollowInfoAction.Response> {
                 remoteCluster = in.readString();
                 leaderIndex = in.readString();
                 status = Status.fromString(in.readString());
-                parameters = in.readOptionalWriteable(innerIn -> {
-                    FollowParameters parameters = new FollowParameters();
-                    parameters.fromStreamInput(in);
-                    return parameters;
-                });
+                parameters = in.readOptionalWriteable(innerIn -> new FollowParameters(in));
             }
 
             @Override

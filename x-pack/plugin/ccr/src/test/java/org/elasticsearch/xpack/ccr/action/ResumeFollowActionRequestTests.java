@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
@@ -31,8 +32,18 @@ public class ResumeFollowActionRequestTests extends AbstractSerializingTestCase<
     @Override
     protected ResumeFollowAction.Request createTestInstance() {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.getBody().setFollowerIndex(randomAlphaOfLength(4));
-        generateFollowParameters(request.getBody());
+        request.setFollowerIndex(randomAlphaOfLength(4));
+
+        generateFollowParameters(request.getParameters());
+        return request;
+    }
+
+    @Override
+    protected ResumeFollowAction.Request createXContextTestInstance(XContentType type) {
+        // follower index parameter is not part of the request body and is provided in the url path.
+        // So this field cannot be used for creating a test instance for xcontent testing.
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        generateFollowParameters(request.getParameters());
         return request;
     }
 
@@ -81,19 +92,19 @@ public class ResumeFollowActionRequestTests extends AbstractSerializingTestCase<
 
     public void testValidate() {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.getBody().setFollowerIndex("index2");
-        request.getBody().setMaxRetryDelay(TimeValue.ZERO);
+        request.setFollowerIndex("index2");
+        request.getParameters().setMaxRetryDelay(TimeValue.ZERO);
 
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be positive but was [0ms]"));
 
-        request.getBody().setMaxRetryDelay(TimeValue.timeValueMinutes(10));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMinutes(10));
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be less than [5m] but was [10m]"));
 
-        request.getBody().setMaxRetryDelay(TimeValue.timeValueMinutes(1));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMinutes(1));
         validationException = request.validate();
         assertThat(validationException, nullValue());
     }

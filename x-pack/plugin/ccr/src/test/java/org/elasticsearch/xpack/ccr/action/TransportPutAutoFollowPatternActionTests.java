@@ -29,7 +29,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.getBody().setName("name1");
+        request.setName("name1");
         request.getBody().setRemoteCluster("eu_cluster");
         request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
@@ -54,7 +54,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut_existingLeaderIndices() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.getBody().setName("name1");
+        request.setName("name1");
         request.getBody().setRemoteCluster("eu_cluster");
         request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
@@ -95,7 +95,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut_existingLeaderIndicesAndAutoFollowMetadata() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.getBody().setName("name1");
+        request.setName("name1");
         request.getBody().setRemoteCluster("eu_cluster");
         request.getBody().setLeaderIndexPatterns(Arrays.asList("logs-*", "transactions-*"));
 

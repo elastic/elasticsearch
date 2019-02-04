@@ -32,6 +32,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
     public static final String NAME = "cluster:admin/xpack/ccr/auto_follow_pattern/put";
     public static final PutAutoFollowPatternAction INSTANCE = new PutAutoFollowPatternAction();
+    private static final int MAX_NAME_BYTES = 255;
 
     private PutAutoFollowPatternAction() {
         super(NAME);
@@ -46,20 +47,13 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
         public static Request fromXContent(XContentParser parser, String name) throws IOException {
             Body body = Body.PARSER.parse(parser, null);
-            if (name != null) {
-                if (body.name == null) {
-                    body.name = name;
-                } else {
-                    if (body.name.equals(name) == false) {
-                        throw new IllegalArgumentException("provided name is not equal");
-                    }
-                }
-            }
             Request request = new Request();
+            request.setName(name);
             request.setBody(body);
             return request;
         }
 
+        private String name;
         private Body body = new Body();
 
         public Request() {
@@ -67,7 +61,32 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return body.validate();
+            ActionRequestValidationException validationException = body.validate();
+            if (name == null) {
+                validationException = addValidationError("[name] is missing", validationException);
+            }
+            if (name != null) {
+                if (name.contains(",")) {
+                    validationException = addValidationError("[name] name must not contain a ','", validationException);
+                }
+                if (name.startsWith("_")) {
+                    validationException = addValidationError("[name] name must not start with '_'", validationException);
+                }
+                int byteCount = name.getBytes(StandardCharsets.UTF_8).length;
+                if (byteCount > MAX_NAME_BYTES) {
+                    validationException = addValidationError("[name] name is too long (" + byteCount + " > " + MAX_NAME_BYTES + ")",
+                        validationException);
+                }
+            }
+            return validationException;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
         }
 
         public Body getBody() {
@@ -80,12 +99,14 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            name = in.readString();
             this.body = new Body(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeString(name);
             body.writeTo(out);
         }
 
@@ -99,42 +120,31 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(body, request.body);
+            return Objects.equals(name, request.name) &&
+                Objects.equals(body, request.body);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(body);
+            return Objects.hash(name, body);
         }
 
         public static class Body extends FollowParameters implements ToXContentObject {
 
             private static final ObjectParser<Body, Void> PARSER = new ObjectParser<>("put_auto_follow_pattern_request", Body::new);
-            private static final ParseField NAME_FIELD = new ParseField("name");
-            private static final int MAX_NAME_BYTES = 255;
 
             static {
-                PARSER.declareString(Body::setName, NAME_FIELD);
                 PARSER.declareString(Body::setRemoteCluster, REMOTE_CLUSTER_FIELD);
                 PARSER.declareStringArray(Body::setLeaderIndexPatterns, AutoFollowPattern.LEADER_PATTERNS_FIELD);
                 PARSER.declareString(Body::setFollowIndexNamePattern, AutoFollowPattern.FOLLOW_PATTERN_FIELD);
                 initParser(PARSER);
             }
 
-            private String name;
             private String remoteCluster;
             private List<String> leaderIndexPatterns;
             private String followIndexNamePattern;
 
             public Body() {
-            }
-
-            public String getName() {
-                return name;
-            }
-
-            public void setName(String name) {
-                this.name = name;
             }
 
             public String getRemoteCluster() {
@@ -164,24 +174,6 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             @Override
             public ActionRequestValidationException validate() {
                 ActionRequestValidationException validationException = super.validate();
-                if (name == null) {
-                    validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] is missing", validationException);
-                }
-                if (name != null) {
-                    if (name.contains(",")) {
-                        validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] name must not contain a ','",
-                            validationException);
-                    }
-                    if (name.startsWith("_")) {
-                        validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] name must not start with '_'",
-                            validationException);
-                    }
-                    int byteCount = name.getBytes(StandardCharsets.UTF_8).length;
-                    if (byteCount > MAX_NAME_BYTES) {
-                        validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] name is too long (" +
-                            byteCount + " > " + MAX_NAME_BYTES + ")", validationException);
-                    }
-                }
                 if (remoteCluster == null) {
                     validationException = addValidationError("[" + REMOTE_CLUSTER_FIELD.getPreferredName() +
                         "] is missing", validationException);
@@ -194,7 +186,6 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             }
 
             Body(StreamInput in) throws IOException {
-                name = in.readString();
                 remoteCluster = in.readString();
                 leaderIndexPatterns = in.readStringList();
                 followIndexNamePattern = in.readOptionalString();
@@ -216,7 +207,6 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(name);
                 out.writeString(remoteCluster);
                 out.writeStringCollection(leaderIndexPatterns);
                 out.writeOptionalString(followIndexNamePattern);
@@ -240,7 +230,6 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 {
-                    builder.field(NAME_FIELD.getPreferredName(), name);
                     builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                     builder.field(AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
                     if (followIndexNamePattern != null) {
@@ -258,15 +247,14 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                 if (o == null || getClass() != o.getClass()) return false;
                 if (!super.equals(o)) return false;
                 Body body = (Body) o;
-                return Objects.equals(name, body.name) &&
-                    Objects.equals(remoteCluster, body.remoteCluster) &&
+                return Objects.equals(remoteCluster, body.remoteCluster) &&
                     Objects.equals(leaderIndexPatterns, body.leaderIndexPatterns) &&
                     Objects.equals(followIndexNamePattern, body.followIndexNamePattern);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(super.hashCode(), name, remoteCluster, leaderIndexPatterns, followIndexNamePattern);
+                return Objects.hash(super.hashCode(), remoteCluster, leaderIndexPatterns, followIndexNamePattern);
             }
         }
 

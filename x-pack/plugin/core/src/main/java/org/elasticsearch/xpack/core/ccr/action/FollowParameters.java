@@ -172,6 +172,10 @@ public class FollowParameters implements Writeable {
         return e;
     }
 
+    FollowParameters(StreamInput in) throws IOException {
+        fromStreamInput(in);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalVInt(maxReadRequestOperationCount);
@@ -233,7 +237,7 @@ public class FollowParameters implements Writeable {
         return builder;
     }
 
-    public static <POJO extends FollowParameters> void initParser(AbstractObjectParser<POJO, Void> parser) {
+    public static <POJO extends FollowParameters> void initParser(AbstractObjectParser<POJO, ?> parser) {
         parser.declareInt(FollowParameters::setMaxReadRequestOperationCount, MAX_READ_REQUEST_OPERATION_COUNT);
         parser.declareInt(FollowParameters::setMaxWriteRequestOperationCount, MAX_WRITE_REQUEST_OPERATION_COUNT);
         parser.declareInt(FollowParameters::setMaxOutstandingReadRequests, MAX_OUTSTANDING_READ_REQUESTS);

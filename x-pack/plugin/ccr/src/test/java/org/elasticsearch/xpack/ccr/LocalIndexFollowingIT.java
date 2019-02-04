@@ -82,10 +82,10 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false"));
         assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
         ResumeFollowAction.Request followRequest = getResumeFollowRequest("follower");
-        followRequest.getBody().setFollowerIndex("follower-index");
+        followRequest.setFollowerIndex("follower-index");
         PutFollowAction.Request putFollowRequest = getPutFollowRequest("leader", "follower");
         putFollowRequest.getBody().setLeaderIndex("leader-index");
-        putFollowRequest.getBody().setFollowerIndex("follower-index");
+        putFollowRequest.setFollowerIndex("follower-index");
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
             () -> client().execute(PutFollowAction.INSTANCE, putFollowRequest).actionGet());
         assertThat(error.getMessage(), equalTo("leader index [leader-index] does not have soft deletes enabled"));
@@ -94,7 +94,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
     public void testRemoveRemoteConnection() throws Exception {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.getBody().setName("my_pattern");
+        request.setName("my_pattern");
         request.getBody().setRemoteCluster("local");
         request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         request.getBody().setFollowIndexNamePattern("copy-{{leader_index}}");

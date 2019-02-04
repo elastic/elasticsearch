@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
@@ -132,12 +133,12 @@ public final class TransportPutFollowAction
         }
 
         final Settings.Builder settingsBuilder = Settings.builder()
-            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getBody().getFollowerIndex())
+            .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowerIndex())
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
         final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getBody().getRemoteCluster();
         final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
             .indices(request.getBody().getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
-            .renameReplacement(request.getBody().getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
+            .renameReplacement(request.getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(settingsBuilder);
 
         final Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
@@ -217,22 +218,23 @@ public final class TransportPutFollowAction
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
         assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "PutFollowAction does not support DEFAULT.";
-        activeShardsObserver.waitForActiveShards(new String[]{request.getBody().getFollowerIndex()},
+        activeShardsObserver.waitForActiveShards(new String[]{request.getFollowerIndex()},
             request.waitForActiveShards(), request.timeout(), result -> {
                 if (result) {
+                    FollowParameters parameters = request.getBody();
                     ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
-                        resumeFollowRequest.getBody().setFollowerIndex(request.getBody().getFollowerIndex());
-                        resumeFollowRequest.getBody().setMaxOutstandingReadRequests(request.getBody().getMaxOutstandingReadRequests());
-                        resumeFollowRequest.getBody().setMaxOutstandingWriteRequests(request.getBody().getMaxOutstandingWriteRequests());
-                        resumeFollowRequest.getBody().setMaxReadRequestOperationCount(request.getBody().getMaxReadRequestOperationCount());
-                        resumeFollowRequest.getBody().setMaxWriteRequestOperationCount(
-                            request.getBody().getMaxWriteRequestOperationCount());
-                        resumeFollowRequest.getBody().setMaxReadRequestSize(request.getBody().getMaxReadRequestSize());
-                        resumeFollowRequest.getBody().setMaxWriteRequestSize(request.getBody().getMaxWriteRequestSize());
-                        resumeFollowRequest.getBody().setMaxWriteBufferCount(request.getBody().getMaxWriteBufferCount());
-                        resumeFollowRequest.getBody().setMaxWriteBufferSize(request.getBody().getMaxWriteBufferSize());
-                        resumeFollowRequest.getBody().setReadPollTimeout(request.getBody().getReadPollTimeout());
-                        resumeFollowRequest.getBody().setMaxRetryDelay(request.getBody().getMaxRetryDelay());
+                        resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
+                        resumeFollowRequest.getParameters().setMaxOutstandingReadRequests(parameters.getMaxOutstandingReadRequests());
+                        resumeFollowRequest.getParameters().setMaxOutstandingWriteRequests(parameters.getMaxOutstandingWriteRequests());
+                        resumeFollowRequest.getParameters().setMaxReadRequestOperationCount(parameters.getMaxReadRequestOperationCount());
+                        resumeFollowRequest.getParameters().setMaxWriteRequestOperationCount(
+                            parameters.getMaxWriteRequestOperationCount());
+                        resumeFollowRequest.getParameters().setMaxReadRequestSize(parameters.getMaxReadRequestSize());
+                        resumeFollowRequest.getParameters().setMaxWriteRequestSize(parameters.getMaxWriteRequestSize());
+                        resumeFollowRequest.getParameters().setMaxWriteBufferCount(parameters.getMaxWriteBufferCount());
+                        resumeFollowRequest.getParameters().setMaxWriteBufferSize(parameters.getMaxWriteBufferSize());
+                        resumeFollowRequest.getParameters().setReadPollTimeout(parameters.getReadPollTimeout());
+                        resumeFollowRequest.getParameters().setMaxRetryDelay(parameters.getMaxRetryDelay());
                         client.execute(ResumeFollowAction.INSTANCE, resumeFollowRequest, ActionListener.wrap(
                         r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
                         listener::onFailure
@@ -245,6 +247,6 @@ public final class TransportPutFollowAction
 
     @Override
     protected ClusterBlockException checkBlock(final PutFollowAction.Request request, final ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getBody().getFollowerIndex());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowerIndex());
     }
 }

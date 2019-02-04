@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
@@ -40,7 +41,22 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
     @Override
     protected PutAutoFollowPatternAction.Request createTestInstance() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.getBody().setName(randomAlphaOfLength(4));
+        request.setName(randomAlphaOfLength(4));
+
+        request.getBody().setRemoteCluster(randomAlphaOfLength(4));
+        request.getBody().setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
+        if (randomBoolean()) {
+            request.getBody().setFollowIndexNamePattern(randomAlphaOfLength(4));
+        }
+        ResumeFollowActionRequestTests.generateFollowParameters(request.getBody());
+        return request;
+    }
+
+    @Override
+    protected PutAutoFollowPatternAction.Request createXContextTestInstance(XContentType xContentType) {
+        // follower index parameter is not part of the request body and is provided in the url path.
+        // So this field cannot be used for creating a test instance for xcontent testing.
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.getBody().setRemoteCluster(randomAlphaOfLength(4));
         request.getBody().setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
         if (randomBoolean()) {
@@ -56,7 +72,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[name] is missing"));
 
-        request.getBody().setName("name");
+        request.setName("name");
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[remote_cluster] is missing"));
@@ -95,7 +111,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         request.getBody().setRemoteCluster("_alias");
         request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
-        request.getBody().setName("name");
+        request.setName("name");
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, nullValue());
     }
@@ -105,7 +121,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         request.getBody().setRemoteCluster("_alias");
         request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
-        request.getBody().setName("name1,name2");
+        request.setName("name1,name2");
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("name must not contain a ','"));
@@ -116,7 +132,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         request.getBody().setRemoteCluster("_alias");
         request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
-        request.getBody().setName("_name");
+        request.setName("_name");
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("name must not start with '_'"));
@@ -127,7 +143,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         request.getBody().setRemoteCluster("_alias");
         request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
-        request.getBody().setName("n_a_m_e_");
+        request.setName("n_a_m_e_");
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, nullValue());
     }
@@ -141,12 +157,12 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         for (int i = 0; i < 256; i++) {
             stringBuilder.append('x');
         }
-        request.getBody().setName(stringBuilder.toString());
+        request.setName(stringBuilder.toString());
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("name is too long (256 > 255)"));
 
-        request.getBody().setName("name");
+        request.setName("name");
         validationException = request.validate();
         assertThat(validationException, nullValue());
     }

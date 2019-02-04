@@ -516,7 +516,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             PutFollowAction.Request request = new PutFollowAction.Request();
             request.getBody().setRemoteCluster(remoteCluster);
             request.getBody().setLeaderIndex(indexToFollow.getName());
-            request.getBody().setFollowerIndex(followIndexName);
+            request.setFollowerIndex(followIndexName);
             request.getBody().setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
             request.getBody().setMaxReadRequestSize(pattern.getMaxReadRequestSize());
             request.getBody().setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());

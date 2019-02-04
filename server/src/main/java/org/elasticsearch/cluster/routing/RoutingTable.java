@@ -540,6 +540,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             return this;
         }
 
+        public Builder addAsFromOpenToClose(IndexMetaData indexMetaData) {
+            assert indexMetaData.getState() == IndexMetaData.State.CLOSE;
+            IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
+                .initializeAsFromOpenToClose(indexMetaData);
+            return add(indexRoutingBuilder);
+        }
+
         public Builder addAsRestore(IndexMetaData indexMetaData, SnapshotRecoverySource recoverySource) {
             IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.getIndex())
                     .initializeAsRestore(indexMetaData, recoverySource);

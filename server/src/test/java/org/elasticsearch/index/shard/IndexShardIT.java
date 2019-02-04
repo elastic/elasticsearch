@@ -276,6 +276,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertTrue(test > 0);
     }
 
+    // NORELEASE This test need to be adapted for replicated closed indices
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33888")
     public void testIndexCanChangeCustomDataPath() throws Exception {
         Environment env = getInstanceFromNode(Environment.class);
         Path idxPath = env.sharedDataFile().resolve(randomAlphaOfLength(10));
@@ -922,27 +924,17 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
         ensureGreen();
 
-        client().admin().indices().prepareClose(indexName).get();
+        assertAcked(client().admin().indices().prepareClose(indexName));
 
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final ClusterState clusterState = clusterService.state();
 
-        IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
+        final IndexMetaData indexMetaData = clusterState.metaData().index(indexName);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-
-        final ShardId shardId = new ShardId(indexMetaData.getIndex(), 0);
-        final DiscoveryNode node = clusterService.localNode();
-        final ShardRouting routing =
-            newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
-
         final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
-        try {
-            final IndexShard indexShard = indexService.createShard(routing, id -> {}, (s, leases, listener) -> {});
-            indexShard.markAsRecovering("store", new RecoveryState(indexShard.routingEntry(), node, null));
-            indexShard.recoverFromStore();
+
+        for (IndexShard indexShard : indexService) {
             assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
-        } finally {
-            indexService.close("test terminated", true);
         }
     }
 }

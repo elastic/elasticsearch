@@ -1550,7 +1550,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().indices().prepareClose("test-idx-closed"));
         ClusterStateResponse stateResponse = client.admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metaData().index("test-idx-closed").getState(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), nullValue());
+        assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), notNullValue());
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -3749,7 +3749,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final IndexMetaData restoredIndexMetaData = client().admin().cluster().prepareState().clear().setIndices(indexName)
             .setMetaData(true).get().getState().metaData().index(indexName);
         for (int shardId = 0; shardId < numPrimaries; shardId++) {
-            assertThat(restoredIndexMetaData.primaryTerm(shardId), equalTo(primaryTerms.get(shardId) + 1));
+            assertThat(restoredIndexMetaData.primaryTerm(shardId), greaterThan(primaryTerms.get(shardId)));
         }
     }
 

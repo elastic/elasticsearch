@@ -17,23 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.client.security;
+package org.elasticsearch.threadpool;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 
-import java.io.IOException;
+import java.util.concurrent.Future;
 
-/**
- * Response for a request which simply returns an empty object.
-   @deprecated Use a boolean instead of this class
- */
-@Deprecated
-public final class EmptyResponse {
+class CancellableAdapter implements Scheduler.Cancellable {
+    private Future<?> future;
 
-    private static final ObjectParser<EmptyResponse, Void> PARSER = new ObjectParser<>("empty_response", false, EmptyResponse::new);
+    CancellableAdapter(Future<?> future) {
+        assert future != null;
+        this.future = future;
+    }
 
-    public static EmptyResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    @Override
+    public boolean cancel() {
+        return FutureUtils.cancel(future);
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return future.isCancelled();
     }
 }

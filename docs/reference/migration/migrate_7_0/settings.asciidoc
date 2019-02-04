@@ -138,12 +138,28 @@ used.
 
 TLS version 1.0 is now disabled by default as it suffers from
 https://www.owasp.org/index.php/Transport_Layer_Protection_Cheat_Sheet#Rule_-_Only_Support_Strong_Protocols[known security issues].
-The default protocols are now TLSv1.2 and TLSv1.1.
+The default protocols are now TLSv1.3 (if supported), TLSv1.2 and TLSv1.1.
 You can enable TLS v1.0 by configuring the relevant `ssl.supported_protocols` setting to include `"TLSv1"`, for example:
 [source,yaml]
 --------------------------------------------------
-xpack.security.http.ssl.supported_protocols: [ "TLSv1.2", "TLSv1.1", "TLSv1" ]
+xpack.security.http.ssl.supported_protocols: [ "TLSv1.3", "TLSv1.2", "TLSv1.1", "TLSv1" ]
 --------------------------------------------------
+
+[float]
+[[trial-explicit-security]]
+==== Security on Trial Licenses
+
+On trial licenses, `xpack.security.enabled` defaults to `false`.
+
+In prior versions, a trial license would automatically enable security if either
+
+* `xpack.security.transport.enabled` was `true`; _or_
+* the trial license was generated on a version of X-Pack from 6.2 or earlier.
+
+This behaviour has been now removed, so security is only enabled if:
+
+* `xpack.security.enabled` is `true`; _or_
+* `xpack.security.enabled` is not set, and a gold or platinum license is installed.
 
 [float]
 [[watcher-notifications-account-settings]]

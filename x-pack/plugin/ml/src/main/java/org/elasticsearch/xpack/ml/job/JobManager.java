@@ -333,7 +333,7 @@ public class JobManager {
 
         Runnable doUpdate = () -> {
                 jobConfigProvider.updateJobWithValidation(request.getJobId(), request.getJobUpdate(), maxModelMemoryLimit,
-                        this::validate, ActionListener.wrap(
+                        this::validate, clusterService.state().nodes().getMinNodeVersion(), ActionListener.wrap(
                                 updatedJob -> postJobUpdate(request, updatedJob, actionListener),
                                 actionListener::onFailure
                         ));
@@ -603,8 +603,8 @@ public class JobManager {
             .setModelSnapshotId(modelSnapshot.getSnapshotId())
             .build();
 
-        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(
-            job -> {
+        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, clusterService.state().nodes().getMinNodeVersion(),
+            ActionListener.wrap(job -> {
                 auditor.info(request.getJobId(),
                     Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
                 updateHandler.accept(Boolean.TRUE);

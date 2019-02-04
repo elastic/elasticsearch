@@ -91,6 +91,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("xpack.security.transport.ssl.keystore.path", keystorePath)
+            .put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2")
             .setSecureSettings(secureSettings)
             .build();
         final Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
@@ -149,6 +150,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .put("xpack.security.transport.ssl.key", keyPath)
             .put("xpack.security.transport.ssl.certificate", certPath)
             .putList("xpack.security.transport.ssl.certificate_authorities", certPath.toString())
+            .put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2")
             .setSecureSettings(secureSettings)
             .build();
         final Environment env = randomBoolean() ? null :
@@ -193,7 +195,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Tests the reloading of SSLContext when the trust store is modified. The same store is used as a TrustStore (for the
      * reloadable SSLContext used in the HTTPClient) and as a KeyStore for the MockWebServer
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38247")
     public void testReloadingTrustStore() throws Exception {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path tempDir = createTempDir();
@@ -206,6 +207,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         secureSettings.setString("xpack.security.transport.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
             .put("xpack.security.transport.ssl.truststore.path", trustStorePath)
+            .put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2")
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();
@@ -241,10 +243,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             validateSSLConfigurationIsReloaded(settings, env, trustMaterialPreChecks, modifier, trustMaterialPostChecks);
         }
     }
+
     /**
      * Test the reloading of SSLContext whose trust config is backed by PEM certificate files.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38247")
     public void testReloadingPEMTrustConfig() throws Exception {
         Path tempDir = createTempDir();
         Path serverCertPath = tempDir.resolve("testnode.crt");
@@ -257,6 +259,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"), updatedCert);
         Settings settings = Settings.builder()
             .putList("xpack.security.transport.ssl.certificate_authorities", serverCertPath.toString())
+            .put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2")
             .put("path.home", createTempDir())
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
@@ -305,6 +308,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
             .put("xpack.security.transport.ssl.keystore.path", keystorePath)
+            .put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2")
             .setSecureSettings(secureSettings)
             .put("path.home", createTempDir())
             .build();
@@ -346,6 +350,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .put("xpack.security.transport.ssl.key", keyPath)
             .put("xpack.security.transport.ssl.certificate", certPath)
             .putList("xpack.security.transport.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
+            .put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2")
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();
@@ -381,6 +386,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         secureSettings.setString("xpack.security.transport.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
             .put("xpack.security.transport.ssl.truststore.path", trustStorePath)
+            .put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2")
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();
@@ -414,6 +420,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);
         Settings settings = Settings.builder()
             .putList("xpack.security.transport.ssl.certificate_authorities", clientCertPath.toString())
+            .put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2")
             .put("path.home", createTempDir())
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);

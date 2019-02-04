@@ -60,7 +60,7 @@ public class PlanExecutor {
     }
 
     private SqlSession newSession(Configuration cfg) {
-        return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, verifier, optimizer, planner);
+        return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, verifier, optimizer, planner, this);
     }
 
     public void searchSource(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<SearchSourceBuilder> listener) {
@@ -68,15 +68,20 @@ public class PlanExecutor {
             if (exec instanceof EsQueryExec) {
                 EsQueryExec e = (EsQueryExec) exec;
                 listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
-            } else if (exec instanceof LocalExec) {
-                listener.onFailure(new PlanningException("Cannot generate a query DSL for an SQL query that either " +
-                    "its WHERE clause evaluates to FALSE or doesn't operate on a table (missing a FROM clause), sql statement: [{}]",
-                    sql));
-            } else if (exec instanceof CommandExec) {
-                listener.onFailure(new PlanningException("Cannot generate a query DSL for a special SQL command " +
-                    "(e.g.: DESCRIBE, SHOW), sql statement: [{}]", sql));
-            } else {
-                listener.onFailure(new PlanningException("Cannot generate a query DSL, sql statement: [{}]", sql));
+            }
+            // try to provide a better resolution of what failed
+            else {
+                String message = null;
+                if (exec instanceof LocalExec) {
+                    message = "Cannot generate a query DSL for an SQL query that either " +
+                            "its WHERE clause evaluates to FALSE or doesn't operate on a table (missing a FROM clause)";
+                } else if (exec instanceof CommandExec) {
+                    message = "Cannot generate a query DSL for a special SQL command " +
+                            "(e.g.: DESCRIBE, SHOW)";
+                } else {
+                    message = "Cannot generate a query DSL";
+                }
+                listener.onFailure(new PlanningException(message + ", sql statement: [{}]", sql));
             }
         }, listener::onFailure));
     }

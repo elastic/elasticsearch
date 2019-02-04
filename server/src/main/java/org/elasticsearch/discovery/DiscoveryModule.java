@@ -74,8 +74,12 @@ public class DiscoveryModule {
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
         new Setting<>("discovery.type", ZEN2_DISCOVERY_TYPE, Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING =
+        Setting.listSetting("discovery.zen.hosts_provider", Collections.emptyList(), Function.identity(),
+            Property.NodeScope, Property.Deprecated);
     public static final Setting<List<String>> DISCOVERY_HOSTS_PROVIDER_SETTING =
-        Setting.listSetting("discovery.zen.hosts_provider", Collections.emptyList(), Function.identity(), Property.NodeScope);
+        Setting.listSetting("discovery.seed_providers", Collections.emptyList(), Function.identity(),
+            Property.NodeScope);
 
     private final Discovery discovery;
 
@@ -90,7 +94,7 @@ public class DiscoveryModule {
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getZenHostsProviders(transportService, networkService).forEach((key, value) -> {
                 if (hostProviders.put(key, value) != null) {
-                    throw new IllegalArgumentException("Cannot register zen hosts provider [" + key + "] twice");
+                    throw new IllegalArgumentException("Cannot register seed provider [" + key + "] twice");
                 }
             });
             BiConsumer<DiscoveryNode, ClusterState> joinValidator = plugin.getJoinValidator();
@@ -98,7 +102,8 @@ public class DiscoveryModule {
                 joinValidators.add(joinValidator);
             }
         }
-        List<String> hostsProviderNames = DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
+
+        List<String> hostsProviderNames = getSeedProviderNames(settings);
         // for bwc purposes, add settings provider even if not explicitly specified
         if (hostsProviderNames.contains("settings") == false) {
             List<String> extendedHostsProviderNames = new ArrayList<>();
@@ -110,7 +115,7 @@ public class DiscoveryModule {
         final Set<String> missingProviderNames = new HashSet<>(hostsProviderNames);
         missingProviderNames.removeAll(hostProviders.keySet());
         if (missingProviderNames.isEmpty() == false) {
-            throw new IllegalArgumentException("Unknown zen hosts providers " + missingProviderNames);
+            throw new IllegalArgumentException("Unknown seed providers " + missingProviderNames);
         }
 
         List<UnicastHostsProvider> filteredHostsProviders = hostsProviderNames.stream()
@@ -151,8 +156,18 @@ public class DiscoveryModule {
         discovery = Objects.requireNonNull(discoverySupplier.get());
     }
 
+    private List<String> getSeedProviderNames(Settings settings) {
+        if (LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings)) {
+            if (DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings)) {
+                throw new IllegalArgumentException("it is forbidden to set both [" + DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + "] and ["
+                    + LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + "]");
+            }
+            return LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
+        }
+        return DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
+    }
+
     public Discovery getDiscovery() {
         return discovery;
     }
-
 }

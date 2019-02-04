@@ -44,6 +44,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_ADDRESSES_SETTING;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
@@ -101,7 +102,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             .put("node.name", "my-test-node")
             .put("network.host", "localhost")
             .put("cluster.name", internalCluster().getClusterName())
-            .put("discovery.zen.ping.unicast.hosts", unicastHost)
+            .put(DISCOVERY_SEED_ADDRESSES_SETTING.getKey(), unicastHost)
             .put("xpack.security.enabled", true)
             .put("xpack.security.audit.enabled", false)
             .put("xpack.security.transport.ssl.enabled", true)
@@ -146,7 +147,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             .put("node.name", "my-test-node")
             .put(SecurityField.USER_SETTING.getKey(), "test_user:" + SecuritySettingsSourceField.TEST_PASSWORD)
             .put("cluster.name", internalCluster().getClusterName())
-            .put("discovery.zen.ping.unicast.hosts", unicastHost)
+            .put(DISCOVERY_SEED_ADDRESSES_SETTING.getKey(), unicastHost)
             .put("xpack.security.enabled", true)
             .put("xpack.security.audit.enabled", false)
             .put("xpack.security.transport.ssl.enabled", true)

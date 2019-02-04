@@ -128,8 +128,8 @@ Discovery and cluster formation are affected by the following settings:
     Sets how long a node will wait after asking its peers again before
     considering the request to have failed. Defaults to `3s`.    
 
-`discovery.zen.hosts_provider`:: 
-    Specifies which type of <<built-in-hosts-providers,hosts provider>> provides
+`discovery.seed_providers`::
+    Specifies which types of <<built-in-hosts-providers,seed provider>> provides
     the list of seed nodes. By default, it is the 
     <<settings-based-hosts-provider,settings-based hosts provider>>.
 
@@ -157,7 +157,7 @@ APIs are not be blocked and can run on any available node.
 ===============================
 --
 
-`discovery.zen.ping.unicast.hosts`::
+`discovery.seed_addresses`::
 
     Provides a list of master-eligible nodes in the cluster. The list contains
     either an array of hosts or a comma-delimited string. Each value has the
@@ -165,7 +165,12 @@ APIs are not be blocked and can run on any available node.
     `transport.profiles.default.port`. Note that IPv6 hosts must be bracketed.
     The default value is `127.0.0.1, [::1]`. See <<unicast.hosts>>.
 
-`discovery.zen.ping.unicast.hosts.resolve_timeout`::
+`discovery.seed_resolver.timeout`::
 
     Sets the amount of time to wait for DNS lookups on each round of discovery.
     This is specified as a <<time-units, time unit>> and defaults to `5s`.
+
+`discovery.seed_resolver.max_concurrent_resolvers`::
+
+    Sets the number of threads with which to perform DNS lookups for seed nodes.
+    This defaults to `10`.

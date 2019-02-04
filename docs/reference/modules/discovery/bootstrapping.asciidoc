@@ -94,6 +94,6 @@ If any of the following settings are configured then auto-bootstrapping will not
 take place, and you must configure `cluster.initial_master_nodes` as described
 in the <<modules-discovery-bootstrap-cluster,section on cluster bootstrapping>>:
 
-* `discovery.zen.hosts_provider`
-* `discovery.zen.ping.unicast.hosts`
+* `discovery.seed_providers`
+* `discovery.seed_addresses`
 * `cluster.initial_master_nodes`

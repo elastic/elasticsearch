@@ -62,10 +62,10 @@ ${path.logs}
 #
 # --------------------------------- Discovery ----------------------------------
 #
-# Pass an initial list of hosts to perform discovery when new node is started:
+# Pass an initial list of hosts to perform discovery when this node is started:
 # The default list of hosts is ["127.0.0.1", "[::1]"]
 #
-#discovery.zen.ping.unicast.hosts: ["host1", "host2"]
+#discovery.seed_addresses: ["host1", "host2"]
 #
 # Bootstrap the cluster using an initial set of master-eligible nodes:
 #

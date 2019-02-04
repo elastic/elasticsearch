@@ -131,10 +131,12 @@ class ClusterFormationTasks {
                 writeConfigSetup = { Map esConfig ->
                     if (config.getAutoSetHostsProvider()) {
                         // Don't force discovery provider if one is set by the test cluster specs already
-                        if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
-                            esConfig['discovery.zen.hosts_provider'] = 'file'
+                        final String seedProvidersSettingName =
+                                node.nodeVersion.onOrAfter("7.0.0") ? "discovery.seed_providers" : "discovery.zen.hosts_provider";
+                        if (esConfig.containsKey(seedProvidersSettingName) == false) {
+                            esConfig[seedProvidersSettingName] = 'file'
                         }
-                        esConfig['discovery.zen.ping.unicast.hosts'] = []
+                        esConfig[node.nodeVersion.onOrAfter("7.0.0") ? "discovery.seed_addresses" : "discovery.zen.ping.unicast.hosts"] = []
                     }
                     boolean supportsInitialMasterNodes = hasBwcNodes == false || config.bwcVersion.onOrAfter("7.0.0")
                     if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes() && supportsInitialMasterNodes) {
@@ -154,9 +156,9 @@ class ClusterFormationTasks {
                 writeConfigSetup = { Map esConfig ->
                     String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.createAntBuilder())
                     if (unicastTransportUri == null) {
-                        esConfig['discovery.zen.ping.unicast.hosts'] = []
+                        esConfig['discovery.seed_addresses'] = []
                     } else {
-                        esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
+                        esConfig['discovery.seed_addresses'] = "\"${unicastTransportUri}\""
                     }
                     esConfig
                 }

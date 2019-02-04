@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.common.util.CollectionUtils.newSingletonArrayList;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 
 public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCase {
 
@@ -63,7 +64,7 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put("discovery.zen.hosts_provider", "azure");
+            .put(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "azure");
 
         // We add a fake subscription_id to start mock compute service
         builder.put(Management.SUBSCRIPTION_ID_SETTING.getKey(), "fake")

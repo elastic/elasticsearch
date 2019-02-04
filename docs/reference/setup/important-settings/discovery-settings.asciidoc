@@ -10,7 +10,7 @@ each other and elect a master node.
 
 [float]
 [[unicast.hosts]]
-==== `discovery.zen.ping.unicast.hosts`
+==== `discovery.seed_addresses`
 
 Out of the box, without any network configuration, Elasticsearch will bind to
 the available loopback addresses and will scan local ports 9300 to 9305 to try
@@ -18,7 +18,7 @@ to connect to other nodes running on the same server. This provides an auto-
 clustering experience without having to do any configuration.
 
 When the moment comes to form a cluster with nodes on other servers, you must
-use the `discovery.zen.ping.unicast.hosts` setting to provide a seed list of
+use the `discovery.seed_addresses` setting to provide a seed list of
 other nodes in the cluster that are master-eligible and likely to be live and
 contactable.  This setting should normally contain the addresses of all the
 master-eligible nodes in the cluster.
@@ -44,7 +44,7 @@ This list is set using the `cluster.initial_master_nodes` setting.
 
 [source,yaml]
 --------------------------------------------------
-discovery.zen.ping.unicast.hosts:
+discovery.seed_addresses:
    - 192.168.1.10:9300
    - 192.168.1.11 <1>
    - seeds.mydomain.com <2>

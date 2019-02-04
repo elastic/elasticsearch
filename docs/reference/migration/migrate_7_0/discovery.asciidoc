@@ -35,6 +35,6 @@ Production deployments of Elasticsearch now require at least one of the
 following settings to be specified in the `elasticsearch.yml` configuration
 file:
 
-- `discovery.zen.ping.unicast.hosts`
-- `discovery.zen.hosts_provider`
+- `discovery.seed_addresses`
+- `discovery.seed_providers`
 - `cluster.initial_master_nodes`

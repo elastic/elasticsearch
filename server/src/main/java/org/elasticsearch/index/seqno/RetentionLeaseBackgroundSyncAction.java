@@ -25,12 +25,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -50,13 +48,17 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Write action responsible for syncing retention leases to replicas. This action is deliberately a write action so that if a replica misses
- * a retention lease sync then that shard will be marked as stale.
+ * Replication action responsible for background syncing retention leases to replicas. This action is deliberately a replication action so
+ * that if a replica misses a background retention lease sync then that shard will not be marked as stale. We have some tolerance for a
+ * shard copy missing renewals of retention leases since the background sync interval is much smaller than the expected lifetime of
+ * retention leases.
  */
-public class RetentionLeaseSyncAction extends
-        TransportWriteAction<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> {
+public class RetentionLeaseBackgroundSyncAction extends TransportReplicationAction<
+        RetentionLeaseBackgroundSyncAction.Request,
+        RetentionLeaseBackgroundSyncAction.Request,
+        ReplicationResponse> {
 
-    public static String ACTION_NAME = "indices:admin/seq_no/retention_lease_sync";
+    public static String ACTION_NAME = "indices:admin/seq_no/retention_lease_background_sync";
 
     private static final Logger LOGGER = LogManager.getLogger(RetentionLeaseSyncAction.class);
 
@@ -65,7 +67,7 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Inject
-    public RetentionLeaseSyncAction(
+    public RetentionLeaseBackgroundSyncAction(
             final Settings settings,
             final TransportService transportService,
             final ClusterService clusterService,
@@ -84,69 +86,56 @@ public class RetentionLeaseSyncAction extends
                 shardStateAction,
                 actionFilters,
                 indexNameExpressionResolver,
-                RetentionLeaseSyncAction.Request::new,
-                RetentionLeaseSyncAction.Request::new,
+                Request::new,
+                Request::new,
                 ThreadPool.Names.MANAGEMENT);
     }
 
     /**
-     * Sync the specified retention leases for the specified shard. The callback is invoked when the sync succeeds or fails.
+     * Background sync the specified retention leases for the specified shard.
      *
      * @param shardId         the shard to sync
      * @param retentionLeases the retention leases to sync
-     * @param listener        the callback to invoke when the sync completes normally or abnormally
      */
-    public void sync(
+    public void backgroundSync(
             final ShardId shardId,
-            final RetentionLeases retentionLeases,
-            final ActionListener<ReplicationResponse> listener) {
+            final RetentionLeases retentionLeases) {
         Objects.requireNonNull(shardId);
         Objects.requireNonNull(retentionLeases);
-        Objects.requireNonNull(listener);
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
             execute(
-                    new RetentionLeaseSyncAction.Request(shardId, retentionLeases),
+                    new Request(shardId, retentionLeases),
                     ActionListener.wrap(
-                            listener::onResponse,
+                            r -> {},
                             e -> {
                                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                                    getLogger().warn(new ParameterizedMessage("{} retention lease sync failed", shardId), e);
+                                    getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
                                 }
-                                listener.onFailure(e);
                             }));
         }
     }
 
     @Override
-    protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(final Request request, final IndexShard primary) {
+    protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(final Request request, final IndexShard primary) {
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
-        // we flush to ensure that retention leases are committed
-        flush(primary);
-        return new WritePrimaryResult<>(request, new Response(), null, null, primary, logger);
+        primary.afterWriteOperation();
+        return new PrimaryResult<>(request, new ReplicationResponse());
     }
 
     @Override
-    protected WriteReplicaResult<Request> shardOperationOnReplica(final Request request, final IndexShard replica) {
+    protected ReplicaResult shardOperationOnReplica(final Request request, final IndexShard replica){
         Objects.requireNonNull(request);
         Objects.requireNonNull(replica);
         replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
-        // we flush to ensure that retention leases are committed
-        flush(replica);
-        return new WriteReplicaResult<>(request, null, null, replica, logger);
+        replica.afterWriteOperation();
+        return new ReplicaResult();
     }
 
-    private void flush(final IndexShard indexShard) {
-        final FlushRequest flushRequest = new FlushRequest();
-        flushRequest.force(true);
-        flushRequest.waitIfOngoing(true);
-        indexShard.flush(flushRequest);
-    }
-
-    public static final class Request extends ReplicatedWriteRequest<Request> {
+    public static final class Request extends ReplicationRequest<Request> {
 
         private RetentionLeases retentionLeases;
 
@@ -188,18 +177,9 @@ public class RetentionLeaseSyncAction extends
 
     }
 
-    public static final class Response extends ReplicationResponse implements WriteResponse {
-
-        @Override
-        public void setForcedRefresh(final boolean forcedRefresh) {
-            // ignore
-        }
-
-    }
-
     @Override
-    protected Response newResponseInstance() {
-        return new Response();
+    protected ReplicationResponse newResponseInstance() {
+        return new ReplicationResponse();
     }
 
 }

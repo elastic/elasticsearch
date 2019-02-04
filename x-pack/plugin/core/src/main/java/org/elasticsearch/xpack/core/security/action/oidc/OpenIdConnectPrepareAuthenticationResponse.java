@@ -74,7 +74,7 @@ public class OpenIdConnectPrepareAuthenticationResponse extends ActionResponse i
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("authentication_request_url", authenticationRequestUrl);
+        builder.field("redirect", authenticationRequestUrl);
         builder.field("state", state);
         builder.field("nonce", nonce);
         builder.endObject();

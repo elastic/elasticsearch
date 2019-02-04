@@ -30,9 +30,19 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
      * issuer to the UA needs to be redirected for authentication
      */
     private String issuer;
+    private String state;
+    private String nonce;
 
     public String getRealmName() {
         return realmName;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public String getNonce() {
+        return nonce;
     }
 
     public String getIssuer() {
@@ -41,6 +51,14 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
 
     public void setRealmName(String realmName) {
         this.realmName = realmName;
+    }
+
+    public void setState(String state) {
+        this.state = state;
+    }
+
+    public void setNonce(String nonce) {
+        this.nonce = nonce;
     }
 
     public void setIssuer(String issuer) {
@@ -54,6 +72,8 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         super.readFrom(in);
         realmName = in.readOptionalString();
         issuer = in.readOptionalString();
+        state = in.readOptionalString();
+        nonce = in.readOptionalString();
     }
 
     @Override
@@ -73,6 +93,8 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         super.writeTo(out);
         out.writeOptionalString(realmName);
         out.writeOptionalString(issuer);
+        out.writeOptionalString(state);
+        out.writeOptionalString(nonce);
     }
 
     @Override
@@ -81,7 +103,7 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     }
 
     public String toString() {
-        return "{realmName=" + realmName + ", issuer=" + issuer + "}";
+        return "{realmName=" + realmName + ", issuer=" + issuer +", state=" + state + ", nonce=" + nonce + "}";
     }
 
 }

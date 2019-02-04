@@ -5,53 +5,139 @@
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
-import org.elasticsearch.ElasticsearchException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jwt.JWTClaimsSet;
+
+import com.nimbusds.oauth2.sdk.ParseException;
+import com.nimbusds.oauth2.sdk.ResponseType;
+import com.nimbusds.oauth2.sdk.Scope;
+import com.nimbusds.oauth2.sdk.id.ClientID;
+import com.nimbusds.oauth2.sdk.id.Issuer;
+import com.nimbusds.oauth2.sdk.id.State;
+import com.nimbusds.openid.connect.sdk.AuthenticationRequest;
+import com.nimbusds.openid.connect.sdk.Nonce;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
+import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.util.Base64;
+import java.net.URI;
+import java.net.URISyntaxException;
+
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
+
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.DN_CLAIM;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.GROUPS_CLAIM;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.MAIL_CLAIM;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.NAME_CLAIM;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_ISSUER;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_JWKSET_PATH;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_NAME;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_USERINFO_ENDPOINT;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.POPULATE_USER_METADATA;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.PRINCIPAL_CLAIM;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_ID;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_CLIENT_SECRET;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_REDIRECT_URI;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_RESPONSE_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.RP_SIGNATURE_ALGORITHM;
 
-public class OpenIdConnectRealm extends Realm {
+public class OpenIdConnectRealm extends Realm implements Releasable {
 
     public static final String CONTEXT_TOKEN_DATA = "_oidc_tokendata";
-    private static final SecureRandom RANDOM_INSTANCE = new SecureRandom();
     private final OpenIdConnectProviderConfiguration opConfiguration;
     private final RelyingPartyConfiguration rpConfiguration;
+    private final OpenIdConnectAuthenticator openIdConnectAuthenticator;
+    private final ClaimParser principalAttribute;
+    private final ClaimParser groupsAttribute;
+    private final ClaimParser dnAttribute;
+    private final ClaimParser nameAttribute;
+    private final ClaimParser mailAttribute;
+    private final Boolean populateUserMetadata;
+    private final UserRoleMapper roleMapper;
 
-    public OpenIdConnectRealm(RealmConfig config) {
+    private DelegatedAuthorizationSupport delegatedRealms;
+
+    public OpenIdConnectRealm(RealmConfig config, SSLService sslService, UserRoleMapper roleMapper,
+                              ResourceWatcherService watcherService) {
         super(config);
+        this.roleMapper = roleMapper;
         this.rpConfiguration = buildRelyingPartyConfiguration(config);
         this.opConfiguration = buildOpenIdConnectProviderConfiguration(config);
+        this.openIdConnectAuthenticator =
+            new OpenIdConnectAuthenticator(config, opConfiguration, rpConfiguration, sslService, watcherService);
+        this.principalAttribute = ClaimParser.forSetting(logger, PRINCIPAL_CLAIM, config, true);
+        this.groupsAttribute = ClaimParser.forSetting(logger, GROUPS_CLAIM, config, false);
+        this.dnAttribute = ClaimParser.forSetting(logger, DN_CLAIM, config, false);
+        this.nameAttribute = ClaimParser.forSetting(logger, NAME_CLAIM, config, false);
+        this.mailAttribute = ClaimParser.forSetting(logger, MAIL_CLAIM, config, false);
+        this.populateUserMetadata = config.getSetting(POPULATE_USER_METADATA);
+        if (TokenService.isTokenServiceEnabled(config.settings()) == false) {
+            throw new IllegalStateException("OpenID Connect Realm requires that the token service be enabled ("
+                + XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + ")");
+        }
+    }
+
+    // For testing
+    OpenIdConnectRealm(RealmConfig config, OpenIdConnectAuthenticator authenticator, UserRoleMapper roleMapper) {
+        super(config);
+        this.roleMapper = roleMapper;
+        this.rpConfiguration = buildRelyingPartyConfiguration(config);
+        this.opConfiguration = buildOpenIdConnectProviderConfiguration(config);
+        this.openIdConnectAuthenticator = authenticator;
+        this.principalAttribute = ClaimParser.forSetting(logger, PRINCIPAL_CLAIM, config, true);
+        this.groupsAttribute = ClaimParser.forSetting(logger, GROUPS_CLAIM, config, false);
+        this.dnAttribute = ClaimParser.forSetting(logger, DN_CLAIM, config, false);
+        this.nameAttribute = ClaimParser.forSetting(logger, NAME_CLAIM, config, false);
+        this.mailAttribute = ClaimParser.forSetting(logger, MAIL_CLAIM, config, false);
+        this.populateUserMetadata = config.getSetting(POPULATE_USER_METADATA);
+    }
+
+    @Override
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
+        if (delegatedRealms != null) {
+            throw new IllegalStateException("Realm has already been initialized");
+        }
+        delegatedRealms = new DelegatedAuthorizationSupport(realms, config, licenseState);
     }
 
     @Override
     public boolean supports(AuthenticationToken token) {
-        return false;
+        return token instanceof OpenIdConnectToken;
     }
 
     @Override
@@ -61,38 +147,131 @@ public class OpenIdConnectRealm extends Realm {
 
     @Override
     public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
-
+        if (token instanceof OpenIdConnectToken) {
+            OpenIdConnectToken oidcToken = (OpenIdConnectToken) token;
+            openIdConnectAuthenticator.authenticate(oidcToken, ActionListener.wrap(
+                jwtClaimsSet -> buildUserFromClaims(jwtClaimsSet, listener),
+                e -> {
+                    logger.debug("Failed to consume the OpenIdConnectToken ", e);
+                    if (e instanceof ElasticsearchSecurityException) {
+                        listener.onResponse(AuthenticationResult.unsuccessful("Failed to authenticate user with OpenID Connect", e));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }));
+        } else {
+            listener.onResponse(AuthenticationResult.notHandled());
+        }
     }
 
     @Override
     public void lookupUser(String username, ActionListener<User> listener) {
+        listener.onResponse(null);
+    }
+
+
+    private void buildUserFromClaims(JWTClaimsSet claims, ActionListener<AuthenticationResult> authResultListener) {
+        final String principal = principalAttribute.getClaimValue(claims);
+        if (Strings.isNullOrEmpty(principal)) {
+            authResultListener.onResponse(AuthenticationResult.unsuccessful(
+                principalAttribute + "not found in " + claims.toJSONObject(), null));
+            return;
+        }
+
+        if (delegatedRealms.hasDelegation()) {
+            delegatedRealms.resolve(principal, authResultListener);
+            return;
+        }
+
+        final Map<String, Object> userMetadata = new HashMap<>();
+        if (populateUserMetadata) {
+            Map<String, Object> claimsMap = claims.getClaims();
+            /*
+             * We whitelist the Types that we want to parse as metadata from the Claims, explicitly filtering out {@link Date}s
+             */
+            Set<Map.Entry> allowedEntries = claimsMap.entrySet().stream().filter(entry -> {
+                Object v = entry.getValue();
+                return (v instanceof String || v instanceof Boolean || v instanceof Number || v instanceof Collections);
+            }).collect(Collectors.toSet());
+            for (Map.Entry entry : allowedEntries) {
+                userMetadata.put("oidc(" + entry.getKey() + ")", entry.getValue());
+            }
+        }
+        final List<String> groups = groupsAttribute.getClaimValues(claims);
+        final String dn = dnAttribute.getClaimValue(claims);
+        final String mail = mailAttribute.getClaimValue(claims);
+        final String name = nameAttribute.getClaimValue(claims);
+        UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMetadata, config);
+        roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
+            final User user = new User(principal, roles.toArray(Strings.EMPTY_ARRAY), name, mail, userMetadata, true);
+            authResultListener.onResponse(AuthenticationResult.success(user));
+        }, authResultListener::onFailure));
 
     }
 
     private RelyingPartyConfiguration buildRelyingPartyConfiguration(RealmConfig config) {
-        String redirectUri = require(config, RP_REDIRECT_URI);
-        String clientId = require(config, RP_CLIENT_ID);
-        String responseType = require(config, RP_RESPONSE_TYPE);
-        if (responseType.equals("id_token") == false && responseType.equals("code") == false) {
-            throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, RP_RESPONSE_TYPE)
-                + "] value can only be code or id_token");
+        final String redirectUriString = require(config, RP_REDIRECT_URI);
+        final URI redirectUri;
+        try {
+            redirectUri = new URI(redirectUriString);
+        } catch (URISyntaxException e) {
+            // This should never happen as it's already validated in the settings
+            throw new SettingsException("Invalid URI:" + RP_REDIRECT_URI.getKey(), e);
         }
-        List<String> requestedScopes = config.getSetting(RP_REQUESTED_SCOPES);
+        final ClientID clientId = new ClientID(require(config, RP_CLIENT_ID));
+        final SecureString clientSecret = config.getSetting(RP_CLIENT_SECRET);
+        final ResponseType responseType;
+        try {
+            // This should never happen as it's already validated in the settings
+            responseType = ResponseType.parse(require(config, RP_RESPONSE_TYPE));
+        } catch (ParseException e) {
+            throw new SettingsException("Invalid value for " + RP_RESPONSE_TYPE.getKey(), e);
+        }
 
-        return new RelyingPartyConfiguration(clientId, redirectUri, responseType, requestedScopes);
+        final Scope requestedScope = new Scope(config.getSetting(RP_REQUESTED_SCOPES).toArray(Strings.EMPTY_ARRAY));
+        if (requestedScope.contains("openid") == false) {
+            requestedScope.add("openid");
+        }
+        final JWSAlgorithm signatureAlgorithm = JWSAlgorithm.parse(require(config, RP_SIGNATURE_ALGORITHM));
+
+        return new RelyingPartyConfiguration(clientId, clientSecret, redirectUri, responseType, requestedScope,
+            signatureAlgorithm);
     }
 
     private OpenIdConnectProviderConfiguration buildOpenIdConnectProviderConfiguration(RealmConfig config) {
         String providerName = require(config, OP_NAME);
-        String authorizationEndpoint = require(config, OP_AUTHORIZATION_ENDPOINT);
-        String issuer = require(config, OP_ISSUER);
-        String tokenEndpoint = config.getSetting(OP_TOKEN_ENDPOINT, () -> null);
-        String userinfoEndpoint = config.getSetting(OP_USERINFO_ENDPOINT, () -> null);
+        Issuer issuer = new Issuer(require(config, OP_ISSUER));
 
-        return new OpenIdConnectProviderConfiguration(providerName, issuer, authorizationEndpoint, tokenEndpoint, userinfoEndpoint);
+        String jwkSetUrl = require(config, OP_JWKSET_PATH);
+
+        URI authorizationEndpoint;
+        try {
+            authorizationEndpoint = new URI(require(config, OP_AUTHORIZATION_ENDPOINT));
+        } catch (URISyntaxException e) {
+            // This should never happen as it's already validated in the settings
+            throw new SettingsException("Invalid URI: " + OP_AUTHORIZATION_ENDPOINT.getKey(), e);
+        }
+        URI tokenEndpoint;
+        try {
+            tokenEndpoint = new URI(require(config, OP_TOKEN_ENDPOINT));
+        } catch (URISyntaxException e) {
+            // This should never happen as it's already validated in the settings
+            throw new SettingsException("Invalid URL: " + OP_TOKEN_ENDPOINT.getKey(), e);
+        }
+        URI userinfoEndpoint;
+        try {
+            userinfoEndpoint = (config.getSetting(OP_USERINFO_ENDPOINT, () -> null) == null) ? null :
+                new URI(config.getSetting(OP_USERINFO_ENDPOINT, () -> null));
+        } catch (URISyntaxException e) {
+            // This should never happen as it's already validated in the settings
+            throw new SettingsException("Invalid URI: " + OP_USERINFO_ENDPOINT.getKey(), e);
+        }
+
+        return new OpenIdConnectProviderConfiguration(providerName, issuer, jwkSetUrl, authorizationEndpoint, tokenEndpoint,
+            userinfoEndpoint);
     }
 
-    static String require(RealmConfig config, Setting.AffixSetting<String> setting) {
+    private static String require(RealmConfig config, Setting.AffixSetting<String> setting) {
         final String value = config.getSetting(setting);
         if (value.isEmpty()) {
             throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, setting)
@@ -103,56 +282,142 @@ public class OpenIdConnectRealm extends Realm {
 
     /**
      * Creates the URI for an OIDC Authentication Request from the realm configuration using URI Query String Serialization and
-     * generates a state parameter and a nonce. It then returns the URI, state and nonce encapsulated in a
-     * {@link OpenIdConnectPrepareAuthenticationResponse}
+     * possibly generates a state parameter and a nonce. It then returns the URI, state and nonce encapsulated in a
+     * {@link OpenIdConnectPrepareAuthenticationResponse}. A facilitator can provide a state and a nonce parameter in two cases:
+     * <ul>
+     *     <li>In case of Kibana, it allows for a better UX by ensuring that all requests to an OpenID Connect Provider within
+     *     the same browser context (even across tabs) will use the same state and nonce values.</li>
+     *     <li>In case of custom facilitators, the implementer might require/support generating the state parameter in order
+     *     to tie this to an anti-XSRF token.</li>
+     * </ul>
+     *
+     *
+     * @param existingState An existing state that can be reused or null if we need to generate one
+     * @param existingNonce An existing nonce that can be reused or null if we need to generate one
      *
      * @return an {@link OpenIdConnectPrepareAuthenticationResponse}
      */
-    public OpenIdConnectPrepareAuthenticationResponse buildAuthenticationRequestUri() throws ElasticsearchException {
-        try {
-            final String state = createNonceValue();
-            final String nonce = createNonceValue();
-            StringBuilder builder = new StringBuilder();
-            builder.append(opConfiguration.getAuthorizationEndpoint());
-            addParameter(builder, "response_type", rpConfiguration.getResponseType(), true);
-            addParameter(builder, "scope", Strings.collectionToDelimitedString(rpConfiguration.getRequestedScopes(), " "));
-            addParameter(builder, "client_id", rpConfiguration.getClientId());
-            addParameter(builder, "state", state);
-            if (Strings.hasText(nonce)) {
-                addParameter(builder, "nonce", nonce);
-            }
-            addParameter(builder, "redirect_uri", rpConfiguration.getRedirectUri());
-            return new OpenIdConnectPrepareAuthenticationResponse(builder.toString(), state, nonce);
-        } catch (UnsupportedEncodingException e) {
-            throw new ElasticsearchException("Cannot build OpenID Connect Authentication Request", e);
-        }
+    public OpenIdConnectPrepareAuthenticationResponse buildAuthenticationRequestUri(@Nullable String existingState,
+                                                                                    @Nullable String existingNonce) {
+        final State state = existingState != null ? new State(existingState) : new State();
+        final Nonce nonce = existingNonce != null ? new Nonce(existingNonce) : new Nonce();
+        final AuthenticationRequest authenticationRequest = new AuthenticationRequest(
+            opConfiguration.getAuthorizationEndpoint(),
+            rpConfiguration.getResponseType(),
+            rpConfiguration.getRequestedScope(),
+            rpConfiguration.getClientId(),
+            rpConfiguration.getRedirectUri(),
+            state,
+            nonce);
+
+        return new OpenIdConnectPrepareAuthenticationResponse(authenticationRequest.toURI().toString(),
+            state.getValue(), nonce.getValue());
     }
 
     public boolean isIssuerValid(String issuer) {
-        return this.opConfiguration.getIssuer().equals(issuer);
+        return this.opConfiguration.getIssuer().getValue().equals(issuer);
     }
 
-    private void addParameter(StringBuilder builder, String parameter, String value, boolean isFirstParameter)
-        throws UnsupportedEncodingException {
-        char prefix = isFirstParameter ? '?' : '&';
-        builder.append(prefix).append(parameter).append("=");
-        builder.append(URLEncoder.encode(value, StandardCharsets.UTF_8.name()));
+    @Override
+    public void close() {
+        openIdConnectAuthenticator.close();
     }
 
-    private void addParameter(StringBuilder builder, String parameter, String value) throws UnsupportedEncodingException {
-        addParameter(builder, parameter, value, false);
-    }
+    static final class ClaimParser {
+        private final String name;
+        private final Function<JWTClaimsSet, List<String>> parser;
 
-    /**
-     * Creates a cryptographically secure alphanumeric string to be used as a nonce or state. It adheres to the
-     * <a href="https://tools.ietf.org/html/rfc6749#section-10.10">specification's requirements</a> by using 180 bits for the random value.
-     * The random string is encoded in a URL safe manner.
-     *
-     * @return an alphanumeric string
-     */
-    private static String createNonceValue() {
-        final byte[] randomBytes = new byte[20];
-        RANDOM_INSTANCE.nextBytes(randomBytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+        ClaimParser(String name, Function<JWTClaimsSet, List<String>> parser) {
+            this.name = name;
+            this.parser = parser;
+        }
+
+        List<String> getClaimValues(JWTClaimsSet claims) {
+            return parser.apply(claims);
+        }
+
+        String getClaimValue(JWTClaimsSet claims) {
+            List<String> claimValues = parser.apply(claims);
+            if (claimValues == null || claimValues.isEmpty()) {
+                return null;
+            } else {
+                return claimValues.get(0);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+
+        static ClaimParser forSetting(Logger logger, OpenIdConnectRealmSettings.ClaimSetting setting, RealmConfig realmConfig,
+                                      boolean required) {
+
+            if (realmConfig.hasSetting(setting.getClaim())) {
+                String claimName = realmConfig.getSetting(setting.getClaim());
+                if (realmConfig.hasSetting(setting.getPattern())) {
+                    Pattern regex = Pattern.compile(realmConfig.getSetting(setting.getPattern()));
+                    return new ClaimParser(
+                        "OpenID Connect Claim [" + claimName + "] with pattern [" + regex.pattern() + "] for ["
+                            + setting.name(realmConfig) + "]",
+                        claims -> {
+                            Object claimValueObject = claims.getClaim(claimName);
+                            List<String> values;
+                            if (claimValueObject == null) {
+                                values = Collections.emptyList();
+                            } else if (claimValueObject instanceof String) {
+                                values = Collections.singletonList((String) claimValueObject);
+                            } else if (claimValueObject instanceof List == false) {
+                                throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
+                                    + " expects a claim with String or a String Array value but found a "
+                                    + claimValueObject.getClass().getName());
+                            } else {
+                                values = (List<String>) claimValueObject;
+                            }
+                            return values.stream().map(s -> {
+                                final Matcher matcher = regex.matcher(s);
+                                if (matcher.find() == false) {
+                                    logger.debug("OpenID Connect Claim [{}] is [{}], which does not match [{}]",
+                                        claimName, s, regex.pattern());
+                                    return null;
+                                }
+                                final String value = matcher.group(1);
+                                if (Strings.isNullOrEmpty(value)) {
+                                    logger.debug("OpenID Connect Claim [{}] is [{}], which does match [{}] but group(1) is empty",
+                                        claimName, s, regex.pattern());
+                                    return null;
+                                }
+                                return value;
+                            }).filter(Objects::nonNull).collect(Collectors.toList());
+                        });
+                } else {
+                    return new ClaimParser(
+                        "OpenID Connect Claim [" + claimName + "] for [" + setting.name(realmConfig) + "]",
+                        claims -> {
+                            Object claimValueObject = claims.getClaim(claimName);
+                            if (claimValueObject == null) {
+                                return Collections.emptyList();
+                            } else if (claimValueObject instanceof String) {
+                                return Collections.singletonList((String) claimValueObject);
+                            } else if (claimValueObject instanceof List == false) {
+                                throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
+                                    + " expects a claim with String or a String Array value but found a "
+                                    + claimValueObject.getClass().getName());
+                            }
+                            return (List<String>) claimValueObject;
+                        });
+                }
+            } else if (required) {
+                throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
+                    + "] is required");
+            } else if (realmConfig.hasSetting(setting.getPattern())) {
+                throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getPattern())
+                    + "] cannot be set unless [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
+                    + "] is also set");
+            } else {
+                return new ClaimParser("No OpenID Connect Claim for [" + setting.name(realmConfig) + "]",
+                    attributes -> Collections.emptyList());
+            }
+        }
     }
 }

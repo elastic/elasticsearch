@@ -229,12 +229,24 @@ public class NodeDeprecationChecks {
                 }
             }
         });
+
+        final Map<String, Settings> mon = nodeSettings.getGroups("xpack.monitoring.exporters");
+        for (Map.Entry<String, Settings> entry : mon.entrySet()) {
+            final List<String> hosts = entry.getValue().getAsList("host");
+            if (hosts != null && hosts.stream().anyMatch(h -> h.startsWith("https://"))) {
+                String sslPrefix = "xpack.monitoring.exporters." + entry.getKey() + ".ssl";
+                if (nodeSettings.hasValue(sslPrefix + ".supported_protocols") == false) {
+                    contexts.add(sslPrefix);
+                }
+            }
+        }
+
         if (contexts.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "TLS v1.0 has been removed from default TLS/SSL protocols",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#tls-v1-removed",
-                "The nodes/ssl contexts rely on the default TLS/SSL protocols: " + contexts);
+                "These ssl contexts rely on the default TLS/SSL protocols: " + contexts);
         }
         return null;
     }

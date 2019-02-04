@@ -60,12 +60,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(DISCOVERY_TYPE_SETTING.getKey(), "single-node") // Needed due to NodeDeprecationChecks#discoveryConfigurationCheck
             .put(nodeSettings)
             .build();
-        List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Version.CURRENT, Build.CURRENT,
-            discoveryNode, settings, osInfo, null, null,
-            null, null, null, pluginsAndModules, null, null));
-        List<NodeStats> nodeStats = Collections.singletonList(new NodeStats(discoveryNode, 0L, null,
-            null, null, null, null, new FsInfo(0L, null, paths), null, null, null,
-            null, null, null, null));
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
         assertThat(issues, Matchers.containsInAnyOrder(expected));
     }
@@ -328,9 +322,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "TLS v1.0 has been removed from default TLS/SSL protocols",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html#tls-v1-removed",
-                "The nodes/ssl contexts rely on the default TLS/SSL protocols: [" +
+                "These ssl contexts rely on the default TLS/SSL protocols: [" +
                     "xpack.http.ssl, " +
                     "xpack.monitoring.exporters.ems.ssl, " +
+                    "xpack.monitoring.exporters.foo.ssl, " +
                     "xpack.security.authc.realms.ldap1.ssl]"),
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Security realm settings structure changed",
@@ -346,6 +341,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .putList("xpack.security.transport.ssl.supported_protocols", randomAlphaOfLengthBetween(3,6))
             .putList("xpack.monitoring.exporters.ems.ssl.certificate_authorities", "/path/to/ca.pem")
+            .putList("xpack.monitoring.exporters.bar.host", "https://foo.example.net/")
+            .putList("xpack.monitoring.exporters.bar.ssl.supported_protocols", randomAlphaOfLengthBetween(3,6))
+            .putList("xpack.monitoring.exporters.foo.host", "https://foo.example.net/")
             .put("xpack.security.authc.realms.ldap1.type", "ldap")
             .putList("xpack.security.authc.realms.ldap1.url", "ldaps://my.ldap.example.net/")
             .put("xpack.security.authc.realms.ldap2.type", "ldap")

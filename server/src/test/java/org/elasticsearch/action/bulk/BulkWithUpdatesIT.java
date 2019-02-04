@@ -31,6 +31,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -196,7 +197,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
     }
 
     public void testBulkWithCAS() throws Exception {
-        createIndex("test");
+        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build());
         ensureGreen();
         BulkResponse bulkResponse = client().prepareBulk()
                 .add(client().prepareIndex("test", "type", "1").setCreate(true).setSource("field", "1"))

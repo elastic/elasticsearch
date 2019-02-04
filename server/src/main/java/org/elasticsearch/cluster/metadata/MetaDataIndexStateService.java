@@ -386,8 +386,9 @@ public class MetaDataIndexStateService {
                                           final Map<Index, AcknowledgedResponse> results) {
         final MetaData.Builder metadata = MetaData.builder(currentState.metaData());
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+        final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
 
-        final Set<Index> closedIndices = new HashSet<>();
+        final Set<String> closedIndices = new HashSet<>();
         for (Map.Entry<Index, AcknowledgedResponse> result : results.entrySet()) {
             final Index index = result.getKey();
             final boolean acknowledged = result.getValue().isAcknowledged();
@@ -409,24 +410,18 @@ public class MetaDataIndexStateService {
                 }
 
                 logger.debug("closing index {} succeeded", index);
-                final IndexMetaData updatedIndexMetaData = IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE).build();
-                metadata.put(updatedIndexMetaData, true);
-
+                metadata.put(IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE));
                 blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
                 blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
-
-                closedIndices.add(index);
+                routingTable.addAsFromOpenToClose(metadata.getSafe(index));
+                closedIndices.add(index.getName());
             } catch (final IndexNotFoundException e) {
                 logger.debug("index {} has been deleted since it was blocked before closing, ignoring", index);
             }
         }
 
-        final ClusterState updatedState = ClusterState.builder(currentState).metaData(metadata).blocks(blocks).build();
-        final RoutingTable.Builder routingTable = RoutingTable.builder(updatedState.routingTable());
-        closedIndices.forEach(index -> routingTable.addAsFromOpenToClose(updatedState.metaData().getIndexSafe(index)));
-
         logger.info("completed closing of indices {}", closedIndices);
-        return ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
+        return ClusterState.builder(currentState).blocks(blocks).metaData(metadata).routingTable(routingTable.build()).build();
     }
 
     public void openIndex(final OpenIndexClusterStateUpdateRequest request,

@@ -389,7 +389,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 assert indexMetaData != null || event.isNewCluster() :
                     "index " + index + " does not exist in the cluster state, it should either " +
                         "have been deleted or the cluster must be new";
-                reason = NO_LONGER_ASSIGNED;
+                reason = indexMetaData != null && indexMetaData.getState() == IndexMetaData.State.CLOSE ? CLOSED : NO_LONGER_ASSIGNED;
             }
 
             if (reason != null) {
@@ -941,7 +941,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             DELETED,
 
             /**
-             * The index have been closed. The index should be removed and all associated resources released. Persistent parts of the index
+             * The index has been closed. The index should be removed and all associated resources released. Persistent parts of the index
              * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
              */
             CLOSED,
@@ -954,7 +954,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             FAILURE,
 
             /**
-             * The index have been closed. The index should be removed and all associated resources released. Persistent parts of the index
+             * The index has been reopened. The index should be removed and all associated resources released. Persistent parts of the index
              * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
              */
             REOPENED,

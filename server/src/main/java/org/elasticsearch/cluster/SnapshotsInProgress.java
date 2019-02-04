@@ -93,6 +93,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
                      long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
                      String failure) {
+            assert state != State.MISSING && state != State.WAITING : state;
+            assert state != State.INIT || shards == null || shards.isEmpty();
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;

@@ -44,7 +44,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        private static final ObjectParser<Body, Void> PARSER = new ObjectParser<>("put_auto_follow_pattern_request", Body::new);
+        private static final ObjectParser<PutAutoFollowPatternParameters, Void> PARSER =
+            new ObjectParser<>("put_auto_follow_pattern_request", PutAutoFollowPatternParameters::new);
 
         static {
             PARSER.declareString((params, value) -> params.remoteCluster = value, REMOTE_CLUSTER_FIELD);
@@ -54,13 +55,13 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         }
 
         public static Request fromXContent(XContentParser parser, String name) throws IOException {
-            Body body = PARSER.parse(parser, null);
+            PutAutoFollowPatternParameters parameters = PARSER.parse(parser, null);
             Request request = new Request();
             request.setName(name);
-            request.setRemoteCluster(body.remoteCluster);
-            request.setLeaderIndexPatterns(body.leaderIndexPatterns);
-            request.setFollowIndexNamePattern(body.followIndexNamePattern);
-            request.setParameters(body);
+            request.setRemoteCluster(parameters.remoteCluster);
+            request.setLeaderIndexPatterns(parameters.leaderIndexPatterns);
+            request.setFollowIndexNamePattern(parameters.followIndexNamePattern);
+            request.setParameters(parameters);
             return request;
         }
 
@@ -221,7 +222,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             return Objects.hash(name, remoteCluster, leaderIndexPatterns, followIndexNamePattern, parameters);
         }
 
-        private static class Body extends FollowParameters {
+        private static class PutAutoFollowPatternParameters extends FollowParameters {
 
             private String remoteCluster;
             private List<String> leaderIndexPatterns;

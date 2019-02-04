@@ -127,20 +127,20 @@ public class DateFormattersTests extends ESTestCase {
     public void testEqualsAndHashcode() {
         assertThat(DateFormatters.forPattern("strict_date_optional_time"),
             sameInstance(DateFormatters.forPattern("strict_date_optional_time")));
-        assertThat(DateFormatters.forPattern("yyyy"), equalTo(DateFormatters.forPattern("yyyy")));
-        assertThat(DateFormatters.forPattern("yyyy").hashCode(),
-            is(DateFormatters.forPattern("yyyy").hashCode()));
+        assertThat(DateFormatters.forPattern("YYYY"), equalTo(DateFormatters.forPattern("YYYY")));
+        assertThat(DateFormatters.forPattern("YYYY").hashCode(),
+            is(DateFormatters.forPattern("YYYY").hashCode()));
 
         // different timezone, thus not equals
-        assertThat(DateFormatters.forPattern("yyyy").withZone(ZoneId.of("CET")), not(equalTo(DateFormatters.forPattern("yyyy"))));
+        assertThat(DateFormatters.forPattern("YYYY").withZone(ZoneId.of("CET")), not(equalTo(DateFormatters.forPattern("YYYY"))));
 
         // different locale, thus not equals
-        DateFormatter f1 = DateFormatters.forPattern("yyyy").withLocale(Locale.CANADA);
+        DateFormatter f1 = DateFormatters.forPattern("YYYY").withLocale(Locale.CANADA);
         DateFormatter f2 = f1.withLocale(Locale.FRENCH);
         assertThat(f1, not(equalTo(f2)));
 
         // different pattern, thus not equals
-        assertThat(DateFormatters.forPattern("yyyy"), not(equalTo(DateFormatters.forPattern("yy"))));
+        assertThat(DateFormatters.forPattern("YYYY"), not(equalTo(DateFormatters.forPattern("YY"))));
 
         DateFormatter epochSecondFormatter = DateFormatters.forPattern("epoch_second");
         assertThat(epochSecondFormatter, sameInstance(DateFormatters.forPattern("epoch_second")));

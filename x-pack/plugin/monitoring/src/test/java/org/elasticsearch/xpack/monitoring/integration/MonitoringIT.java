@@ -277,7 +277,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         assertThat(((Number) source.get("interval_ms")).longValue(), equalTo(interval.getMillis()));
 
-        assertThat(index, equalTo(MonitoringTemplateUtils.indexName(DateTimeFormat.forPattern("yyyy.MM.dd").withZoneUTC(),
+        assertThat(index, equalTo(MonitoringTemplateUtils.indexName(DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC(),
                                                                     expectedSystem,
                                                                     ISODateTimeFormat.dateTime().parseMillis(timestamp))));
 

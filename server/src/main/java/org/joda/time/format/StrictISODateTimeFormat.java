@@ -90,7 +90,7 @@ public class StrictISODateTimeFormat {
      * <p>
      * This method examines the fields provided and returns an ISO-style
      * formatter that best fits. This can be useful for outputting
-     * less-common ISO styles, such as YearMonth (yyyy-MM) or MonthDay (--MM-DD).
+     * less-common ISO styles, such as YearMonth (YYYY-MM) or MonthDay (--MM-DD).
      * <p>
      * The list provided may have overlapping fields, such as dayOfWeek and
      * dayOfMonth. In this case, the style is chosen based on the following
@@ -234,26 +234,26 @@ public class StrictISODateTimeFormat {
             bld.append(Constants.ye);
             if (fields.remove(DateTimeFieldType.monthOfYear())) {
                 if (fields.remove(DateTimeFieldType.dayOfMonth())) {
-                    // yyyy-MM-DD/yyyyMMDD
+                    // YYYY-MM-DD/YYYYMMDD
                     appendSeparator(bld, extended);
                     bld.appendMonthOfYear(2);
                     appendSeparator(bld, extended);
                     bld.appendDayOfMonth(2);
                 } else {
-                    // yyyy-MM/yyyy-MM
+                    // YYYY-MM/YYYY-MM
                     bld.appendLiteral('-');
                     bld.appendMonthOfYear(2);
                     reducedPrec = true;
                 }
             } else {
                 if (fields.remove(DateTimeFieldType.dayOfMonth())) {
-                    // yyyy--DD/yyyy--DD (non-iso)
+                    // YYYY--DD/YYYY--DD (non-iso)
                     checkNotStrictISO(fields, strictISO);
                     bld.appendLiteral('-');
                     bld.appendLiteral('-');
                     bld.appendDayOfMonth(2);
                 } else {
-                    // yyyy/yyyy
+                    // YYYY/YYYY
                     reducedPrec = true;
                 }
             }
@@ -299,11 +299,11 @@ public class StrictISODateTimeFormat {
         if (fields.remove(DateTimeFieldType.year())) {
             bld.append(Constants.ye);
             if (fields.remove(DateTimeFieldType.dayOfYear())) {
-                // yyyy-DDD/yyyyDDD
+                // YYYY-DDD/YYYYDDD
                 appendSeparator(bld, extended);
                 bld.appendDayOfYear(3);
             } else {
-                // yyyy/yyyy
+                // YYYY/YYYY
                 reducedPrec = true;
             }
 

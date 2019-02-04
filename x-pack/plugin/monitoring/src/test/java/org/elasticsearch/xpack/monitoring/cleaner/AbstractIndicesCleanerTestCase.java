@@ -197,7 +197,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
      * Creates a watcher history index from the specified version.
      */
     protected void createWatcherHistoryIndex(final DateTime creationDate, final String version) {
-        final DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy.MM.dd").withZoneUTC();
+        final DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC();
         final String index = ".watcher-history-" + version + "-" + formatter.print(creationDate.getMillis());
 
         createIndex(index, creationDate);
@@ -214,7 +214,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
      * Creates a monitoring timestamped index using a given template version.
      */
     protected void createTimestampedIndex(DateTime creationDate, String version) {
-        final DateTimeFormatter formatter = DateTimeFormat.forPattern("yyyy.MM.dd").withZoneUTC();
+        final DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC();
         final String index = ".monitoring-es-" + version + "-" + formatter.print(creationDate.getMillis());
         createIndex(index, creationDate);
     }

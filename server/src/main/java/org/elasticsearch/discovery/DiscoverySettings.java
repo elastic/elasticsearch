@@ -46,21 +46,21 @@ public class DiscoverySettings {
      **/
     public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("discovery.zen.publish_timeout", TimeValue.timeValueSeconds(30),
-            Property.Dynamic, Property.NodeScope);
+            Property.Dynamic, Property.NodeScope, Property.Deprecated);
 
     /**
      * sets the timeout for receiving enough acks for a specific cluster state and committing it. failing
      * to receive responses within this window will cause the cluster state change to be rejected.
      */
     public static final Setting<TimeValue> COMMIT_TIMEOUT_SETTING =
-        new Setting<>("discovery.zen.commit_timeout", (s) -> PUBLISH_TIMEOUT_SETTING.getRaw(s),
+        new Setting<>("discovery.zen.commit_timeout", PUBLISH_TIMEOUT_SETTING::getRaw,
             (s) -> TimeValue.parseTimeValue(s, TimeValue.timeValueSeconds(30), "discovery.zen.commit_timeout"),
-            Property.Dynamic, Property.NodeScope);
+            Property.Dynamic, Property.NodeScope, Property.Deprecated);
     public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING =
         new Setting<>("discovery.zen.no_master_block", "write", DiscoverySettings::parseNoMasterBlock,
             Property.Dynamic, Property.NodeScope);
     public static final Setting<Boolean> PUBLISH_DIFF_ENABLE_SETTING =
-        Setting.boolSetting("discovery.zen.publish_diff.enable", true, Property.Dynamic, Property.NodeScope);
+        Setting.boolSetting("discovery.zen.publish_diff.enable", true, Property.Dynamic, Property.NodeScope, Property.Deprecated);
     public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), Property.NodeScope);
 

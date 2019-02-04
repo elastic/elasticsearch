@@ -113,6 +113,8 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     public void testJavaPatternLocale() {
+        // @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/31724")
+        assumeFalse("Can't run in a FIPS JVM, Joda parse date error", inFipsJvm());
         DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
             templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ITALIAN),
                 "date_as_string", Collections.singletonList("yyyy dd MMMM"), "date_as_date");

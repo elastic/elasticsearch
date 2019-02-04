@@ -103,6 +103,20 @@ space.  The following issues have been identified:
 Other safeguards are tracked in the meta-issue {GIT}11511[#11511].
 
 [float]
+=== The _version field may not uniquely identify document content during a network partition (STATUS: ONGOING)
+
+When a primary has been partitioned away from the cluster there is a short period of time until it detects this. During that time it will continue
+indexing writes locally, thereby updating document versions. When it tries to replicate the operation, however, it will discover that it is
+partitioned away. It won't acknowledge the write and will wait until the partition is resolved to negotiate with the master on how to proceed.
+The master will decide to either fail any replicas which failed to index the operations on the primary or tell the primary that it has to
+step down because a new primary has been chosen in the meantime. Since the old primary has already written documents, clients may already have read from
+the old primary before it shuts itself down. The version numbers of these reads may not be unique if the new primary has already accepted
+writes for the same document (see {GIT}19269[#19269]).
+
+We are currently implementing Sequence numbers {GIT}10708[#10708] which better track primary changes. Sequence numbers thus provide a basis
+for uniquely identifying writes even in the presence of network partitions and will replace `_version` in operations that require this.
+
+[float]
 === Relocating shards omitted by reporting infrastructure (STATUS: ONGOING)
 
 Indices stats and indices segments requests reach out to all nodes that have shards of that index. Shards that have relocated from a node
@@ -139,20 +153,6 @@ for syncing the remaining replicas with the newly-promoted primary
 shard.
 
 == Completed
-
-[float]
-=== The _version field may not uniquely identify document content during a network partition (STATUS: DONE, v7.0.0)
-
-When a primary has been partitioned away from the cluster there is a short period of time until it detects this. During that time it will continue
-indexing writes locally, thereby updating document versions. When it tries to replicate the operation, however, it will discover that it is
-partitioned away. It won't acknowledge the write and will wait until the partition is resolved to negotiate with the master on how to proceed.
-The master will decide to either fail any replicas which failed to index the operations on the primary or tell the primary that it has to
-step down because a new primary has been chosen in the meantime. Since the old primary has already written documents, clients may already have read from
-the old primary before it shuts itself down. The version numbers of these reads may not be unique if the new primary has already accepted
-writes for the same document (see {GIT}19269[#19269]).
-
-We are currently implementing Sequence numbers {GIT}10708[#10708] which better track primary changes. Sequence numbers thus provide a basis
-for uniquely identifying writes even in the presence of network partitions and will replace `_version` in operations that require this.
 
 [float]
 === Repeated network partitions can cause cluster state updates to be lost (STATUS: DONE, v7.0.0)

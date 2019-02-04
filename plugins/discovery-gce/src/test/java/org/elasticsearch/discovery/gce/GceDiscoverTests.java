@@ -26,7 +26,6 @@ import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;

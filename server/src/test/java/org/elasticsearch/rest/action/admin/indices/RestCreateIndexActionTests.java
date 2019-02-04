@@ -123,4 +123,20 @@ public class RestCreateIndexActionTests extends RestActionTestCase {
 
         assertEquals(contentAsMap, source);
     }
+
+       public void testMalformedMappings() throws IOException {
+        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+            .field("mappings", "some string")
+            .startObject("aliases")
+                .startObject("read_alias").endObject()
+            .endObject()
+        .endObject();
+
+        Map<String, Object> contentAsMap = XContentHelper.convertToMap(
+            BytesReference.bytes(content), true, content.contentType()).v2();
+
+        boolean includeTypeName = false;
+        Map<String, Object> source = RestCreateIndexAction.prepareMappings(contentAsMap, includeTypeName);
+        assertEquals(contentAsMap, source);
+    }
 }

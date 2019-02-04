@@ -70,7 +70,7 @@ public class SettingsBasedHostsProviderTests extends ESTestCase {
     public void testGetsHostsFromSetting() {
         final AssertingHostsResolver hostsResolver = new AssertingHostsResolver(1, "bar", "foo");
         new SettingsBasedHostsProvider(Settings.builder()
-            .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_ADDRESSES_SETTING.getKey(), "foo", "bar")
+            .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), "foo", "bar")
             .build(), null).buildDynamicHosts(hostsResolver);
         assertTrue(hostsResolver.getResolvedHosts());
     }
@@ -88,7 +88,7 @@ public class SettingsBasedHostsProviderTests extends ESTestCase {
     public void testForbidsBothSettingsAtTheSameTime() {
         expectThrows(IllegalArgumentException.class, () -> new SettingsBasedHostsProvider(Settings.builder()
             .putList(SettingsBasedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
-            .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_ADDRESSES_SETTING.getKey())
+            .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
             .build(), null));
     }
 }

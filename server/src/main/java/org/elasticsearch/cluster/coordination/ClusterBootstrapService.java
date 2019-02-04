@@ -50,7 +50,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_ADDRESSES_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
 public class ClusterBootstrapService {
@@ -94,7 +94,7 @@ public class ClusterBootstrapService {
 
     public static boolean discoveryIsConfigured(Settings settings) {
         return Stream.of(DISCOVERY_HOSTS_PROVIDER_SETTING, LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING,
-            DISCOVERY_SEED_ADDRESSES_SETTING, LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+            DISCOVERY_SEED_HOSTS_SETTING, LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
             INITIAL_MASTER_NODES_SETTING).anyMatch(s -> s.exists(settings));
     }
 

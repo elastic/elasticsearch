@@ -63,7 +63,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_ADDRESSES_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -202,7 +202,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // turning on the real memory circuit breaker leads to spurious test failures. As have no full control over heap usage, we
             // turn it off for these tests.
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
-            .putList(DISCOVERY_SEED_ADDRESSES_SETTING.getKey()) // empty list disables a port scan for other nodes
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
             .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();

@@ -729,7 +729,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         ensureChecksPass.accept(Settings.builder().putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
-        ensureChecksPass.accept(Settings.builder().putList(SettingsBasedHostsProvider.DISCOVERY_SEED_ADDRESSES_SETTING.getKey()));
+        ensureChecksPass.accept(Settings.builder().putList(SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(SettingsBasedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING
             .getKey()));

@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_ADDRESSES_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SettingsBasedHostsProviderIT extends ESIntegTestCase {
@@ -42,7 +42,7 @@ public class SettingsBasedHostsProviderIT extends ESIntegTestCase {
         }
 
         // super.nodeSettings sets this to an empty list, which disables any search for other nodes, but here we want this to happen:
-        builder.remove(DISCOVERY_SEED_ADDRESSES_SETTING.getKey());
+        builder.remove(DISCOVERY_SEED_HOSTS_SETTING.getKey());
 
         return builder.build();
     }
@@ -56,7 +56,7 @@ public class SettingsBasedHostsProviderIT extends ESIntegTestCase {
 
         int extraNodes = randomIntBetween(1, 5);
         internalCluster().startNodes(extraNodes,
-            Settings.builder().putList(DISCOVERY_SEED_ADDRESSES_SETTING.getKey(), seedNodeAddress).build());
+            Settings.builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), seedNodeAddress).build());
 
         ensureStableCluster(extraNodes + 1);
     }

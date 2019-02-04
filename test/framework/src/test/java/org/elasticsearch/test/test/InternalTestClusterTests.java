@@ -163,7 +163,7 @@ public class InternalTestClusterTests extends ESTestCase {
                         NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                         2 * ((masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes))
                     .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
-                    .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_ADDRESSES_SETTING.getKey())
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
                 if (autoManageMinMasterNodes == false) {
                     assert minNumDataNodes == maxNumDataNodes;
@@ -240,7 +240,7 @@ public class InternalTestClusterTests extends ESTestCase {
                         2 + (masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                     .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
-                    .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_ADDRESSES_SETTING.getKey())
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                     .build();
             }
 
@@ -338,7 +338,7 @@ public class InternalTestClusterTests extends ESTestCase {
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                         .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
                         .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
-                        .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_ADDRESSES_SETTING.getKey())
+                        .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                         .build();
             }
 
@@ -421,7 +421,7 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                     .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
-                    .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_ADDRESSES_SETTING.getKey())
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                     .build();
             }
 

@@ -59,7 +59,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_ADDRESSES_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -301,7 +301,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
             .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
             .putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey())
-            .putList(DISCOVERY_SEED_ADDRESSES_SETTING.getKey(), unicastHostsList);
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), unicastHostsList);
         if (getUseZen2() == false) {
             nodeSettings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(),
                 ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(internalCluster().getInstance(Settings.class)));

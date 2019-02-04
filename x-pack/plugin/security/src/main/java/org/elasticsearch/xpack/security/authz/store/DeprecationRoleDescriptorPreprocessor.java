@@ -43,10 +43,10 @@ public final class DeprecationRoleDescriptorPreprocessor implements BiConsumer<S
                 // iterate over all current aliases
                 for (final Map.Entry<String, AliasOrIndex> aliasOrIndex : aliasOrIndexMap.entrySet()) {
                     if (aliasOrIndex.getValue().isAlias()) {
-                        final AliasOrIndex.Alias alias = ((AliasOrIndex.Alias) aliasOrIndex);
+                        final String aliasName = aliasOrIndex.getKey();
                         // the privilege name pattern matches the alias name
-                        if (namePatternPredicate.test(alias.getAliasName())) {
-                            for (final IndexMetaData indexMeta : alias.getIndices()) {
+                        if (namePatternPredicate.test(aliasName)) {
+                            for (final IndexMetaData indexMeta : aliasOrIndex.getValue().getIndices()) {
                                 // but it does not match the name of an index pointed to by the alias
                                 if (false == namePatternPredicate.test(indexMeta.getIndex().getName())) {
                                     deprecationLogger.deprecated(
@@ -55,7 +55,7 @@ public final class DeprecationRoleDescriptorPreprocessor implements BiConsumer<S
                                                     + " and hence granting privileges over all the indices that it points to"
                                                     + " is deprecated and will be removed in a future version of Elasticsearch."
                                                     + " Instead define permissions exclusively on indices or index patterns.",
-                                            roleDescriptor.getName(), alias.getAliasName(), indexMeta.getIndex().getName());
+                                            roleDescriptor.getName(), aliasName, indexMeta.getIndex().getName());
                                 }
                             }
                         }

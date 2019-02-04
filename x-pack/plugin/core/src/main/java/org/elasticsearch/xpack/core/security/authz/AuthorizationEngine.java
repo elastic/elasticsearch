@@ -142,7 +142,7 @@ public interface AuthorizationEngine {
                                Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener);
 
     /**
-     * Asynchronously checks if that the permissions a user would have for a given list of names do
+     * Asynchronously checks that the permissions a user would have for a given list of names do
      * not exceed their permissions for a given name. This is used to ensure that a user cannot
      * perform operations that would escalate their privileges over the data. Some examples include
      * adding an alias to gain more permissions to a given index and/or resizing an index in order
@@ -160,6 +160,7 @@ public interface AuthorizationEngine {
      */
     void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                            Map<String, List<String>> indexNameToNewNames, ActionListener<AuthorizationResult> listener);
+
     /**
      * Interface for objects that contains the information needed to authorize a request
      */

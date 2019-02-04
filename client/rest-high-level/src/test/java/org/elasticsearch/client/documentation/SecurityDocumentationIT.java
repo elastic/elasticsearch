@@ -517,7 +517,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::enable-user-execute
             EnableUserRequest request = new EnableUserRequest("enable_user", RefreshPolicy.NONE);
-            boolean response = client.security().enableUser(RequestOptions.DEFAULT, request);
+            boolean response = client.security().enableUser(request, RequestOptions.DEFAULT);
             //end::enable-user-execute
 
             assertTrue(response);
@@ -544,7 +544,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::enable-user-execute-async
-            client.security().enableUserAsync(RequestOptions.DEFAULT, request, listener); // <1>
+            client.security().enableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::enable-user-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -561,7 +561,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::disable-user-execute
             DisableUserRequest request = new DisableUserRequest("disable_user", RefreshPolicy.NONE);
-            boolean response = client.security().disableUser(RequestOptions.DEFAULT, request);
+            boolean response = client.security().disableUser(request, RequestOptions.DEFAULT);
             //end::disable-user-execute
 
             assertTrue(response);
@@ -588,7 +588,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::disable-user-execute-async
-            client.security().disableUserAsync(RequestOptions.DEFAULT, request, listener); // <1>
+            client.security().disableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::disable-user-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -1038,7 +1038,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::change-password-execute
             ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", newPassword, RefreshPolicy.NONE);
-            boolean response = client.security().changePassword(RequestOptions.DEFAULT, request);
+            boolean response = client.security().changePassword(request, RequestOptions.DEFAULT);
             //end::change-password-execute
 
             assertTrue(response);
@@ -1064,7 +1064,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             //tag::change-password-execute-async
-            client.security().changePasswordAsync(RequestOptions.DEFAULT, request, listener); // <1>
+            client.security().changePasswordAsync(request, RequestOptions.DEFAULT, listener); // <1>
             //end::change-password-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));

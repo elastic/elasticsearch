@@ -30,6 +30,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -442,7 +444,7 @@ public final class TokenService {
                         decryptTokenId(in, cipher, version, ActionListener.wrap(tokenId -> getUserTokenFromId(tokenId, listener),
                             listener::onFailure));
                     } catch (GeneralSecurityException e) {
-                        // could happen with a token that is not ours o
+                        // could happen with a token that is not ours
                         logger.warn("invalid token", e);
                         listener.onResponse(null);
                     } finally {
@@ -824,16 +826,19 @@ public final class TokenService {
                                     updateMap.put("refreshed", true);
                                     updateMap.put("refresh_time", refreshTime.toEpochMilli());
                                     updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
-                                    UpdateRequest updateRequest =
+                                    UpdateRequestBuilder updateRequest =
                                         client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
-                                            .setVersion(response.getVersion())
-                                            .setDoc("refresh_token", updateMap)
-                                            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-                                            .request();
-                                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest,
+                                            .setDoc("refresh_token", Collections.singletonMap("refreshed", true))
+                                            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+                                    if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0)) {
+                                        updateRequest.setIfSeqNo(response.getSeqNo());
+                                        updateRequest.setIfPrimaryTerm(response.getPrimaryTerm());
+                                    } else {
+                                        updateRequest.setVersion(response.getVersion());
+                                    }
+                                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
                                         ActionListener.<UpdateResponse>wrap(
-                                            updateResponse -> createUserToken(newUserTokenId, authentication, userAuth, listener, metadata,
-                                                true),
+                                            updateResponse -> createUserToken(newUserTokenId, authentication, userAuth, listener, metadata, true),
                                             e -> {
                                                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                                                 if (cause instanceof VersionConflictEngineException ||

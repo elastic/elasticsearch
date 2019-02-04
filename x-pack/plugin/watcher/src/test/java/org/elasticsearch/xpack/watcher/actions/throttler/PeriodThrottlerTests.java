@@ -13,9 +13,10 @@ import org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -32,7 +33,7 @@ public class PeriodThrottlerTests extends ESTestCase {
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
         ActionStatus actionStatus = mock(ActionStatus.class);
-        DateTime now = new DateTime(Clock.systemUTC().millis());
+        ZonedDateTime now = Clock.systemUTC().instant().atZone(ZoneOffset.UTC);
         when(actionStatus.lastSuccessfulExecution())
                 .thenReturn(ActionStatus.Execution.successful(now.minusSeconds((int) period.seconds() - 1)));
         WatchStatus status = mock(WatchStatus.class);
@@ -53,7 +54,7 @@ public class PeriodThrottlerTests extends ESTestCase {
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
         ActionStatus actionStatus = mock(ActionStatus.class);
-        DateTime now = new DateTime(Clock.systemUTC().millis());
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         when(actionStatus.lastSuccessfulExecution())
                 .thenReturn(ActionStatus.Execution.successful(now.minusSeconds((int) period.seconds() + 1)));
         WatchStatus status = mock(WatchStatus.class);

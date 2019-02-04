@@ -59,7 +59,7 @@ public class CronEvalToolTests extends CommandTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35687")
     public void testEnsureDateIsShownInRootLocale() throws Exception {
         String output = execute("-c","1", "0 0 11 ? * MON-SAT 2040");
-        if (ZoneId.systemDefault().equals(ZoneOffset.UTC)) {//TODO that is probablyl broken!!
+        if (ZoneId.systemDefault().equals(ZoneOffset.UTC)) {
             assertThat(output, not(containsString("local time is")));
             long linesStartingWithOne = Arrays.stream(output.split("\n")).filter(s -> s.startsWith("\t")).count();
             assertThat(linesStartingWithOne, is(0L));

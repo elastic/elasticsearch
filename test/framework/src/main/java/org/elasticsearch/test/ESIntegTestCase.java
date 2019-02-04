@@ -373,18 +373,24 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected final void beforeInternal() throws Exception {
         final Scope currentClusterScope = getCurrentClusterScope();
+        Callable<Void> setup = () -> {
+            cluster().beforeTest(random(), getPerTestTransportClientRatio());
+            cluster().wipe(excludeTemplates());
+            randomIndexTemplate();
+            return null;
+        };
         switch (currentClusterScope) {
             case SUITE:
                 assert SUITE_SEED != null : "Suite seed was not initialized";
                 currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED);
+                RandomizedContext.current().runWithPrivateRandomness(SUITE_SEED, setup);
                 break;
             case TEST:
                 currentCluster = buildAndPutCluster(currentClusterScope, randomLong());
+                setup.call();
                 break;
         }
-        cluster().beforeTest(random(), getPerTestTransportClientRatio());
-        cluster().wipe(excludeTemplates());
-        randomIndexTemplate();
+
     }
 
     private void printTestMessage(String message) {
@@ -1079,17 +1085,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             lastStartCount = lastKnownCount.get();
         }
         return lastKnownCount.get();
-    }
-
-
-    /**
-     * Sets the cluster's minimum master node and make sure the response is acknowledge.
-     * Note: this doesn't guarantee that the new setting has taken effect, just that it has been received by all nodes.
-     */
-    public void setMinimumMasterNodes(int n) {
-        assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-            Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), n))
-            .get().isAcknowledged());
     }
 
     /**
@@ -1948,11 +1943,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
 
             @Override
-            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-                return ESIntegTestCase.this.addExtraClusterBootstrapSettings(allNodesSettings);
-            }
-
-            @Override
             public Path nodeConfigPath(int nodeOrdinal) {
                 return ESIntegTestCase.this.nodeConfigPath(nodeOrdinal);
             }
@@ -1980,18 +1970,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         };
     }
 
-    /**
-     * This method is called before starting a collection of nodes.
-     * At this point the test has a holistic view on all nodes settings and might perform settings adjustments as needed.
-     * For instance, the test could retrieve master node names and fill in
-     * {@link org.elasticsearch.cluster.coordination.ClusterBootstrapService#INITIAL_MASTER_NODES_SETTING} setting.
-     *
-     * @param allNodesSettings list of node settings before update
-     * @return list of node settings after update
-     */
-    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-        return allNodesSettings;
-    }
 
     /**
      * Iff this returns true mock transport implementations are used for the test runs. Otherwise not mock transport impls are used.
@@ -2219,6 +2197,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // Deleting indices is going to clear search contexts implicitly so we
         // need to check that there are no more in-flight search contexts before
         // we remove indices
+        if (isInternalCluster()) {
+            internalCluster().setBootstrapMasterNodeIndex(-1);
+        }
         super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {
             printTestMessage("cleaning up after");

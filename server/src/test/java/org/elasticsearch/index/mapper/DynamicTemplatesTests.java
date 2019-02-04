@@ -60,8 +60,6 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
 
         assertThat(mapperService.fullName("l"), notNullValue());
         assertNotSame(IndexOptions.NONE, mapperService.fullName("l").indexOptions());
-
-
     }
 
     public void testSimple() throws Exception {

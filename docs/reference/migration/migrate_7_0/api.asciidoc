@@ -126,3 +126,15 @@ removed.
 
 The `_termvector` endpoint was deprecated in 2.0 and has now been removed.
 The endpoint `_termvectors` (plural) should be used instead.
+
+[float]
+==== When {security-features} are enabled, index monitoring APIs over restricted indices are not authorized implicitly anymore
+
+Restricted indices (currently only `.security-6` and `.security`) are special internal
+indices that require setting the `allow_restricted_indices` flag on every index
+permission that covers them. If this flag is `false` (default) the permission
+will not cover these and actions against them will not be authorized.
+However, the monitoring APIs were the only exception to this rule. This exception
+has been forfeited and index monitoring privileges have to be granted explicitly,
+using the `allow_restricted_indices` flag on the permission (as any other index
+privilege).

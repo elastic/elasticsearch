@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.carrotsearch.hppc.ObjectShortHashMap;
+
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonToken;
@@ -131,7 +132,7 @@ public class SqlParser {
                 log.info(format(Locale.ROOT, "  %-15s '%s'",
                         symbolicName == null ? literalName : symbolicName,
                         t.getText()));
-            };
+            }
         }
 
         ParserRuleContext tree = parseFunction.apply(parser);
@@ -144,7 +145,7 @@ public class SqlParser {
     }
 
     private static void debug(SqlBaseParser parser) {
-        
+
         // when debugging, use the exact prediction mode (needed for diagnostics as well)
         parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
 

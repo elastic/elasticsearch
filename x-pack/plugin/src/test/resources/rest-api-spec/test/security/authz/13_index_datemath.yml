@@ -48,7 +48,6 @@ teardown:
       index:
         id: 1
         index: "<write-{now/M}>"
-        type: doc
         body: >
           {
             "name" : "doc1"
@@ -58,9 +57,9 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         body:
-            - '{"index": {"_index": "<write-{now/M{yyyy.MM}}>", "_type": "doc", "_id": "2"}}'
+            - '{"index": {"_index": "<write-{now/M{yyyy.MM}}>", "_id": "2"}}'
             - '{"name": "doc2"}'
-            - '{"index": {"_index": "<write-{now/d}>", "_type": "doc", "_id": "3"}}'
+            - '{"index": {"_index": "<write-{now/d}>", "_id": "3"}}'
             - '{"name": "doc3"}'
   - match: { errors: false }
   - match: { items.0.index.status: 201 }
@@ -84,7 +83,6 @@ teardown:
       index:
         id: 4
         index: "<read-{now/M}>"
-        type: doc
         body: >
           {
             "name" : "doc4"
@@ -94,9 +92,9 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         body:
-            - '{"index": {"_index": "<read-{now/M{yyyy.MM}}>", "_type": "doc", "_id": "5"}}'
+            - '{"index": {"_index": "<read-{now/M{yyyy.MM}}>", "_id": "5"}}'
             - '{"name": "doc5"}'
-            - '{"index": {"_index": "<read-{now/d}>", "_type": "doc", "_id": "6"}}'
+            - '{"index": {"_index": "<read-{now/d}>", "_id": "6"}}'
             - '{"name": "doc6"}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
@@ -120,9 +118,9 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         body:
-            - '{"index": {"_index": "<read-{now/M{yyyy}}>", "_type": "doc", "_id": "7"}}'
+            - '{"index": {"_index": "<read-{now/M{yyyy}}>", "_id": "7"}}'
             - '{"name": "doc7"}'
-            - '{"index": {"_index": "<write-{now/M{yyyy}}>", "_type": "doc", "_id": "8"}}'
+            - '{"index": {"_index": "<write-{now/M{yyyy}}>", "_id": "8"}}'
             - '{"name": "doc8"}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }

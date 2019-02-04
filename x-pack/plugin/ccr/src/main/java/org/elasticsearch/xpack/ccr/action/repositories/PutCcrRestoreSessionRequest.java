@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
 
@@ -19,16 +18,14 @@ public class PutCcrRestoreSessionRequest extends SingleShardRequest<PutCcrRestor
 
     private String sessionUUID;
     private ShardId shardId;
-    private Store.MetadataSnapshot metaData;
 
     PutCcrRestoreSessionRequest() {
     }
 
-    public PutCcrRestoreSessionRequest(String sessionUUID, ShardId shardId, Store.MetadataSnapshot metaData) {
+    public PutCcrRestoreSessionRequest(String sessionUUID, ShardId shardId) {
         super(shardId.getIndexName());
         this.sessionUUID = sessionUUID;
         this.shardId = shardId;
-        this.metaData = metaData;
     }
 
     @Override
@@ -41,7 +38,6 @@ public class PutCcrRestoreSessionRequest extends SingleShardRequest<PutCcrRestor
         super.readFrom(in);
         sessionUUID = in.readString();
         shardId = ShardId.readShardId(in);
-        metaData = new Store.MetadataSnapshot(in);
     }
 
     @Override
@@ -49,18 +45,13 @@ public class PutCcrRestoreSessionRequest extends SingleShardRequest<PutCcrRestor
         super.writeTo(out);
         out.writeString(sessionUUID);
         shardId.writeTo(out);
-        metaData.writeTo(out);
     }
 
-    public String getSessionUUID() {
+    String getSessionUUID() {
         return sessionUUID;
     }
 
-    public ShardId getShardId() {
+    ShardId getShardId() {
         return shardId;
-    }
-
-    public Store.MetadataSnapshot getMetaData() {
-        return metaData;
     }
 }

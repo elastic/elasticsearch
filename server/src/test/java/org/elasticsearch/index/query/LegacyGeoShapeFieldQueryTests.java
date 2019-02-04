@@ -51,7 +51,7 @@ public class LegacyGeoShapeFieldQueryTests extends GeoShapeQueryBuilderTests {
     @Override
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape) {
         ShapeType shapeType = ShapeType.randomType(random());
-        ShapeBuilder<?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
+        ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
         GeoShapeQueryBuilder builder;
         clearShapeFields();
         if (indexedShape == false) {
@@ -59,8 +59,7 @@ public class LegacyGeoShapeFieldQueryTests extends GeoShapeQueryBuilderTests {
         } else {
             indexedShapeToReturn = shape;
             indexedShapeId = randomAlphaOfLengthBetween(3, 20);
-            indexedShapeType = randomAlphaOfLengthBetween(3, 20);
-            builder = new GeoShapeQueryBuilder(fieldName(), indexedShapeId, indexedShapeType);
+            builder = new GeoShapeQueryBuilder(fieldName(), indexedShapeId);
             if (randomBoolean()) {
                 indexedShapeIndex = randomAlphaOfLengthBetween(3, 20);
                 builder.indexedShapeIndex(indexedShapeIndex);
@@ -94,7 +93,7 @@ public class LegacyGeoShapeFieldQueryTests extends GeoShapeQueryBuilderTests {
     }
 
     public void testInvalidRelation() throws IOException {
-        ShapeBuilder<?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null);
+        ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null);
         GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
         builder.strategy(SpatialStrategy.TERM);
         expectThrows(IllegalArgumentException.class, () -> builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.WITHIN)));

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -40,15 +41,18 @@ import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -58,12 +62,14 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class JoinHelper {
 
     private static final Logger logger = LogManager.getLogger(JoinHelper.class);
 
     public static final String JOIN_ACTION_NAME = "internal:cluster/coordination/join";
+    public static final String VALIDATE_JOIN_ACTION_NAME = "internal:cluster/coordination/join/validate";
     public static final String START_JOIN_ACTION_NAME = "internal:cluster/coordination/start_join";
 
     // the timeout for each join attempt
@@ -79,12 +85,13 @@ public class JoinHelper {
     final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = ConcurrentCollections.newConcurrentSet();
 
     public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
-                      TransportService transportService, LongSupplier currentTermSupplier,
-                      BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm) {
+                      TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
+                      BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
+                      Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators) {
         this.masterService = masterService;
         this.transportService = transportService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
-        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger) {
+        this.joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger) {
 
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
@@ -123,9 +130,26 @@ public class JoinHelper {
                 channel.sendResponse(Empty.INSTANCE);
             });
 
+        transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
+            MembershipAction.ValidateJoinRequest::new, ThreadPool.Names.GENERIC,
+            (request, channel, task) -> {
+                final ClusterState localState = currentStateSupplier.get();
+                if (localState.metaData().clusterUUIDCommitted() &&
+                    localState.metaData().clusterUUID().equals(request.getState().metaData().clusterUUID()) == false) {
+                    throw new CoordinationStateRejectedException("join validation on cluster state" +
+                        " with a different cluster uuid " + request.getState().metaData().clusterUUID() +
+                        " than local cluster uuid " + localState.metaData().clusterUUID() + ", rejecting");
+                }
+                joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
+                channel.sendResponse(Empty.INSTANCE);
+            });
+
         transportService.registerRequestHandler(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
-            () -> new MembershipAction.ValidateJoinRequest(), ThreadPool.Names.GENERIC,
-            (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)); // TODO: implement join validation
+            MembershipAction.ValidateJoinRequest::new, ThreadPool.Names.GENERIC,
+            (request, channel, task) -> {
+                joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
+                channel.sendResponse(Empty.INSTANCE);
+            });
 
         transportService.registerRequestHandler(
             ZenDiscovery.DISCOVERY_REJOIN_ACTION_NAME, ZenDiscovery.RejoinClusterRequest::new, ThreadPool.Names.SAME,
@@ -240,6 +264,29 @@ public class JoinHelper {
                 @Override
                 public String executor() {
                     return ThreadPool.Names.SAME;
+                }
+            });
+    }
+
+    public void sendValidateJoinRequest(DiscoveryNode node, ClusterState state, ActionListener<TransportResponse.Empty> listener) {
+        final String actionName;
+        if (Coordinator.isZen1Node(node)) {
+            actionName = MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME;
+        } else {
+            actionName = VALIDATE_JOIN_ACTION_NAME;
+        }
+        transportService.sendRequest(node, actionName,
+            new MembershipAction.ValidateJoinRequest(state),
+            TransportRequestOptions.builder().withTimeout(joinTimeout).build(),
+            new EmptyTransportResponseHandler(ThreadPool.Names.GENERIC) {
+                @Override
+                public void handleResponse(TransportResponse.Empty response) {
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    listener.onFailure(exp);
                 }
             });
     }

@@ -60,6 +60,7 @@ public class TestZenDiscovery extends ZenDiscovery {
 
     public static final Setting<Boolean> USE_ZEN2 =
         Setting.boolSetting("discovery.zen.use_zen2", true, Setting.Property.NodeScope);
+    private static final String TEST_ZEN_DISCOVERY_TYPE = "test-zen";
 
     /** A plugin which installs mock discovery and configures it to be used. */
     public static class TestPlugin extends Plugin implements DiscoveryPlugin {
@@ -81,7 +82,7 @@ public class TestZenDiscovery extends ZenDiscovery {
                     return new Coordinator("test_node", fixedSettings, clusterSettings, transportService, namedWriteableRegistry,
                         allocationService, masterService,
                         () -> gatewayMetaState.getPersistedState(settings, (ClusterApplierService) clusterApplier), hostsProvider,
-                        clusterApplier, new Random(Randomness.get().nextLong()));
+                        clusterApplier, Collections.emptyList(), new Random(Randomness.get().nextLong()));
                 } else {
                     return new TestZenDiscovery(fixedSettings, threadPool, transportService, namedWriteableRegistry, masterService,
                         clusterApplier, clusterSettings, hostsProvider, allocationService, gatewayMetaState);
@@ -97,7 +98,7 @@ public class TestZenDiscovery extends ZenDiscovery {
         @Override
         public Settings additionalSettings() {
             return Settings.builder()
-                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), TEST_ZEN_DISCOVERY_TYPE)
                 .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                 .build();
         }
@@ -123,5 +124,10 @@ public class TestZenDiscovery extends ZenDiscovery {
 
     public ZenPing getZenPing() {
         return zenPing;
+    }
+
+    public static boolean usingZen1(Settings settings) {
+        return DiscoveryModule.ZEN_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
+            || USE_ZEN2.get(settings) == false;
     }
 }

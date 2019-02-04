@@ -21,6 +21,7 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.rounding.DateTimeUnit;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -317,7 +318,7 @@ public class RoundingTests extends ESTestCase {
     }
 
     /**
-     * randomized test on {@link org.elasticsearch.common.rounding.Rounding.TimeIntervalRounding} with random interval and time zone offsets
+     * randomized test on {@link org.elasticsearch.common.Rounding.TimeIntervalRounding} with random interval and time zone offsets
      */
     public void testIntervalRoundingRandom() {
         for (int i = 0; i < 1000; i++) {
@@ -728,8 +729,8 @@ public class RoundingTests extends ESTestCase {
     }
 
     private static long time(String time, ZoneId zone) {
-        TemporalAccessor accessor = DateFormatters.forPattern("date_optional_time").withZone(zone).parse(time);
-        return DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli();
+        TemporalAccessor accessor = DateFormatter.forPattern("date_optional_time").withZone(zone).parse(time);
+        return DateFormatters.from(accessor).toInstant().toEpochMilli();
     }
 
     private static Matcher<Long> isDate(final long expected, ZoneId tz) {

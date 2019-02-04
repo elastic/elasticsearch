@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Nullable;
@@ -34,6 +35,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.transport.Transport;
 
@@ -42,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -69,7 +70,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Object shardFailuresMutex = new Object();
     private final AtomicInteger successfulOps = new AtomicInteger();
     private final AtomicInteger skippedOps = new AtomicInteger();
-    private final TransportSearchAction.SearchTimeProvider timeProvider;
+    private final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
     AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
@@ -78,7 +79,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                         Map<String, Set<String>> indexRoutings,
                                         Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
-                                        TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
+                                        SearchTimeProvider timeProvider, long clusterStateVersion,
                                         SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
                                         SearchResponse.Clusters clusters) {
         super(name, request, shardsIts, logger, maxConcurrentRequestsPerNode, executor);
@@ -102,8 +103,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * Builds how long it took to execute the search.
      */
     long buildTookInMillis() {
-        return TimeUnit.NANOSECONDS.toMillis(
-                timeProvider.getRelativeCurrentNanos() - timeProvider.getRelativeStartNanos());
+        return timeProvider.buildTookInMillis();
     }
 
     /**
@@ -113,7 +113,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (getNumShards() == 0) {
             //no search shards to search on, bail with empty response
             //(it happens with search across _all with no indices around and consistent with broadcast operations)
-            listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, buildTookInMillis(),
+
+            int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :
+                request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO :
+                    request.source().trackTotalHitsUpTo();
+            // total hits is null in the response if the tracking of total hits is disabled
+            boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
+            listener.onResponse(new SearchResponse(InternalSearchResponse.empty(withTotalHits), null, 0, 0, 0, buildTookInMillis(),
                 ShardSearchFailure.EMPTY_ARRAY, clusters));
             return;
         }

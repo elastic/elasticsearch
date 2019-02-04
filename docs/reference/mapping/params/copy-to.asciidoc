@@ -11,19 +11,17 @@ the `full_name` field as follows:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "first_name": {
-          "type": "text",
-          "copy_to": "full_name" <1>
-        },
-        "last_name": {
-          "type": "text",
-          "copy_to": "full_name" <1>
-        },
-        "full_name": {
-          "type": "text"
-        }
+    "properties": {
+      "first_name": {
+        "type": "text",
+        "copy_to": "full_name" <1>
+      },
+      "last_name": {
+        "type": "text",
+        "copy_to": "full_name" <1>
+      },
+      "full_name": {
+        "type": "text"
       }
     }
   }
@@ -61,3 +59,7 @@ Some important points:
 * It is the field _value_ which is copied, not the terms (which result from the analysis process).
 * The original <<mapping-source-field,`_source`>> field will not be modified to show the copied values.
 * The same value can be copied to multiple fields, with `"copy_to": [ "field_1", "field_2" ]`
+* You cannot copy recursively via intermediary fields such as a `copy_to` on 
+`field_1` to `field_2` and `copy_to` on `field_2` to `field_3` expecting 
+indexing into `field_1` will eventuate in `field_3`, instead use copy_to 
+directly to multiple fields from the originating field. 

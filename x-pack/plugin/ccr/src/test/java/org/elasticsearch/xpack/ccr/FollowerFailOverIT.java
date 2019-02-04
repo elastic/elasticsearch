@@ -6,25 +6,36 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.CcrIntegTestCase;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.client.CcrClient;
+import org.hamcrest.Matchers;
 
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,7 +43,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
+@TestLogging("org.elasticsearch.xpack.ccr:TRACE,org.elasticsearch.index.shard:DEBUG")
 public class FollowerFailOverIT extends CcrIntegTestCase {
 
     @Override
@@ -220,4 +233,67 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         pauseFollow("follower-index");
     }
 
+    public void testReadRequestsReturnLatestMappingVersion() throws Exception {
+        InternalTestCluster leaderCluster = getLeaderCluster();
+        Settings nodeAttributes = Settings.builder().put("node.attr.box", "large").build();
+        String dataNode = leaderCluster.startDataOnlyNode(nodeAttributes);
+        assertAcked(
+            leaderClient().admin().indices().prepareCreate("leader-index")
+                .setSettings(Settings.builder()
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true")
+                    .put("index.routing.allocation.require.box", "large"))
+                .get()
+        );
+        getFollowerCluster().startDataOnlyNode(nodeAttributes);
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader-index", "follower-index")).get();
+        ensureFollowerGreen("follower-index");
+        ClusterService clusterService = leaderCluster.clusterService(dataNode);
+        ShardId shardId = clusterService.state().routingTable().index("leader-index").shard(0).shardId();
+        IndicesService indicesService = leaderCluster.getInstance(IndicesService.class, dataNode);
+        IndexShard indexShard = indicesService.getShardOrNull(shardId);
+        // Block the ClusterService from exposing the cluster state with the mapping change. This makes the ClusterService
+        // have an older mapping version than the actual mapping version that IndexService will use to index "doc1".
+        final CountDownLatch latch = new CountDownLatch(1);
+        clusterService.addLowPriorityApplier(event -> {
+            IndexMetaData imd = event.state().metaData().index("leader-index");
+            if (imd != null && imd.mapping() != null &&
+                XContentMapValues.extractValue("properties.balance.type", imd.mapping().sourceAsMap()) != null) {
+                try {
+                    logger.info("--> block ClusterService from exposing new mapping version");
+                    latch.await();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            }
+        });
+        leaderCluster.client().admin().indices().preparePutMapping().setType("doc")
+            .setSource("balance", "type=long").setTimeout(TimeValue.ZERO).get();
+        try {
+            // Make sure the mapping is ready on the shard before we execute the index request; otherwise the index request
+            // will perform a dynamic mapping update which however will be blocked because the latch is remained closed.
+            assertBusy(() -> {
+                DocumentMapper mapper = indexShard.mapperService().documentMapper("doc");
+                assertNotNull(mapper);
+                assertNotNull(mapper.mappers().getMapper("balance"));
+            });
+            IndexResponse indexResp = leaderCluster.client().prepareIndex("leader-index", "doc", "1")
+                .setSource("{\"balance\": 100}", XContentType.JSON).setTimeout(TimeValue.ZERO).get();
+            assertThat(indexResp.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(indexShard.getGlobalCheckpoint(), equalTo(0L));
+            // Make sure at least one read-request which requires mapping sync is completed.
+            assertBusy(() -> {
+                CcrClient ccrClient = new CcrClient(followerClient());
+                FollowStatsAction.StatsResponses responses = ccrClient.followStats(new FollowStatsAction.StatsRequest()).actionGet();
+                long bytesRead = responses.getStatsResponses().stream().mapToLong(r -> r.status().bytesRead()).sum();
+                assertThat(bytesRead, Matchers.greaterThan(0L));
+            }, 60, TimeUnit.SECONDS);
+            latch.countDown();
+            assertIndexFullyReplicatedToFollower("leader-index", "follower-index");
+        } finally {
+            latch.countDown(); // no effect if latch was counted down - this makes sure teardown can make progress.
+            pauseFollow("follower-index");
+        }
+    }
 }

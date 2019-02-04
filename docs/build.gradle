@@ -36,7 +36,7 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 integTestCluster {
-  if ("zip".equals(integTestCluster.distribution)) {
+  if ("default".equals(integTestCluster.distribution)) {
     setting 'xpack.license.self_generated.type', 'trial'
   }
 
@@ -287,8 +287,8 @@ buildRestTests.setups['stackoverflow'] = '''
           body: |'''
 
 // Make Kibana strongly connected to elasticsearch and logstash
-// Make Kibana rarer (and therefore higher-ranking) than Javascript
-// Make Javascript strongly connected to jquery and angular
+// Make Kibana rarer (and therefore higher-ranking) than JavaScript
+// Make JavaScript strongly connected to jquery and angular
 // Make Cabana strongly connected to elasticsearch but only as a result of a single author
 
 for (int i = 0; i < 150; i++) {
@@ -525,6 +525,7 @@ for (int i = 0; i < 5; i++) {
 buildRestTests.setups['library'] = '''
   - do:
         indices.create:
+          include_type_name: true
           index: library
           body:
             settings:
@@ -1144,17 +1145,23 @@ buildRestTests.setups['seats'] = '''
                     type: keyword
                   cost:
                     type: long
+                  row:
+                    type: long
+                  number:
+                    type: long
+                  sold:
+                    type: boolean
   - do:
         bulk:
           index: seats
           type: _doc
           refresh: true
           body: |
-            {"index":{}}
-            {"theatre": "Skyline", "cost": 1}
-            {"index":{}}
-            {"theatre": "Graye", "cost": 5}
-            {"index":{}}
-            {"theatre": "Graye", "cost": 8}
-            {"index":{}}
-            {"theatre": "Skyline", "cost": 10}'''
+            {"index":{"_id": "1"}}
+            {"theatre": "Skyline", "cost": 37, "row": 1, "number": 7, "sold": false}
+            {"index":{"_id": "2"}}
+            {"theatre": "Graye", "cost": 30, "row": 3, "number": 5, "sold": false}
+            {"index":{"_id": "3"}}
+            {"theatre": "Graye", "cost": 33, "row": 2, "number": 6, "sold": false}
+            {"index":{"_id": "4"}}
+            {"theatre": "Skyline", "cost": 20, "row": 5, "number": 2, "sold": false}'''

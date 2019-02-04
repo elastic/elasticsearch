@@ -7,37 +7,26 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -45,26 +34,22 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
@@ -72,9 +57,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
@@ -84,6 +67,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE;
 
 /*
@@ -99,6 +83,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     private static final PersistentTasksCustomMetaData.Assignment AWAITING_LAZY_ASSIGNMENT =
         new PersistentTasksCustomMetaData.Assignment(null, "persistent task is awaiting node assignment.");
+
+    static final PersistentTasksCustomMetaData.Assignment AWAITING_MIGRATION =
+            new PersistentTasksCustomMetaData.Assignment(null, "job cannot be assigned until it has been migrated.");
 
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
@@ -144,14 +131,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
     }
 
-    static PersistentTasksCustomMetaData.Assignment selectLeastLoadedMlNode(String jobId, @Nullable Job job,
+    static PersistentTasksCustomMetaData.Assignment selectLeastLoadedMlNode(String jobId, Job job,
                                                                             ClusterState clusterState,
                                                                             int maxConcurrentJobAllocations,
                                                                             int maxMachineMemoryPercent,
                                                                             MlMemoryTracker memoryTracker,
                                                                             Logger logger) {
-        String resultsIndexName = job != null ? job.getResultsIndexName() : null;
-        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(resultsIndexName, clusterState);
+        String resultsWriteAlias = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(resultsWriteAlias, clusterState);
         if (unavailableIndices.size() != 0) {
             String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
                     String.join(",", unavailableIndices) + "]";
@@ -201,23 +188,21 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 continue;
             }
 
-            if (job != null) {
-                Set<String> compatibleJobTypes = Job.getCompatibleJobTypes(node.getVersion());
-                if (compatibleJobTypes.contains(job.getJobType()) == false) {
-                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) +
-                            "], because this node does not support jobs of type [" + job.getJobType() + "]";
-                    logger.trace(reason);
-                    reasons.add(reason);
-                    continue;
-                }
+            Set<String> compatibleJobTypes = Job.getCompatibleJobTypes(node.getVersion());
+            if (compatibleJobTypes.contains(job.getJobType()) == false) {
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) +
+                        "], because this node does not support jobs of type [" + job.getJobType() + "]";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
+            }
 
-                if (jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
-                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) + "], because jobs using " +
-                            "custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
-                    logger.trace(reason);
-                    reasons.add(reason);
-                    continue;
-                }
+            if (jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) + "], because jobs using " +
+                        "custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
             }
 
             long numberOfAssignedJobs = 0;
@@ -228,31 +213,13 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 Collection<PersistentTasksCustomMetaData.PersistentTask<?>> assignedTasks = persistentTasks.findTasks(
                         MlTasks.JOB_TASK_NAME, task -> node.getId().equals(task.getExecutorNode()));
                 for (PersistentTasksCustomMetaData.PersistentTask<?> assignedTask : assignedTasks) {
-                    JobTaskState jobTaskState = (JobTaskState) assignedTask.getState();
-                    JobState jobState;
-                    if (jobTaskState == null) {
-                        // executor node didn't have the chance to set job status to OPENING
-                        ++numberOfAllocatingJobs;
-                        jobState = JobState.OPENING;
-                    } else {
-                        jobState = jobTaskState.getState();
-                        if (jobTaskState.isStatusStale(assignedTask)) {
-                            // the job is re-locating
-                            if (jobState == JobState.CLOSING) {
-                                // previous executor node failed while the job was closing - it won't
-                                // be reopened, so consider it CLOSED for resource usage purposes
-                                jobState = JobState.CLOSED;
-                            } else if (jobState != JobState.FAILED) {
-                                // previous executor node failed and current executor node didn't
-                                // have the chance to set job status to OPENING
-                                ++numberOfAllocatingJobs;
-                                jobState = JobState.OPENING;
-                            }
-                        }
-                    }
+                    JobState jobState = MlTasks.getJobStateModifiedForReassignments(assignedTask);
                     if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                         // Don't count CLOSED or FAILED jobs, as they don't consume native memory
                         ++numberOfAssignedJobs;
+                        if (jobState == JobState.OPENING) {
+                            ++numberOfAllocatingJobs;
+                        }
                         OpenJobAction.JobParams params = (OpenJobAction.JobParams) assignedTask.getParams();
                         Long jobMemoryRequirement = memoryTracker.getJobMemoryRequirement(params.getJobId());
                         if (jobMemoryRequirement == null) {
@@ -389,13 +356,15 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     static String[] indicesOfInterest(String resultsIndex) {
         if (resultsIndex == null) {
-            return new String[]{AnomalyDetectorsIndex.jobStateIndexName(), MlMetaIndex.INDEX_NAME};
+            return new String[]{AnomalyDetectorsIndex.jobStateIndexPattern(), MlMetaIndex.INDEX_NAME};
         }
-        return new String[]{AnomalyDetectorsIndex.jobStateIndexName(), resultsIndex, MlMetaIndex.INDEX_NAME};
+        return new String[]{AnomalyDetectorsIndex.jobStateIndexPattern(), resultsIndex, MlMetaIndex.INDEX_NAME};
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(String resultsIndex, ClusterState clusterState) {
-        String[] indices = indicesOfInterest(resultsIndex);
+    static List<String> verifyIndicesPrimaryShardsAreActive(String resultsWriteIndex, ClusterState clusterState) {
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+        String[] indices = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(),
+            indicesOfInterest(resultsWriteIndex));
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             // Indices are created on demand from templates.
@@ -422,54 +391,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     private static boolean jobHasRules(Job job) {
         return job.getAnalysisConfig().getDetectors().stream().anyMatch(d -> d.getRules().isEmpty() == false);
-    }
-
-    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion,
-                                          Logger logger) throws IOException {
-        List<String> indicesToUpdate = new ArrayList<>();
-
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
-                new String[] { ElasticsearchMappings.DOC_TYPE }, MapperPlugin.NOOP_FIELD_FILTER);
-
-        for (String index : concreteIndices) {
-            ImmutableOpenMap<String, MappingMetaData> innerMap = currentMapping.get(index);
-            if (innerMap != null) {
-                MappingMetaData metaData = innerMap.get(ElasticsearchMappings.DOC_TYPE);
-                try {
-                    Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");
-                    if (meta != null) {
-                        String versionString = (String) meta.get("version");
-                        if (versionString == null) {
-                            logger.info("Version of mappings for [{}] not found, recreating", index);
-                            indicesToUpdate.add(index);
-                            continue;
-                        }
-
-                        Version mappingVersion = Version.fromString(versionString);
-
-                        if (mappingVersion.onOrAfter(minVersion)) {
-                            continue;
-                        } else {
-                            logger.info("Mappings for [{}] are outdated [{}], updating it[{}].", index, mappingVersion, Version.CURRENT);
-                            indicesToUpdate.add(index);
-                            continue;
-                        }
-                    } else {
-                        logger.info("Version of mappings for [{}] not found, recreating", index);
-                        indicesToUpdate.add(index);
-                        continue;
-                    }
-                } catch (Exception e) {
-                    logger.error(new ParameterizedMessage("Failed to retrieve mapping version for [{}], recreating", index), e);
-                    indicesToUpdate.add(index);
-                    continue;
-                }
-            } else {
-                logger.info("No mappings found for [{}], recreating", index);
-                indicesToUpdate.add(index);
-            }
-        }
-        return indicesToUpdate.toArray(new String[indicesToUpdate.size()]);
     }
 
     @Override
@@ -540,65 +461,16 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             );
 
             // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
-            ActionListener<PutJobAction.Response> jobUpdateListener = ActionListener.wrap(
+            ActionListener<Boolean> getJobHandler = ActionListener.wrap(
                 response -> memoryTracker.refreshJobMemoryAndAllOthers(jobParams.getJobId(), memoryRequirementRefreshListener),
                 listener::onFailure
-            );
-
-            // Increase the model memory limit for 6.1 - 6.3 jobs
-            ActionListener<Boolean> missingMappingsListener = ActionListener.wrap(
-                    response -> {
-                        Job job = jobParams.getJob();
-                        if (job != null) {
-                            Version jobVersion = job.getJobVersion();
-                            if (jobVersion != null &&
-                                    (jobVersion.onOrAfter(Version.V_6_1_0) && jobVersion.before(Version.V_6_3_0))) {
-                                // Increase model memory limit if < 512MB
-                                if (job.getAnalysisLimits() != null && job.getAnalysisLimits().getModelMemoryLimit() != null &&
-                                        job.getAnalysisLimits().getModelMemoryLimit() < 512L) {
-
-                                    long updatedModelMemoryLimit = (long) (job.getAnalysisLimits().getModelMemoryLimit() * 1.3);
-                                    AnalysisLimits limits = new AnalysisLimits(updatedModelMemoryLimit,
-                                            job.getAnalysisLimits().getCategorizationExamplesLimit());
-
-                                    JobUpdate update = new JobUpdate.Builder(job.getId()).setJobVersion(Version.CURRENT)
-                                            .setAnalysisLimits(limits).build();
-                                    UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(job.getId(), update);
-                                    executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
-                                            jobUpdateListener);
-                                } else {
-                                    jobUpdateListener.onResponse(null);
-                                }
-                            }
-                            else {
-                                jobUpdateListener.onResponse(null);
-                            }
-                        } else {
-                            jobUpdateListener.onResponse(null);
-                        }
-                    }, listener::onFailure
-            );
-
-            // Try adding state doc mapping
-            ActionListener<Boolean> resultsPutMappingHandler = ActionListener.wrap(
-                    response -> {
-                        addDocMappingIfMissing(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings::stateMapping,
-                                state, missingMappingsListener);
-                    }, listener::onFailure
             );
 
             // Get the job config
             jobConfigProvider.getJob(jobParams.getJobId(), ActionListener.wrap(
                     builder -> {
-                        try {
-                            jobParams.setJob(builder.build());
-
-                            // Try adding results doc mapping
-                            addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobParams.getJobId()),
-                                    ElasticsearchMappings::resultsMapping, state, resultsPutMappingHandler);
-                        } catch (Exception e) {
-                            listener.onFailure(e);
-                        }
+                        jobParams.setJob(builder.build());
+                        getJobHandler.onResponse(null);
                     },
                     listener::onFailure
             ));
@@ -642,7 +514,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private void clearJobFinishedTime(String jobId, ActionListener<AcknowledgedResponse> listener) {
         JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
 
-        jobConfigProvider.updateJob(jobId, update, null, ActionListener.wrap(
+        jobConfigProvider.updateJob(jobId, update, null, clusterService.state().nodes().getMinNodeVersion(), ActionListener.wrap(
                 job -> listener.onResponse(new AcknowledgedResponse(true)),
                 e  -> {
                     logger.error("[" + jobId + "] Failed to clear finished_time", e);
@@ -673,48 +545,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         );
     }
 
-    private void addDocMappingIfMissing(String alias, CheckedSupplier<XContentBuilder, IOException> mappingSupplier, ClusterState state,
-                                        ActionListener<Boolean> listener) {
-        AliasOrIndex aliasOrIndex = state.metaData().getAliasAndIndexLookup().get(alias);
-        if (aliasOrIndex == null) {
-            // The index has never been created yet
-            listener.onResponse(true);
-            return;
-        }
-        String[] concreteIndices = aliasOrIndex.getIndices().stream().map(IndexMetaData::getIndex).map(Index::getName)
-                .toArray(String[]::new);
-
-        String[] indicesThatRequireAnUpdate;
-        try {
-            indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT, logger);
-        } catch (IOException e) {
-            listener.onFailure(e);
-            return;
-        }
-
-        if (indicesThatRequireAnUpdate.length > 0) {
-            try (XContentBuilder mapping = mappingSupplier.get()) {
-                PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
-                putMappingRequest.type(ElasticsearchMappings.DOC_TYPE);
-                putMappingRequest.source(mapping);
-                executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
-                        ActionListener.wrap(response -> {
-                            if (response.isAcknowledged()) {
-                                listener.onResponse(true);
-                            } else {
-                                listener.onFailure(new ElasticsearchException("Attempt to put missing mapping in indices "
-                                        + Arrays.toString(indicesThatRequireAnUpdate) + " was not acknowledged"));
-                            }
-                        }, listener::onFailure));
-            } catch (IOException e) {
-                listener.onFailure(e);
-            }
-        } else {
-            logger.trace("Mappings are uptodate.");
-            listener.onResponse(true);
-        }
-    }
-
     public static class OpenJobPersistentTasksExecutor extends PersistentTasksExecutor<OpenJobAction.JobParams> {
 
         private static final Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutor.class);
@@ -722,10 +552,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private final AutodetectProcessManager autodetectProcessManager;
         private final MlMemoryTracker memoryTracker;
         private final Client client;
+        private final ClusterService clusterService;
 
         private volatile int maxConcurrentJobAllocations;
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
+        private volatile ClusterState clusterState;
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
                                               AutodetectProcessManager autodetectProcessManager, MlMemoryTracker memoryTracker,
@@ -737,15 +569,29 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
             this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
+            this.clusterService = clusterService;
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
+            clusterService.addListener(event -> clusterState = event.state());
         }
 
         @Override
         public PersistentTasksCustomMetaData.Assignment getAssignment(OpenJobAction.JobParams params, ClusterState clusterState) {
+
+            // If the task parameters do not have a job field then the job
+            // was first opened on a pre v6.6 node and has not been migrated
+            if (params.getJob() == null) {
+                return AWAITING_MIGRATION;
+            }
+
+            // If we are waiting for an upgrade to complete, we should not assign to a node
+            if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
+                return AWAITING_UPGRADE;
+            }
+
             PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(),
                 params.getJob(),
                 clusterState,
@@ -776,6 +622,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             // If we already know that we can't find an ml node because all ml nodes are running at capacity or
             // simply because there are no ml nodes in the cluster then we fail quickly here:
             PersistentTasksCustomMetaData.Assignment assignment = getAssignment(params, clusterState);
+            if (assignment.equals(AWAITING_UPGRADE)) {
+                throw makeCurrentlyBeingUpgradedException(logger, params.getJobId(), assignment.getExplanation());
+            }
+
             if (assignment.getExecutorNode() == null && assignment.equals(AWAITING_LAZY_ASSIGNMENT) == false) {
                 throw makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
             }
@@ -794,14 +644,18 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }
 
             String jobId = jobTask.getJobId();
-            autodetectProcessManager.openJob(jobTask, e2 -> {
+            autodetectProcessManager.openJob(jobTask, clusterState, (e2, shouldFinalizeJob) -> {
                 if (e2 == null) {
-                    FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(new String[]{jobId});
-                    executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
+                    if (shouldFinalizeJob) {
+                        FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(new String[]{jobId});
+                        executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
                             ActionListener.wrap(
-                                    response -> task.markAsCompleted(),
-                                    e -> logger.error("error finalizing job [" + jobId + "]", e)
+                                response -> task.markAsCompleted(),
+                                e -> logger.error("error finalizing job [" + jobId + "]", e)
                             ));
+                    } else {
+                        task.markAsCompleted();
+                    }
                 } else {
                     task.markAsFailed(e2);
                 }
@@ -812,7 +666,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
                                                      PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask,
                                                      Map<String, String> headers) {
-             return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
+            return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
         }
 
         void setMaxConcurrentJobAllocations(int maxConcurrentJobAllocations) {
@@ -864,7 +718,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         void closeJob(String reason) {
             autodetectProcessManager.closeJob(this, false, reason);
         }
-
     }
 
     /**
@@ -934,5 +787,11 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         Exception detail = new IllegalStateException(msg);
         return new ElasticsearchStatusException("Could not open job because no ML nodes with sufficient capacity were found",
             RestStatus.TOO_MANY_REQUESTS, detail);
+    }
+
+    static ElasticsearchException makeCurrentlyBeingUpgradedException(Logger logger, String jobId, String explanation) {
+        String msg = "Cannot open jobs when upgrade mode is enabled";
+        logger.warn("[{}] {}", jobId, msg);
+        return new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
     }
 }

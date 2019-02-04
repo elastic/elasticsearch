@@ -85,6 +85,9 @@ Where:
 `date_format`:: is the optional format in which the computed date should be rendered. Defaults to `yyyy.MM.dd`.
 `time_zone`:: is the optional time zone . Defaults to `utc`.
 
+Date math expressions are resolved locale-independent. Consequently, it is not possible to use any other
+calendars than the Gregorian calendar.
+
 You must enclose date math index name expressions within angle brackets, and
 all special characters should be URI encoded. For example:
 

@@ -38,7 +38,6 @@ teardown:
                 },
                 "index" : {
                  "index" : "my_test_index",
-                 "doc_type" : "my-type",
                  "doc_id": "my-id"
                 }
               }

@@ -444,8 +444,9 @@ POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 
 The task ID can be found using the <<tasks,tasks API>>.
 
-Cancellation should happen quickly but might take a few seconds. The task status
-API above will continue to list the task until it is wakes to cancel itself.
+Cancellation should happen quickly but might take a few seconds. The task status 
+API above will continue to list the update by query task until this task checks 
+that it has been cancelled and terminates itself.
 
 
 [float]
@@ -640,11 +641,9 @@ added a mapping value to pick up more fields from the data:
 PUT test
 {
   "mappings": {
-    "_doc": {
-      "dynamic": false,   <1>
-      "properties": {
-        "text": {"type": "text"}
-      }
+    "dynamic": false,   <1>
+    "properties": {
+      "text": {"type": "text"}
     }
   }
 }
@@ -659,7 +658,7 @@ POST test/_doc?refresh
   "text": "words words",
   "flag": "foo"
 }
-PUT test/_mapping/_doc   <2>
+PUT test/_mapping   <2>
 {
   "properties": {
     "text": {"type": "text"},

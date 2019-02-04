@@ -66,8 +66,7 @@ setup:
         body:  >
           {
             "job_id":"jobs-get-stats-datafeed-job",
-            "indexes":["farequote"],
-            "types":["response"]
+            "indexes":["farequote"]
           }
 
 ---

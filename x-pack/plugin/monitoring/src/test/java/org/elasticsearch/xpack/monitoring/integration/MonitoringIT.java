@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -180,6 +181,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                 assertMonitoringDoc(toMap(hit), system, "test", interval);
             }
         });
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     /**

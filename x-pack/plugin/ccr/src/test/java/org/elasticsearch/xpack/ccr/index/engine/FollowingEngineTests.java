@@ -32,6 +32,7 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.TranslogHandler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -270,9 +271,9 @@ public class FollowingEngineTests extends ESTestCase {
                 null,
                 new NoneCircuitBreakerService(),
                 globalCheckpoint::longValue,
+                () -> RetentionLeases.EMPTY,
                 () -> primaryTerm.get(),
-                EngineTestCase.tombstoneDocSupplier()
-        );
+                EngineTestCase.tombstoneDocSupplier());
     }
 
     private static Store createStore(

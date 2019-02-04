@@ -22,6 +22,10 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilderTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,6 +35,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.synchronizedList;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
 
 public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTestCase {
     public void testBuildRestClient() throws Exception {
@@ -39,7 +44,7 @@ public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTest
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
             long taskId = randomLong();
             List<Thread> threads = synchronizedList(new ArrayList<>());
-            RestClient client = TransportReindexAction.buildRestClient(remoteInfo, taskId, threads);
+            RestClient client = TransportReindexAction.buildRestClient(remoteInfo, sslConfig(), taskId, threads);
             try {
                 assertBusy(() -> assertThat(threads, hasSize(2)));
                 int i = 0;
@@ -63,11 +68,18 @@ public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTest
             headers, RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         long taskId = randomLong();
         List<Thread> threads = synchronizedList(new ArrayList<>());
-        RestClient client = TransportReindexAction.buildRestClient(remoteInfo, taskId, threads);
+        RestClient client = TransportReindexAction.buildRestClient(remoteInfo, sslConfig(), taskId, threads);
         try {
             assertHeaders(client, headers);
         } finally {
             client.close();
         }
     }
+
+    private ReindexSslConfig sslConfig() {
+        final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+        final ResourceWatcherService resourceWatcher = mock(ResourceWatcherService.class);
+        return new ReindexSslConfig(environment.settings(), environment, resourceWatcher);
+    }
+
 }

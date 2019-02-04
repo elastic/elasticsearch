@@ -252,9 +252,9 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              * Transforming using the way we did above should only change
              * the one property of the node that we intended to transform.
              */
-            assertEquals(node.location(), transformed.location());
-            List<Object> op = node.properties();
-            List<Object> tp = transformed.properties();
+            assertEquals(node.source(), transformed.source());
+            List<Object> op = node.nodeProperties();
+            List<Object> tp = transformed.nodeProperties();
             for (int p = 0; p < op.size(); p++) {
                 if (p == changedArgOffset - 1) { // -1 because location isn't in the list
                     assertEquals(changedArgValue, tp.get(p));
@@ -463,7 +463,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             }
         } else if (toBuildClass == CurrentDateTime.class) {
             if (argClass == Expression.class) {
-                return Literal.of(LocationTests.randomLocation(), randomInt(9));
+                return Literal.of(SourceTests.randomSource(), randomInt(9));
             }
         }
         if (Expression.class == argClass) {
@@ -517,9 +517,9 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             // Nor strings
             return randomAlphaOfLength(5);
         }
-        if (argClass == Location.class) {
+        if (argClass == Source.class) {
             // Location is final and can't be mocked but we have a handy method to generate ones.
-            return LocationTests.randomLocation();
+            return SourceTests.randomSource();
         }
         try {
             return mock(argClass);

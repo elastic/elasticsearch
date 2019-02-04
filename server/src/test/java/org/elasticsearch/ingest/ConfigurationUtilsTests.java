@@ -21,6 +21,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -36,7 +37,12 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class ConfigurationUtilsTests extends ESTestCase {
 
@@ -181,4 +187,27 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(ex.getMessage(), equalTo("property isn't a map, but of type [" + invalidConfig.getClass().getName() + "]"));
     }
 
+    public void testNoScriptCompilation() {
+        ScriptService scriptService = mock(ScriptService.class);
+        when(scriptService.isLangSupported(anyString())).thenReturn(true);
+        String propertyValue = randomAlphaOfLength(10);
+        TemplateScript.Factory result;
+        result = ConfigurationUtils.compileTemplate(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
+            propertyValue, scriptService);
+        assertThat(result.newInstance(null).execute(), equalTo(propertyValue));
+        verify(scriptService, times(0)).compile(any(), any());
+    }
+
+    public void testScriptShouldCompile() {
+        ScriptService scriptService = mock(ScriptService.class);
+        when(scriptService.isLangSupported(anyString())).thenReturn(true);
+        String propertyValue = "{{" + randomAlphaOfLength(10) + "}}";
+        String compiledValue = randomAlphaOfLength(10);
+        when(scriptService.compile(any(), any())).thenReturn(new TestTemplateService.MockTemplateScript.Factory(compiledValue));
+        TemplateScript.Factory result;
+        result = ConfigurationUtils.compileTemplate(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
+            propertyValue, scriptService);
+        assertThat(result.newInstance(null).execute(), equalTo(compiledValue));
+        verify(scriptService, times(1)).compile(any(), any());
+    }
 }

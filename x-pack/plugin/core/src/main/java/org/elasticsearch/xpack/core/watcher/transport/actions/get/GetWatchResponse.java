@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 
@@ -25,6 +26,8 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
     private boolean found;
     private XContentSource source;
     private long version;
+    private long seqNo;
+    private long primaryTerm;
 
     public GetWatchResponse() {
     }
@@ -38,17 +41,21 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
         this.found = false;
         this.source = null;
         this.version = Versions.NOT_FOUND;
+        this.seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        this.primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
     }
 
     /**
      * ctor for found watch
      */
-    public GetWatchResponse(String id, long version, WatchStatus status, XContentSource source) {
+    public GetWatchResponse(String id, long version, long seqNo, long primaryTerm, WatchStatus status, XContentSource source) {
         this.id = id;
         this.status = status;
         this.found = true;
         this.source = source;
         this.version = version;
+        this.seqNo = seqNo;
+        this.primaryTerm = primaryTerm;
     }
 
     public String getId() {
@@ -71,6 +78,14 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
         return version;
     }
 
+    public long getSeqNo() {
+        return seqNo;
+    }
+
+    public long getPrimaryTerm() {
+        return primaryTerm;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -80,10 +95,14 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
             status = WatchStatus.read(in);
             source = XContentSource.readFrom(in);
             version = in.readZLong();
+            seqNo = in.readZLong();
+            primaryTerm = in.readVLong();
         } else {
             status = null;
             source = null;
             version = Versions.NOT_FOUND;
+            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
         }
     }
 
@@ -96,6 +115,8 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
             status.writeTo(out);
             XContentSource.writeTo(source, out);
             out.writeZLong(version);
+            out.writeZLong(seqNo);
+            out.writeVLong(primaryTerm);
         }
     }
 
@@ -105,6 +126,8 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
         builder.field("_id", id);
         if (found) {
             builder.field("_version", version);
+            builder.field("_seq_no", seqNo);
+            builder.field("_primary_term", primaryTerm);
             builder.field("status", status,  params);
             builder.field("watch", source, params);
         }
@@ -116,7 +139,7 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetWatchResponse that = (GetWatchResponse) o;
-        return version == that.version &&
+        return version == that.version && seqNo == that.seqNo && primaryTerm == that.primaryTerm &&
             Objects.equals(id, that.id) &&
             Objects.equals(status, that.status) &&
             Objects.equals(source, that.source);
@@ -124,7 +147,7 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, status, version);
+        return Objects.hash(id, status, version, seqNo, primaryTerm);
     }
 
     @Override

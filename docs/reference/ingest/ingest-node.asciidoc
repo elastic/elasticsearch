@@ -428,7 +428,7 @@ For example: `'Guest'.equalsIgnoreCase(ctx.network?.name)` is null safe because
 since `ctx.network?.name` can return null.
 
 Some situations require an explicit null check. In the following example there
-is not null safe alternative, so an explict null check is needed.
+is not null safe alternative, so an explicit null check is needed.
 
 [source,js]
 --------------------------------------------------

@@ -54,6 +54,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
@@ -66,6 +68,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private static final ParseField DOC_AS_UPSERT_FIELD = new ParseField("doc_as_upsert");
     private static final ParseField DETECT_NOOP_FIELD = new ParseField("detect_noop");
     private static final ParseField SOURCE_FIELD = new ParseField("_source");
+    private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
+    private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
 
     static {
         PARSER = new ObjectParser<>(UpdateRequest.class.getSimpleName());
@@ -89,9 +93,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         PARSER.declareField(UpdateRequest::fetchSource,
             (parser, context) -> FetchSourceContext.fromXContent(parser), SOURCE_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
+        PARSER.declareLong(UpdateRequest::setIfSeqNo, IF_SEQ_NO);
+        PARSER.declareLong(UpdateRequest::setIfPrimaryTerm, IF_PRIMARY_TERM);
     }
 
-    private String type = MapperService.SINGLE_MAPPING_NAME;
+    // Set to null initially so we can know to override in bulk requests that have a default type.
+    private String type;
     private String id;
     @Nullable
     private String routing;
@@ -104,6 +111,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
     private int retryOnConflict = 0;
+    private long ifSeqNo = UNASSIGNED_SEQ_NO;
+    private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
+
 
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
@@ -146,7 +156,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if(upsertRequest != null && upsertRequest.version() != Versions.MATCH_ANY) {
             validationException = addValidationError("can't provide version in upsert request", validationException);
         }
-        if (Strings.isEmpty(type)) {
+        if (Strings.isEmpty(type())) {
             validationException = addValidationError("type is missing", validationException);
         }
         if (Strings.isEmpty(id)) {
@@ -169,6 +179,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             }
         }
 
+        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
+
+        if (ifSeqNo != UNASSIGNED_SEQ_NO && retryOnConflict > 0) {
+            validationException = addValidationError("compare and write operations can not be retried", validationException);
+        }
+
+        if (ifSeqNo != UNASSIGNED_SEQ_NO && docAsUpsert) {
+            validationException = addValidationError("compare and write operations can not be used with upsert", validationException);
+        }
+
         if (script == null && doc == null) {
             validationException = addValidationError("script or doc is missing", validationException);
         }
@@ -189,6 +209,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Deprecated
     @Override
     public String type() {
+        if (type == null) {
+            return MapperService.SINGLE_MAPPING_NAME;                    
+        }
         return type;
     }
 
@@ -203,6 +226,21 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this;
     }
 
+    /**
+     * Set the default type supplied to a bulk
+     * request if this individual request's type is null
+     * or empty
+     * @deprecated Types are in the process of being removed.
+     */
+    @Deprecated
+    @Override
+    public UpdateRequest defaultTypeIfNull(String defaultType) {
+        if (Strings.isNullOrEmpty(type)) {
+            type = defaultType;
+        }
+        return this;
+    }  
+    
     /**
      * The id of the indexed document.
      */
@@ -512,6 +550,55 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this.versionType;
     }
 
+    /**
+     * only perform this update request if the document's modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public UpdateRequest setIfSeqNo(long seqNo) {
+        if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+        }
+        ifSeqNo = seqNo;
+        return this;
+    }
+
+    /**
+     * only performs this update request if the document's last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public UpdateRequest setIfPrimaryTerm(long term) {
+        if (term < 0) {
+            throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
+        }
+        ifPrimaryTerm = term;
+        return this;
+    }
+
+    /**
+     * If set, only perform this update request if the document was last modification was assigned this sequence number.
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long ifSeqNo() {
+        return ifSeqNo;
+    }
+
+    /**
+     * If set, only perform this update request if the document was last modification was assigned this primary term.
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long ifPrimaryTerm() {
+        return ifPrimaryTerm;
+    }
+
     @Override
     public OpType opType() {
         return OpType.UPDATE;
@@ -792,6 +879,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         docAsUpsert = in.readBoolean();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
     }
@@ -800,7 +889,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         waitForActiveShards.writeTo(out);
-        out.writeString(type);
+        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions. 
+        // So we use the type accessor method here to make the type non-null (will default it to "_doc"). 
+        out.writeString(type());
         out.writeString(id);
         out.writeOptionalString(routing);
         if (out.getVersion().before(Version.V_7_0_0)) {
@@ -841,6 +932,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeBoolean(docAsUpsert);
         out.writeLong(version);
         out.writeByte(versionType.getValue());
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
     }
@@ -859,6 +952,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 builder.copyCurrentStructure(parser);
             }
         }
+
+        if (ifSeqNo != UNASSIGNED_SEQ_NO) {
+            builder.field(IF_SEQ_NO.getPreferredName(), ifSeqNo);
+            builder.field(IF_PRIMARY_TERM.getPreferredName(), ifPrimaryTerm);
+        }
+
         if (script != null) {
             builder.field("script", script);
         }
@@ -887,7 +986,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public String toString() {
         StringBuilder res = new StringBuilder()
             .append("update {[").append(index)
-            .append("][").append(type)
+            .append("][").append(type())
             .append("][").append(id).append("]");
         res.append(", doc_as_upsert[").append(docAsUpsert).append("]");
         if (doc != null) {

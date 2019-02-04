@@ -5,7 +5,6 @@
 
 [partintro]
 --
-beta[]
 
 The <<index-lifecycle-management-api,{ilm} ({ilm-init}) APIs>> enable you to
 automate how you want to manage your indices over time. Rather than simply

@@ -54,7 +54,7 @@ public class RoundingBenchmark {
     private final ZoneId zoneId = ZoneId.of("Europe/Amsterdam");
     private final DateTimeZone timeZone = DateUtils.zoneIdToDateTimeZone(zoneId);
 
-    private final long timestamp = 1548879021354L;
+    private long timestamp = 1548879021354L;
 
     private final org.elasticsearch.common.rounding.Rounding jodaRounding =
         org.elasticsearch.common.rounding.Rounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(timeZone).build();

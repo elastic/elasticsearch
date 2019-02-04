@@ -24,7 +24,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
-import java.time.Month;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -80,7 +79,6 @@ public class DateUtils {
         return ZoneId.of(zoneId).normalized();
     }
 
-    =======
     private static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
 
     /**
@@ -142,16 +140,6 @@ public class DateUtils {
         return nanoSecondsSinceEpoch / 1_000_000;
     }
 
-    /*
-     * begin of code that is partially copied from the joda time implementation in order to make calculations about utc rounding much
-     * faster than using java-time and assigning all those objects
-     *
-     */
-
-    private static final int DAYS_0000_TO_1970 = 719527;
-    private static final int MILLIS_PER_DAY = 86_400_000;
-    private static final long MILLIS_PER_YEAR = 31556952000L;
-
     /**
      * Rounds the given utc milliseconds sicne the epoch down to the next unit millis
      *
@@ -179,7 +167,8 @@ public class DateUtils {
     public static long roundQuarterOfYear(long utcMillis) {
         int year = DateUtils.getYear(utcMillis);
         int month = DateUtils.getMonthOfYear(utcMillis, year);
-        return DateUtils.of(year, Month.of(month).firstMonthOfQuarter().getValue());
+        int firstMonthOfQuarter = ((month + 1) / 3) * 3;
+        return DateUtils.of(year, firstMonthOfQuarter);
     }
 
     /**
@@ -214,6 +203,15 @@ public class DateUtils {
         millis += getTotalMillisByYearMonth(year, month);
         return millis;
     }
+
+    /*
+     * begin of code that is partially copied from the joda time implementation in order to make calculations about utc rounding much
+     * faster than using java-time and assigning all those objects
+     *
+     */
+    private static final int DAYS_0000_TO_1970 = 719527;
+    private static final int MILLIS_PER_DAY = 86_400_000;
+    private static final long MILLIS_PER_YEAR = 31556952000L;
 
     /**
      * calculates the first day of a year in milliseconds since the epoch (assuming UTC)

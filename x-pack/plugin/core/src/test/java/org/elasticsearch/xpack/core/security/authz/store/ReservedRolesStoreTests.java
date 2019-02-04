@@ -856,26 +856,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role apmUserRole = Role.builder(roleDescriptor, null).build();
+        Role role = Role.builder(roleDescriptor, null).build();
 
-        assertThat(apmUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
-        assertThat(apmUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test("foo"), is(false));
-        assertThat(apmUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".reporting"), is(false));
-        assertThat(apmUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(".kibana"), is(false));
-        assertThat(apmUserRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
-            is(false));
+        assertNoAccessAllowed(role, "foo");
 
-        final String index = "apm-" + randomIntBetween(0, 5);
-
-        assertThat(apmUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
-        assertThat(apmUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
-        assertThat(apmUserRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(false));
-        assertThat(apmUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(false));
-        assertThat(apmUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
-        assertThat(apmUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
-        assertThat(apmUserRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
-        assertThat(apmUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+        assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
+        assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
     }
 
     public void testMachineLearningAdminRole() {

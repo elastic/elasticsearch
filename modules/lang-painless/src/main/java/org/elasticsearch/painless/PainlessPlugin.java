@@ -141,7 +141,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new PainlessExecuteAction.RestAction(settings, restController));
-        handlers.add(new PainlessContextAction.RestAction(settings, restController, painlessScriptEngine.get()));
+        handlers.add(new PainlessContextAction.RestAction(settings, restController));
         return handlers;
     }
 }

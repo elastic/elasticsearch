@@ -28,4 +28,5 @@ value has been aligned with the Elasticsearch default level: `cluster`.
 ==== Support for `maxRetryTimeout` removed from RestClient
 
 `RestClient` and `RestClientBuilder` no longer support the `maxRetryTimeout`
-setting.
+setting. The setting was removed as its counting mechanism was not accurate
+and caused issues while adding little value.

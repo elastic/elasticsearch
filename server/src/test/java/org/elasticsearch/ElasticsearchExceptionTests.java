@@ -378,9 +378,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
     public void testToXContentWithHeadersAndMetadata() throws IOException {
         ElasticsearchException e = new ElasticsearchException("foo",
-                                        new ElasticsearchException("bar",
-                                                new ElasticsearchException("baz",
-                                                        new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)))));
+            new ElasticsearchException("bar",
+                new ElasticsearchException("baz",
+                    new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)))));
         e.addHeader("foo_0", "0");
         e.addHeader("foo_1", "1");
         e.addMetadata("es.metadata_foo_0", "foo_0");

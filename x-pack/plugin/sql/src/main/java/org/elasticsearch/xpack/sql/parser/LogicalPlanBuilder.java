@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -16,11 +17,13 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedRelationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FromClauseContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.GroupByContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.GroupingElementContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinCriteriaContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinRelationContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.JoinTypeContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LimitClauseContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NamedQueryContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.OrderByContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryNoWithContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QuerySpecificationContext;
@@ -87,7 +90,9 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         LogicalPlan plan = plan(ctx.queryTerm());
 
         if (!ctx.orderBy().isEmpty()) {
-            plan = new OrderBy(source(ctx.ORDER()), plan, visitList(ctx.orderBy(), Order.class));
+            List<OrderByContext> orders = ctx.orderBy();
+            OrderByContext endContext = orders.get(orders.size() - 1);
+            plan = new OrderBy(source(ctx.ORDER(), endContext), plan, visitList(ctx.orderBy(), Order.class));
         }
 
         LimitClauseContext limitClause = ctx.limitClause();
@@ -133,8 +138,10 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             if (groupByAll != null) {
                 throw new ParsingException(source(groupByAll), "GROUP BY ALL is not supported");
             }
-            List<Expression> groupBy = expressions(groupByCtx.groupingElement());
-            query = new Aggregate(source(groupByCtx), query, groupBy, selectTarget);
+            List<GroupingElementContext> groupingElement = groupByCtx.groupingElement();
+            List<Expression> groupBy = expressions(groupingElement);
+            ParserRuleContext endSource = groupingElement.isEmpty() ? groupByCtx : groupingElement.get(groupingElement.size() - 1);
+            query = new Aggregate(source(ctx.GROUP(), endSource), query, groupBy, selectTarget);
         }
         else if (!selectTarget.isEmpty()) {
             query = new Project(source(ctx.selectItem(0)), query, selectTarget);

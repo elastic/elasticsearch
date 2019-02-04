@@ -629,15 +629,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState,
-                                                  ClusterState newState) {
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     listener.onResponse(new AcknowledgedResponse(true));
                 }
             });
         } else {
             JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
 
-            jobConfigProvider.updateJob(jobId, update, null, ActionListener.wrap(
+            jobConfigProvider.updateJob(jobId, update, null, clusterService.state().nodes().getMinNodeVersion(), ActionListener.wrap(
                     job -> listener.onResponse(new AcknowledgedResponse(true)),
                     e -> {
                         logger.error("[" + jobId + "] Failed to clear finished_time", e);

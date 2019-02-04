@@ -64,9 +64,7 @@ public class GetIndexResponseTests extends ESTestCase {
 
     private static void assertEqualInstances(GetIndexResponse expected, GetIndexResponse actual) {
         assertArrayEquals(expected.getIndices(), actual.getIndices());
-        Map<String, MappingMetaData> expectedMappings = expected.getMappings();
-        Map<String, MappingMetaData> actualMappings = actual.getMappings();
-        assertEquals(expectedMappings.keySet(), actualMappings.keySet());
+        assertEquals(expected.getMappings(), actual.getMappings());
         assertEquals(expected.getSettings(), actual.getSettings());
         assertEquals(expected.getDefaultSettings(), actual.getDefaultSettings());
         assertEquals(expected.getAliases(), actual.getAliases());

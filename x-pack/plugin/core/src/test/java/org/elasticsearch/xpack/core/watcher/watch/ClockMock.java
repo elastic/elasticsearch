@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.core.watcher.watch;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 /**
  * A clock that can be modified for testing.
@@ -58,8 +58,8 @@ public class ClockMock extends Clock {
         return wrappedClock.instant();
     }
 
-    public synchronized void setTime(DateTime now) {
-        setTime(Instant.ofEpochMilli(now.getMillis()));
+    public synchronized void setTime(ZonedDateTime now) {
+        setTime(now.toInstant());
     }
 
     private void setTime(Instant now) {

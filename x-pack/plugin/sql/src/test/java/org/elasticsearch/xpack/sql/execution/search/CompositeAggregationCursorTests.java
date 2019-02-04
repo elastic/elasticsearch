@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -27,7 +28,9 @@ public class CompositeAggregationCursorTests extends AbstractWireSerializingTest
         for (int i = 0; i < extractorsSize; i++) {
             extractors.add(randomBucketExtractor());
         }
-        return new CompositeAggregationCursor(new byte[randomInt(256)], extractors, randomIntBetween(10, 1024), randomAlphaOfLength(5));
+
+        return new CompositeAggregationCursor(new byte[randomInt(256)], extractors, randomBitSet(extractorsSize),
+                randomIntBetween(10, 1024), randomAlphaOfLength(5));
     }
 
     static BucketExtractor randomBucketExtractor() {
@@ -41,7 +44,9 @@ public class CompositeAggregationCursorTests extends AbstractWireSerializingTest
     @Override
     protected CompositeAggregationCursor mutateInstance(CompositeAggregationCursor instance) throws IOException {
         return new CompositeAggregationCursor(instance.next(), instance.extractors(),
-                randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 512)), instance.indices());
+                randomValueOtherThan(instance.mask(), () -> randomBitSet(instance.extractors().size())),
+                randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 512)),
+                instance.indices());
     }
 
     @Override
@@ -67,5 +72,13 @@ public class CompositeAggregationCursorTests extends AbstractWireSerializingTest
             return super.copyInstance(instance, version);
         }
         return (CompositeAggregationCursor) Cursors.decodeFromString(Cursors.encodeToString(version, instance));
+    }
+
+    static BitSet randomBitSet(int size) {
+        BitSet mask = new BitSet(size);
+        for (int i = 0; i < size; i++) {
+            mask.set(i, randomBoolean());
+        }
+        return mask;
     }
 }

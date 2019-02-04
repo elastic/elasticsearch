@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
@@ -132,7 +133,8 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             valueFormat = new DocValueFormat.Decimal(format);
         }
         if (valueFormat instanceof DocValueFormat.DateTime && format != null) {
-            valueFormat = new DocValueFormat.DateTime(DateFormatter.forPattern(format), tz != null ? tz : ZoneOffset.UTC);
+            valueFormat = new DocValueFormat.DateTime(DateFormatter.forPattern(format), tz != null ? tz : ZoneOffset.UTC,
+                DateFieldMapper.Resolution.MILLISECONDS);
         }
         return valueFormat;
     }

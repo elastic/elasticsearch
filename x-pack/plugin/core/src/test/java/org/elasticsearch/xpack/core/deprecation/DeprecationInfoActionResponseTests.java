@@ -5,10 +5,7 @@
  */
 package org.elasticsearch.xpack.core.deprecation;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,6 +19,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,7 +28,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -45,13 +43,15 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
             .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
         List<DeprecationIssue> nodeIssues = Stream.generate(DeprecationIssueTests::createTestInstance)
             .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
+        List<DeprecationIssue> mlIssues = Stream.generate(DeprecationIssueTests::createTestInstance)
+                .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
         Map<String, List<DeprecationIssue>> indexIssues = new HashMap<>();
         for (int i = 0; i < randomIntBetween(0, 10); i++) {
             List<DeprecationIssue> perIndexIssues = Stream.generate(DeprecationIssueTests::createTestInstance)
                 .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
             indexIssues.put(randomAlphaOfLength(10), perIndexIssues);
         }
-        return new DeprecationInfoAction.Response(clusterIssues, nodeIssues, indexIssues);
+        return new DeprecationInfoAction.Response(clusterIssues, nodeIssues, indexIssues, mlIssues);
     }
 
     @Override
@@ -74,36 +74,39 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
         DiscoveryNode discoveryNode = DiscoveryNode.createLocal(Settings.EMPTY,
             new TransportAddress(TransportAddress.META_ADDRESS, 9300), "test");
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(metadata).build();
-        List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Version.CURRENT, Build.CURRENT,
-            discoveryNode, null, null, null, null,
-            null, null, null, null, null, null));
-        List<NodeStats> nodeStats = Collections.singletonList(new NodeStats(discoveryNode, 0L, null,
-            null, null, null, null, null, null, null, null,
-            null, null, null, null));
+        List<DatafeedConfig> datafeeds = Collections.singletonList(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"));
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false,
             true, true);
         boolean clusterIssueFound = randomBoolean();
         boolean nodeIssueFound = randomBoolean();
         boolean indexIssueFound = randomBoolean();
+        boolean mlIssueFound = randomBoolean();
         DeprecationIssue foundIssue = DeprecationIssueTests.createTestInstance();
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
                 (s) -> clusterIssueFound ? foundIssue : null
             ));
-        List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> nodeSettingsChecks =
-            Collections.unmodifiableList(Arrays.asList(
-                (ln, ls) -> nodeIssueFound ? foundIssue : null
-            ));
-
         List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
                 (idx) -> indexIssueFound ? foundIssue : null
             ));
+        List<Function<DatafeedConfig, DeprecationIssue>> mlSettingsChecks =
+                Collections.unmodifiableList(Arrays.asList(
+                        (idx) -> mlIssueFound ? foundIssue : null
+                ));
 
-        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(nodeInfos, nodeStats, state,
-            resolver, Strings.EMPTY_ARRAY, indicesOptions,
-            clusterSettingsChecks, nodeSettingsChecks, indexSettingsChecks);
+        NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
+            new ClusterName(randomAlphaOfLength(5)),
+            nodeIssueFound
+                ? Collections.singletonList(
+                    new NodesDeprecationCheckAction.NodeResponse(discoveryNode, Collections.singletonList(foundIssue)))
+                : Collections.emptyList(),
+            Collections.emptyList());
+
+        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(state,
+            resolver, Strings.EMPTY_ARRAY, indicesOptions, datafeeds,
+            nodeDeprecationIssues, indexSettingsChecks, clusterSettingsChecks, mlSettingsChecks);
 
         if (clusterIssueFound) {
             assertThat(response.getClusterSettingsIssues(), equalTo(Collections.singletonList(foundIssue)));
@@ -112,7 +115,10 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
         }
 
         if (nodeIssueFound) {
-            assertThat(response.getNodeSettingsIssues(), equalTo(Collections.singletonList(foundIssue)));
+            String details = foundIssue.getDetails() != null ? foundIssue.getDetails() + " " : "";
+            DeprecationIssue mergedFoundIssue = new DeprecationIssue(foundIssue.getLevel(), foundIssue.getMessage(), foundIssue.getUrl(),
+                details + "(nodes impacted: [" + discoveryNode.getName() + "])");
+            assertThat(response.getNodeSettingsIssues(), equalTo(Collections.singletonList(mergedFoundIssue)));
         } else {
             assertTrue(response.getNodeSettingsIssues().isEmpty());
         }
@@ -122,6 +128,12 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
                 Collections.singletonList(foundIssue))));
         } else {
             assertTrue(response.getIndexSettingsIssues().isEmpty());
+        }
+
+        if (mlIssueFound) {
+            assertThat(response.getMlSettingsIssues(), equalTo(Collections.singletonList(foundIssue)));
+        } else {
+            assertTrue(response.getMlSettingsIssues().isEmpty());
         }
     }
 }

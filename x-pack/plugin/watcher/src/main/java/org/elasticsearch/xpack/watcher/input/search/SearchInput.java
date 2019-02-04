@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.input.search;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -15,9 +16,9 @@ import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -33,10 +34,10 @@ public class SearchInput implements Input {
     private final WatcherSearchTemplateRequest request;
     @Nullable private final Set<String> extractKeys;
     @Nullable private final TimeValue timeout;
-    @Nullable private final DateTimeZone dynamicNameTimeZone;
+    @Nullable private final ZoneId dynamicNameTimeZone;
 
     public SearchInput(WatcherSearchTemplateRequest request, @Nullable Set<String> extractKeys,
-                       @Nullable TimeValue timeout, @Nullable DateTimeZone dynamicNameTimeZone) {
+                       @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone) {
         this.request = request;
         this.extractKeys = extractKeys;
         this.timeout = timeout;
@@ -82,7 +83,7 @@ public class SearchInput implements Input {
         return timeout;
     }
 
-    public DateTimeZone getDynamicNameTimeZone() {
+    public ZoneId getDynamicNameTimeZone() {
         return dynamicNameTimeZone;
     }
 
@@ -109,7 +110,7 @@ public class SearchInput implements Input {
         WatcherSearchTemplateRequest request = null;
         Set<String> extract = null;
         TimeValue timeout = null;
-        DateTimeZone dynamicNameTimeZone = null;
+        ZoneId dynamicNameTimeZone = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -145,7 +146,7 @@ public class SearchInput implements Input {
                 timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
             } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    dynamicNameTimeZone = DateTimeZone.forID(parser.text());
+                    dynamicNameTimeZone = DateUtils.of(parser.text());
                 } else {
                     throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. failed to parse [{}]. must be a " +
                             "string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
@@ -201,7 +202,7 @@ public class SearchInput implements Input {
         private final WatcherSearchTemplateRequest request;
         private final Set<String> extractKeys = new HashSet<>();
         private TimeValue timeout;
-        private DateTimeZone dynamicNameTimeZone;
+        private ZoneId dynamicNameTimeZone;
 
         private Builder(WatcherSearchTemplateRequest request) {
             this.request = request;
@@ -222,7 +223,7 @@ public class SearchInput implements Input {
             return this;
         }
 
-        public Builder dynamicNameTimeZone(DateTimeZone dynamicNameTimeZone) {
+        public Builder dynamicNameTimeZone(ZoneId dynamicNameTimeZone) {
             this.dynamicNameTimeZone = dynamicNameTimeZone;
             return this;
         }

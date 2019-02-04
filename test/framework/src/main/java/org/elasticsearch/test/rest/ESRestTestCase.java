@@ -257,6 +257,28 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static RequestOptions expectWarnings(String... warnings) {
         return expectVersionSpecificWarnings(consumer -> consumer.current(warnings));
     }
+    
+    /**
+     * Creates RequestOptions designed to ignore [types removal] warnings but nothing else 
+     * @deprecated this method is only required while we deprecate types and can be removed in 8.0
+     */
+    @Deprecated
+    public static RequestOptions allowTypeRemovalWarnings() {
+        Builder builder = RequestOptions.DEFAULT.toBuilder();
+        builder.setWarningsHandler(new WarningsHandler() {
+                @Override
+                public boolean warningsShouldFailRequest(List<String> warnings) {
+                    for (String warning : warnings) {
+                        if(warning.startsWith("[types removal]") == false) {
+                            //Something other than a types removal message - return true
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            });
+        return builder.build();
+    }    
 
     /**
      * Construct an HttpHost from the given host and port
@@ -708,7 +730,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
-                KeyStore keyStore = KeyStore.getInstance("jks");
+                final String keyStoreType = keystorePath.endsWith(".p12") ? "PKCS12" : "jks";
+                KeyStore keyStore = KeyStore.getInstance(keyStoreType);
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
                 }

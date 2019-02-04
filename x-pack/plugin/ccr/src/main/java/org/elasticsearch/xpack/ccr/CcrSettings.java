@@ -50,6 +50,13 @@ public final class CcrSettings {
             Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     /**
+     * File chunk size to send during recovery
+     */
+    public static final Setting<ByteSizeValue> RECOVERY_CHUNK_SIZE =
+        Setting.byteSizeSetting("ccr.indices.recovery.chunk_size", new ByteSizeValue(64, ByteSizeUnit.KB),
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    /**
      * The leader must open resources for a ccr recovery. If there is no activity for this interval of time,
      * the leader will close the restore session.
      */
@@ -77,20 +84,28 @@ public final class CcrSettings {
                 INDICES_RECOVERY_ACTION_TIMEOUT_SETTING,
                 INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
                 CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT,
+                RECOVERY_CHUNK_SIZE,
                 CCR_WAIT_FOR_METADATA_TIMEOUT);
     }
 
     private final CombinedRateLimiter ccrRateLimiter;
     private volatile TimeValue recoveryActivityTimeout;
     private volatile TimeValue recoveryActionTimeout;
+    private volatile ByteSizeValue chunkSize;
 
     public CcrSettings(Settings settings, ClusterSettings clusterSettings) {
         this.recoveryActivityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
         this.recoveryActionTimeout = INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.get(settings);
         this.ccrRateLimiter = new CombinedRateLimiter(RECOVERY_MAX_BYTES_PER_SECOND.get(settings));
+        this.chunkSize = RECOVERY_MAX_BYTES_PER_SECOND.get(settings);
         clusterSettings.addSettingsUpdateConsumer(RECOVERY_MAX_BYTES_PER_SECOND, this::setMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(RECOVERY_CHUNK_SIZE, this::setChunkSize);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setRecoveryActivityTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTION_TIMEOUT_SETTING, this::setRecoveryActionTimeout);
+    }
+
+    private void setChunkSize(ByteSizeValue chunkSize) {
+        this.chunkSize = chunkSize;
     }
 
     private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
@@ -103,6 +118,10 @@ public final class CcrSettings {
 
     private void setRecoveryActionTimeout(TimeValue recoveryActionTimeout) {
         this.recoveryActionTimeout = recoveryActionTimeout;
+    }
+
+    public ByteSizeValue getChunkSize() {
+        return chunkSize;
     }
 
     public CombinedRateLimiter getRateLimiter() {

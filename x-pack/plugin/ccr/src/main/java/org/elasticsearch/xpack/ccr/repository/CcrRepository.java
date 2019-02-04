@@ -326,8 +326,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     private static class RestoreSession extends FileRestoreContext implements Closeable {
 
-        private static final int BUFFER_SIZE = 1 << 16;
-
         private final Client remoteClient;
         private final String sessionUUID;
         private final DiscoveryNode node;
@@ -338,7 +336,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         RestoreSession(String repositoryName, Client remoteClient, String sessionUUID, DiscoveryNode node, IndexShard indexShard,
                        RecoveryState recoveryState, Store.MetadataSnapshot sourceMetaData, CcrSettings ccrSettings,
                        LongConsumer throttleListener) {
-            super(repositoryName, indexShard, SNAPSHOT_ID, recoveryState, BUFFER_SIZE);
+            super(repositoryName, indexShard, SNAPSHOT_ID, recoveryState, Math.toIntExact(ccrSettings.getChunkSize().getBytes()));
             this.remoteClient = remoteClient;
             this.sessionUUID = sessionUUID;
             this.node = node;

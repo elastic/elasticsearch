@@ -213,7 +213,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         }
     }
 
-    public void testCompareAndSEtInitialDelete() throws Exception {
+    public void testCompareAndSetInitialDelete() throws Exception {
         createIndex("test");
         ensureGreen();
 

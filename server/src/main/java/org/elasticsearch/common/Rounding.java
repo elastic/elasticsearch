@@ -110,7 +110,7 @@ public abstract class Rounding implements Writeable {
 
         /**
          * This rounds down the supplied milliseconds since the epoch down to the next unit. In order to retain performance this method
-         * should be as fast as possiblee and not try to convert dates to java-time objects if possible
+         * should be as fast as possible and not try to convert dates to java-time objects if possible
          *
          * @param utcMillis the milliseconds since the epoch
          * @return          the rounded down milliseconds since the epoch

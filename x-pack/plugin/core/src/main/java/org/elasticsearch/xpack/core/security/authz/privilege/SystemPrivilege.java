@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
@@ -25,7 +27,8 @@ public final class SystemPrivilege extends Privilege {
             "indices:admin/template/put", // needed for the TemplateUpgradeService
             "indices:admin/template/delete", // needed for the TemplateUpgradeService
             "indices:admin/seq_no/global_checkpoint_sync*", // needed for global checkpoint syncs
-            "indices:admin/seq_no/retention_lease_sync*", // needed for retention lease syncs
+            RetentionLeaseSyncAction.ACTION_NAME + "*", // needed for retention lease syncs
+            RetentionLeaseBackgroundSyncAction.ACTION_NAME + "*", // needed for background retention lease syncs
             "indices:admin/settings/update" // needed for DiskThresholdMonitor.markIndicesReadOnly
     ), Automatons.patterns("internal:transport/proxy/*"))); // no proxy actions for system user!
 

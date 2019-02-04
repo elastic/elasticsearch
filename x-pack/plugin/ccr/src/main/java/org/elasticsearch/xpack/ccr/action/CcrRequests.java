@@ -46,7 +46,7 @@ public final class CcrRequests {
     }
 
     /**
-     * Gets an {@link IndexMetaData} of the given index. The mapping version and metadata version of the responded {@link IndexMetaData}
+     * Gets an {@link IndexMetaData} of the given index. The mapping version and metadata version of the returned {@link IndexMetaData}
      * must be at least the provided {@code mappingVersion} and {@code metadataVersion} respectively.
      */
     public static void getIndexMetadata(Client client, Index index, long mappingVersion, long metadataVersion,

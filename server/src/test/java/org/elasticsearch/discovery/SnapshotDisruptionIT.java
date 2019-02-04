@@ -156,9 +156,6 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
                 logger.info("--> got exception from race in master operation retries");
             } else {
                 logger.info("--> got exception from hanged master", ex);
-                assertThat(cause, instanceOf(MasterNotDiscoveredException.class));
-                cause = cause.getCause();
-                assertThat(cause, instanceOf(FailedToCommitClusterStateException.class));
             }
         }
 

@@ -516,9 +516,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public SnapshotInfo finalizeSnapshot(final SnapshotId snapshotId,
                                          final List<IndexId> indices,

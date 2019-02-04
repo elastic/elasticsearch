@@ -109,6 +109,7 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.indices;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.resolve;
+import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.resolveNext;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
 
 /**
@@ -308,6 +309,17 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         return index;
     }
 
+    private String getNextIndexName() {
+        final Message first = peek();
+        final String index;
+        if (first == null) {
+            index = resolveNext(IndexAuditTrailField.INDEX_NAME_PREFIX, DateTime.now(DateTimeZone.UTC), rollover);
+        } else {
+            index = resolveNext(IndexAuditTrailField.INDEX_NAME_PREFIX, first.timestamp, rollover);
+        }
+        return index;
+    }
+
     private boolean hasStaleMessage() {
         final Message first = peek();
         if (first == null) {
@@ -337,7 +349,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                             updateCurrentIndexMappingsIfNecessary(clusterStateResponse.getState());
                         } else if (TemplateUtils.checkTemplateExistsAndVersionMatches(INDEX_TEMPLATE_NAME,
                                 SECURITY_VERSION_STRING, clusterStateResponse.getState(), logger,
-                                Version.CURRENT::onOrAfter) == false) {
+                                Version.CURRENT::onOrBefore) == false) {
                             putTemplate(customAuditIndexSettings(settings, logger),
                                     e -> {
                                         logger.error("failed to put audit trail template", e);
@@ -377,6 +389,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     // pkg private for tests
     void updateCurrentIndexMappingsIfNecessary(ClusterState state) {
+        final String nextIndex = getNextIndexName();
         final String index = getIndexName();
 
         AliasOrIndex aliasOrIndex = state.getMetaData().getAliasAndIndexLookup().get(index);
@@ -391,31 +404,36 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             MappingMetaData docMapping = indexMetaData.mapping("doc");
             if (docMapping == null) {
                 if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster() || hasStaleMessage()) {
-                    putAuditIndexMappingsAndStart(index);
+                    putAuditIndexMappingsAndStart(index, nextIndex);
                 } else {
-                    logger.trace("audit index [{}] is missing mapping for type [{}]", index, DOC_TYPE);
+                    logger.debug("audit index [{}] is missing mapping for type [{}]", index, DOC_TYPE);
                     transitionStartingToInitialized();
                 }
             } else {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> meta = (Map<String, Object>) docMapping.sourceAsMap().get("_meta");
                 if (meta == null) {
-                    logger.info("Missing _meta field in mapping [{}] of index [{}]", docMapping.type(), index);
-                    throw new IllegalStateException("Cannot read security-version string in index " + index);
-                }
-
-                final String versionString = (String) meta.get(SECURITY_VERSION_STRING);
-                if (versionString != null && Version.fromString(versionString).onOrAfter(Version.CURRENT)) {
-                    innerStart();
-                } else {
+                    logger.warn("Missing _meta field in mapping [{}] of index [{}]", docMapping.type(), index);
                     if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster() || hasStaleMessage()) {
-                        putAuditIndexMappingsAndStart(index);
-                    } else if (versionString == null) {
-                        logger.trace("audit index [{}] mapping is missing meta field [{}]", index, SECURITY_VERSION_STRING);
-                        transitionStartingToInitialized();
+                        putAuditIndexMappingsAndStart(index, nextIndex);
                     } else {
-                        logger.trace("audit index [{}] has the incorrect version [{}]", index, versionString);
+                        logger.debug("audit index [{}] is missing _meta for type [{}]", index, DOC_TYPE);
                         transitionStartingToInitialized();
+                    }
+                } else {
+                    final String versionString = (String) meta.get(SECURITY_VERSION_STRING);
+                    if (versionString != null && Version.fromString(versionString).onOrAfter(Version.CURRENT)) {
+                        innerStart();
+                    } else {
+                        if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster() || hasStaleMessage()) {
+                            putAuditIndexMappingsAndStart(index, nextIndex);
+                        } else if (versionString == null) {
+                            logger.debug("audit index [{}] mapping is missing meta field [{}]", index, SECURITY_VERSION_STRING);
+                            transitionStartingToInitialized();
+                        } else {
+                            logger.debug("audit index [{}] has the incorrect version [{}]", index, versionString);
+                            transitionStartingToInitialized();
+                        }
                     }
                 }
             }
@@ -424,15 +442,22 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         }
     }
 
-    private void putAuditIndexMappingsAndStart(String index) {
-        putAuditIndexMappings(index, getPutIndexTemplateRequest(Settings.EMPTY).mappings().get(DOC_TYPE),
-                ActionListener.wrap(ignore -> {
-                    logger.trace("updated mappings on audit index [{}]", index);
+    private void putAuditIndexMappingsAndStart(String index, String nextIndex) {
+        final String docMapping = getPutIndexTemplateRequest(Settings.EMPTY).mappings().get(DOC_TYPE);
+        putAuditIndexMappings(index, docMapping, ActionListener.wrap(ignore -> {
+                logger.debug("updated mappings on audit index [{}]", index);
+                putAuditIndexMappings(nextIndex, docMapping, ActionListener.wrap(ignoreToo -> {
+                    logger.debug("updated mappings on next audit index [{}]", nextIndex);
                     innerStart();
-                }, e -> {
-                    logger.error(new ParameterizedMessage("failed to update mappings on audit index [{}]", index), e);
-                    transitionStartingToInitialized(); // reset to initialized so we can retry
+                }, e2 -> {
+                    // best effort only
+                    logger.debug("Failed to update mappings on next audit index [{}]", nextIndex);
+                    innerStart();
                 }));
+            }, e -> {
+                logger.error(new ParameterizedMessage("failed to update mappings on audit index [{}]", index), e);
+                transitionStartingToInitialized(); // reset to initialized so we can retry
+            }));
     }
 
     private void transitionStartingToInitialized() {
@@ -451,7 +476,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             assert false : message;
             logger.error(message);
         } else {
-            logger.trace("successful state transition from starting to started, current value: [{}]", state.get());
+            logger.debug("successful state transition from starting to started, current value: [{}]", state.get());
         }
     }
 

@@ -157,6 +157,7 @@ subprojects {
       setting 'xpack.security.audit.outputs', 'index'
       setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+      setting 'logger.org.elasticsearch.xpack.security.audit.index', 'DEBUG'
       if (version.onOrAfter('6.0.0') == false) {
         // this is needed since in 5.6 we don't bootstrap the token service if there is no explicit initial password
         keystoreSetting 'xpack.security.authc.token.passphrase', 'xpack_token_passphrase'
@@ -217,6 +218,7 @@ subprojects {
         setting 'xpack.security.enabled', 'true'
         setting 'xpack.security.transport.ssl.enabled', 'true'
         setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+        setting 'logger.org.elasticsearch.xpack.security.audit.index', 'DEBUG'
         keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'testnode'
         if (version.onOrAfter('6.0.0') == false) {
           // this is needed since in 5.6 we don't bootstrap the token service if there is no explicit initial password

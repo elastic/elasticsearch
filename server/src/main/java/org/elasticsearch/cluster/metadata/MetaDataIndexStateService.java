@@ -410,14 +410,16 @@ public class MetaDataIndexStateService {
                 }
 
                 logger.debug("closing index {} succeeded", index);
-                blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID).addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                 metadata.put(IndexMetaData.builder(indexMetaData).state(IndexMetaData.State.CLOSE));
-                routingTable.remove(index.getName());
+                blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
+                blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
+                routingTable.addAsFromOpenToClose(metadata.getSafe(index));
                 closedIndices.add(index.getName());
             } catch (final IndexNotFoundException e) {
                 logger.debug("index {} has been deleted since it was blocked before closing, ignoring", index);
             }
         }
+
         logger.info("completed closing of indices {}", closedIndices);
         return ClusterState.builder(currentState).blocks(blocks).metaData(metadata).routingTable(routingTable.build()).build();
     }

@@ -1590,17 +1590,20 @@ public class DateFormatters {
         if (zoneId == null) {
             zoneId = ZoneOffset.UTC;
         }
-        
+
+        // this is a very common case and should be handled first
+        if (accessor.isSupported(ChronoField.INSTANT_SECONDS) && accessor.isSupported(NANO_OF_SECOND)) {
+            return Instant.from(accessor).atZone(zoneId);
+        }
+
         LocalDate localDate = accessor.query(TemporalQueries.localDate());
         LocalTime localTime = accessor.query(TemporalQueries.localTime());
         boolean isLocalDateSet = localDate != null;
         boolean isLocalTimeSet = localTime != null;
 
-        // the first two cases are the most common, so this allows us to exit early when parsing dates
+        // try to start with most common cases, so this allows us to exit early when parsing dates
         if (isLocalDateSet && isLocalTimeSet) {
             return of(localDate, localTime, zoneId);
-        } else if (accessor.isSupported(ChronoField.INSTANT_SECONDS) && accessor.isSupported(NANO_OF_SECOND)) {
-            return Instant.from(accessor).atZone(zoneId);
         } else if (isLocalDateSet) {
             return localDate.atStartOfDay(zoneId);
         } else if (isLocalTimeSet) {

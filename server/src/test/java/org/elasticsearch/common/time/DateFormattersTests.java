@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
@@ -218,6 +219,18 @@ public class DateFormattersTests extends ESTestCase {
         assertRoundupFormatter("strict_date_optional_time||epoch_second", "2018-10-10", 1539215999999L);
         assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "2018-10-10T12:13:14.123", 1539173594123L);
         assertRoundupFormatter("uuuu-MM-dd'T'HH:mm:ss.SSS||epoch_second", "1234567890", 1234567890999L);
+    }
+
+    public void testFromParsingWithCustomTimezone() {
+        assertOffsetParsing("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", "2018-02-05T13:44:56.657+0100", "2018-02-05T12:44:56.657Z");
+        assertOffsetParsing("dd/MMM/yyyy:H:m:s Z", "10/Aug/2018:09:45:56 +0200", "2018-08-10T07:45:56Z");
+        assertOffsetParsing("yyyy-MM-dd HH:mm:ss Z", "2017-04-04 13:43:09 +0200", "2017-04-04T11:43:09Z");
+        assertOffsetParsing("dd/MMM/yyyy:H:m:s Z", "07/Dec/2016:11:05:07 +0100", "2016-12-07T10:05:07Z");
+    }
+
+    private void assertOffsetParsing(String format, String input, String expectedOutput) {
+        TemporalAccessor accessor = DateFormatter.forPattern(format).withZone(ZoneOffset.UTC).parse(input);
+        assertThat(DateFormatters.from(accessor).toString(), is(expectedOutput));
     }
 
     private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {

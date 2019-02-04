@@ -43,6 +43,13 @@ public class DateFormatTests extends ESTestCase {
                 equalTo("11 24 01:29:01"));
     }
 
+    public void testParseJavaWithTimeZone() {
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSZZ",
+            ZoneOffset.UTC, Locale.ROOT);
+        ZonedDateTime datetime = javaFunction.apply("2018-02-05T13:44:56.657+0100");
+        assertThat(datetime.toString(), is("2018-02-05T12:44:56.657Z"));
+    }
+
     public void testParseJavaDefaultYear() {
         String format = randomFrom("8dd/MM", "dd/MM");
         ZoneId timezone = DateUtils.of("Europe/Amsterdam");

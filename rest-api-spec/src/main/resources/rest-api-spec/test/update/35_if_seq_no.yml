@@ -2,8 +2,8 @@
 "Update with if_seq_no":
 
  - skip:
-      version: " - 6.99.99"
-      reason: if_seq_no was added in 7.0
+      version: " - 6.6.99"
+      reason: if_seq_no was added in 6.7.0
 
  - do:
       catch:        missing

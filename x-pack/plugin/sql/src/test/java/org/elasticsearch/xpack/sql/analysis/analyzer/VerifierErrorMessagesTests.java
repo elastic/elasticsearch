@@ -175,12 +175,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMissingColumnInOrderBy() {
-        // xxx offset is that of the order by field
         assertEquals("1:29: Unknown column [xxx]", error("SELECT * FROM test ORDER BY xxx"));
     }
 
     public void testMissingColumnFunctionInOrderBy() {
-        // xxx offset is that of the order by field
         assertEquals("1:41: Unknown column [xxx]", error("SELECT * FROM test ORDER BY DAY_oF_YEAR(xxx)"));
     }
 
@@ -208,7 +206,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMultipleColumns() {
-        // xxx offset is that of the order by field
         assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
                 error("SELECT xxx FROM test GROUP BY DAY_oF_YEAR(xxx)"));
     }
@@ -248,7 +245,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByScalarOverNonGrouped() {
-        assertEquals("1:50: Cannot order by non-grouped column [YEAR(date)], expected [text]",
+        assertEquals("1:50: Cannot order by non-grouped column [YEAR(date)], expected [text] or an aggregate function",
                 error("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
     }
 
@@ -258,7 +255,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
-        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date)], expected [text]",
+        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date)], expected [text] or an aggregate function",
             error("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY YEAR(date)"));
     }
 
@@ -316,18 +313,25 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT * FROM test ORDER BY unsupported"));
     }
 
-    public void testGroupByOrderByNonKey() {
-        assertEquals("1:52: Cannot order by non-grouped column [a], expected [bool]",
-                error("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a"));
+    public void testGroupByOrderByAggregate() {
+        accept("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a");
     }
 
-    public void testGroupByOrderByFunctionOverKey() {
-        assertEquals("1:44: Cannot order by non-grouped column [MAX(int)], expected [int]",
-                error("SELECT int FROM test GROUP BY int ORDER BY MAX(int)"));
+    public void testGroupByOrderByAggs() {
+        accept("SELECT int FROM test GROUP BY int ORDER BY COUNT(*)");
+    }
+
+    public void testGroupByOrderByAggAndGroupedColumn() {
+        accept("SELECT int FROM test GROUP BY int ORDER BY int, MAX(int)");
+    }
+
+    public void testGroupByOrderByNonAggAndNonGroupedColumn() {
+        assertEquals("1:44: Cannot order by non-grouped column [bool], expected [int]",
+                error("SELECT int FROM test GROUP BY int ORDER BY bool"));
     }
 
     public void testGroupByOrderByScore() {
-        assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int]",
+        assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int] or an aggregate function",
                 error("SELECT int FROM test GROUP BY int ORDER BY SCORE()"));
     }
 
@@ -534,6 +538,41 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testAggsInHistogram() {
         assertEquals("1:47: Cannot use an aggregate [MAX] for grouping",
                 error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
+    }
+    
+    public void testHistogramNotInGrouping() {
+        assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));
+    }
+    
+    public void testHistogramNotInGroupingWithCount() {
+        assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h, COUNT(*) FROM test"));
+    }
+    
+    public void testHistogramNotInGroupingWithMaxFirst() {
+        assertEquals("1:19: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT MAX(date), HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));
+    }
+    
+    public void testHistogramWithoutAliasNotInGrouping() {
+        assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) FROM test"));
+    }
+    
+    public void testTwoHistogramsNotInGrouping() {
+        assertEquals("1:48: [HISTOGRAM(date, INTERVAL 1 DAY)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h, HISTOGRAM(date, INTERVAL 1 DAY) FROM test GROUP BY h"));
+    }
+    
+    public void testHistogramNotInGrouping_WithGroupByField() {
+        assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) FROM test GROUP BY date"));
+    }
+    
+    public void testScalarOfHistogramNotInGrouping() {
+        assertEquals("1:14: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT MONTH(HISTOGRAM(date, INTERVAL 1 MONTH)) FROM test"));
     }
 
     public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {

@@ -170,7 +170,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
                 Arrays.asList("scope1", "scope2"));
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build(), threadContext), null,
             null);
-        final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri();
+        final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null);
         final String state = response.getState();
         final String nonce = response.getNonce();
         assertThat(response.getAuthenticationRequestUrl(),
@@ -193,7 +193,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
                 Arrays.asList("openid", "scope1", "scope2"));
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build(), threadContext), null,
             null);
-        final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri();
+        final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null);
         final String state = response.getState();
         final String nonce = response.getNonce();
         assertThat(response.getAuthenticationRequestUrl(),
@@ -214,7 +214,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build(), threadContext), null,
             null);
-        final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri();
+        final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null);
         final String state = response.getState();
         final String nonce = response.getNonce();
         assertThat(response.getAuthenticationRequestUrl(), equalTo("https://op.example.com/login?scope=openid&response_type=code" +
@@ -232,6 +232,26 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             containsString("&post_logout_redirect_uri=https%3A%2F%2Frp.elastic.co%2Fsucc_logout&state="));
     }
 
+    public void testBuilidingAuthenticationRequestWithExistingStateAndNonce() {
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT), "https://op.example.com/token")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_NAME), "the op")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH), "https://op.example.com/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+        final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build(), threadContext), null,
+            null);
+        final String state = new State().getValue();
+        final String nonce = new Nonce().getValue();
+        final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(state, nonce);
+
+        assertThat(response.getAuthenticationRequestUrl(), equalTo("https://op.example.com/login?scope=openid&response_type=code" +
+            "&redirect_uri=https%3A%2F%2Frp.my.com%2Fcb&state=" + state + "&nonce=" + nonce + "&client_id=rp-my"));
+    }
 
     private AuthenticationResult authenticateWithOidc(UserRoleMapper roleMapper, boolean notPopulateMetadata, boolean useAuthorizingRealm)
         throws Exception {

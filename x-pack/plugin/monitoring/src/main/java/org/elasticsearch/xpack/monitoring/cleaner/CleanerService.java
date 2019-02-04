@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -252,7 +253,7 @@ public class CleanerService extends AbstractLifecycleComponent {
             if (next.isAfter(now) == false) {
                 next = next.plusDays(1);
             }
-            return TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
+            return TimeValue.timeValueMillis(Duration.between(now, next).toMillis());
         }
     }
 }

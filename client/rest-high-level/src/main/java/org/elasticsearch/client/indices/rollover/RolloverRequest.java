@@ -23,9 +23,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.client.TimedRequest;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -34,43 +32,27 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Request class to swap index under an alias upon satisfying conditions
  */
-public class RolloverRequest extends TimedRequest implements Validatable, ToXContentObject {
+public class RolloverRequest extends TimedRequest implements ToXContentObject {
 
-    private String alias;
-    private String newIndexName;
+    private final String alias;
+    private final String newIndexName;
     private boolean dryRun;
-    private Map<String, Condition<?>> conditions = new HashMap<>(2);
+    private final Map<String, Condition<?>> conditions = new HashMap<>(2);
     //the index name "_na_" is never read back, what matters are settings, mappings and aliases
-    private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+    private final CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
     public RolloverRequest(String alias, String newIndexName) {
+        if (alias == null) {
+            throw new IllegalArgumentException("The index alias cannot be null!");
+        }
         this.alias = alias;
         this.newIndexName = newIndexName;
     }
 
-    @Override
-    public Optional<ValidationException> validate() {
-        if (alias == null) {
-            ValidationException validationException = new ValidationException();
-            validationException.addValidationError("index alias is missing");
-            return Optional.of(validationException);
-        } else {
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * Sets the alias to rollover to another index
-     */
-    public RolloverRequest alias(String alias) {
-        this.alias = alias;
-        return this;
-    }
     /**
      * Returns the alias of the rollover operation
      */
@@ -78,13 +60,6 @@ public class RolloverRequest extends TimedRequest implements Validatable, ToXCon
         return alias;
     }
 
-    /**
-     * Sets the new index name for the rollover
-     */
-    public RolloverRequest newIndexName(String newIndexName) {
-        this.newIndexName = newIndexName;
-        return this;
-    }
     /**
      * Returns the new index name for the rollover
      */

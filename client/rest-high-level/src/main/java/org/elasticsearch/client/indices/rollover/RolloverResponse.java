@@ -19,15 +19,11 @@
 
 package org.elasticsearch.client.indices.rollover;
 
-
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -50,19 +46,19 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse {
             (Boolean)args[3], (Boolean)args[4], (Boolean) args[5], (Boolean) args[6]));
 
     static {
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), OLD_INDEX, ObjectParser.ValueType.STRING);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), NEW_INDEX, ObjectParser.ValueType.STRING);
+        PARSER.declareString(constructorArg(), OLD_INDEX);
+        PARSER.declareString(constructorArg(), NEW_INDEX);
         PARSER.declareObject(constructorArg(), (parser, context) -> parser.map(), CONDITIONS);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), DRY_RUN, ObjectParser.ValueType.BOOLEAN);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ROLLED_OVER, ObjectParser.ValueType.BOOLEAN);
+        PARSER.declareBoolean(constructorArg(), DRY_RUN);
+        PARSER.declareBoolean(constructorArg(), ROLLED_OVER);
         declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
     }
 
-    private String oldIndex;
-    private String newIndex;
-    private Map<String, Boolean> conditionStatus;
-    private boolean dryRun;
-    private boolean rolledOver;
+    private final String oldIndex;
+    private final String newIndex;
+    private final Map<String, Boolean> conditionStatus;
+    private final boolean dryRun;
+    private final boolean rolledOver;
 
     public RolloverResponse(String oldIndex, String newIndex, Map<String, Boolean> conditionResults,
                             boolean dryRun, boolean rolledOver, boolean acknowledged, boolean shardsAcknowledged) {
@@ -107,20 +103,6 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse {
      */
     public boolean isRolledOver() {
         return rolledOver;
-    }
-
-    @Override
-    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
-        super.addCustomFields(builder, params);
-        builder.field(OLD_INDEX.getPreferredName(), oldIndex);
-        builder.field(NEW_INDEX.getPreferredName(), newIndex);
-        builder.field(ROLLED_OVER.getPreferredName(), rolledOver);
-        builder.field(DRY_RUN.getPreferredName(), dryRun);
-        builder.startObject(CONDITIONS.getPreferredName());
-        for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
-        }
-        builder.endObject();
     }
 
     public static RolloverResponse fromXContent(XContentParser parser) {

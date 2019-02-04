@@ -19,7 +19,8 @@ one or more conditions that determine when the index has to be rolled over:
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The alias (first argument) that points to the index to rollover, and
-optionally the name of the new index in case the rollover operation is performed
+the name of the new index in case the rollover operation is performed.
+The new index argument is optional, and can be set to null
 <2> Condition on the age of the index
 <3> Condition on the number of documents in the index
 <4> Condition on the size of the index
@@ -94,5 +95,3 @@ each shard in the index before timing out
 <5> Whether the index has been rolled over
 <6> Whether the operation was performed or it was a dry run
 <7> The different conditions and whether they were matched or not
-
-

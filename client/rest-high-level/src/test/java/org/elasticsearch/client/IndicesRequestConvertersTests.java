@@ -876,6 +876,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
                 expectedParams.put("dry_run", "true");
             }
         }
+        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         if (ESTestCase.randomBoolean()) {
             rolloverRequest.addMaxIndexAgeCondition(new TimeValue(ESTestCase.randomNonNegativeLong()));
         }

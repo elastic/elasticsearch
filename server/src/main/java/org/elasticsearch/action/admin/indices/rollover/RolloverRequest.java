@@ -48,7 +48,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest, ToXContentObject {
 
-    private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover");
+    private static final ObjectParser<RolloverRequest, Boolean> PARSER = new ObjectParser<>("rollover");
     private static final ObjectParser<Map<String, Condition<?>>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
 
     private static final ParseField CONDITIONS = new ParseField("conditions");
@@ -70,8 +70,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             CONDITIONS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.settings(parser.map()),
             CreateIndexRequest.SETTINGS, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, context) -> {
-            if (request.includedTypeNameForMappingParsing) {
+        PARSER.declareField((parser, request, isTypeIncluded) -> {
+            if (isTypeIncluded) {
                 for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
                     request.createIndexRequest.mapping(mappingsEntry.getKey(), (Map<String, Object>) mappingsEntry.getValue());
                 }
@@ -87,7 +87,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String alias;
     private String newIndexName;
     private boolean dryRun;
-    private boolean includedTypeNameForMappingParsing = true; // a helper value to decide how mappings should be parsed from XContent
     private Map<String, Condition<?>> conditions = new HashMap<>(2);
     //the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
@@ -218,10 +217,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return newIndexName;
     }
 
-    public void setNoTypeNameForMappingParsing() {
-        includedTypeNameForMappingParsing = false;
-    }
-
     /**
      * Returns the inner {@link CreateIndexRequest}. Allows to configure mappings, settings and aliases for the new index.
      */
@@ -244,7 +239,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return builder;
     }
 
-    public void fromXContent(XContentParser parser) throws IOException {
-        PARSER.parse(parser, this, null);
+    // param isTypeIncluded decides how mappings should be parsed from XContent
+    public void fromXContent(boolean isTypeIncluded, XContentParser parser) throws IOException {
+        PARSER.parse(parser, this, isTypeIncluded);
     }
 }

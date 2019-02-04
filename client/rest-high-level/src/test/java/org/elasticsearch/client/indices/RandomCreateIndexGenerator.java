@@ -19,14 +19,12 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAlias;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class RandomCreateIndexGenerator {
@@ -72,28 +70,5 @@ public class RandomCreateIndexGenerator {
         for (int i = 0; i < aliasesNo; i++) {
             request.alias(randomAlias());
         }
-    }
-
-    private static Alias randomAlias() {
-        Alias alias = new Alias(randomAlphaOfLength(5));
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                alias.routing(randomAlphaOfLength(5));
-            } else {
-                if (randomBoolean()) {
-                    alias.indexRouting(randomAlphaOfLength(5));
-                }
-                if (randomBoolean()) {
-                    alias.searchRouting(randomAlphaOfLength(5));
-                }
-            }
-        }
-        if (randomBoolean()) {
-            alias.filter("{\"term\":{\"year\":2016}}");
-        }
-        if (randomBoolean()) {
-            alias.writeIndex(randomBoolean());
-        }
-        return alias;
     }
 }

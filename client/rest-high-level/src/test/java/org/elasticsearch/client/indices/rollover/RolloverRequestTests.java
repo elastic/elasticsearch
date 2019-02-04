@@ -23,14 +23,12 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
@@ -60,12 +58,8 @@ public class RolloverRequestTests extends ESTestCase {
     }
 
     public void testValidation() {
-        RolloverRequest rolloverRequest = new RolloverRequest(null, null);
-        Optional<ValidationException> validation = rolloverRequest.validate();
-        assertNotNull(validation);
-        assertTrue(validation.isPresent());
-        ValidationException validationException = validation.get();
-        assertEquals(1, validationException.validationErrors().size());
-        assertEquals("index alias is missing", validationException.validationErrors().get(0));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->
+            new RolloverRequest(null, null));
+        assertEquals("The index alias cannot be null!", exception.getMessage());
     }
 }

@@ -50,16 +50,12 @@ public class RestRolloverIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
-            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
             deprecationLogger.deprecatedAndMaybeLog("index_rollover_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
-        if (includeTypeName == false) {
-            rolloverIndexRequest.setNoTypeNameForMappingParsing();
-        }
-        request.applyContentParser(rolloverIndexRequest::fromXContent);
+        request.applyContentParser(parser -> rolloverIndexRequest.fromXContent(includeTypeName, parser));
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
         rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));

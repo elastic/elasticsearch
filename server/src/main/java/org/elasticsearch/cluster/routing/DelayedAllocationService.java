@@ -32,10 +32,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -69,7 +68,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
     class DelayedRerouteTask extends ClusterStateUpdateTask {
         final TimeValue nextDelay; // delay until submitting the reroute command
         final long baseTimestampNanos; // timestamp (in nanos) upon which delay was calculated
-        volatile ScheduledFuture future;
+        volatile Scheduler.Cancellable cancellable;
         final AtomicBoolean cancelScheduling = new AtomicBoolean();
 
         DelayedRerouteTask(TimeValue nextDelay, long baseTimestampNanos) {
@@ -83,12 +82,14 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
 
         public void cancelScheduling() {
             cancelScheduling.set(true);
-            FutureUtils.cancel(future);
+            if (cancellable != null) {
+                cancellable.cancel();
+            }
             removeIfSameTask(this);
         }
 
         public void schedule() {
-            future = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {
+            cancellable = threadPool.schedule(new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                     if (cancelScheduling.get()) {
@@ -102,7 +103,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
                     logger.warn("failed to submit schedule/execute reroute post unassigned shard", e);
                     removeIfSameTask(DelayedRerouteTask.this);
                 }
-            });
+            }, nextDelay, ThreadPool.Names.SAME);
         }
 
         @Override

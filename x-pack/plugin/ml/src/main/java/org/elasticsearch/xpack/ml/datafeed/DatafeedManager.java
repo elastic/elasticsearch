@@ -16,11 +16,11 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -41,7 +41,6 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -153,7 +152,8 @@ public class DatafeedManager {
     // otherwise if a stop datafeed call is made immediately after the start datafeed call we could cancel
     // the DatafeedTask without stopping datafeed, which causes the datafeed to keep on running.
     private void innerRun(Holder holder, long startTime, Long endTime) {
-        holder.future = threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME).submit(new AbstractRunnable() {
+        holder.cancellable =
+            Scheduler.wrapAsCancellable(threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME).submit(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
@@ -204,14 +204,14 @@ public class DatafeedManager {
                     }
                 }
             }
-        });
+        }));
     }
 
     void doDatafeedRealtime(long delayInMsSinceEpoch, String jobId, Holder holder) {
         if (holder.isRunning() && !holder.isIsolated()) {
             TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
             logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
-            holder.future = threadPool.schedule(delay, MachineLearning.DATAFEED_THREAD_POOL_NAME, new AbstractRunnable() {
+            holder.cancellable = threadPool.schedule(new AbstractRunnable() {
 
                 @Override
                 public void onFailure(Exception e) {
@@ -248,7 +248,7 @@ public class DatafeedManager {
                         doDatafeedRealtime(nextDelayInMsSinceEpoch, jobId, holder);
                     }
                 }
-            });
+            }, delay, MachineLearning.DATAFEED_THREAD_POOL_NAME);
         }
     }
 
@@ -297,7 +297,7 @@ public class DatafeedManager {
         private final boolean autoCloseJob;
         private final ProblemTracker problemTracker;
         private final Consumer<Exception> finishHandler;
-        volatile Future<?> future;
+        volatile Scheduler.Cancellable cancellable;
         private volatile boolean isRelocating;
 
         Holder(TransportStartDatafeedAction.DatafeedTask task, String datafeedId, DatafeedJob datafeedJob,
@@ -341,7 +341,9 @@ public class DatafeedManager {
                     logger.info("[{}] stopping datafeed [{}] for job [{}], acquired [{}]...", source, datafeedId,
                             datafeedJob.getJobId(), acquired);
                     runningDatafeedsOnThisNode.remove(allocationId);
-                    FutureUtils.cancel(future);
+                    if (cancellable != null) {
+                        cancellable.cancel();
+                    }
                     auditor.info(datafeedJob.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
                     finishHandler.accept(e);
                     logger.info("[{}] datafeed [{}] for job [{}] has been stopped{}", source, datafeedId, datafeedJob.getJobId(),

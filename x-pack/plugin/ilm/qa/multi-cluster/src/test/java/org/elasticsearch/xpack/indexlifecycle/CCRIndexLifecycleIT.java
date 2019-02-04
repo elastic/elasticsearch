@@ -209,7 +209,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 // Create an index on the leader using the template set up above
                 Request createIndexRequest = new Request("PUT", "/" + indexName);
                 createIndexRequest.setJsonEntity("{" +
-                    "\"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}, " +
+                    "\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}, " +
                     "\"aliases\": {\"" + alias + "\":  {\"is_write_index\":  true}} }");
                 assertOK(leaderClient.performRequest(createIndexRequest));
                 // Check that the new index is created

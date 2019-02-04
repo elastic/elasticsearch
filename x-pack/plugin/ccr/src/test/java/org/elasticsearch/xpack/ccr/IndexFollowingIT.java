@@ -974,17 +974,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertTrue(response.isFollowIndexShardsAcked());
         assertTrue(response.isIndexFollowingStarted());
 
-        final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
-        final ShardStats[] firstBatchShardStats =
-            leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
-        for (final ShardStats shardStats : firstBatchShardStats) {
-            if (shardStats.getShardRouting().primary()) {
-                long value = shardStats.getStats().getIndexing().getTotal().getIndexCount() - 1;
-                firstBatchNumDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
-            }
-        }
-
-        assertBusy(assertTask(numberOfPrimaryShards, firstBatchNumDocsPerShard));
+        assertIndexFullyReplicatedToFollower("index1", "index2");
         for (int i = 0; i < numDocs; i++) {
             assertBusy(assertExpectedDocumentRunnable(i));
         }
@@ -994,10 +984,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i * 2);
             leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
-            leaderClient().admin().indices().flush(new FlushRequest("index1").force(true)).actionGet();
         }
         leaderClient().prepareDelete("index1", "doc", "1").get();
         leaderClient().admin().indices().refresh(new RefreshRequest("index1")).actionGet();
+        leaderClient().admin().indices().flush(new FlushRequest("index1").force(true)).actionGet();
         ForceMergeRequest forceMergeRequest = new ForceMergeRequest("index1");
         forceMergeRequest.maxNumSegments(1);
         leaderClient().admin().indices().forceMerge(forceMergeRequest).actionGet();
@@ -1012,6 +1002,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 .map(ExceptionsHelper::unwrapCause)
                 .filter(e -> e instanceof ResourceNotFoundException)
                 .map(e -> (ResourceNotFoundException) e)
+                .filter(e -> {
+                    return e.getMetadataKeys().contains("es.requested_operations_missing");
+                })
                 .collect(Collectors.toSet());
             assertThat(exceptions.size(), greaterThan(0));
         });
@@ -1026,20 +1019,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertTrue(response2.isFollowIndexShardsAcked());
         assertTrue(response2.isIndexFollowingStarted());
 
-        final Map<ShardId, Long> secondBatchNumDocsPerShard = new HashMap<>();
-        final ShardStats[] secondBatchShardStats =
-            leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
-        for (final ShardStats shardStats : secondBatchShardStats) {
-            if (shardStats.getShardRouting().primary()) {
-                long indexCount = shardStats.getStats().getIndexing().getTotal().getIndexCount();
-                long deleteCount = shardStats.getStats().getIndexing().getTotal().getDeleteCount();
-                final long value = deleteCount + indexCount - 1;
-                secondBatchNumDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
-            }
-        }
-
-        assertBusy(assertTask(numberOfPrimaryShards, secondBatchNumDocsPerShard));
-
+        ensureFollowerGreen("index2");
+        assertIndexFullyReplicatedToFollower("index1", "index2");
         for (int i = 2; i < numDocs; i++) {
             assertBusy(assertExpectedDocumentRunnable(i, i * 2));
         }

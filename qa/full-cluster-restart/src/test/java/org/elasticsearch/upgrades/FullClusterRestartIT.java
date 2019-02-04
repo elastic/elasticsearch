@@ -136,7 +136,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
-            createIndex.setOptions(allowTypeRemovalWarnings());
+            createIndex.setOptions(allowTypesRemovalWarnings());
             client().performRequest(createIndex);
 
             count = randomIntBetween(2000, 3000);
@@ -200,7 +200,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
-            createIndex.setOptions(allowTypeRemovalWarnings());
+            createIndex.setOptions(allowTypesRemovalWarnings());
             client().performRequest(createIndex);
 
             int numDocs = randomIntBetween(2000, 3000);
@@ -319,7 +319,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
-            createIndex.setOptions(allowTypeRemovalWarnings());
+            createIndex.setOptions(allowTypesRemovalWarnings());
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
@@ -398,7 +398,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
-            createIndex.setOptions(allowTypeRemovalWarnings());
+            createIndex.setOptions(allowTypesRemovalWarnings());
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
@@ -482,7 +482,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         if (isRunningAgainstOldCluster()) {
             Request rolloverRequest = new Request("POST", "/" + index + "_write/_rollover");
-            rolloverRequest.setOptions(allowTypeRemovalWarnings());
+            rolloverRequest.setOptions(allowTypesRemovalWarnings());
             rolloverRequest.setJsonEntity("{"
                     + "  \"conditions\": {"
                     + "    \"max_docs\": 5"
@@ -904,7 +904,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (isRunningAgainstOldCluster() == false && getOldClusterVersion().major < 7) {
             createTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
-        createTemplateRequest.setOptions(allowTypeRemovalWarnings());
+        createTemplateRequest.setOptions(allowTypesRemovalWarnings());
 
         client().performRequest(createTemplateRequest);
 
@@ -1115,7 +1115,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (isRunningAgainstAncientCluster() == false) {
             getTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
-        getTemplateRequest.setOptions(allowTypeRemovalWarnings());
+        getTemplateRequest.setOptions(allowTypesRemovalWarnings());
 
         Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(getTemplateRequest));
         Map<String, Object> expectedTemplate = new HashMap<>();

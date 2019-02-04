@@ -46,7 +46,6 @@ import org.elasticsearch.index.query.SpanNearQueryBuilder;
 import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
-import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.search.SearchModule;
 
 import java.io.ByteArrayInputStream;
@@ -185,8 +184,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             }
             mappingsAndSettings.endObject();
             Request request = new Request("PUT", "/" + index);
-            request.setOptions(expectVersionSpecificWarnings(v -> v.compatible(
-                RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE_6_7_0)));
+            request.setOptions(allowTypesRemovalWarnings());
             request.setJsonEntity(Strings.toString(mappingsAndSettings));
             Response rsp = client().performRequest(request);
             assertEquals(200, rsp.getStatusLine().getStatusCode());

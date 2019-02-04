@@ -799,7 +799,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                             @SuppressWarnings("unchecked")
                             Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(Fields.FIELDS,
                                 v -> new HashMap<String, DocumentField>());
-                            DocumentField field = new DocumentField(metadatafield, list);
+                            DocumentField field = new DocumentField(metadatafield, list, true);
                             fieldMap.put(field.getName(), field);
                         }, (p, c) -> parseFieldsValue(p),
                         new ParseField(metadatafield));
@@ -809,7 +809,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                             Map<String, DocumentField> fieldMap = (Map<String, DocumentField>) map.computeIfAbsent(Fields.FIELDS,
                                 v -> new HashMap<String, DocumentField>());
                             fieldMap.put(field.getName(), field);
-                        }, (p, c) -> new DocumentField(metadatafield, Collections.singletonList(parseFieldsValue(p))),
+                        }, (p, c) -> new DocumentField(metadatafield, Collections.singletonList(parseFieldsValue(p)), true),
                         new ParseField(metadatafield), ValueType.VALUE);
                 }
             }
@@ -819,7 +819,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private static Map<String, DocumentField> parseFields(XContentParser parser) throws IOException {
         Map<String, DocumentField> fields = new HashMap<>();
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            DocumentField field = DocumentField.fromXContent(parser);
+            DocumentField field = DocumentField.fromXContent(parser, false);
             fields.put(field.getName(), field);
         }
         return fields;

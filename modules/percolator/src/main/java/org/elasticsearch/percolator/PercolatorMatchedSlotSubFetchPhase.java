@@ -33,6 +33,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -110,7 +111,8 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                     hit.fields(fields);
                 }
                 IntStream slots = convertTopDocsToSlots(topDocs, rootDocsBySlot);
-                fields.put(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList())));
+                boolean isMetadataField = MapperService.isMetadataField(fieldName);
+                fields.put(fieldName, new DocumentField(fieldName, slots.boxed().collect(Collectors.toList()), isMetadataField));
             }
         }
     }

@@ -323,7 +323,8 @@ public class TermVectorsService  {
                 seenFields.add(field.name());
             }
             String[] values = doc.getValues(field.name());
-            documentFields.add(new DocumentField(field.name(), Arrays.asList((Object[]) values)));
+            boolean isMetadataField = MapperService.isMetadataField(field.name());
+            documentFields.add(new DocumentField(field.name(), Arrays.asList((Object[]) values), isMetadataField));
         }
         return generateTermVectors(indexShard,
             XContentHelper.convertToMap(parsedDocument.source(), true, request.xContentType()).v2(), documentFields,

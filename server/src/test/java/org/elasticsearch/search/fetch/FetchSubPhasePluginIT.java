@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -130,7 +131,8 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             }
             DocumentField hitField = hitContext.hit().getFields().get(NAME);
             if (hitField == null) {
-                hitField = new DocumentField(NAME, new ArrayList<>(1));
+                boolean isMetadataField = MapperService.isMetadataField(NAME);
+                hitField = new DocumentField(NAME, new ArrayList<>(1), isMetadataField);
                 hitContext.hit().getFields().put(NAME, hitField);
             }
             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),

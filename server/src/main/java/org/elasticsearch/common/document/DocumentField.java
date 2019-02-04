@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
@@ -47,14 +46,16 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsV
 public class DocumentField implements Streamable, ToXContentFragment, Iterable<Object> {
 
     private String name;
+    private Boolean isMetadataField;
     private List<Object> values;
 
     private DocumentField() {
     }
 
-    public DocumentField(String name, List<Object> values) {
+    public DocumentField(String name, List<Object> values, boolean isMetadataField) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.values = Objects.requireNonNull(values, "values must not be null");
+        this.isMetadataField = isMetadataField;
     }
 
     /**
@@ -85,7 +86,7 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
      * @return The field is a metadata field
      */
     public boolean isMetadataField() {
-        return MapperService.isMetadataField(name);
+        return this.isMetadataField;
     }
 
     @Override
@@ -132,7 +133,7 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
         return builder;
     }
 
-    public static DocumentField fromXContent(XContentParser parser) throws IOException {
+    public static DocumentField fromXContent(XContentParser parser, boolean inMetadataArea) throws IOException {
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String fieldName = parser.currentName();
         XContentParser.Token token = parser.nextToken();
@@ -141,7 +142,7 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             values.add(parseFieldsValue(parser));
         }
-        return new DocumentField(fieldName, values);
+        return new DocumentField(fieldName, values, inMetadataArea);
     }
 
     @Override

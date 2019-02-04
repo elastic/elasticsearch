@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -124,7 +125,8 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
                     }
                     DocumentField hitField = hit.getFields().get(field);
                     if (hitField == null) {
-                        hitField = new DocumentField(field, new ArrayList<>(2));
+                        boolean isMetadataField = MapperService.isMetadataField(field);
+                        hitField = new DocumentField(field, new ArrayList<>(2), isMetadataField);
                         hit.getFields().put(field, hitField);
                     }
                     final List<Object> values = hitField.getValues();

@@ -70,7 +70,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             }
 
             SearchHit hit = new SearchHit(1);
-            DocumentField field = new DocumentField(fieldName, documentFieldValues);
+            DocumentField field = new DocumentField(fieldName, documentFieldValues, false);
             hit.fields(singletonMap(fieldName, field));
             Object result = documentFieldValues.isEmpty() ? null : documentFieldValues.get(0);
             assertEquals(result, extractor.extract(hit));
@@ -131,7 +131,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
                 documentFieldValues.add(randomValue());
             }
             SearchHit hit = new SearchHit(1);
-            DocumentField field = new DocumentField(fieldName, documentFieldValues);
+            DocumentField field = new DocumentField(fieldName, documentFieldValues, false);
             hit.fields(singletonMap(fieldName, field));
             Object result = documentFieldValues.isEmpty() ? null : documentFieldValues.get(0);
             assertEquals(result, extractor.extract(hit));
@@ -142,7 +142,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         long millis = 1526467911780L;
         List<Object> documentFieldValues = Collections.singletonList(Long.toString(millis));
         SearchHit hit = new SearchHit(1);
-        DocumentField field = new DocumentField("my_date_field", documentFieldValues);
+        DocumentField field = new DocumentField("my_date_field", documentFieldValues, false);
         hit.fields(singletonMap("my_date_field", field));
         FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DataType.DATETIME, true);
         assertEquals(DateUtils.asDateTime(millis), extractor.extract(hit));
@@ -180,7 +180,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         String fieldName = randomAlphaOfLength(5);
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, null, true);
         SearchHit hit = new SearchHit(1);
-        DocumentField field = new DocumentField(fieldName, asList("a", "b"));
+        DocumentField field = new DocumentField(fieldName, asList("a", "b"), false);
         hit.fields(singletonMap(fieldName, field));
         SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));

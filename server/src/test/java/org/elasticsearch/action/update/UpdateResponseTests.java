@@ -69,8 +69,8 @@ public class UpdateResponseTests extends ESTestCase {
         {
             BytesReference source = new BytesArray("{\"title\":\"Book title\",\"isbn\":\"ABC-123\"}");
             Map<String, DocumentField> fields = new HashMap<>();
-            fields.put("title", new DocumentField("title", Collections.singletonList("Book title")));
-            fields.put("isbn", new DocumentField("isbn", Collections.singletonList("ABC-123")));
+            fields.put("title", new DocumentField("title", Collections.singletonList("Book title"), false));
+            fields.put("isbn", new DocumentField("isbn", Collections.singletonList("ABC-123"), false));
 
             UpdateResponse updateResponse = new UpdateResponse(new ReplicationResponse.ShardInfo(3, 2),
                     new ShardId("books", "books_uuid", 2), "book", "1", 7, 17, 2, UPDATED);

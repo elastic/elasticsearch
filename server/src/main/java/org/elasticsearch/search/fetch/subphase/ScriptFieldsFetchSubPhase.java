@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -84,7 +85,8 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                     } else {
                         values = Collections.singletonList(value);
                     }
-                    hitField = new DocumentField(scriptFieldName, values);
+                    boolean isMetadataField = MapperService.isMetadataField(scriptFieldName);
+                    hitField = new DocumentField(scriptFieldName, values, isMetadataField);
                     hit.getFields().put(scriptFieldName, hitField);
                 }
             }

@@ -76,7 +76,7 @@ public class GetResultTests extends ESTestCase {
         {
             GetResult getResult = new GetResult("index", "type", "id", 0, 1, 1, true, new BytesArray("{ \"field1\" : " +
                     "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
-                    singletonList("value1"))));
+                    singletonList("value1"), false)));
             String output = Strings.toString(getResult);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1," +
                 "\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
@@ -118,8 +118,8 @@ public class GetResultTests extends ESTestCase {
 
     public void testToXContentEmbedded() throws IOException {
         Map<String, DocumentField> fields = new HashMap<>();
-        fields.put("foo", new DocumentField("foo", singletonList("bar")));
-        fields.put("baz", new DocumentField("baz", Arrays.asList("baz_0", "baz_1")));
+        fields.put("foo", new DocumentField("foo", singletonList("bar"), false));
+        fields.put("baz", new DocumentField("baz", Arrays.asList("baz_0", "baz_1"), false));
 
         GetResult getResult = new GetResult("index", "type", "id", 0, 1, 2, true,
                 new BytesArray("{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]}"), fields);

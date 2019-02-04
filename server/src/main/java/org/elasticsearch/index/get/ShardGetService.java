@@ -202,7 +202,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 fieldVisitor.postProcess(mapperService);
                 fields = new HashMap<>(fieldVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
-                    fields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
+                    boolean isMetadataField = MapperService.isMetadataField(entry.getKey());
+                    fields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue(), isMetadataField));
                 }
             }
         }

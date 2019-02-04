@@ -68,7 +68,7 @@ public class ExplainResponseTests extends AbstractStreamableXContentTestCase<Exp
             0, 1, randomNonNegativeLong(),
             true,
             RandomObjects.randomSource(random()),
-            singletonMap(fieldName, new DocumentField(fieldName, values)));
+            singletonMap(fieldName, new DocumentField(fieldName, values, false)));
         return new ExplainResponse(index, type, id, exist, explanation, getResult);
     }
 
@@ -85,7 +85,7 @@ public class ExplainResponseTests extends AbstractStreamableXContentTestCase<Exp
         Explanation explanation = Explanation.match(1.0f, "description", Collections.emptySet());
         GetResult getResult = new GetResult(null, null, null, 0, 1, -1, true, new BytesArray("{ \"field1\" : " +
             "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
-            singletonList("value1"))));
+            singletonList("value1"), false)));
         ExplainResponse response = new ExplainResponse(index, type, id, exist, explanation, getResult);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

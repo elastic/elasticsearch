@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.test;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.Arrays;
@@ -32,7 +33,8 @@ public class SearchHitBuilder {
     }
 
     public SearchHitBuilder addField(String name, List<Object> values) {
-        fields.put(name, new DocumentField(name, values));
+        boolean isMetadataField = MapperService.isMetadataField(name);
+        fields.put(name, new DocumentField(name, values, isMetadataField));
         return this;
     }
 

@@ -247,7 +247,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    public static class DateFieldType extends MappedFieldType {
+    public static final class DateFieldType extends MappedFieldType {
         protected DateFormatter dateTimeFormatter;
         protected DateMathParser dateMathParser;
         protected Resolution resolution;

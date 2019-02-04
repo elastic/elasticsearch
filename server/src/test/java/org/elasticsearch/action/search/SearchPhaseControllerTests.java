@@ -205,8 +205,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     private static AtomicArray<SearchPhaseResult> generateQueryResults(int nShards,
-                                                                       List<CompletionSuggestion> suggestions,
-                                                                       int searchHitsSize, boolean useConstantScore) {
+                                                                List<CompletionSuggestion> suggestions,
+                                                                int searchHitsSize, boolean useConstantScore) {
         AtomicArray<SearchPhaseResult> queryResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
             String clusterAlias = randomBoolean() ? null : "remote";
@@ -329,7 +329,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         QuerySearchResult result = new QuerySearchResult(0, new SearchShardTarget("node", new ShardId("a", "b", 0),
             null, OriginalIndices.NONE));
         result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-            new DocValueFormat[0]);
+                new DocValueFormat[0]);
         InternalAggregations aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", 1.0D, DocValueFormat.RAW,
             Collections.emptyList(), Collections.emptyMap())));
         result.aggregations(aggs);
@@ -338,7 +338,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
         result = new QuerySearchResult(1, new SearchShardTarget("node", new ShardId("a", "b", 0), null, OriginalIndices.NONE));
         result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-            new DocValueFormat[0]);
+                new DocValueFormat[0]);
         aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", 3.0D, DocValueFormat.RAW,
             Collections.emptyList(), Collections.emptyMap())));
         result.aggregations(aggs);
@@ -347,7 +347,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
         result = new QuerySearchResult(1, new SearchShardTarget("node", new ShardId("a", "b", 0), null, OriginalIndices.NONE));
         result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-            new DocValueFormat[0]);
+                new DocValueFormat[0]);
         aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", 2.0D, DocValueFormat.RAW,
             Collections.emptyList(), Collections.emptyMap())));
         result.aggregations(aggs);
@@ -398,7 +398,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 QuerySearchResult result = new QuerySearchResult(id, new SearchShardTarget("node", new ShardId("a", "b", id),
                     null, OriginalIndices.NONE));
                 result.topDocs(new TopDocsAndMaxScore(
-                        new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] {new ScoreDoc(0, number)}), number),
+                    new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] {new ScoreDoc(0, number)}), number),
                     new DocValueFormat[0]);
                 InternalAggregations aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", (double) number,
                     DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap())));
@@ -442,7 +442,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             QuerySearchResult result = new QuerySearchResult(i, new SearchShardTarget("node", new ShardId("a", "b", i),
                 null, OriginalIndices.NONE));
             result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), number),
-                new DocValueFormat[0]);
+                    new DocValueFormat[0]);
             InternalAggregations aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", (double) number,
                 DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap())));
             result.aggregations(aggs);
@@ -480,7 +480,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             QuerySearchResult result = new QuerySearchResult(i, new SearchShardTarget("node", new ShardId("a", "b", i),
                 null, OriginalIndices.NONE));
             result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                new ScoreDoc[] {new ScoreDoc(0, number)}), number), new DocValueFormat[0]);
+                    new ScoreDoc[] {new ScoreDoc(0, number)}), number), new DocValueFormat[0]);
             result.setShardIndex(i);
             result.size(1);
             consumer.consumeResult(result);
@@ -551,7 +551,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 docs[j] = new ScoreDoc(0, score--);
             }
             result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(3, TotalHits.Relation.EQUAL_TO), docs), docs[0].score),
-                new DocValueFormat[0]);
+                    new DocValueFormat[0]);
             result.setShardIndex(i);
             result.size(5);
             result.from(5);

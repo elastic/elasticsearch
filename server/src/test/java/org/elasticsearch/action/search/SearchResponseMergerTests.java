@@ -207,8 +207,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         String suggestionName = randomAlphaOfLengthBetween(4, 8);
         boolean skipDuplicates = randomBoolean();
         int size = randomIntBetween(1, 100);
-        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(0, 0, 0,
-            new SearchTimeProvider(0, 0, () -> 0), flag -> null);
+        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(0, 0, 0, new SearchTimeProvider(0, 0, () -> 0), flag -> null);
         for (int i = 0; i < numResponses; i++) {
             List<Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>> suggestions =
                 new ArrayList<>();
@@ -247,8 +246,8 @@ public class SearchResponseMergerTests extends ESTestCase {
     }
 
     public void testMergeAggs() throws InterruptedException {
-        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(0, 0, 0,
-            new SearchTimeProvider(0, 0, () -> 0), flag -> new InternalAggregation.ReduceContext(null, null, flag));
+        SearchResponseMerger searchResponseMerger = new SearchResponseMerger(0, 0, 0, new SearchTimeProvider(0, 0, () -> 0),
+            flag -> new InternalAggregation.ReduceContext(null, null, flag));
         String maxAggName = randomAlphaOfLengthBetween(5, 8);
         String rangeAggName = randomAlphaOfLengthBetween(5, 8);
         int totalCount = 0;

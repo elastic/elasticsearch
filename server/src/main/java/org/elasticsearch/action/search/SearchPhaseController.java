@@ -512,7 +512,7 @@ public final class SearchPhaseController {
     }
 
     private static InternalAggregations reduceAggs(List<InternalAggregations> aggregationsList,
-                                                   List<SiblingPipelineAggregator> pipelineAggregators, ReduceContext reduceContext) {
+                                               List<SiblingPipelineAggregator> pipelineAggregators, ReduceContext reduceContext) {
         InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, reduceContext);
         if (pipelineAggregators != null) {
             List<InternalAggregation> newAggs = StreamSupport.stream(aggregations.spliterator(), false)
@@ -702,7 +702,7 @@ public final class SearchPhaseController {
             return SearchContext.TRACK_TOTAL_HITS_ACCURATE;
         }
         return request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : request.source().trackTotalHitsUpTo() == null ?
-            SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : request.source().trackTotalHitsUpTo();
+                SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : request.source().trackTotalHitsUpTo();
     }
 
     /**

@@ -5,7 +5,7 @@ This datatype is an addition to the `date` datatype. However there is an
 important distinction between the two. The existing `date` datatype stores
 dates in millisecond resolution. The `date_nanos` data type stores dates
 in nanosecond resolution, which limits its range of dates from roughly
-1677 to 2262, as dates are still stored as a long representing nanoseconds
+1970 to 2262, as dates are still stored as a long representing nanoseconds
 since the epoch.
 
 Queries on nanoseconds are internally converted to range queries on this long

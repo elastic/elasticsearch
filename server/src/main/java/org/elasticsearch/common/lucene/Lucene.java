@@ -557,7 +557,6 @@ public class Lucene {
         SortField.Type sortType = readSortType(in);
         Object missingValue = readMissingValue(in);
         boolean reverse = in.readBoolean();
-
         SortField sortField = new SortField(field, sortType, reverse);
         if (missingValue != null) {
             sortField.setMissingValue(missingValue);

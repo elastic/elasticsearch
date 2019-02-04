@@ -3,7 +3,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
         refresh: true
@@ -59,13 +58,11 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    _doc
         id:      2
         body:    { "text": "test2" }
   - do:
@@ -116,7 +113,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
         routing: foo
@@ -169,7 +165,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
         refresh: true
@@ -227,14 +222,12 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
         refresh: true
   - do:
       index:
         index:   source
-        type:    _doc
         id:      2
         body:    { "text": "test" }
         refresh: true
@@ -291,7 +284,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
         refresh: true
@@ -323,7 +315,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
         refresh: true
@@ -345,7 +336,6 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test", "filtered": "removed" }
         refresh: true
@@ -385,7 +375,6 @@
   - do:
       get:
         index: dest
-        type: _doc
         id: 1
   - match: { _source.text: "test" }
   - is_false: _source.filtered
@@ -404,19 +393,16 @@
   - do:
       index:
         index:   source
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    _doc
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        type:    _doc
         id:      3
         body:    { "text": "test" }
   - do:

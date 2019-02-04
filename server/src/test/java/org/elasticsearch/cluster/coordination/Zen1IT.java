@@ -22,9 +22,11 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,12 +36,19 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -47,9 +56,14 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_ACTION_NAME;
+import static org.elasticsearch.cluster.coordination.JoinHelper.START_JOIN_ACTION_NAME;
+import static org.elasticsearch.cluster.coordination.PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.test.InternalTestCluster.REMOVED_MINIMUM_MASTER_NODES;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -65,6 +79,10 @@ public class Zen1IT extends ESIntegTestCase {
         .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
         .build();
 
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singletonList(MockTransportService.TestPlugin.class);
+    }
+
     public void testZen2NodesJoiningZen1Cluster() {
         internalCluster().startNodes(randomIntBetween(1, 3), ZEN1_SETTINGS);
         internalCluster().startNodes(randomIntBetween(1, 3), ZEN2_SETTINGS);
@@ -75,6 +93,56 @@ public class Zen1IT extends ESIntegTestCase {
         internalCluster().startNodes(randomIntBetween(1, 3), ZEN2_SETTINGS);
         internalCluster().startNodes(randomIntBetween(1, 3), ZEN1_SETTINGS);
         createIndex("test");
+    }
+
+    public void testMixedClusterDisruption() throws Exception {
+        final List<String> nodes = internalCluster().startNodes(IntStream.range(0, 5)
+            .mapToObj(i -> i < 2 ? ZEN1_SETTINGS : ZEN2_SETTINGS).toArray(Settings[]::new));
+
+        final List<MockTransportService> transportServices = nodes.stream()
+            .map(n -> (MockTransportService) internalCluster().getInstance(TransportService.class, n)).collect(Collectors.toList());
+
+        logger.info("--> disrupting communications");
+
+        // The idea here is to make some of the Zen2 nodes believe the Zen1 nodes have gone away by introducing a network partition, so that
+        // they bootstrap themselves, but keep the Zen1 side of the cluster alive.
+
+        // Set up a bridged network partition with the Zen1 nodes {0,1} on one side, Zen2 nodes {3,4} on the other, and node {2} in both
+        transportServices.get(0).addFailToSendNoConnectRule(transportServices.get(3));
+        transportServices.get(0).addFailToSendNoConnectRule(transportServices.get(4));
+        transportServices.get(1).addFailToSendNoConnectRule(transportServices.get(3));
+        transportServices.get(1).addFailToSendNoConnectRule(transportServices.get(4));
+        transportServices.get(3).addFailToSendNoConnectRule(transportServices.get(0));
+        transportServices.get(3).addFailToSendNoConnectRule(transportServices.get(1));
+        transportServices.get(4).addFailToSendNoConnectRule(transportServices.get(0));
+        transportServices.get(4).addFailToSendNoConnectRule(transportServices.get(1));
+
+        // Nodes 3 and 4 will bootstrap, but we want to keep node 2 as part of the Zen1 cluster, so prevent any messages that might switch
+        // its allegiance
+        transportServices.get(3).addFailToSendNoConnectRule(transportServices.get(2),
+            PUBLISH_STATE_ACTION_NAME, FOLLOWER_CHECK_ACTION_NAME, START_JOIN_ACTION_NAME);
+        transportServices.get(4).addFailToSendNoConnectRule(transportServices.get(2),
+            PUBLISH_STATE_ACTION_NAME, FOLLOWER_CHECK_ACTION_NAME, START_JOIN_ACTION_NAME);
+
+        logger.info("--> waiting for disconnected nodes to be removed");
+        ensureStableCluster(3, nodes.get(0));
+
+        logger.info("--> creating index on Zen1 side");
+        assertAcked(client(nodes.get(0)).admin().indices().create(new CreateIndexRequest("test")).get());
+        assertFalse(client(nodes.get(0)).admin().cluster().health(new ClusterHealthRequest("test")
+            .waitForGreenStatus()).get().isTimedOut());
+
+        logger.info("--> waiting for disconnected nodes to bootstrap themselves");
+        assertBusy(() -> assertTrue(IntStream.range(3, 5)
+            .mapToObj(n -> (Coordinator) internalCluster().getInstance(Discovery.class, nodes.get(n)))
+            .anyMatch(Coordinator::isInitialConfigurationSet)));
+
+        logger.info("--> clearing disruption and waiting for cluster to reform");
+        transportServices.forEach(MockTransportService::clearAllRules);
+
+        ensureStableCluster(5, nodes.get(0));
+        assertFalse(client(nodes.get(0)).admin().cluster().health(new ClusterHealthRequest("test")
+            .waitForGreenStatus()).get().isTimedOut());
     }
 
     public void testMixedClusterFormation() throws Exception {
@@ -194,7 +262,8 @@ public class Zen1IT extends ESIntegTestCase {
                 }
                 ClusterHealthResponse clusterHealthResponse = clusterHealthRequestBuilder.get();
                 assertFalse(nodeName, clusterHealthResponse.isTimedOut());
-                return Coordinator.addZen1Attribute(false, Settings.builder().put(ZEN2_SETTINGS)).build();
+                return Coordinator.addZen1Attribute(false, Settings.builder().put(ZEN2_SETTINGS)
+                    .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), REMOVED_MINIMUM_MASTER_NODES)).build();
             }
         });
 
@@ -289,6 +358,7 @@ public class Zen1IT extends ESIntegTestCase {
                 return Coordinator.addZen1Attribute(false, Settings.builder())
                     .put(ZEN2_SETTINGS)
                     .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
+                    .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), REMOVED_MINIMUM_MASTER_NODES)
                     .build();
             }
         });

@@ -19,45 +19,51 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.time.DateUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
+
+import static java.time.temporal.ChronoField.DAY_OF_MONTH;
+import static java.time.temporal.ChronoField.HOUR_OF_DAY;
+import static java.time.temporal.ChronoField.MINUTE_OF_DAY;
+import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
+import static java.time.temporal.ChronoField.NANO_OF_SECOND;
+import static java.time.temporal.ChronoField.SECOND_OF_DAY;
 
 enum DateFormat {
     Iso8601 {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return ISODateTimeFormat.dateTimeParser().withZone(timezone)::parseDateTime;
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            return (date) -> DateFormatters.from(DateFormatter.forPattern("strict_date_time").parse(date)).withZoneSameInstant(timezone);
         }
     },
     Unix {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return (date) -> new DateTime((long)(Double.parseDouble(date) * 1000), timezone);
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            return date -> Instant.ofEpochMilli((long) (Double.parseDouble(date) * 1000.0)).atZone(timezone);
         }
     },
     UnixMs {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return (date) -> new DateTime(Long.parseLong(date), timezone);
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            return date -> Instant.ofEpochMilli(Long.parseLong(date)).atZone(timezone);
         }
     },
     Tai64n {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return (date) -> new DateTime(parseMillis(date), timezone);
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            return date -> Instant.ofEpochMilli(parseMillis(date)).atZone(timezone);
         }
 
         private long parseMillis(String date) {
@@ -71,36 +77,41 @@ enum DateFormat {
         }
     },
     Java {
+        private final List<ChronoField> FIELDS =
+            Arrays.asList(NANO_OF_SECOND, SECOND_OF_DAY, MINUTE_OF_DAY, HOUR_OF_DAY, DAY_OF_MONTH, MONTH_OF_YEAR);
+
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            // in case you are wondering why we do not call 'DateFormatter.forPattern(format)' for all cases here, but only for the
-            // non java time case:
-            // When the joda date formatter parses a date then a year is always set, so that no fallback can be used, like
-            // done in the JodaDateFormatter.withYear() code below
-            // This means that we leave the existing parsing logic in place, but will fall back to the new java date parsing logic, if an
-            // "8" is prepended to the date format string
-            int year = LocalDate.now(ZoneOffset.UTC).getYear();
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId zoneId, Locale locale) {
+            // support the 6.x BWC compatible way of parsing java 8 dates
             if (format.startsWith("8")) {
-                DateFormatter formatter = DateFormatter.forPattern(format)
-                    .withLocale(locale)
-                    .withZone(DateUtils.dateTimeZoneToZoneId(timezone));
-                return text -> {
-                    ZonedDateTime defaultZonedDateTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
-                    TemporalAccessor accessor = formatter.parse(text);
-                    long millis = DateFormatters.toZonedDateTime(accessor, defaultZonedDateTime).toInstant().toEpochMilli();
-                    return new DateTime(millis, timezone);
-                };
-            } else {
-                DateFormatter formatter = Joda.forPattern(format)
-                    .withYear(year)
-                    .withZone(DateUtils.dateTimeZoneToZoneId(timezone))
-                    .withLocale(locale);
-                return text -> new DateTime(formatter.parseMillis(text), timezone);
+                format = format.substring(1);
             }
+
+            int year = LocalDate.now(ZoneOffset.UTC).getYear();
+            DateFormatter formatter = DateFormatter.forPattern(format)
+                .withLocale(locale)
+                .withZone(zoneId);
+            return text -> {
+                TemporalAccessor accessor = formatter.parse(text);
+                // if there is no year, we fall back to the current one and
+                // fill the rest of the date up with the parsed date
+                if (accessor.isSupported(ChronoField.YEAR) == false) {
+                    ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
+                    for (ChronoField field : FIELDS) {
+                        if (accessor.isSupported(field)) {
+                            newTime = newTime.with(field, accessor.get(field));
+                        }
+                    }
+
+                    accessor = newTime.withZoneSameLocal(zoneId);
+                }
+
+                return DateFormatters.from(accessor);
+            };
         }
     };
 
-    abstract Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale);
+    abstract Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale);
 
     static DateFormat fromString(String format) {
         switch (format) {

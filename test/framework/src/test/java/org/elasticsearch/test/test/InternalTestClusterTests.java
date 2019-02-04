@@ -1,4 +1,3 @@
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -30,7 +29,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
@@ -339,9 +337,6 @@ public class InternalTestClusterTests extends ESTestCase {
                         .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numNodes)
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                         .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
-                        // speedup join timeout as setting initial state timeout to 0 makes split
-                        // elections more likely
-                        .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "3s")
                         .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
                         .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                         .build();

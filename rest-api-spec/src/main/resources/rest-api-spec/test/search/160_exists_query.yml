@@ -4,7 +4,6 @@ setup:
 
   - do:
       indices.create:
-          include_type_name: false
           index:  test
           body:
             mappings:
@@ -140,7 +139,6 @@ setup:
 
   - do:
       indices.create:
-          include_type_name: false
           index:  test-no-dv
           body:
             mappings:
@@ -292,7 +290,6 @@ setup:
 
   - do:
       indices.create:
-          include_type_name: false
           index:  test-unmapped
           body:
             mappings:
@@ -310,7 +307,6 @@ setup:
 
   - do:
       indices.create:
-          include_type_name: false
           index:  test-empty
           body:
             mappings:

@@ -38,6 +38,7 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
         tests.addAll(readScriptSpec("/datetime.sql-spec", parser));
         tests.addAll(readScriptSpec("/math.sql-spec", parser));
         tests.addAll(readScriptSpec("/agg.sql-spec", parser));
+        tests.addAll(readScriptSpec("/agg-ordering.sql-spec", parser));
         tests.addAll(readScriptSpec("/arithmetic.sql-spec", parser));
         tests.addAll(readScriptSpec("/string-functions.sql-spec", parser));
         tests.addAll(readScriptSpec("/case-functions.sql-spec", parser));

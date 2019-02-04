@@ -27,11 +27,12 @@ import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Base64;
 import java.util.Map;
 
@@ -49,7 +50,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
@@ -141,7 +141,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
                 BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString()));
 
-        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
         ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
                 .setRecordExecution(false)
                 .setTriggerEvent(triggerEvent)
@@ -221,7 +221,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
                 BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString()));
 
-        TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
+        TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
         ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
                 .setRecordExecution(false)
                 .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)

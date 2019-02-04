@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -75,7 +74,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(1);
 
         Settings settings = Settings.builder()
-                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
@@ -208,7 +206,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(2);
 
         Settings settings = Settings.builder()
-                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "1s")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
 
@@ -283,9 +280,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(2);
 
         Settings settings = Settings.builder()
-                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "100ms") // speed things up
                 .build();
 
         internalCluster().startNodes(3, settings);

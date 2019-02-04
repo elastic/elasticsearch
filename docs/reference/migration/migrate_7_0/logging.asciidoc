@@ -35,6 +35,6 @@ All Docker console logs are now in JSON format. You can distinguish logs streams
 [float]
 ==== Audit plaintext log file removed, JSON file renamed
 
-Elasticsearch will no longer produce a plaintext audit log file `${cluster_name}_access.log`.
+Elasticsearch no longer produces a plaintext audit log file `${cluster_name}_access.log`.
 Use the JSON log file (`${cluster_name}_audit.json`) instead.
 `${cluster_name}_audit.log` to  `${cluster_name}_audit.json`.

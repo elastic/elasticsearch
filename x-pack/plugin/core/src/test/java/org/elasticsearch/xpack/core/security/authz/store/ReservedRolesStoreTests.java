@@ -863,7 +863,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, "foo");
 
         assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
     }
 

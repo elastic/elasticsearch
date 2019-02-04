@@ -26,6 +26,7 @@ public final class SystemPrivilege extends Privilege {
             "indices:admin/mapping/put", // needed for recovery and shrink api
             "indices:admin/template/put", // needed for the TemplateUpgradeService
             "indices:admin/template/delete", // needed for the TemplateUpgradeService
+            "indices:admin/seq_no/global_checkpoint_sync*", // needed for global checkpoint syncs
             RetentionLeaseSyncAction.ACTION_NAME + "*", // needed for retention lease syncs
             RetentionLeaseBackgroundSyncAction.ACTION_NAME + "*", // needed for background retention lease syncs
             "indices:admin/settings/update" // needed for DiskThresholdMonitor.markIndicesReadOnly

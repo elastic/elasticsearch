@@ -98,7 +98,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * the {@link #beginSnapshot(ClusterState, SnapshotsInProgress.Entry, boolean, ActionListener)} method kicks in and initializes
  * the snapshot in the repository and then populates list of shards that needs to be snapshotted in cluster state</li>
  * <li>Each data node is watching for these shards and when new shards scheduled for snapshotting appear in the cluster state, data nodes
- * start processing them through {@link SnapshotShardsService#processIndexShardSnapshots(ClusterChangedEvent)} method</li>
+ * start processing them through {@link SnapshotShardsService#processIndexShardSnapshots(SnapshotsInProgress)} method</li>
  * <li>Once shard snapshot is created data node updates state of the shard in the cluster state using
  * the {@link SnapshotShardsService#sendSnapshotShardUpdate(Snapshot, ShardId, ShardSnapshotStatus)} method</li>
  * <li>When last shard is completed master node in {@link SnapshotShardsService#innerUpdateSnapshotState} method marks the snapshot
@@ -1210,7 +1210,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (state == State.INIT) {
                         // snapshot is still initializing, mark it as aborted
                         shards = snapshotEntry.shards();
-
+                        assert shards.isEmpty();
+                        // No shards in this snapshot, we delete it right away since the SnapshotShardsService
+                        // has no work to do.
+                        endSnapshot(snapshotEntry);
                     } else if (state == State.STARTED) {
                         // snapshot is started - mark every non completed shard as aborted
                         final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();

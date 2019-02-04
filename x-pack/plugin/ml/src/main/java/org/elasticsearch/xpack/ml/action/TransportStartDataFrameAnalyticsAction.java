@@ -46,6 +46,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+/**
+ * Starts the persistent task for running data frame analytics.
+ *
+ * TODO Add to the upgrade mode action
+ */
 public class TransportStartDataFrameAnalyticsAction
     extends TransportMasterNodeAction<StartDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
 

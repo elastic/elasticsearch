@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -44,6 +43,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
@@ -643,7 +643,7 @@ public class AuthenticationService {
 
         @Override
         ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token) {
-            auditTrail.runAsDenied(requestId, authentication, action, message, Role.EMPTY.names());
+            auditTrail.runAsDenied(requestId, authentication, action, message, EmptyAuthorizationInfo.INSTANCE);
             return failureHandler.failedAuthentication(message, token, action, threadContext);
         }
 
@@ -708,7 +708,7 @@ public class AuthenticationService {
 
         @Override
         ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token) {
-            auditTrail.runAsDenied(requestId, authentication, request, Role.EMPTY.names());
+            auditTrail.runAsDenied(requestId, authentication, request, EmptyAuthorizationInfo.INSTANCE);
             return failureHandler.failedAuthentication(request, token, threadContext);
         }
 

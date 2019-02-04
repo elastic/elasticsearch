@@ -3,12 +3,14 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.action.interceptor;
+package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ShrinkAction;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -18,6 +20,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationResult;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
@@ -29,8 +35,12 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -61,7 +71,6 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         } else {
             queries = null;
         }
-        Role role = Role.builder().add(fieldPermissions, queries, IndexPrivilege.ALL, randomBoolean(), "foo").build();
         final String action = randomFrom(ShrinkAction.NAME, ResizeAction.NAME);
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.singletonMap("foo",
                 new IndicesAccessControl.IndexAccessControl(true, fieldPermissions,
@@ -71,8 +80,20 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ResizeRequestInterceptor resizeRequestInterceptor =
                 new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
 
+        PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
+        RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("bar", "foo"), action);
+        AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
+        doAnswer(invocationOnMock -> {
+            ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
+            listener.onResponse(AuthorizationResult.deny());
+            return null;
+        }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
+            any(ActionListener.class));
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> resizeRequestInterceptor.intercept(new ResizeRequest("bar", "foo"), authentication, role, action));
+                () -> {
+                    resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+                    plainActionFuture.actionGet();
+                });
         assertEquals("Resize requests are not allowed for users when field or document level security is enabled on the source index",
                 securityException.getMessage());
     }
@@ -97,12 +118,38 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);
         ResizeRequestInterceptor resizeRequestInterceptor =
                 new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
-        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> resizeRequestInterceptor.intercept(new ResizeRequest("target", "source"), authentication, role, action));
-        assertEquals("Resizing an index is not allowed when the target index has more permissions than the source index",
+
+        AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
+        {
+            PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
+            RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("target", "source"), action);
+            doAnswer(invocationOnMock -> {
+                ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
+                listener.onResponse(AuthorizationResult.deny());
+                return null;
+            }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
+                any(ActionListener.class));
+            ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
+                () -> {
+                    resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+                    plainActionFuture.actionGet();
+                });
+            assertEquals("Resizing an index is not allowed when the target index has more permissions than the source index",
                 securityException.getMessage());
+        }
 
         // swap target and source for success
-        resizeRequestInterceptor.intercept(new ResizeRequest("source", "target"), authentication, role, action);
+        {
+            PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
+            RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("source", "target"), action);
+            doAnswer(invocationOnMock -> {
+                ActionListener<AuthorizationResult> listener = (ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3];
+                listener.onResponse(AuthorizationResult.granted());
+                return null;
+            }).when(mockEngine).validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), any(Map.class),
+                any(ActionListener.class));
+            resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+            plainActionFuture.actionGet();
+        }
     }
 }

@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -86,7 +87,15 @@ public class Role {
      * has the privilege for executing the given action on.
      */
     public Predicate<String> allowedIndicesMatcher(String action) {
-        return indices().allowedIndicesMatcher(action);
+        return indices.allowedIndicesMatcher(action);
+    }
+
+    public Automaton allowedActionsMatcher(String index) {
+        return indices.allowedActionsMatcher(index);
+    }
+
+    public boolean checkRunAs(String runAsName) {
+        return runAs.check(runAsName);
     }
 
     /**
@@ -96,7 +105,7 @@ public class Role {
      * @return {@code true} if action is allowed else returns {@code false}
      */
     public boolean checkIndicesAction(String action) {
-        return indices().check(action);
+        return indices.check(action);
     }
 
 
@@ -112,7 +121,7 @@ public class Role {
      */
     public ResourcePrivilegesMap checkIndicesPrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
                                                                  Set<String> checkForPrivileges) {
-        return indices().checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges);
+        return indices.checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges);
     }
 
     /**
@@ -123,7 +132,7 @@ public class Role {
      * @return {@code true} if action is allowed else returns {@code false}
      */
     public boolean checkClusterAction(String action, TransportRequest request) {
-        return cluster().check(action, request);
+        return cluster.check(action, request);
     }
 
     /**
@@ -133,7 +142,7 @@ public class Role {
      * @return {@code true} if cluster privilege is allowed else returns {@code false}
      */
     public boolean grants(ClusterPrivilege clusterPrivilege) {
-        return cluster().grants(clusterPrivilege);
+        return cluster.grants(clusterPrivilege);
     }
 
     /**
@@ -151,7 +160,7 @@ public class Role {
     public ResourcePrivilegesMap checkApplicationResourcePrivileges(final String applicationName, Set<String> checkForResources,
                                                                     Set<String> checkForPrivilegeNames,
                                                                     Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
-        return application().checkResourcePrivileges(applicationName, checkForResources, checkForPrivilegeNames, storedPrivileges);
+        return application.checkResourcePrivileges(applicationName, checkForResources, checkForPrivilegeNames, storedPrivileges);
     }
 
     /**
@@ -159,10 +168,11 @@ public class Role {
      * specified action with the requested indices/aliases. At the same time if field and/or document level security
      * is configured for any group also the allowed fields and role queries are resolved.
      */
-    public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData,
+    public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
+                                          Map<String, AliasOrIndex> aliasAndIndexLookup,
                                           FieldPermissionsCache fieldPermissionsCache) {
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = indices.authorize(
-            action, requestedIndicesOrAliases, metaData, fieldPermissionsCache
+            action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache
         );
 
         // At least one role / indices permission set need to match with all the requested indices/aliases:

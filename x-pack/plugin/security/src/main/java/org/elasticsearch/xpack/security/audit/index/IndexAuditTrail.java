@@ -53,6 +53,7 @@ import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -626,7 +628,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void accessGranted(String requestId, Authentication authentication, String action, TransportMessage msg, String[] roleNames) {
+    public void accessGranted(String requestId, Authentication authentication, String action, TransportMessage msg,
+                              AuthorizationInfo authorizationInfo) {
         final User user = authentication.getUser();
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
         final boolean logSystemAccessGranted = isSystem && events.contains(SYSTEM_ACCESS_GRANTED);
@@ -636,6 +639,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                 assert authentication.getAuthenticatedBy() != null;
                 final String authRealmName = authentication.getAuthenticatedBy().getName();
                 final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 enqueue(message("access_granted", action, user, roleNames, new Tuple(authRealmName, lookRealmName), indices(msg),
                         msg), "access_granted");
             } catch (final Exception e) {
@@ -645,12 +649,14 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message,
+                             AuthorizationInfo authorizationInfo) {
         if (events.contains(ACCESS_DENIED) && (XPackUser.is(authentication.getUser()) == false)) {
             try {
                 assert authentication.getAuthenticatedBy() != null;
                 final String authRealmName = authentication.getAuthenticatedBy().getName();
                 final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 enqueue(message("access_denied", action, authentication.getUser(), roleNames, new Tuple(authRealmName, lookRealmName),
                         indices(message), message), "access_denied");
             } catch (final Exception e) {
@@ -715,12 +721,14 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void runAsGranted(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void runAsGranted(String requestId, Authentication authentication, String action, TransportMessage message,
+                             AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_GRANTED)) {
             try {
                 assert authentication.getAuthenticatedBy() != null;
                 final String authRealmName = authentication.getAuthenticatedBy().getName();
                 final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 enqueue(message("run_as_granted", action, authentication.getUser(), roleNames, new Tuple<>(authRealmName, lookRealmName),
                         null, message), "run_as_granted");
             } catch (final Exception e) {
@@ -730,12 +738,14 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void runAsDenied(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void runAsDenied(String requestId, Authentication authentication, String action, TransportMessage message,
+                            AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)) {
             try {
                 assert authentication.getAuthenticatedBy() != null;
                 final String authRealmName = authentication.getAuthenticatedBy().getName();
                 final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 enqueue(message("run_as_denied", action, authentication.getUser(), roleNames, new Tuple<>(authRealmName, lookRealmName),
                         null, message), "run_as_denied");
             } catch (final Exception e) {
@@ -745,12 +755,13 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void runAsDenied(String requestId, Authentication authentication, RestRequest request, String[] roleNames) {
+    public void runAsDenied(String requestId, Authentication authentication, RestRequest request, AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)) {
             try {
                 assert authentication.getAuthenticatedBy() != null;
                 final String authRealmName = authentication.getAuthenticatedBy().getName();
                 final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 enqueue(message("run_as_denied", new Tuple<>(authRealmName, lookRealmName), authentication.getUser(), roleNames, request),
                         "run_as_denied");
             } catch (final Exception e) {

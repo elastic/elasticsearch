@@ -358,7 +358,7 @@ public class ThreadPool implements Scheduler, Closeable {
             command = new ThreadedRunnableAllowShutdown(command, executor(executor));
         }
         try {
-            schedule(command, delay, executor);
+            scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS);
         } catch (EsRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
                 logger.debug(new ParameterizedMessage("could not schedule execution of [{}] after [{}] on [{}] as executor is shut down",

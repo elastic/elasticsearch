@@ -36,8 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateAction;
-import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
@@ -925,7 +923,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // We therefore use the deprecated typed APIs when running against the current version.
         if (isRunningAgainstOldCluster() == false) {
             createTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
-            createTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
+            createTemplateRequest.setOptions(expectTypeRemovalWarnings());
         }
 
         client().performRequest(createTemplateRequest);
@@ -1135,7 +1133,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // We therefore use the deprecated typed APIs when running against the current version.
         if (isRunningAgainstOldCluster() == false) {
             getTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
-            getTemplateRequest.setOptions(expectWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE));
+            getTemplateRequest.setOptions(expectTypeRemovalWarnings());
         }
 
         Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(getTemplateRequest));

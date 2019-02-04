@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
@@ -99,7 +100,16 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentTestCase
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return (field) ->
+            // actions are plucked from the named registry, and it fails if the action is not in the named registry
+            field.endsWith("phase_definition.actions")
+            // This is a bytes reference, so any new fields are tested for equality in this bytes reference.
+            || field.contains("step_info");
     }
 
     private static class RandomStepInfo implements ToXContentObject {

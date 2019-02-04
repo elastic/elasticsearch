@@ -433,7 +433,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(),
-                new DeprecationRoleDescriptorPreprocessor(clusterService, logger));
+                new DeprecationRoleDescriptorPreprocessor(clusterService, threadPool, logger));
         securityIndex.get().addIndexStateListener(allRolesStore::onSecurityIndexStateChange);
 
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be

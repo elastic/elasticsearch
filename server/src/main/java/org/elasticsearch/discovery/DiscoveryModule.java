@@ -77,7 +77,7 @@ public class DiscoveryModule {
     public static final Setting<List<String>> LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING =
         Setting.listSetting("discovery.zen.hosts_provider", Collections.emptyList(), Function.identity(),
             Property.NodeScope, Property.Deprecated);
-    public static final Setting<List<String>> DISCOVERY_HOSTS_PROVIDER_SETTING =
+    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING =
         Setting.listSetting("discovery.seed_providers", Collections.emptyList(), Function.identity(),
             Property.NodeScope);
 
@@ -158,13 +158,13 @@ public class DiscoveryModule {
 
     private List<String> getSeedProviderNames(Settings settings) {
         if (LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings)) {
-            if (DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings)) {
-                throw new IllegalArgumentException("it is forbidden to set both [" + DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + "] and ["
+            if (DISCOVERY_SEED_PROVIDERS_SETTING.exists(settings)) {
+                throw new IllegalArgumentException("it is forbidden to set both [" + DISCOVERY_SEED_PROVIDERS_SETTING.getKey() + "] and ["
                     + LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + "]");
             }
             return LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
         }
-        return DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
+        return DISCOVERY_SEED_PROVIDERS_SETTING.get(settings);
     }
 
     public Discovery getDiscovery() {

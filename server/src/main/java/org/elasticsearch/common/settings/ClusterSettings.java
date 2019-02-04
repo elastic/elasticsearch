@@ -387,7 +387,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NodeEnvironment.NODE_ID_SEED_SETTING,
                     DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING,
                     DiscoveryModule.DISCOVERY_TYPE_SETTING,
-                    DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING,
+                    DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING,
                     DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING,
                     FaultDetection.PING_RETRIES_SETTING,
                     FaultDetection.PING_TIMEOUT_SETTING,

@@ -143,7 +143,7 @@ public class DiscoveryModuleTests extends ESTestCase {
     }
 
     public void testHostsProvider() {
-        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "custom").build();
+        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "custom").build();
         AtomicBoolean created = new AtomicBoolean(false);
         DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
             created.set(true);
@@ -167,7 +167,7 @@ public class DiscoveryModuleTests extends ESTestCase {
     }
 
     public void testLegacyAndNonLegacyProvidersRejected() {
-        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey())
+        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey())
             .putList(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(settings, Collections.emptyList()));
@@ -175,7 +175,7 @@ public class DiscoveryModuleTests extends ESTestCase {
     }
 
     public void testUnknownHostsProvider() {
-        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "dne").build();
+        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "dne").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(settings, Collections.emptyList()));
         assertEquals("Unknown seed providers [dne]", e.getMessage());
@@ -212,7 +212,7 @@ public class DiscoveryModuleTests extends ESTestCase {
             created3.set(true);
             return hostsResolver -> Collections.emptyList();
         });
-        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(),
+        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(),
             "provider1", "provider3").build();
         newModule(settings, Arrays.asList(plugin1, plugin2, plugin3));
         assertTrue(created1.get());

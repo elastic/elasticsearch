@@ -215,5 +215,10 @@ public class TransportKeepAliveTests extends ESTestCase {
             scheduledTasks.add(new Tuple<>(delay, task));
             return null;
         }
+
+        @Override
+        public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
+            schedule(command, delay, executor);
+        }
     }
 }

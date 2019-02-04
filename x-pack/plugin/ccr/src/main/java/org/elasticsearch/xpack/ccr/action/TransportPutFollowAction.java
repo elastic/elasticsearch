@@ -217,17 +217,13 @@ public final class TransportPutFollowAction
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
         assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "PutFollowAction does not support DEFAULT.";
-        activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},
-            request.waitForActiveShards(), request.timeout(), result -> {
-                if (result) {
-                    client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
-                        r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
-                        listener::onFailure
-                    ));
-                } else {
-                    listener.onResponse(new PutFollowAction.Response(true, false, false));
-                }
-            }, listener::onFailure);
+        client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
+            r -> activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},
+                request.waitForActiveShards(), request.timeout(), result ->
+                    listener.onResponse(new PutFollowAction.Response(true, result, r.isAcknowledged())),
+                listener::onFailure),
+            listener::onFailure
+        ));
     }
 
     @Override

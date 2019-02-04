@@ -39,7 +39,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
@@ -63,7 +62,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -356,27 +354,6 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         for (ShardRouting shard : shards) {
             assertThat(shard.allocationId(), not(equalTo(failedShard.allocationId())));
         }
-    }
-
-    public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {
-        // test for https://github.com/elastic/elasticsearch/issues/8823
-        Settings zen1Settings = Settings.builder().put(TestZenDiscovery.USE_ZEN2.getKey(), false).build(); // TODO: needs adaptions for Zen2
-        String masterNode = internalCluster().startMasterOnlyNode(zen1Settings);
-        internalCluster().startDataOnlyNode(zen1Settings);
-        ensureStableCluster(2);
-        assertAcked(prepareCreate("index").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
-        index("index", "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-        ensureGreen();
-
-        internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback() {
-            @Override
-            public boolean clearData(String nodeName) {
-                return true;
-            }
-        });
-
-        ensureGreen("index");
-        assertTrue(client().prepareGet("index", "_doc", "1").get().isExists());
     }
 
     public void testCannotJoinIfMasterLostDataFolder() throws Exception {

@@ -5,7 +5,6 @@ setup:
 
   - do:
       indices.create:
-          include_type_name: false
           index: test
           body:
             mappings:
@@ -189,9 +188,7 @@ setup:
       indices.refresh: {}
 
   - do:
-      indices.get_mapping:
-        include_type_name: false
-
+      indices.get_mapping: {}
   - do:
       search:
         rest_total_hits_as_int: true
@@ -240,8 +237,7 @@ setup:
       indices.refresh: {}
 
   - do:
-      indices.get_mapping:
-        include_type_name: false
+      indices.get_mapping: {}
 
   - do:
       search:

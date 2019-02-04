@@ -21,10 +21,6 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.time.DateUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -48,26 +44,26 @@ import static java.time.temporal.ChronoField.SECOND_OF_DAY;
 enum DateFormat {
     Iso8601 {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return ISODateTimeFormat.dateTimeParser().withZone(timezone)::parseDateTime;
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            return (date) -> DateFormatters.from(DateFormatter.forPattern("strict_date_time").parse(date)).withZoneSameInstant(timezone);
         }
     },
     Unix {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return (date) -> new DateTime((long)(Double.parseDouble(date) * 1000), timezone);
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            return date -> Instant.ofEpochMilli((long) (Double.parseDouble(date) * 1000.0)).atZone(timezone);
         }
     },
     UnixMs {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return (date) -> new DateTime(Long.parseLong(date), timezone);
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            return date -> Instant.ofEpochMilli(Long.parseLong(date)).atZone(timezone);
         }
     },
     Tai64n {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return (date) -> new DateTime(parseMillis(date), timezone);
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
+            return date -> Instant.ofEpochMilli(parseMillis(date)).atZone(timezone);
         }
 
         private long parseMillis(String date) {
@@ -85,13 +81,12 @@ enum DateFormat {
             Arrays.asList(NANO_OF_SECOND, SECOND_OF_DAY, MINUTE_OF_DAY, HOUR_OF_DAY, DAY_OF_MONTH, MONTH_OF_YEAR);
 
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
+        Function<String, ZonedDateTime> getFunction(String format, ZoneId zoneId, Locale locale) {
             // support the 6.x BWC compatible way of parsing java 8 dates
             if (format.startsWith("8")) {
                 format = format.substring(1);
             }
 
-            ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(timezone);
             int year = LocalDate.now(ZoneOffset.UTC).getYear();
             DateFormatter formatter = DateFormatter.forPattern(format)
                 .withLocale(locale)
@@ -111,13 +106,12 @@ enum DateFormat {
                     accessor = newTime.withZoneSameLocal(zoneId);
                 }
 
-                long millis = DateFormatters.from(accessor).toInstant().toEpochMilli();
-                return new DateTime(millis, timezone);
+                return DateFormatters.from(accessor);
             };
         }
     };
 
-    abstract Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale);
+    abstract Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale);
 
     static DateFormat fromString(String format) {
         switch (format) {

@@ -1604,13 +1604,16 @@ public class DateFormatters {
         } else if (isLocalDateSet) {
             return localDate.atStartOfDay(zoneId);
         } else if (isLocalTimeSet) {
-            return of(LOCALDATE_EPOCH, localTime, zoneId);
+            return of(getLocaldate(accessor), localTime, zoneId);
         } else if (accessor.isSupported(ChronoField.YEAR)) {
             if (accessor.isSupported(MONTH_OF_YEAR)) {
                 return getFirstOfMonth(accessor).atStartOfDay(zoneId);
             } else {
                 return Year.of(accessor.get(ChronoField.YEAR)).atDay(1).atStartOfDay(zoneId);
             }
+        } else if (accessor.isSupported(MONTH_OF_YEAR)) {
+            // missing year, falling back to the epoch and then filling
+            return getLocaldate(accessor).atStartOfDay(zoneId);
         } else if (accessor.isSupported(WeekFields.ISO.weekBasedYear())) {
             if (accessor.isSupported(WeekFields.ISO.weekOfWeekBasedYear())) {
                 return Year.of(accessor.get(WeekFields.ISO.weekBasedYear()))
@@ -1628,6 +1631,18 @@ public class DateFormatters {
         // we should not reach this piece of code, everything being parsed we should be able to
         // convert to a zoned date time! If not, we have to extend the above methods
         throw new IllegalArgumentException("temporal accessor [" + accessor + "] cannot be converted to zoned date time");
+    }
+
+    private static LocalDate getLocaldate(TemporalAccessor accessor) {
+        if (accessor.isSupported(MONTH_OF_YEAR)) {
+            if (accessor.isSupported(DAY_OF_MONTH)) {
+                return LocalDate.of(1970, accessor.get(MONTH_OF_YEAR), accessor.get(DAY_OF_MONTH));
+            } else {
+                return LocalDate.of(1970, accessor.get(MONTH_OF_YEAR), 1);
+            }
+        }
+
+        return LOCALDATE_EPOCH;
     }
 
     @SuppressForbidden(reason = "ZonedDateTime.of is fine here")

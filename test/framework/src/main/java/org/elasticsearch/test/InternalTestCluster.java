@@ -43,6 +43,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
@@ -240,8 +241,7 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
     private Function<Client, Client> clientWrapper;
 
-    // If set to true only the first node in the cluster will be made a unicast node
-    private boolean hostsListContainsOnlyFirstNode;
+    private int bootstrapMasterNodeIndex = -1;
 
     public InternalTestCluster(
             final long clusterSeed,
@@ -398,6 +398,22 @@ public final class InternalTestCluster extends TestCluster {
         defaultSettings = builder.build();
         executor = EsExecutors.newScaling("internal_test_cluster_executor", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
                 EsExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
+    }
+
+    public int getBootstrapMasterNodeIndex() {
+        return bootstrapMasterNodeIndex;
+    }
+
+    /**
+     * Sets {@link #bootstrapMasterNodeIndex} to the given value, see {@link #bootstrapMasterNodeWithSpecifiedIndex(List)}
+     * for the description of how this field is used.
+     * It's only possible to change {@link #bootstrapMasterNodeIndex} value if autoManageMinMasterNodes is false.
+     */
+    public void setBootstrapMasterNodeIndex(int bootstrapMasterNodeIndex) {
+        if (autoManageMinMasterNodes && bootstrapMasterNodeIndex != -1) {
+            throw new AssertionError("bootstrapMasterNodeIndex should be -1 if autoManageMinMasterNodes is true");
+        }
+        this.bootstrapMasterNodeIndex = bootstrapMasterNodeIndex;
     }
 
     @Override
@@ -1146,7 +1162,7 @@ public final class InternalTestCluster extends TestCluster {
             settings.add(getNodeSettings(i, sharedNodesSeeds[i], extraSettings.build(), defaultMinMasterNodes));
         }
 
-        int bootstrapNodeIndex = -1;
+        int autoBootstrapMasterNodeIndex = -1;
         final List<String> masterNodeNames = settings.stream()
                 .filter(Node.NODE_MASTER_SETTING::get)
                 .map(Node.NODE_NAME_SETTING::get)
@@ -1154,17 +1170,17 @@ public final class InternalTestCluster extends TestCluster {
 
         if (prevNodeCount == 0 && autoManageMinMasterNodes) {
             if (numSharedDedicatedMasterNodes > 0) {
-                bootstrapNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDedicatedMasterNodes - 1);
+                autoBootstrapMasterNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDedicatedMasterNodes - 1);
             } else if (numSharedDataNodes > 0) {
-                bootstrapNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDataNodes - 1);
+                autoBootstrapMasterNodeIndex = RandomNumbers.randomIntBetween(random, 0, numSharedDataNodes - 1);
             }
         }
 
-        final List<Settings> updatedSettings = nodeConfigurationSource.addExtraClusterBootstrapSettings(settings);
+        final List<Settings> updatedSettings = bootstrapMasterNodeWithSpecifiedIndex(settings);
 
         for (int i = 0; i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
             Settings nodeSettings = updatedSettings.get(i);
-            if (i == bootstrapNodeIndex) {
+            if (i == autoBootstrapMasterNodeIndex) {
                 nodeSettings = Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), masterNodeNames).put(nodeSettings).build();
             }
             final NodeAndClient nodeAndClient = buildNode(i, nodeSettings, true, onTransportServiceStarted);
@@ -1648,9 +1664,6 @@ public final class InternalTestCluster extends TestCluster {
         synchronized (discoveryFileMutex) {
             try {
                 Stream<NodeAndClient> unicastHosts = Stream.concat(nodes.values().stream(), newNodes.stream());
-                if (hostsListContainsOnlyFirstNode) {
-                    unicastHosts = unicastHosts.limit(1L);
-                }
                 List<String> discoveryFileContents = unicastHosts.map(
                         nac -> nac.node.injector().getInstance(TransportService.class)
                     ).filter(Objects::nonNull)
@@ -1945,6 +1958,54 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * Performs cluster bootstrap when node with index {@link #bootstrapMasterNodeIndex} is started
+     * with the names of all existing and new master-eligible nodes.
+     * Indexing starts from 0.
+     * If {@link #bootstrapMasterNodeIndex} is -1 (default), this method does nothing.
+     */
+    private List<Settings> bootstrapMasterNodeWithSpecifiedIndex(List<Settings> allNodesSettings) {
+        if (getBootstrapMasterNodeIndex() == -1) { // fast-path
+            return allNodesSettings;
+        }
+
+        int currentNodeId = numMasterNodes() - 1;
+        List<Settings> newSettings = new ArrayList<>();
+
+        for (Settings settings : allNodesSettings) {
+            if (Node.NODE_MASTER_SETTING.get(settings) == false) {
+                newSettings.add(settings);
+            } else {
+                currentNodeId++;
+                if (currentNodeId != bootstrapMasterNodeIndex) {
+                    newSettings.add(settings);
+                } else {
+                    List<String> nodeNames = new ArrayList<>();
+
+                    for (Settings nodeSettings : getDataOrMasterNodeInstances(Settings.class)) {
+                        if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {
+                            nodeNames.add(Node.NODE_NAME_SETTING.get(nodeSettings));
+                        }
+                    }
+
+                    for (Settings nodeSettings : allNodesSettings) {
+                        if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {
+                            nodeNames.add(Node.NODE_NAME_SETTING.get(nodeSettings));
+                        }
+                    }
+
+                    newSettings.add(Settings.builder().put(settings)
+                            .putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(), nodeNames)
+                            .build());
+
+                    setBootstrapMasterNodeIndex(-1);
+                }
+            }
+        }
+
+        return newSettings;
+    }
+
+    /**
      * Starts a node with default settings and returns its name.
      */
     public synchronized String startNode() {
@@ -1992,7 +2053,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         final List<NodeAndClient> nodes = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
-        int bootstrapMasterNodeIndex =
+        int autoBootstrapMasterNodeIndex =
                 prevMasterCount == 0 && autoManageMinMasterNodes && newMasterCount > 0 && Arrays.stream(extraSettings)
             .allMatch(s -> Node.NODE_MASTER_SETTING.get(s) == false || TestZenDiscovery.USE_ZEN2.get(s) == true)
             ? RandomNumbers.randomIntBetween(random, 0, newMasterCount - 1) : -1;
@@ -2010,16 +2071,16 @@ public final class InternalTestCluster extends TestCluster {
                 .map(Node.NODE_NAME_SETTING::get)
                 .collect(Collectors.toList());
 
-        final List<Settings> updatedSettings = nodeConfigurationSource.addExtraClusterBootstrapSettings(settings);
+        final List<Settings> updatedSettings = bootstrapMasterNodeWithSpecifiedIndex(settings);
 
         for (int i = 0; i < numOfNodes; i++) {
             final Settings nodeSettings = updatedSettings.get(i);
             final Builder builder = Settings.builder();
             if (Node.NODE_MASTER_SETTING.get(nodeSettings)) {
-                if (bootstrapMasterNodeIndex == 0) {
+                if (autoBootstrapMasterNodeIndex == 0) {
                     builder.putList(INITIAL_MASTER_NODES_SETTING.getKey(), initialMasterNodes);
                 }
-                bootstrapMasterNodeIndex -= 1;
+                autoBootstrapMasterNodeIndex -= 1;
             }
 
             final NodeAndClient nodeAndClient =
@@ -2138,10 +2199,6 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized int numMasterNodes() {
       return filterNodes(nodes, NodeAndClient::isMasterEligible).size();
-    }
-
-    public void setHostsListContainsOnlyFirstNode(boolean hostsListContainsOnlyFirstNode) {
-        this.hostsListContainsOnlyFirstNode = hostsListContainsOnlyFirstNode;
     }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {

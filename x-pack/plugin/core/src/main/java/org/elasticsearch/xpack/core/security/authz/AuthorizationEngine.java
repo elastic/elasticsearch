@@ -127,6 +127,8 @@ public interface AuthorizationEngine {
                               ActionListener<IndexAuthorizationResult> listener);
 
     /**
+     * Asynchronously loads a list of alias and index names for which the user is authorized
+     * to execute the requested action.
      *
      * @param requestInfo object contain the request and associated information such as the action
      *                    and associated user(s)
@@ -138,6 +140,26 @@ public interface AuthorizationEngine {
      */
     void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener);
+
+    /**
+     * Asynchronously checks that the permissions a user would have for a given list of names do
+     * not exceed their permissions for a given name. This is used to ensure that a user cannot
+     * perform operations that would escalate their privileges over the data. Some examples include
+     * adding an alias to gain more permissions to a given index and/or resizing an index in order
+     * to gain more privileges on the data since the index name changes.
+     *
+     * @param requestInfo object contain the request and associated information such as the action
+     *                    and associated user(s)
+     * @param authorizationInfo information needed from authorization that was previously retrieved
+     *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
+     * @param indexNameToNewNames A map of an existing index/alias name to a one or more names of
+     *                            an index/alias that the user is requesting to create. The method
+     *                            should validate that none of the names have more permissions than
+     *                            the name in the key would have.
+     * @param listener the listener to be notified of the authorization result
+     */
+    void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                           Map<String, List<String>> indexNameToNewNames, ActionListener<AuthorizationResult> listener);
 
     /**
      * Interface for objects that contains the information needed to authorize a request

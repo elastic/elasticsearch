@@ -129,12 +129,12 @@ import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
-import org.elasticsearch.xpack.security.action.interceptor.BulkShardRequestInterceptor;
-import org.elasticsearch.xpack.security.action.interceptor.IndicesAliasesRequestInterceptor;
-import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
-import org.elasticsearch.xpack.security.action.interceptor.ResizeRequestInterceptor;
-import org.elasticsearch.xpack.security.action.interceptor.SearchRequestInterceptor;
-import org.elasticsearch.xpack.security.action.interceptor.UpdateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.action.privilege.TransportDeletePrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
@@ -437,8 +437,24 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
+
+        final Set<RequestInterceptor> requestInterceptors;
+        if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
+            requestInterceptors = Collections.unmodifiableSet(Sets.newHashSet(
+                new SearchRequestInterceptor(threadPool, getLicenseState()),
+                new UpdateRequestInterceptor(threadPool, getLicenseState()),
+                new BulkShardRequestInterceptor(threadPool, getLicenseState()),
+                new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
+                new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)));
+        } else {
+            requestInterceptors = Collections.unmodifiableSet(Sets.newHashSet(
+                new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
+                new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)));
+        }
+
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
-            auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine());
+            auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine(), requestInterceptors);
+
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
         components.add(allRolesStore); // for SecurityFeatureSet and clear roles cache
@@ -450,20 +466,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(),
                 authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
 
-        final Set<RequestInterceptor> requestInterceptors;
-        if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
-            requestInterceptors = Collections.unmodifiableSet(Sets.newHashSet(
-                    new SearchRequestInterceptor(threadPool, getLicenseState()),
-                    new UpdateRequestInterceptor(threadPool, getLicenseState()),
-                    new BulkShardRequestInterceptor(threadPool, getLicenseState()),
-                    new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
-                    new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)));
-        } else {
-            requestInterceptors = Collections.emptySet();
-        }
-
         securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, getLicenseState(),
-                requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
+            threadPool, securityContext.get(), destructiveOperations));
 
         return components;
     }

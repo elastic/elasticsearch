@@ -53,7 +53,6 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
 
     private final Client client;
     private final JobManager jobManager;
-    private final ClusterService clusterService;
 
     @Inject
     public TransportUpdateFilterAction(TransportService transportService, ActionFilters actionFilters, Client client,
@@ -62,7 +61,6 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
             (Supplier<UpdateFilterAction.Request>) UpdateFilterAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
-        this.clusterService = clusterService;
     }
 
     @Override

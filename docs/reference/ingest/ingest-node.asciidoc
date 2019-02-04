@@ -9,6 +9,7 @@ and a list of `processors`:
 --------------------------------------------------
 {
   "description" : "...",
+  "version": "...",
   "processors" : [ ... ]
 }
 --------------------------------------------------
@@ -16,6 +17,8 @@ and a list of `processors`:
 
 The `description` is a special field to store a helpful description of
 what the pipeline does.
+
+The `version` parameter is absolutely optional and may be useful for you to control which pipeline version was registered.
 
 The `processors` parameter defines a list of processors to be executed in
 order.

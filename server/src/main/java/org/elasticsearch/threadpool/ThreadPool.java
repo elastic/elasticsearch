@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -497,7 +498,16 @@ public class ThreadPool implements Scheduler, Closeable {
 
         @Override
         public void run() {
-            executor.execute(runnable);
+            try {
+                executor.execute(runnable);
+            } catch (EsRejectedExecutionException e) {
+                if (e.isExecutorShutdown()) {
+                    logger.debug(new ParameterizedMessage("could not schedule execution of [{}] on [{}] as executor is shut down",
+                        runnable, executor), e);
+                } else {
+                    throw e;
+                }
+            }
         }
 
         @Override

@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.joda.time.DateTimeZone;
 
+import java.time.Month;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -107,8 +108,48 @@ public class DateUtils {
         }
     }
 
-    private static boolean isLeapYear(int year) {
-        return ((year & 3) == 0) && ((year % 100) != 0 || (year % 400) == 0);
+    /**
+     * Round down to the beginning of the quarter of the year of the specified time
+     * @param utcMillis the milliseconds since the epoch
+     * @return The milliseconds since the epoch rounded down to the quarter of the year
+     */
+    public static long roundQuarterOfYear(long utcMillis) {
+        int year = DateUtils.getYear(utcMillis);
+        int month = DateUtils.getMonthOfYear(utcMillis, year);
+        return DateUtils.of(year, Month.of(month).firstMonthOfQuarter().getValue());
+    }
+
+    /**
+     * Round down to the beginning of the month of the year of the specified time
+     * @param utcMillis the milliseconds since the epoch
+     * @return The milliseconds since the epoch rounded down to the month of the year
+     */
+    public static long roundMonthOfYear(long utcMillis) {
+        int year = DateUtils.getYear(utcMillis);
+        int month = DateUtils.getMonthOfYear(utcMillis, year);
+        return DateUtils.of(year, month);
+    }
+
+    /**
+     * Round down to the beginning of the beginning of the year of the specified time
+     * @param utcMillis the milliseconds since the epoch
+     * @return The milliseconds since the epoch rounded down to the beginning of the year
+     */
+    public static long getFirstDayOfYearMillis(long utcMillis) {
+        int year = getYear(utcMillis);
+        return calculateFirstDayOfYearMillis(year);
+    }
+
+    /**
+     * Return the first day of the month
+     * @param year  the year to return
+     * @param month the month to return, ranging from 1-12
+     * @return the milliseconds since the epoch of the first day of the month in the year
+     */
+    private static long of(int year, int month) {
+        long millis = getYearMillis(year);
+        millis += getTotalMillisByYearMonth(year, month);
+        return millis;
     }
 
     /**
@@ -117,6 +158,7 @@ public class DateUtils {
      * @param year the year
      * @return the milliseconds since the epoch of the first of january at midnight of the specified year
      */
+    // see org.joda.time.chrono.GregorianChronology
     private static long calculateFirstDayOfYearMillis(int year) {
         // Initial value is just temporary.
         int leapYears = year / 100;
@@ -137,14 +179,22 @@ public class DateUtils {
         return (year * 365L + (leapYears - DAYS_0000_TO_1970)) * MILLIS_PER_DAY; // millis per day
     }
 
-    public static int getYear(long instant) {
+    private static boolean isLeapYear(int year) {
+        return ((year & 3) == 0) && ((year % 100) != 0 || (year % 400) == 0);
+    }
+
+    private static final long AVERAGE_MILLIS_PER_YEAR_DIVIDED_BY_TWO = MILLIS_PER_YEAR / 2;
+    private static final long APPROX_MILLIS_AT_EPOCH_DIVIDED_BY_TWO = (1970L * MILLIS_PER_YEAR) / 2;
+
+    // see org.joda.time.chrono.BasicChronology
+    private static int getYear(long instant) {
         // Get an initial estimate of the year, and the millis value that
         // represents the start of that year. Then verify estimate and fix if
         // necessary.
 
         // Initial estimate uses values divided by two to avoid overflow.
-        long unitMillis = getAverageMillisPerYearDividedByTwo();
-        long i2 = (instant >> 1) + getApproxMillisAtEpochDividedByTwo();
+        long unitMillis = AVERAGE_MILLIS_PER_YEAR_DIVIDED_BY_TWO;
+        long i2 = (instant >> 1) + APPROX_MILLIS_AT_EPOCH_DIVIDED_BY_TWO;
         if (i2 < 0) {
             i2 = i2 - unitMillis + 1;
         }
@@ -175,15 +225,8 @@ public class DateUtils {
         return year;
     }
 
-    private static long getApproxMillisAtEpochDividedByTwo() {
-        return (1970L * MILLIS_PER_YEAR) / 2;
-    }
-
-    private static long getAverageMillisPerYearDividedByTwo() {
-        return MILLIS_PER_YEAR / 2;
-    }
-
-    public static int getMonthOfYear(long millis, int year) {
+    // see org.joda.time.chrono.BasicGJChronology
+    private static int getMonthOfYear(long millis, int year) {
         // Perform a binary search to get the month. To make it go even faster,
         // compare using ints instead of longs. The number of milliseconds per
         // year exceeds the limit of a 32-bit int's capacity, so divide by
@@ -219,17 +262,7 @@ public class DateUtils {
         return calculateFirstDayOfYearMillis(year);
     }
 
-    public static long getFirstDayOfYearMillis(long utcMillis) {
-        int year = getYear(utcMillis);
-        return calculateFirstDayOfYearMillis(year);
-    }
-
-    public static long of(int year, int month, int dayOfMonth) {
-        long millis = getYearMillis(year);
-        millis += getTotalMillisByYearMonth(year, month);
-        return millis + (dayOfMonth - 1) * (long) MILLIS_PER_DAY;
-    }
-
+    // see org.joda.time.chrono.BasicGJChronology
     private static long getTotalMillisByYearMonth(int year, int month) {
         if (isLeapYear(year)) {
             return MAX_TOTAL_MILLIS_BY_MONTH_ARRAY[month - 1];

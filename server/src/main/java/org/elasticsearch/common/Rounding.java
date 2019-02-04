@@ -68,16 +68,12 @@ public abstract class Rounding implements Writeable {
         },
         QUARTER_OF_YEAR((byte) 3, IsoFields.QUARTER_OF_YEAR) {
             long roundFloor(long utcMillis) {
-                int year = DateUtils.getYear(utcMillis);
-                int month = DateUtils.getMonthOfYear(utcMillis, year);
-                return DateUtils.of(year, Month.of(month).firstMonthOfQuarter().getValue(), 1);
+                return DateUtils.roundQuarterOfYear(utcMillis);
             }
         },
         MONTH_OF_YEAR((byte) 4, ChronoField.MONTH_OF_YEAR) {
             long roundFloor(long utcMillis) {
-                int year = DateUtils.getYear(utcMillis);
-                int month = DateUtils.getMonthOfYear(utcMillis, year);
-                return DateUtils.of(year, month, 1);
+                return DateUtils.roundMonthOfYear(utcMillis);
             }
         },
         DAY_OF_MONTH((byte) 5, ChronoField.DAY_OF_MONTH) {
@@ -113,6 +109,13 @@ public abstract class Rounding implements Writeable {
             this.field = field;
         }
 
+        /**
+         * This rounds down the supplied milliseconds since the epoch down to the next unit. In order to retain performance this method
+         * should be as fast as possiblee and not try to convert dates to java-time objects if possible
+         *
+         * @param utcMillis the milliseconds since the epoch
+         * @return          the rounded down milliseconds since the epoch
+         */
         abstract long roundFloor(long utcMillis);
 
         public byte getId() {

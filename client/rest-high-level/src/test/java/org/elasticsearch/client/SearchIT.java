@@ -293,7 +293,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(0, searchResponse.getHits().getHits().length);
-        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(0.0, searchResponse.getHits().getMaxScore(), 0f);
         CompositeAggregation compositeAgg = searchResponse.getAggregations().get("composite");
         assertEquals("composite", compositeAgg.getName());
         assertEquals(2, compositeAgg.getBuckets().size());

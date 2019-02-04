@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.watcher.notification.email;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,7 +35,7 @@ import java.util.Map;
 import static java.util.Collections.unmodifiableMap;
 
 public class Email implements ToXContentObject {
-
+    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
     final String id;
     final Address from;
     final AddressList replyTo;
@@ -195,9 +197,7 @@ public class Email implements ToXContentObject {
                 } else if (Field.PRIORITY.match(currentFieldName, parser.getDeprecationHandler())) {
                     email.priority(Email.Priority.resolve(parser.text()));
                 } else if (Field.SENT_DATE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    email.sentDate(ZonedDateTime.parse(parser.text())
-                        .withZoneSameInstant(ZoneOffset.UTC));
-                    //TODO no formatter? zone frome text?
+                    email.sentDate(DateFormatters.from(DATE_TIME_FORMATTER.parse(parser.text())));
                 } else if (Field.SUBJECT.match(currentFieldName, parser.getDeprecationHandler())) {
                     email.subject(parser.text());
                 } else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {

@@ -22,9 +22,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
 
 public class GetRollupCapsResponse {
 
@@ -39,7 +39,7 @@ public class GetRollupCapsResponse {
     }
 
     public static GetRollupCapsResponse fromXContent(final XContentParser parser) throws IOException {
-        Map<String, RollableIndexCaps> jobs = new TreeMap<>();
+        Map<String, RollableIndexCaps> jobs = new HashMap<>();
         XContentParser.Token token = parser.nextToken();
         if (token.equals(XContentParser.Token.START_OBJECT)) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

@@ -19,6 +19,7 @@
 package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -26,13 +27,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
@@ -48,9 +48,9 @@ public class RollupJobCaps implements ToXContentObject {
     public static final ConstructingObjectParser<RollupJobCaps, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
         a -> {
             @SuppressWarnings("unchecked")
-            List<Map.Entry<String, RollupFieldCaps>> caps = (List<Map.Entry<String, RollupFieldCaps>>) a[3];
+            List<Tuple<String, RollupFieldCaps>> caps = (List<Tuple<String, RollupFieldCaps>>) a[3];
             Map<String, RollupFieldCaps> mapCaps =
-                new TreeMap<>(caps.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+                new HashMap<>(caps.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
             return new RollupJobCaps((String) a[0], (String) a[1], (String) a[2], mapCaps);
         });
 
@@ -59,7 +59,7 @@ public class RollupJobCaps implements ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ROLLUP_INDEX);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_PATTERN);
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
-            (p, c, name) -> new AbstractMap.SimpleEntry<>(name, RollupFieldCaps.fromXContent(p)), FIELDS);
+            (p, c, name) -> new Tuple<>(name, RollupFieldCaps.fromXContent(p)), FIELDS);
     }
 
     private final String jobID;

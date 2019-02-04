@@ -28,7 +28,7 @@ because `:` is a special character in YAML.
 +
 Defaults to `_local_`.
 
-`discovery.seed_addresses`::
+`discovery.seed_hosts`::
 
 In order to join a cluster, a node needs to know the hostname or IP address of
 at least some of the other nodes in the cluster.  This setting provides the

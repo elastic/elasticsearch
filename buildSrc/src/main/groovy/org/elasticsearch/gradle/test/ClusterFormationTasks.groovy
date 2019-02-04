@@ -136,7 +136,7 @@ class ClusterFormationTasks {
                         if (esConfig.containsKey(seedProvidersSettingName) == false) {
                             esConfig[seedProvidersSettingName] = 'file'
                         }
-                        esConfig[node.nodeVersion.onOrAfter("7.0.0") ? "discovery.seed_addresses" : "discovery.zen.ping.unicast.hosts"] = []
+                        esConfig[node.nodeVersion.onOrAfter("7.0.0") ? "discovery.seed_hosts" : "discovery.zen.ping.unicast.hosts"] = []
                     }
                     boolean supportsInitialMasterNodes = hasBwcNodes == false || config.bwcVersion.onOrAfter("7.0.0")
                     if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes() && supportsInitialMasterNodes) {
@@ -156,9 +156,9 @@ class ClusterFormationTasks {
                 writeConfigSetup = { Map esConfig ->
                     String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.createAntBuilder())
                     if (unicastTransportUri == null) {
-                        esConfig['discovery.seed_addresses'] = []
+                        esConfig['discovery.seed_hosts'] = []
                     } else {
-                        esConfig['discovery.seed_addresses'] = "\"${unicastTransportUri}\""
+                        esConfig['discovery.seed_hosts'] = "\"${unicastTransportUri}\""
                     }
                     esConfig
                 }

@@ -49,12 +49,12 @@ round of discovery. Note that if you are in an environment where DNS resolutions
 vary with time, you might need to adjust your <<networkaddress-cache-ttl,JVM
 security settings>>.
 
-The list of hosts is set using the <<unicast.hosts,`discovery.seed_addresses`>> static
+The list of hosts is set using the <<unicast.hosts,`discovery.seed_hosts`>> static
 setting.  For example:
 
 [source,yaml]
 --------------------------------------------------
-discovery.seed_addresses:
+discovery.seed_hosts:
    - 192.168.1.10:9300
    - 192.168.1.11 <1>
    - seeds.mydomain.com <2>
@@ -96,7 +96,7 @@ will be picked up by Elasticsearch and the new hosts list will be used.
 
 Note that the file-based discovery plugin augments the unicast hosts list in
 `elasticsearch.yml`. If there are valid seed addresses in
-`discovery.seed_addresses` then they are used in addition to those supplied in
+`discovery.seed_hosts` then they are used in addition to those supplied in
 `unicast_hosts.txt`.
 
 The `discovery.seed_resolver.timeout` setting also applies to DNS lookups for
@@ -123,7 +123,7 @@ the default port:
 ----------------------------------------------------------------
 
 Host names are allowed instead of IP addresses (similar to
-`discovery.seed_addresses`), and IPv6 addresses must be specified in
+`discovery.seed_hosts`), and IPv6 addresses must be specified in
 brackets with the port coming after the brackets.
 
 You can also add comments to this file. All comments must appear on

@@ -95,5 +95,5 @@ take place, and you must configure `cluster.initial_master_nodes` as described
 in the <<modules-discovery-bootstrap-cluster,section on cluster bootstrapping>>:
 
 * `discovery.seed_providers`
-* `discovery.seed_addresses`
+* `discovery.seed_hosts`
 * `cluster.initial_master_nodes`

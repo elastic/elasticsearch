@@ -718,7 +718,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final NodeValidationException e = expectThrows(NodeValidationException.class,
             () -> BootstrapChecks.check(zen2Context, true, checks));
         assertThat(e, hasToString(containsString("the default discovery settings are unsuitable for production use; at least one " +
-            "of [discovery.seed_addresses, discovery.seed_providers, cluster.initial_master_nodes] must be configured")));
+            "of [discovery.seed_hosts, discovery.seed_providers, cluster.initial_master_nodes] must be configured")));
 
         CheckedConsumer<Settings.Builder, NodeValidationException> ensureChecksPass = b ->
         {

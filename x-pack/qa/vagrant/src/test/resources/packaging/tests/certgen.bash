@@ -248,7 +248,7 @@ cat >> $ESCONFIG/elasticsearch.yml <<- EOF
 node.name: "node-master"
 node.master: true
 node.data: false
-discovery.seed_addresses: ["127.0.0.1:9301"]
+discovery.seed_hosts: ["127.0.0.1:9301"]
 cluster.initial_master_nodes: ["node-master"]
 
 xpack.security.transport.ssl.key: $ESCONFIG/certs/node-master/node-master.key
@@ -335,7 +335,7 @@ cat >> $ESCONFIG/elasticsearch.yml <<- EOF
 node.name: "node-data"
 node.master: false
 node.data: true
-discovery.seed_addresses: ["127.0.0.1:9300"]
+discovery.seed_hosts: ["127.0.0.1:9300"]
 
 xpack.security.transport.ssl.key: $ESCONFIG/certs/node-data/node-data.key
 xpack.security.transport.ssl.certificate: $ESCONFIG/certs/node-data/node-data.crt

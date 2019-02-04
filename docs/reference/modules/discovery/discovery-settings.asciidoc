@@ -157,7 +157,7 @@ APIs are not be blocked and can run on any available node.
 ===============================
 --
 
-`discovery.seed_addresses`::
+`discovery.seed_hosts`::
 
     Provides a list of master-eligible nodes in the cluster. The list contains
     either an array of hosts or a comma-delimited string. Each value has the

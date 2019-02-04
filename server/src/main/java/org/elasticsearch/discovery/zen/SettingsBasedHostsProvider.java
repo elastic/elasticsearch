@@ -34,7 +34,7 @@ import static java.util.Collections.emptyList;
 
 /**
  * An implementation of {@link UnicastHostsProvider} that reads hosts/ports
- * from the "discovery.seed_addresses" node setting. If the port is
+ * from the "discovery.seed_hosts" node setting. If the port is
  * left off an entry, a default port of 9300 is assumed.
  *
  * An example unicast hosts setting might look as follows:
@@ -48,7 +48,7 @@ public class SettingsBasedHostsProvider implements UnicastHostsProvider {
         Setting.listSetting("discovery.zen.ping.unicast.hosts", emptyList(), Function.identity(), Property.NodeScope, Property.Deprecated);
 
     public static final Setting<List<String>> DISCOVERY_SEED_ADDRESSES_SETTING =
-        Setting.listSetting("discovery.seed_addresses", emptyList(), Function.identity(), Property.NodeScope);
+        Setting.listSetting("discovery.seed_hosts", emptyList(), Function.identity(), Property.NodeScope);
 
     // these limits are per-address
     private static final int LIMIT_FOREIGN_PORTS_COUNT = 1;

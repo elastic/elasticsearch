@@ -22,9 +22,11 @@ package org.elasticsearch.cluster.coordination;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -386,6 +388,12 @@ public class DeterministicTaskQueue {
                     }
 
                 };
+            }
+
+            @Override
+            public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
+                // reject on shutdown not implemented for deterministic task queue, so this is equivalent to schedule here.
+                schedule(command, delay, executor);
             }
 
             @Override

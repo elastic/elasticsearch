@@ -77,11 +77,11 @@ public class Count extends AggregateFunction {
     public AggregateFunctionAttribute toAttribute() {
         // COUNT(*) gets its value from the parent aggregation on which _count is called
         if (field() instanceof Literal) {
-            return new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), "_count");
+            return new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), id(), "_count");
         }
         // COUNT(column) gets its value from a sibling aggregation (an exists filter agg) by calling its id and then _count on it
         if (!distinct()) {
-            return new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), functionId() + "._count");
+            return new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), id(), functionId() + "._count");
         }
         return super.toAttribute();
     }

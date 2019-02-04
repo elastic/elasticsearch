@@ -174,7 +174,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         getResponse = client().performRequest(getRequest);
         source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
         final String workingToken = (String) source.get("token");
-        logger.info("OLD_TOKEN IN NEW CLUSTER: " + workingToken);
         assertTokenWorks(workingToken);
 
         Request getTokenRequest = new Request("POST", "/_security/oauth2/token");
@@ -187,7 +186,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         Response response = client().performRequest(getTokenRequest);
         Map<String, Object> responseMap = entityAsMap(response);
         String accessToken = (String) responseMap.get("access_token");
-        logger.info("NEW_TOKEN IN NEW CLUSTER: " + accessToken);
         String refreshToken = (String) responseMap.get("refresh_token");
         assertNotNull(accessToken);
         assertNotNull(refreshToken);

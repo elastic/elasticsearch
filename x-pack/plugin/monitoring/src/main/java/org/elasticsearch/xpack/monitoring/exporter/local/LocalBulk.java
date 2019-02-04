@@ -14,13 +14,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -37,13 +37,13 @@ public class LocalBulk extends ExportBulk {
 
     private final Logger logger;
     private final Client client;
-    private final DateTimeFormatter formatter;
+    private final DateFormatter formatter;
     private final boolean usePipeline;
 
     private BulkRequestBuilder requestBuilder;
 
 
-    LocalBulk(String name, Logger logger, Client client, DateTimeFormatter dateTimeFormatter, boolean usePipeline) {
+    LocalBulk(String name, Logger logger, Client client, DateFormatter dateTimeFormatter, boolean usePipeline) {
         super(name, client.threadPool().getThreadContext());
         this.logger = logger;
         this.client = client;

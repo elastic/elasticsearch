@@ -451,7 +451,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
-            auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine(), requestInterceptors);
+            auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine(), requestInterceptors,
+            getLicenseState());
 
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions

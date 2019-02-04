@@ -85,6 +85,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -144,7 +145,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
@@ -233,7 +233,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
             auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings), null,
-            Collections.emptySet());
+            Collections.emptySet(), new XPackLicenseState(settings));
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
@@ -659,7 +659,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, null, Collections.emptySet());
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, null, Collections.emptySet(),
+            new XPackLicenseState(settings));
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() }, null);
@@ -687,7 +688,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new AnonymousUser(settings));
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings), null,
-            Collections.emptySet());
+            Collections.emptySet(), new XPackLicenseState(settings));
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
@@ -1391,35 +1392,59 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
         };
 
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(true);
         authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
             auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(Settings.EMPTY),
-            engine, Collections.emptySet());
+            engine, Collections.emptySet(), licenseState);
         Authentication authentication = createAuthentication(new User("test user", "a_all"));
         assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
+        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
+        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
 
+        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(true);
         authentication = createAuthentication(new User("runas", new String[] { "runas_role" }, new User("runner", "runner_role")));
         assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
         assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
+        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
 
+        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(true);
         authentication = createAuthentication(new User("runas", new String[] { "runas_role" }, new ElasticUser(true)));
         assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
         assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
         assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
+        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
 
+        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(true);
         authentication = createAuthentication(new User("elastic", new String[] { "superuser" }, new User("runner", "runner_role")));
         assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
         assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
         assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
+        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
 
+        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(true);
         authentication = createAuthentication(new User("kibana", new String[] { "kibana_system" }, new ElasticUser(true)));
         assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
         assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
         assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
         assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
+        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
 
+        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(true);
         authentication = createAuthentication(randomFrom(XPackUser.INSTANCE, XPackSecurityUser.INSTANCE,
             new ElasticUser(true), new KibanaUser(true)));
         assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
+        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
         assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
     }
 

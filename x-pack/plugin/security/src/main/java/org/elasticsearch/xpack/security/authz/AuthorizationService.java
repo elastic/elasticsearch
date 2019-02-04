@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
@@ -103,13 +104,14 @@ public class AuthorizationService {
     private final AuthorizationEngine rbacEngine;
     private final AuthorizationEngine authorizationEngine;
     private final Set<RequestInterceptor> requestInterceptors;
+    private final XPackLicenseState licenseState;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
     public AuthorizationService(Settings settings, CompositeRolesStore rolesStore, ClusterService clusterService,
                                 AuditTrailService auditTrail, AuthenticationFailureHandler authcFailureHandler,
                                 ThreadPool threadPool, AnonymousUser anonymousUser, @Nullable AuthorizationEngine authorizationEngine,
-                                Set<RequestInterceptor> requestInterceptors) {
+                                Set<RequestInterceptor> requestInterceptors, XPackLicenseState licenseState) {
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService);
@@ -122,6 +124,7 @@ public class AuthorizationService {
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.requestInterceptors = requestInterceptors;
         this.settings = settings;
+        this.licenseState = licenseState;
     }
 
     public void checkPrivileges(Authentication authentication, HasPrivilegesRequest request,
@@ -349,10 +352,14 @@ public class AuthorizationService {
     }
 
     private AuthorizationEngine getAuthorizationEngineForUser(final User user) {
-        if (ClientReservedRealm.isReserved(user.principal(), settings) || isInternalUser(user)) {
-            return rbacEngine;
+        if (rbacEngine != authorizationEngine && licenseState.isAuthorizationEngineAllowed()) {
+            if (ClientReservedRealm.isReserved(user.principal(), settings) || isInternalUser(user)) {
+                return rbacEngine;
+            } else {
+                return authorizationEngine;
+            }
         } else {
-            return authorizationEngine;
+            return rbacEngine;
         }
     }
 

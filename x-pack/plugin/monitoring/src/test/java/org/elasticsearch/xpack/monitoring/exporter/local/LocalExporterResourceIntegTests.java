@@ -83,12 +83,10 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
             .startObject("mappings")
                 // Still need use type, RestPutIndexTemplateAction#prepareRequestSource has logic that adds type if missing
                 .startObject("doc")
-                    .startObject("_source")
-                        .field("enabled", false)
-                    .endObject()
                     .startObject("_meta")
                         .field("test", true)
                     .endObject()
+                    .field("enabled", false)
                 .endObject()
             .endObject();
 

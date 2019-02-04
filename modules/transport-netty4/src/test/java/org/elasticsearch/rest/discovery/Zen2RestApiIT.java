@@ -36,7 +36,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

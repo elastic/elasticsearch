@@ -110,7 +110,9 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         final long retentionLeaseMillis = randomLongBetween(1, TimeValue.timeValueHours(12).millis());
         final Settings settings = Settings
                 .builder()
-                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey(), TimeValue.timeValueMillis(retentionLeaseMillis))
+                .put(
+                        IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey(),
+                        TimeValue.timeValueMillis(retentionLeaseMillis))
                 .build();
         // current time is mocked through the thread pool
         final IndexShard indexShard = newStartedShard(primary, settings, new InternalEngineFactory());

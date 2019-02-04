@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
@@ -58,6 +59,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.CcrIntegTestCase;
@@ -954,6 +956,26 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(true));
     }
 
+    public void testMustCloseIndexAndPauseToRestartWithPutFollowing() throws Exception {
+        final int numberOfPrimaryShards = randomIntBetween(1, 3);
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderYellow("index1");
+
+        final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+        PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        assertTrue(response.isFollowIndexCreated());
+        assertTrue(response.isFollowIndexShardsAcked());
+        assertTrue(response.isIndexFollowingStarted());
+
+        final PutFollowAction.Request followRequest2 = putFollow("index1", "index2");
+        expectThrows(SnapshotRestoreException.class,  () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest2).actionGet());
+
+        followerClient().admin().indices().prepareClose("index2").get();
+        expectThrows(ResourceAlreadyExistsException.class,  () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest2).actionGet());
+    }
+
     public void testIndexFallBehind() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
@@ -1002,15 +1024,13 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 .map(ExceptionsHelper::unwrapCause)
                 .filter(e -> e instanceof ResourceNotFoundException)
                 .map(e -> (ResourceNotFoundException) e)
-                .filter(e -> {
-                    return e.getMetadataKeys().contains("es.requested_operations_missing");
-                })
+                .filter(e -> e.getMetadataKeys().contains("es.requested_operations_missing"))
                 .collect(Collectors.toSet());
             assertThat(exceptions.size(), greaterThan(0));
         });
 
-        pauseFollow("index2");
         followerClient().admin().indices().prepareClose("index2").get();
+        pauseFollow("index2");
 
 
         final PutFollowAction.Request followRequest2 = putFollow("index1", "index2");

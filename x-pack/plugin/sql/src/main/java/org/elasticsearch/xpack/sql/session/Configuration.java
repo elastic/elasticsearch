@@ -20,6 +20,7 @@ public class Configuration {
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
     private final Mode mode;
+    private final String clientId;
     private final String username;
     private final String clusterName;
     private final ZonedDateTime now;
@@ -27,7 +28,8 @@ public class Configuration {
     @Nullable
     private QueryBuilder filter;
 
-    public Configuration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter, Mode mode,
+    public Configuration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter,
+                         Mode mode, String clientId,
                          String username, String clusterName) {
         this.zoneId = zi.normalized();
         this.pageSize = pageSize;
@@ -35,6 +37,7 @@ public class Configuration {
         this.pageTimeout = pageTimeout;
         this.filter = filter;
         this.mode = mode == null ? Mode.PLAIN : mode;
+        this.clientId = clientId;
         this.username = username;
         this.clusterName = clusterName;
         this.now = ZonedDateTime.now(zoneId);
@@ -61,6 +64,10 @@ public class Configuration {
     }
     public Mode mode() {
         return mode;
+    }
+
+    public String clientId() {
+        return clientId;
     }
 
     public String username() {

@@ -59,10 +59,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -357,24 +355,82 @@ public final class TokenService {
         ));
     }
 
+    /**
+     * Gets the UserToken with given id by fetching the the corresponding token document
+     */
+    void getUserTokenFromId(String userTokenId, ActionListener<UserToken> listener) {
+        if (securityIndex.isAvailable() == false) {
+            logger.warn("failed to get token [{}] since index is not available", userTokenId);
+            listener.onResponse(null);
+        } else {
+            securityIndex.checkIndexVersionThenExecute(
+                ex -> listener.onFailure(traceLog("prepare security index", userTokenId, ex)),
+                () -> {
+                    final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE,
+                        getTokenDocumentId(userTokenId)).request();
+                    Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
+                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
+                        ActionListener.<GetResponse>wrap(response -> {
+                            if (response.isExists()) {
+                                Map<String, Object> accessTokenSource =
+                                    (Map<String, Object>) response.getSource().get("access_token");
+                                if (accessTokenSource == null) {
+                                    onFailure.accept(new IllegalStateException(
+                                        "token document is missing the access_token field"));
+                                } else if (accessTokenSource.containsKey("user_token") == false) {
+                                    onFailure.accept(new IllegalStateException(
+                                        "token document is missing the user_token field"));
+                                } else {
+                                    Map<String, Object> userTokenSource =
+                                        (Map<String, Object>) accessTokenSource.get("user_token");
+                                    listener.onResponse(UserToken.fromSourceMap(userTokenSource));
+                                }
+                            } else {
+                                onFailure.accept(
+                                    new IllegalStateException("token document is missing and must be present"));
+                            }
+                        }, e -> {
+                            // if the index or the shard is not there / available we assume that
+                            // the token is not valid
+                            if (isShardNotAvailableException(e)) {
+                                logger.warn("failed to get token [{}] since index is not available", userTokenId);
+                                listener.onResponse(null);
+                            } else {
+                                logger.error(new ParameterizedMessage("failed to get token [{}]", userTokenId), e);
+                                listener.onFailure(e);
+                            }
+                        }), client::get);
+                });
+        }
+    }
+
     /*
-     * Asynchronously decodes the string representation of a {@link UserToken}. The process for
-     * this is asynchronous as we may need to compute a key, which can be computationally expensive
-     * so this should not block the current thread, which is typically a network thread. A second
-     * reason for being asynchronous is that we can restrain the amount of resources consumed by
-     * the key computation to a single thread.
+     * If needed, for tokens that were created in pre 7.0.0 cluster, it asynchronously decodes the string representation of a {@link
+     * UserToken}. The process for this is asynchronous as we may need to compute a key, which can be computationally expensive
+     * so this should not block the current thread, which is typically a network thread. A second reason for being asynchronous is that
+     * we can restrain the amount of resources consumed by the key computation to a single thread.
      */
     void decodeToken(String token, ActionListener<UserToken> listener) throws IOException {
         // We intentionally do not use try-with resources since we need to keep the stream open if we need to compute a key!
         byte[] bytes = token.getBytes(StandardCharsets.UTF_8);
         StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length);
-        if (in.available() < MINIMUM_BASE64_BYTES) {
-            logger.debug("invalid token");
-            listener.onResponse(null);
+        // the token exists and the value is at least as long as we'd expect
+        final Version version = Version.readVersion(in);
+        if (version.onOrAfter(Version.V_7_0_0)) {
+            // The token was created in a > 7.0.0 cluster so it contains the tokenId as a String
+            if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_7_0_0)) {
+                logger.debug("Invalid token with unencrypted format in a cluster that is pre v7.0.0");
+            }
+            String usedTokenId = in.readString();
+            getUserTokenFromId(usedTokenId, listener);
         } else {
-            // the token exists and the value is at least as long as we'd expect
-            final Version version = Version.readVersion(in);
+            // The token was created in a < 7.0.0 cluster so we need to decrypt it to get the tokenId
             in.setVersion(version);
+            if (in.available() < MINIMUM_BASE64_BYTES) {
+                logger.debug("invalid token, smaller than [{}] bytes", MINIMUM_BASE64_BYTES);
+                listener.onResponse(null);
+                return;
+            }
             final BytesKey decodedSalt = new BytesKey(in.readByteArray());
             final BytesKey passphraseHash = new BytesKey(in.readByteArray());
             KeyAndCache keyAndCache = keyCache.get(passphraseHash);
@@ -383,53 +439,10 @@ public final class TokenService {
                     try {
                         final byte[] iv = in.readByteArray();
                         final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
-                        decryptTokenId(in, cipher, version, ActionListener.wrap(tokenId -> {
-                            if (securityIndex.isAvailable() == false) {
-                                logger.warn("failed to get token [{}] since index is not available", tokenId);
-                                listener.onResponse(null);
-                            } else {
-                                securityIndex.checkIndexVersionThenExecute(
-                                    ex -> listener.onFailure(traceLog("prepare security index", tokenId, ex)),
-                                    () -> {
-                                        final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE,
-                                            getTokenDocumentId(tokenId)).request();
-                                        Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", tokenId, ex));
-                                        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
-                                            ActionListener.<GetResponse>wrap(response -> {
-                                                if (response.isExists()) {
-                                                    Map<String, Object> accessTokenSource =
-                                                        (Map<String, Object>) response.getSource().get("access_token");
-                                                    if (accessTokenSource == null) {
-                                                        onFailure.accept(new IllegalStateException(
-                                                            "token document is missing the access_token field"));
-                                                    } else if (accessTokenSource.containsKey("user_token") == false) {
-                                                        onFailure.accept(new IllegalStateException(
-                                                            "token document is missing the user_token field"));
-                                                    } else {
-                                                        Map<String, Object> userTokenSource =
-                                                            (Map<String, Object>) accessTokenSource.get("user_token");
-                                                        listener.onResponse(UserToken.fromSourceMap(userTokenSource));
-                                                    }
-                                                } else {
-                                                    onFailure.accept(
-                                                        new IllegalStateException("token document is missing and must be present"));
-                                                }
-                                            }, e -> {
-                                                // if the index or the shard is not there / available we assume that
-                                                // the token is not valid
-                                                if (isShardNotAvailableException(e)) {
-                                                    logger.warn("failed to get token [{}] since index is not available", tokenId);
-                                                    listener.onResponse(null);
-                                                } else {
-                                                    logger.error(new ParameterizedMessage("failed to get token [{}]", tokenId), e);
-                                                    listener.onFailure(e);
-                                                }
-                                            }), client::get);
-                                    });
-                            }
-                        }, listener::onFailure));
+                        decryptTokenId(in, cipher, version, ActionListener.wrap(tokenId -> getUserTokenFromId(tokenId, listener),
+                            listener::onFailure));
                     } catch (GeneralSecurityException e) {
-                        // could happen with a token that is not ours or with a token that is no longer encrypted (after 7.0.0 )
+                        // could happen with a token that is not ours o
                         logger.warn("invalid token", e);
                         listener.onResponse(null);
                     } finally {
@@ -936,8 +949,8 @@ public final class TokenService {
     }
 
     /**
-     * Checks if a refreshed token is eligible to be refreshed again. This is only allowed for versions >= 7.0.0 and
-     * when the refres_token contains the refresh_time and superseded_by fields and it has been refreshed in the
+     * Checks if a refreshed token is eligible to be refreshed again. This is only allowed for versions after 7.0.0 and
+     * when the refresh_token contains the refresh_time and superseded_by fields and it has been refreshed in the
      * previous 4 seconds
      */
     private boolean eligibleForMultiRefresh(Map<String, Object> source) {
@@ -1179,7 +1192,6 @@ public final class TokenService {
         }
     }
 
-
     public TimeValue getExpirationDelay() {
         return expirationDelay;
     }
@@ -1211,28 +1223,40 @@ public final class TokenService {
     }
 
     /**
-     * Serializes a token to a String containing an encrypted representation of the token
+     * Serializes a token to a String containing the version of the node that created the token and
+     * either an encrypted representation of the token id for versions earlier to 7.0.0 or the token ie
+     * itself for versions after 7.0.0
      */
     public String getUserTokenString(UserToken userToken) throws IOException, GeneralSecurityException {
-        System.out.println(Strings.toString(userToken.toXContent(JsonXContent.contentBuilder().prettyPrint(), ToXContent.EMPTY_PARAMS)));
-        // we know that the minimum length is larger than the default of the ByteArrayOutputStream so set the size to this explicitly
-        try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
-             OutputStream base64 = Base64.getEncoder().wrap(os);
-             StreamOutput out = new OutputStreamStreamOutput(base64)) {
-            out.setVersion(userToken.getVersion());
-            KeyAndCache keyAndCache = keyCache.activeKeyCache;
-            Version.writeVersion(userToken.getVersion(), out);
-            out.writeByteArray(keyAndCache.getSalt().bytes);
-            out.writeByteArray(keyAndCache.getKeyHash().bytes);
-            final byte[] initializationVector = getNewInitializationVector();
-            out.writeByteArray(initializationVector);
-            try (CipherOutputStream encryptedOutput =
-                     new CipherOutputStream(out, getEncryptionCipher(initializationVector, keyAndCache, userToken.getVersion()));
-                 StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)) {
-                encryptedStreamOutput.setVersion(userToken.getVersion());
-                encryptedStreamOutput.writeString(userToken.getId());
-                encryptedStreamOutput.close();
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_0_0)) {
+            try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
+                 OutputStream base64 = Base64.getEncoder().wrap(os);
+                 StreamOutput out = new OutputStreamStreamOutput(base64)) {
+                out.setVersion(userToken.getVersion());
+                Version.writeVersion(userToken.getVersion(), out);
+                out.writeString(userToken.getId());
                 return new String(os.toByteArray(), StandardCharsets.UTF_8);
+            }
+        } else {
+            // we know that the minimum length is larger than the default of the ByteArrayOutputStream so set the size to this explicitly
+            try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
+                 OutputStream base64 = Base64.getEncoder().wrap(os);
+                 StreamOutput out = new OutputStreamStreamOutput(base64)) {
+                out.setVersion(userToken.getVersion());
+                KeyAndCache keyAndCache = keyCache.activeKeyCache;
+                Version.writeVersion(userToken.getVersion(), out);
+                out.writeByteArray(keyAndCache.getSalt().bytes);
+                out.writeByteArray(keyAndCache.getKeyHash().bytes);
+                final byte[] initializationVector = getNewInitializationVector();
+                out.writeByteArray(initializationVector);
+                try (CipherOutputStream encryptedOutput =
+                         new CipherOutputStream(out, getEncryptionCipher(initializationVector, keyAndCache, userToken.getVersion()));
+                     StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)) {
+                    encryptedStreamOutput.setVersion(userToken.getVersion());
+                    encryptedStreamOutput.writeString(userToken.getId());
+                    encryptedStreamOutput.close();
+                    return new String(os.toByteArray(), StandardCharsets.UTF_8);
+                }
             }
         }
     }

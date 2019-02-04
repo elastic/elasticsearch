@@ -36,6 +36,7 @@ public class RestOpenIdConnectPrepareAuthenticationAction extends OpenIdConnectB
 
     static {
         PARSER.declareString(OpenIdConnectPrepareAuthenticationRequest::setRealmName, new ParseField("realm"));
+        PARSER.declareString(OpenIdConnectPrepareAuthenticationRequest::setRealmName, new ParseField("iss"));
     }
 
     public RestOpenIdConnectPrepareAuthenticationAction(Settings settings, RestController controller, XPackLicenseState licenseState) {

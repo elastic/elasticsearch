@@ -23,9 +23,18 @@ public class OpenIdConnectPrepareAuthenticationRequestTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
 
-        final OpenIdConnectPrepareAuthenticationRequest unserialized =
+        final OpenIdConnectPrepareAuthenticationRequest deserialized =
             new OpenIdConnectPrepareAuthenticationRequest(out.bytes().streamInput());
-        assertThat(unserialized.getRealmName(), equalTo("oidc-realm1"));
+        assertThat(deserialized.getRealmName(), equalTo("oidc-realm1"));
+
+        final OpenIdConnectPrepareAuthenticationRequest request2 = new OpenIdConnectPrepareAuthenticationRequest();
+        request2.setIssuer("https://op.company.org/");
+        final BytesStreamOutput out2 = new BytesStreamOutput();
+        request2.writeTo(out2);
+
+        final OpenIdConnectPrepareAuthenticationRequest deserialized2 =
+            new OpenIdConnectPrepareAuthenticationRequest(out2.bytes().streamInput());
+        assertThat(deserialized2.getIssuer(), equalTo("https://op.company.org/"));
     }
 
     public void testValidation() {
@@ -33,6 +42,15 @@ public class OpenIdConnectPrepareAuthenticationRequestTests extends ESTestCase {
         final ActionRequestValidationException validation = request.validate();
         assertNotNull(validation);
         assertThat(validation.validationErrors().size(), equalTo(1));
-        assertThat(validation.validationErrors().get(0), containsString("realm name must be provided"));
+        assertThat(validation.validationErrors().get(0), containsString("one of [realm, issuer] must be provided"));
+
+        final OpenIdConnectPrepareAuthenticationRequest request2 = new OpenIdConnectPrepareAuthenticationRequest();
+        request2.setRealmName("oidc-realm1");
+        request2.setIssuer("https://op.company.org/");
+        final ActionRequestValidationException validation2 = request2.validate();
+        assertNotNull(validation2);
+        assertThat(validation2.validationErrors().size(), equalTo(1));
+        assertThat(validation2.validationErrors().get(0),
+            containsString("only one of [realm, issuer] can be provided in the same request"));
     }
 }

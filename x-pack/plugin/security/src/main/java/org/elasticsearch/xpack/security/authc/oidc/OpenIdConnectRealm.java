@@ -128,6 +128,10 @@ public class OpenIdConnectRealm extends Realm {
         }
     }
 
+    public boolean isIssuerValid(String issuer) {
+        return this.opConfiguration.getIssuer().equals(issuer);
+    }
+
     private void addParameter(StringBuilder builder, String parameter, String value, boolean isFirstParameter)
         throws UnsupportedEncodingException {
         char prefix = isFirstParameter ? '?' : '&';

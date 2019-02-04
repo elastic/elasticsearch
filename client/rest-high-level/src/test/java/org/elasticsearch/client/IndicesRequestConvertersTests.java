@@ -39,7 +39,6 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
@@ -55,6 +54,7 @@ import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.RandomCreateIndexGenerator;
+import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -75,7 +75,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases;
+import static org.elasticsearch.client.indices.RandomCreateIndexGenerator.randomAliases;
+import static org.elasticsearch.client.indices.RandomCreateIndexGenerator.randomMapping;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
@@ -808,7 +809,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
                 createIndexRequest.settings(randomIndexSettings());
             }
             if (ESTestCase.randomBoolean()) {
-                randomAliases(createIndexRequest);
+                org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases(createIndexRequest);
             }
             resizeRequest.setTargetIndex(createIndexRequest);
         }
@@ -827,7 +828,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RolloverRequest rolloverRequest = new RolloverRequest(ESTestCase.randomAlphaOfLengthBetween(3, 10),
                 ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLengthBetween(3, 10));
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomTimeout(rolloverRequest::timeout, rolloverRequest.timeout(), expectedParams);
+        RequestConvertersTests.setRandomTimeout(rolloverRequest, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         RequestConvertersTests.setRandomMasterTimeout(rolloverRequest, expectedParams);
         if (ESTestCase.randomBoolean()) {
             rolloverRequest.dryRun(ESTestCase.randomBoolean());
@@ -839,12 +840,53 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             rolloverRequest.addMaxIndexAgeCondition(new TimeValue(ESTestCase.randomNonNegativeLong()));
         }
         if (ESTestCase.randomBoolean()) {
+            rolloverRequest.getCreateIndexRequest().mapping(randomMapping());
+        }
+        if (ESTestCase.randomBoolean()) {
+            randomAliases(rolloverRequest.getCreateIndexRequest());
+        }
+        if (ESTestCase.randomBoolean()) {
+            rolloverRequest.getCreateIndexRequest().settings(
+                org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings());
+        }
+        RequestConvertersTests.setRandomWaitForActiveShards(rolloverRequest.getCreateIndexRequest()::waitForActiveShards, expectedParams);
+
+        Request request = IndicesRequestConverters.rollover(rolloverRequest);
+        if (rolloverRequest.getNewIndexName() == null) {
+            Assert.assertEquals("/" + rolloverRequest.getAlias() + "/_rollover", request.getEndpoint());
+        } else {
+            Assert.assertEquals("/" + rolloverRequest.getAlias() + "/_rollover/" + rolloverRequest.getNewIndexName(),
+                request.getEndpoint());
+        }
+        Assert.assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        RequestConvertersTests.assertToXContentBody(rolloverRequest, request.getEntity());
+        Assert.assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testRolloverWithTypes() throws IOException {
+        org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest =
+            new  org.elasticsearch.action.admin.indices.rollover.RolloverRequest(ESTestCase.randomAlphaOfLengthBetween(3, 10),
+            ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLengthBetween(3, 10));
+        Map<String, String> expectedParams = new HashMap<>();
+        RequestConvertersTests.setRandomTimeout(rolloverRequest::timeout, rolloverRequest.timeout(), expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(rolloverRequest, expectedParams);
+        if (ESTestCase.randomBoolean()) {
+            rolloverRequest.dryRun(ESTestCase.randomBoolean());
+            if (rolloverRequest.isDryRun()) {
+                expectedParams.put("dry_run", "true");
+            }
+        }
+        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        if (ESTestCase.randomBoolean()) {
+            rolloverRequest.addMaxIndexAgeCondition(new TimeValue(ESTestCase.randomNonNegativeLong()));
+        }
+        if (ESTestCase.randomBoolean()) {
             String type = ESTestCase.randomAlphaOfLengthBetween(3, 10);
             rolloverRequest.getCreateIndexRequest().mapping(type,
                 org.elasticsearch.index.RandomCreateIndexGenerator.randomMapping(type));
         }
         if (ESTestCase.randomBoolean()) {
-            randomAliases(rolloverRequest.getCreateIndexRequest());
+            org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
         }
         if (ESTestCase.randomBoolean()) {
             rolloverRequest.getCreateIndexRequest().settings(

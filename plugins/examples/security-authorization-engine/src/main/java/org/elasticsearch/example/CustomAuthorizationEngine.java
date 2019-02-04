@@ -48,7 +48,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -91,7 +90,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     @Override
     public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                      AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                     Function<String, AliasOrIndex> aliasOrIndexFunction,
+                                     Map<String, AliasOrIndex> aliasOrIndexLookup,
                                      ActionListener<IndexAuthorizationResult> listener) {
         if (isSuperuser(requestInfo.getAuthentication().getUser())) {
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
@@ -110,9 +109,9 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
 
     @Override
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener) {
+                                      Map<String, AliasOrIndex> aliasOrIndexLookup, ActionListener<List<String>> listener) {
         if (isSuperuser(requestInfo.getAuthentication().getUser())) {
-            listener.onResponse(new ArrayList<>(aliasAndIndexLookup.keySet()));
+            listener.onResponse(new ArrayList<>(aliasOrIndexLookup.keySet()));
         } else {
             listener.onResponse(Collections.emptyList());
         }

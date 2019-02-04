@@ -76,7 +76,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
@@ -213,7 +212,7 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                      AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                     Function<String, AliasOrIndex> aliasOrIndexFunction,
+                                     Map<String, AliasOrIndex> aliasOrIndexLookup,
                                      ActionListener<IndexAuthorizationResult> listener) {
         final String action = requestInfo.getAction();
         final TransportRequest request = requestInfo.getRequest();
@@ -264,7 +263,7 @@ public class RBACEngine implements AuthorizationEngine {
                     authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES, listener);
                 } else {
                     buildIndicesAccessControl(authentication, action, authorizationInfo,
-                        Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexFunction, listener);
+                        Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup, listener);
                 }
             }, listener::onFailure));
         } else {
@@ -280,7 +279,7 @@ public class RBACEngine implements AuthorizationEngine {
                                 listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                             } else {
                                 buildIndicesAccessControl(authentication, action, authorizationInfo,
-                                    Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexFunction, listener);
+                                    Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup, listener);
                             }
                         }, listener::onFailure));
                     } else {
@@ -307,10 +306,10 @@ public class RBACEngine implements AuthorizationEngine {
 
     @Override
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener) {
+                                      Map<String, AliasOrIndex> aliasOrIndexLookup, ActionListener<List<String>> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo.getAction(), aliasAndIndexLookup));
+            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo.getAction(), aliasOrIndexLookup));
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
@@ -550,9 +549,9 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private void buildIndicesAccessControl(Authentication authentication, String action,
-                                          AuthorizationInfo authorizationInfo, Set<String> indices,
-                                          Function<String, AliasOrIndex> aliasAndIndexLookup,
-                                          ActionListener<IndexAuthorizationResult> listener) {
+                                           AuthorizationInfo authorizationInfo, Set<String> indices,
+                                           Map<String, AliasOrIndex> aliasAndIndexLookup,
+                                           ActionListener<IndexAuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);

@@ -1358,14 +1358,14 @@ public class AuthorizationServiceTests extends ESTestCase {
             @Override
             public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                              AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                             Function<String, AliasOrIndex> aliasOrIndexFunction,
+                                             Map<String, AliasOrIndex> aliasOrIndexLookup,
                                              ActionListener<IndexAuthorizationResult> listener) {
                 throw new UnsupportedOperationException("not implemented");
             }
 
             @Override
             public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                              Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener) {
+                                              Map<String, AliasOrIndex> aliasOrIndexLookup, ActionListener<List<String>> listener) {
                 throw new UnsupportedOperationException("not implemented");
             }
 

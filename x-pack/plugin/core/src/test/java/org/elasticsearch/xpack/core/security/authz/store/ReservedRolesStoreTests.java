@@ -589,7 +589,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         for (final String indexMonitoringActionName : indexMonitoringActionNamesList) {
             final Map<String, IndexAccessControl> authzMap = role.indices().authorize(indexMonitoringActionName,
                 Sets.newHashSet(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX, RestrictedIndicesNames.SECURITY_INDEX_NAME),
-                metaData.getAliasAndIndexLookup()::get, fieldPermissionsCache);
+                metaData.getAliasAndIndexLookup(), fieldPermissionsCache);
             assertThat(authzMap.get(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX).isGranted(), is(true));
             assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(true));
         }
@@ -708,22 +708,22 @@ public class ReservedRolesStoreTests extends ESTestCase {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         SortedMap<String, AliasOrIndex> lookup = metaData.getAliasAndIndexLookup();
         Map<String, IndexAccessControl> authzMap =
-                superuserRole.indices().authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup::get, fieldPermissionsCache);
+                superuserRole.indices().authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
         assertThat(authzMap.get("a1").isGranted(), is(true));
         assertThat(authzMap.get("b").isGranted(), is(true));
         authzMap =
-            superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup::get, fieldPermissionsCache);
+            superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
         assertThat(authzMap.get("a1").isGranted(), is(true));
         assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup::get, fieldPermissionsCache);
+        authzMap = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache);
         assertThat(authzMap.get("a2").isGranted(), is(true));
         assertThat(authzMap.get("b").isGranted(), is(true));
         authzMap = superuserRole.indices()
-                .authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup::get, fieldPermissionsCache);
+                .authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
         assertThat(authzMap.get("aaaaaa").isGranted(), is(true));
         assertThat(authzMap.get("b").isGranted(), is(true));
         authzMap = superuserRole.indices().authorize(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME),
-                Sets.newHashSet(RestrictedIndicesNames.SECURITY_INDEX_NAME), lookup::get, fieldPermissionsCache);
+                Sets.newHashSet(RestrictedIndicesNames.SECURITY_INDEX_NAME), lookup, fieldPermissionsCache);
         assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(true));
         assertThat(authzMap.get(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX).isGranted(), is(true));
         assertTrue(superuserRole.indices().check(SearchAction.NAME));

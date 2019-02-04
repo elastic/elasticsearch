@@ -79,7 +79,7 @@ public final class Role {
      * is configured for any group also the allowed fields and role queries are resolved.
      */
     public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
-                                          Function<String, AliasOrIndex> aliasAndIndexLookup,
+                                          Map<String, AliasOrIndex> aliasAndIndexLookup,
                                           FieldPermissionsCache fieldPermissionsCache) {
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = indices.authorize(
             action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache

@@ -468,7 +468,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         .numberOfShards(1).numberOfReplicas(0).build(), true)
                 .build();
         Map<String, IndicesAccessControl.IndexAccessControl> acls = role.indices().authorize("indices:data/read/search",
-            Collections.singleton("test"), metaData.getAliasAndIndexLookup()::get, cache);
+            Collections.singleton("test"), metaData.getAliasAndIndexLookup(), cache);
         assertFalse(acls.isEmpty());
         assertTrue(acls.get("test").getFieldPermissions().grantsAccessTo("L1.foo"));
         assertFalse(acls.get("test").getFieldPermissions().grantsAccessTo("L2.foo"));

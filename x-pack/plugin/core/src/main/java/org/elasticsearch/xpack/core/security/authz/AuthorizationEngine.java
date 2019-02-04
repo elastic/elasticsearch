@@ -22,7 +22,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * <p>
@@ -57,7 +56,7 @@ import java.util.function.Function;
  *         can actually impersonate the user running the request.</li>
  *     <li>{@link #authorizeClusterAction(RequestInfo, AuthorizationInfo, ActionListener)} if the
  *         request is a cluster level operation.</li>
- *     <li>{@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Function, ActionListener)} if
+ *     <li>{@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Map, ActionListener)} if
  *         the request is a an index action. This method may be called multiple times for a single
  *         request as the request may be made up of sub-requests that also need to be authorized. The async supplier
  *         for resolved indices will invoke the
@@ -66,7 +65,7 @@ import java.util.function.Function;
  * </ol>
  * <br><p>
  * <em>NOTE:</em> the {@link #loadAuthorizedIndices(RequestInfo, AuthorizationInfo, Map, ActionListener)}
- * method may be called prior to {@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Function, ActionListener)}
+ * method may be called prior to {@link #authorizeIndexAction(RequestInfo, AuthorizationInfo, AsyncSupplier, Map, ActionListener)}
  * in cases where wildcards need to be expanded.
  * </p><br>
  * Authorization engines can be called from various threads including network threads that should
@@ -124,12 +123,12 @@ public interface AuthorizationEngine {
      *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
      * @param indicesAsyncSupplier the asynchronous supplier for the indices that this request is
      *                             attempting to operate on
-     * @param aliasOrIndexFunction a function that when given a string name, returns the cluster
-     *                             metadata specific to that alias or index
+     * @param aliasOrIndexLookup a map of a string name to the cluster metadata specific to that
+     *                            alias or index
      * @param listener the listener to be notified of the authorization result
      */
     void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                              AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Function<String, AliasOrIndex> aliasOrIndexFunction,
+                              AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Map<String, AliasOrIndex> aliasOrIndexLookup,
                               ActionListener<IndexAuthorizationResult> listener);
 
     /**
@@ -140,12 +139,12 @@ public interface AuthorizationEngine {
      *                    and associated user(s)
      * @param authorizationInfo information needed from authorization that was previously retrieved
      *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
-     * @param aliasAndIndexLookup a function that when given a string name, returns the cluster
-     *                            metadata specific to that alias or index
+     * @param aliasOrIndexLookup a map of a string name to the cluster metadata specific to that
+     *                            alias or index
      * @param listener the listener to be notified of the authorization result
      */
     void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                               Map<String, AliasOrIndex> aliasAndIndexLookup, ActionListener<List<String>> listener);
+                               Map<String, AliasOrIndex> aliasOrIndexLookup, ActionListener<List<String>> listener);
 
 
     /**

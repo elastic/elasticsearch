@@ -21,6 +21,7 @@ package org.elasticsearch.example;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.AliasOrIndex.Index;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.test.ESTestCase;
@@ -36,6 +37,8 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
@@ -125,6 +128,8 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
     public void testAuthorizeIndexAction() {
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
+        Map<String, AliasOrIndex> aliasOrIndexMap = new HashMap<>();
+        aliasOrIndexMap.put("index", new Index(IndexMetaData.builder("index").build()));
         // authorized
         {
             RequestInfo requestInfo =
@@ -137,7 +142,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
             engine.authorizeIndexAction(requestInfo, authzInfo,
                 listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                name -> name.equals("index") ? new Index(IndexMetaData.builder("index").build()) : null, resultFuture);
+                aliasOrIndexMap, resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(true));
             assertThat(result.isAuditable(), is(true));
@@ -158,7 +163,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
             engine.authorizeIndexAction(requestInfo, authzInfo,
                 listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                name -> name.equals("index") ? new Index(IndexMetaData.builder("index").build()) : null, resultFuture);
+                aliasOrIndexMap, resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(false));
             assertThat(result.isAuditable(), is(true));

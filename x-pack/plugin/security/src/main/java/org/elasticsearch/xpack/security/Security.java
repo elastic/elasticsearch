@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -433,7 +434,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(),
-                new DeprecationRoleDescriptorPreprocessor(clusterService, threadPool, logger));
+                new DeprecationRoleDescriptorPreprocessor(clusterService, threadPool, new DeprecationLogger(logger)));
         securityIndex.get().addIndexStateListener(allRolesStore::onSecurityIndexStateChange);
 
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be

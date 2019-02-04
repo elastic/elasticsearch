@@ -156,9 +156,9 @@ class ClusterFormationTasks {
                 writeConfigSetup = { Map esConfig ->
                     String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.createAntBuilder())
                     if (unicastTransportUri == null) {
-                        esConfig['discovery.seed_hosts'] = []
+                        esConfig['discovery.zen.ping.unicast.hosts'] = []
                     } else {
-                        esConfig['discovery.seed_hosts'] = "\"${unicastTransportUri}\""
+                        esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
                     }
                     esConfig
                 }

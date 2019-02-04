@@ -473,7 +473,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                     return;
                 }
                 BulkRequestBuilder requestBuilder = client().prepareBulk();
-                requestBuilder.add(client().prepareUpdate("test", "type", "1").setVersion(1)
+                requestBuilder.add(client().prepareUpdate("test", "type", "1").setIfSeqNo(0L).setIfPrimaryTerm(1)
                     .setDoc(Requests.INDEX_CONTENT_TYPE, "field", threadID));
                 responses[threadID] = requestBuilder.get();
 

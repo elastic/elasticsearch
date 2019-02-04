@@ -26,7 +26,6 @@ import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -42,7 +41,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 0, numClientNodes = 0)
 public class GceDiscoverTests extends ESIntegTestCase {
@@ -67,9 +65,6 @@ public class GceDiscoverTests extends ESIntegTestCase {
                         .put("discovery.zen.hosts_provider", "gce")
                         .put("cloud.gce.project_id", "test")
                         .put("cloud.gce.zone", "test")
-                        // Make the test run faster
-                        .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "1s")
-                        .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "500ms")
             .build();
     }
 

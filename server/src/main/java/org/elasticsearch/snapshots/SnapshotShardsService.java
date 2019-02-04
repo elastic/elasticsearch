@@ -67,10 +67,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestDeduplicator;
-import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -508,15 +507,27 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 }
             },
             (req, reqListener) -> transportService.sendRequest(transportService.getLocalNode(), UPDATE_SNAPSHOT_STATUS_ACTION_NAME, req,
-                new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                new TransportResponseHandler<UpdateIndexShardSnapshotStatusResponse>() {
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
+                        final UpdateIndexShardSnapshotStatusResponse response = new UpdateIndexShardSnapshotStatusResponse();
+                        response.readFrom(in);
+                        return response;
+                    }
+
+                    @Override
+                    public void handleResponse(UpdateIndexShardSnapshotStatusResponse response) {
                         reqListener.onResponse(null);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         reqListener.onFailure(exp);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
                     }
                 })
         );

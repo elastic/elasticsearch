@@ -391,6 +391,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38267")
     public void testCanRunUnsafeBootstrapAfterErroneousDetachWithoutLoosingMetaData() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startMasterOnlyNode();

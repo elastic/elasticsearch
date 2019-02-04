@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -50,11 +51,26 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
     
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser, GetIndexTemplatesResponseTests::createTestInstance, GetIndexTemplatesResponseTests::toXContent,
-                GetIndexTemplatesResponse::fromXContent).supportsUnknownFields(false)
-                .assertEqualsConsumer(GetIndexTemplatesResponseTests::assertEqualInstances)
-                .shuffleFieldsExceptions(new String[] {"aliases", "mappings", "patterns", "settings"})
-                .test();
+        xContentTester(this::createParser,
+            GetIndexTemplatesResponseTests::createTestInstance,
+            GetIndexTemplatesResponseTests::toXContent,
+            GetIndexTemplatesResponse::fromXContent)
+            .assertEqualsConsumer(GetIndexTemplatesResponseTests::assertEqualInstances)
+            .supportsUnknownFields(true)
+            .randomFieldsExcludeFilter(randomFieldsExcludeFilter())
+            .shuffleFieldsExceptions(new String[] {"aliases", "mappings", "patterns", "settings"})
+            .test();
+    }
+
+    private Predicate<String> randomFieldsExcludeFilter() {
+        return (field) ->
+            field.isEmpty()
+            || field.endsWith("aliases")
+            || field.endsWith("settings")
+            || field.endsWith("settings.index")
+            || field.endsWith("mappings") // uses parser.map()
+            || field.contains("mappings.properties") // cannot have extra properties
+        ;
     }
 
     private static void assertEqualInstances(GetIndexTemplatesResponse expectedInstance, GetIndexTemplatesResponse newInstance) {        
@@ -64,7 +80,7 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
                 new BytesArray(mappingString), true, XContentType.JSON).v2();
         for (IndexTemplateMetaData template : newInstance.getIndexTemplates()) {
             MappingMetaData mappingMD = template.mappings();
-            if(mappingMD!=null) {
+            if(mappingMD != null) {
                 Map<String, Object> mappingAsMap = mappingMD.sourceAsMap();
                 assertEquals(expectedMap, mappingAsMap);
             }            

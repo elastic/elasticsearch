@@ -235,6 +235,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
+     * sequence number and primary term of the last modification of the document.
+     */
+    public SearchRequestBuilder seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        sourceBuilder().seqNoAndPrimaryTerm(seqNoAndPrimaryTerm);
+        return this;
+    }
+
+    /**
      * Sets the boost a specific index will receive when the query is executed against it.
      *
      * @param index      The index to apply the boost against

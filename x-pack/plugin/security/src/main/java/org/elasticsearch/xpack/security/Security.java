@@ -129,12 +129,6 @@ import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
-import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
-import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
-import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
-import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestInterceptor;
-import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
-import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.action.privilege.TransportDeletePrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
@@ -174,6 +168,12 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
+import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
@@ -438,19 +438,17 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
 
-        final Set<RequestInterceptor> requestInterceptors;
+        Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
+            new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService));
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
-            requestInterceptors = Collections.unmodifiableSet(Sets.newHashSet(
+            requestInterceptors.addAll(Arrays.asList(
                 new SearchRequestInterceptor(threadPool, getLicenseState()),
                 new UpdateRequestInterceptor(threadPool, getLicenseState()),
-                new BulkShardRequestInterceptor(threadPool, getLicenseState()),
-                new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
-                new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)));
-        } else {
-            requestInterceptors = Collections.unmodifiableSet(Sets.newHashSet(
-                new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
-                new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)));
+                new BulkShardRequestInterceptor(threadPool, getLicenseState())
+            ));
         }
+        requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
             auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine(), requestInterceptors);

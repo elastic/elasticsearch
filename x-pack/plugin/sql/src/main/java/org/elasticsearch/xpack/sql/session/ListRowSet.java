@@ -9,25 +9,25 @@ import org.elasticsearch.xpack.sql.type.Schema;
 
 import java.util.List;
 
-class ListRowSetCursor extends AbstractRowSet implements SchemaRowSet {
+public class ListRowSet extends AbstractRowSet implements SchemaRowSet {
 
     private final Schema schema;
     private final List<List<?>> list;
     private int pos = 0;
 
-    ListRowSetCursor(Schema schema, List<List<?>> list) {
+    protected ListRowSet(Schema schema, List<List<?>> list) {
         this.schema = schema;
         this.list = list;
     }
 
     @Override
     protected boolean doHasCurrent() {
-        return pos < list.size();
+        return pos < size();
     }
 
     @Override
     protected boolean doNext() {
-        if (pos + 1 < list.size()) {
+        if (pos + 1 < size()) {
             pos++;
             return true;
         }

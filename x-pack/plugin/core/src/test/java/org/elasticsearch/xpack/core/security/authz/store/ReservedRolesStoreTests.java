@@ -48,6 +48,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
@@ -139,9 +140,9 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -407,6 +408,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Role monitoringUserRole = Role.builder(roleDescriptor, null).build();
         assertThat(monitoringUserRole.cluster().check(MainAction.NAME, request), is(true));
+        assertThat(monitoringUserRole.cluster().check(XPackInfoAction.NAME, request), is(true));
         assertThat(monitoringUserRole.cluster().check(ClusterHealthAction.NAME, request), is(false));
         assertThat(monitoringUserRole.cluster().check(ClusterStateAction.NAME, request), is(false));
         assertThat(monitoringUserRole.cluster().check(ClusterStatsAction.NAME, request), is(false));
@@ -1013,7 +1015,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(now);
         for (String index : new String[]{ Watch.INDEX, historyIndex, TriggeredWatchStoreField.INDEX_NAME }) {
             assertOnlyReadAllowed(role, index);
@@ -1043,7 +1045,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(TriggeredWatchStoreField.INDEX_NAME), is(false));
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(now);
         for (String index : new String[]{ Watch.INDEX, historyIndex }) {
             assertOnlyReadAllowed(role, index);

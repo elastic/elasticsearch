@@ -1943,11 +1943,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
 
             @Override
-            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-                return ESIntegTestCase.this.addExtraClusterBootstrapSettings(allNodesSettings);
-            }
-
-            @Override
             public Path nodeConfigPath(int nodeOrdinal) {
                 return ESIntegTestCase.this.nodeConfigPath(nodeOrdinal);
             }
@@ -1975,18 +1970,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         };
     }
 
-    /**
-     * This method is called before starting a collection of nodes.
-     * At this point the test has a holistic view on all nodes settings and might perform settings adjustments as needed.
-     * For instance, the test could retrieve master node names and fill in
-     * {@link org.elasticsearch.cluster.coordination.ClusterBootstrapService#INITIAL_MASTER_NODES_SETTING} setting.
-     *
-     * @param allNodesSettings list of node settings before update
-     * @return list of node settings after update
-     */
-    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-        return allNodesSettings;
-    }
 
     /**
      * Iff this returns true mock transport implementations are used for the test runs. Otherwise not mock transport impls are used.
@@ -2214,6 +2197,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // Deleting indices is going to clear search contexts implicitly so we
         // need to check that there are no more in-flight search contexts before
         // we remove indices
+        if (isInternalCluster()) {
+            internalCluster().setBootstrapMasterNodeIndex(-1);
+        }
         super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {
             printTestMessage("cleaning up after");

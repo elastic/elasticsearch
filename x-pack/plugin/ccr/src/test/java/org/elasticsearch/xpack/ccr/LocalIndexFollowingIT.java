@@ -84,7 +84,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         ResumeFollowAction.Request followRequest = getResumeFollowRequest("follower");
         followRequest.setFollowerIndex("follower-index");
         PutFollowAction.Request putFollowRequest = getPutFollowRequest("leader", "follower");
-        putFollowRequest.getBody().setLeaderIndex("leader-index");
+        putFollowRequest.setLeaderIndex("leader-index");
         putFollowRequest.setFollowerIndex("follower-index");
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
             () -> client().execute(PutFollowAction.INSTANCE, putFollowRequest).actionGet());
@@ -95,10 +95,10 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
     public void testRemoveRemoteConnection() throws Exception {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName("my_pattern");
-        request.getBody().setRemoteCluster("local");
-        request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
-        request.getBody().setFollowIndexNamePattern("copy-{{leader_index}}");
-        request.getBody().setReadPollTimeout(TimeValue.timeValueMillis(10));
+        request.setRemoteCluster("local");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        request.setFollowIndexNamePattern("copy-{{leader_index}}");
+        request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
         assertTrue(client().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
         long previousNumberOfSuccessfulFollowedIndices = getAutoFollowStats().getNumberOfSuccessfulFollowIndices();
 

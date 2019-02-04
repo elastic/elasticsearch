@@ -76,16 +76,16 @@ public class TransportPutAutoFollowPatternAction extends
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final Client remoteClient = client.getRemoteClusterClient(request.getBody().getRemoteCluster());
+        final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
         final Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
             .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
-            String[] indices = request.getBody().getLeaderIndexPatterns().toArray(new String[0]);
+            String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
             ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
                 if (e == null) {
-                    clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getBody().getRemoteCluster(),
+                    clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getRemoteCluster(),
                         new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
                             @Override
@@ -108,7 +108,7 @@ public class TransportPutAutoFollowPatternAction extends
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
 
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(client, request.getBody().getRemoteCluster(),
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(client, request.getRemoteCluster(),
             clusterStateRequest, listener::onFailure, consumer);
 
     }
@@ -144,11 +144,10 @@ public class TransportPutAutoFollowPatternAction extends
         followedLeaderIndices.put(request.getName(), followedIndexUUIDs);
         // Mark existing leader indices as already auto followed:
         if (previousPattern != null) {
-            markExistingIndicesAsAutoFollowedForNewPatterns(request.getBody().getLeaderIndexPatterns(), remoteClusterState.metaData(),
+            markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), remoteClusterState.metaData(),
                 previousPattern, followedIndexUUIDs);
         } else {
-            markExistingIndicesAsAutoFollowed(request.getBody().getLeaderIndexPatterns(), remoteClusterState.metaData(),
-                followedIndexUUIDs);
+            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(), remoteClusterState.metaData(), followedIndexUUIDs);
         }
 
         if (filteredHeaders != null) {
@@ -156,19 +155,19 @@ public class TransportPutAutoFollowPatternAction extends
         }
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
-            request.getBody().getRemoteCluster(),
-            request.getBody().getLeaderIndexPatterns(),
-            request.getBody().getFollowIndexNamePattern(),
-            request.getBody().getMaxReadRequestOperationCount(),
-            request.getBody().getMaxReadRequestSize(),
-            request.getBody().getMaxOutstandingReadRequests(),
-            request.getBody().getMaxWriteRequestOperationCount(),
-            request.getBody().getMaxWriteRequestSize(),
-            request.getBody().getMaxOutstandingWriteRequests(),
-            request.getBody().getMaxWriteBufferCount(),
-            request.getBody().getMaxWriteBufferSize(),
-            request.getBody().getMaxRetryDelay(),
-            request.getBody().getReadPollTimeout());
+            request.getRemoteCluster(),
+            request.getLeaderIndexPatterns(),
+            request.getFollowIndexNamePattern(),
+            request.getParameters().getMaxReadRequestOperationCount(),
+            request.getParameters().getMaxReadRequestSize(),
+            request.getParameters().getMaxOutstandingReadRequests(),
+            request.getParameters().getMaxWriteRequestOperationCount(),
+            request.getParameters().getMaxWriteRequestSize(),
+            request.getParameters().getMaxOutstandingWriteRequests(),
+            request.getParameters().getMaxWriteBufferCount(),
+            request.getParameters().getMaxWriteBufferSize(),
+            request.getParameters().getMaxRetryDelay(),
+            request.getParameters().getReadPollTimeout());
         patterns.put(request.getName(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);
         newState.metaData(MetaData.builder(localState.getMetaData())

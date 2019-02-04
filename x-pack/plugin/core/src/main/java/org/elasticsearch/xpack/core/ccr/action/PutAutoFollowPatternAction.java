@@ -44,23 +44,38 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
+        private static final ObjectParser<Body, Void> PARSER = new ObjectParser<>("put_auto_follow_pattern_request", Body::new);
+
+        static {
+            PARSER.declareString((params, value) -> params.remoteCluster = value, REMOTE_CLUSTER_FIELD);
+            PARSER.declareStringArray((params, value) -> params.leaderIndexPatterns = value, AutoFollowPattern.LEADER_PATTERNS_FIELD);
+            PARSER.declareString((params, value) -> params.followIndexNamePattern = value, AutoFollowPattern.FOLLOW_PATTERN_FIELD);
+            FollowParameters.initParser(PARSER);
+        }
+
         public static Request fromXContent(XContentParser parser, String name) throws IOException {
-            Body body = Body.PARSER.parse(parser, null);
+            Body body = PARSER.parse(parser, null);
             Request request = new Request();
             request.setName(name);
-            request.setBody(body);
+            request.setRemoteCluster(body.remoteCluster);
+            request.setLeaderIndexPatterns(body.leaderIndexPatterns);
+            request.setFollowIndexNamePattern(body.followIndexNamePattern);
+            request.setParameters(body);
             return request;
         }
 
         private String name;
-        private Body body = new Body();
+        private String remoteCluster;
+        private List<String> leaderIndexPatterns;
+        private String followIndexNamePattern;
+        private FollowParameters parameters = new FollowParameters();
 
         public Request() {
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = body.validate();
+            ActionRequestValidationException validationException = parameters.validate();
             if (name == null) {
                 validationException = addValidationError("[name] is missing", validationException);
             }
@@ -77,6 +92,14 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                         validationException);
                 }
             }
+            if (remoteCluster == null) {
+                validationException = addValidationError("[" + REMOTE_CLUSTER_FIELD.getPreferredName() +
+                    "] is missing", validationException);
+            }
+            if (leaderIndexPatterns == null || leaderIndexPatterns.isEmpty()) {
+                validationException = addValidationError("[" + AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName() +
+                    "] is missing", validationException);
+            }
             return validationException;
         }
 
@@ -88,30 +111,97 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             this.name = name;
         }
 
-        public Body getBody() {
-            return body;
+        public String getRemoteCluster() {
+            return remoteCluster;
         }
 
-        public void setBody(Body body) {
-            this.body = body;
+        public void setRemoteCluster(String remoteCluster) {
+            this.remoteCluster = remoteCluster;
+        }
+
+        public List<String> getLeaderIndexPatterns() {
+            return leaderIndexPatterns;
+        }
+
+        public void setLeaderIndexPatterns(List<String> leaderIndexPatterns) {
+            this.leaderIndexPatterns = leaderIndexPatterns;
+        }
+
+        public String getFollowIndexNamePattern() {
+            return followIndexNamePattern;
+        }
+
+        public void setFollowIndexNamePattern(String followIndexNamePattern) {
+            this.followIndexNamePattern = followIndexNamePattern;
+        }
+
+        public FollowParameters getParameters() {
+            return parameters;
+        }
+
+        public void setParameters(FollowParameters parameters) {
+            this.parameters = parameters;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readString();
-            this.body = new Body(in);
+            remoteCluster = in.readString();
+            leaderIndexPatterns = in.readStringList();
+            followIndexNamePattern = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+                parameters = new FollowParameters(in);
+            } else {
+                parameters = new FollowParameters();
+                parameters.maxReadRequestOperationCount = in.readOptionalVInt();
+                parameters.maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
+                parameters.maxOutstandingReadRequests = in.readOptionalVInt();
+                parameters.maxWriteRequestOperationCount = in.readOptionalVInt();
+                parameters.maxWriteRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
+                parameters.maxOutstandingWriteRequests = in.readOptionalVInt();
+                parameters.maxWriteBufferCount = in.readOptionalVInt();
+                parameters.maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
+                parameters.maxRetryDelay = in.readOptionalTimeValue();
+                parameters.readPollTimeout = in.readOptionalTimeValue();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(name);
-            body.writeTo(out);
+            out.writeString(remoteCluster);
+            out.writeStringCollection(leaderIndexPatterns);
+            out.writeOptionalString(followIndexNamePattern);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                parameters.writeTo(out);
+            } else {
+                out.writeOptionalVInt(parameters.maxReadRequestOperationCount);
+                out.writeOptionalWriteable(parameters.maxReadRequestSize);
+                out.writeOptionalVInt(parameters.maxOutstandingReadRequests);
+                out.writeOptionalVInt(parameters.maxWriteRequestOperationCount);
+                out.writeOptionalWriteable(parameters.maxWriteRequestSize);
+                out.writeOptionalVInt(parameters.maxOutstandingWriteRequests);
+                out.writeOptionalVInt(parameters.maxWriteBufferCount);
+                out.writeOptionalWriteable(parameters.maxWriteBufferSize);
+                out.writeOptionalTimeValue(parameters.maxRetryDelay);
+                out.writeOptionalTimeValue(parameters.readPollTimeout);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return body.toXContent(builder, params);
+            builder.startObject();
+            {
+                builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
+                builder.field(AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
+                if (followIndexNamePattern != null) {
+                    builder.field(AutoFollowPattern.FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);
+                }
+                parameters.toXContentFragment(builder);
+            }
+            builder.endObject();
+            return builder;
         }
 
         @Override
@@ -120,141 +210,22 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Objects.equals(name, request.name) &&
-                Objects.equals(body, request.body);
+                Objects.equals(remoteCluster, request.remoteCluster) &&
+                Objects.equals(leaderIndexPatterns, request.leaderIndexPatterns) &&
+                Objects.equals(followIndexNamePattern, request.followIndexNamePattern) &&
+                Objects.equals(parameters, request.parameters);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, body);
+            return Objects.hash(name, remoteCluster, leaderIndexPatterns, followIndexNamePattern, parameters);
         }
 
-        public static class Body extends FollowParameters implements ToXContentObject {
-
-            private static final ObjectParser<Body, Void> PARSER = new ObjectParser<>("put_auto_follow_pattern_request", Body::new);
-
-            static {
-                PARSER.declareString(Body::setRemoteCluster, REMOTE_CLUSTER_FIELD);
-                PARSER.declareStringArray(Body::setLeaderIndexPatterns, AutoFollowPattern.LEADER_PATTERNS_FIELD);
-                PARSER.declareString(Body::setFollowIndexNamePattern, AutoFollowPattern.FOLLOW_PATTERN_FIELD);
-                initParser(PARSER);
-            }
+        private static class Body extends FollowParameters {
 
             private String remoteCluster;
             private List<String> leaderIndexPatterns;
             private String followIndexNamePattern;
-
-            public Body() {
-            }
-
-            public String getRemoteCluster() {
-                return remoteCluster;
-            }
-
-            public void setRemoteCluster(String remoteCluster) {
-                this.remoteCluster = remoteCluster;
-            }
-
-            public List<String> getLeaderIndexPatterns() {
-                return leaderIndexPatterns;
-            }
-
-            public void setLeaderIndexPatterns(List<String> leaderIndexPatterns) {
-                this.leaderIndexPatterns = leaderIndexPatterns;
-            }
-
-            public String getFollowIndexNamePattern() {
-                return followIndexNamePattern;
-            }
-
-            public void setFollowIndexNamePattern(String followIndexNamePattern) {
-                this.followIndexNamePattern = followIndexNamePattern;
-            }
-
-            @Override
-            public ActionRequestValidationException validate() {
-                ActionRequestValidationException validationException = super.validate();
-                if (remoteCluster == null) {
-                    validationException = addValidationError("[" + REMOTE_CLUSTER_FIELD.getPreferredName() +
-                        "] is missing", validationException);
-                }
-                if (leaderIndexPatterns == null || leaderIndexPatterns.isEmpty()) {
-                    validationException = addValidationError("[" + AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName() +
-                        "] is missing", validationException);
-                }
-                return validationException;
-            }
-
-            Body(StreamInput in) throws IOException {
-                remoteCluster = in.readString();
-                leaderIndexPatterns = in.readStringList();
-                followIndexNamePattern = in.readOptionalString();
-                if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                    fromStreamInput(in);
-                } else {
-                    maxReadRequestOperationCount = in.readOptionalVInt();
-                    maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
-                    maxOutstandingReadRequests = in.readOptionalVInt();
-                    maxWriteRequestOperationCount = in.readOptionalVInt();
-                    maxWriteRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
-                    maxOutstandingWriteRequests = in.readOptionalVInt();
-                    maxWriteBufferCount = in.readOptionalVInt();
-                    maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
-                    maxRetryDelay = in.readOptionalTimeValue();
-                    readPollTimeout = in.readOptionalTimeValue();
-                }
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(remoteCluster);
-                out.writeStringCollection(leaderIndexPatterns);
-                out.writeOptionalString(followIndexNamePattern);
-                if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                    super.writeTo(out);
-                } else {
-                    out.writeOptionalVInt(maxReadRequestOperationCount);
-                    out.writeOptionalWriteable(maxReadRequestSize);
-                    out.writeOptionalVInt(maxOutstandingReadRequests);
-                    out.writeOptionalVInt(maxWriteRequestOperationCount);
-                    out.writeOptionalWriteable(maxWriteRequestSize);
-                    out.writeOptionalVInt(maxOutstandingWriteRequests);
-                    out.writeOptionalVInt(maxWriteBufferCount);
-                    out.writeOptionalWriteable(maxWriteBufferSize);
-                    out.writeOptionalTimeValue(maxRetryDelay);
-                    out.writeOptionalTimeValue(readPollTimeout);
-                }
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
-                {
-                    builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
-                    builder.field(AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
-                    if (followIndexNamePattern != null) {
-                        builder.field(AutoFollowPattern.FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);
-                    }
-                    toXContentFragment(builder);
-                }
-                builder.endObject();
-                return builder;
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                if (!super.equals(o)) return false;
-                Body body = (Body) o;
-                return Objects.equals(remoteCluster, body.remoteCluster) &&
-                    Objects.equals(leaderIndexPatterns, body.leaderIndexPatterns) &&
-                    Objects.equals(followIndexNamePattern, body.followIndexNamePattern);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(super.hashCode(), remoteCluster, leaderIndexPatterns, followIndexNamePattern);
-            }
         }
 
     }

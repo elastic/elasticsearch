@@ -424,11 +424,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex, ActiveShardCount waitForActiveShards) {
         PutFollowAction.Request request = new PutFollowAction.Request();
-        request.getBody().setRemoteCluster("leader_cluster");
-        request.getBody().setLeaderIndex(leaderIndex);
+        request.setRemoteCluster("leader_cluster");
+        request.setLeaderIndex(leaderIndex);
         request.setFollowerIndex(followerIndex);
-        request.getBody().setMaxRetryDelay(TimeValue.timeValueMillis(10));
-        request.getBody().setReadPollTimeout(TimeValue.timeValueMillis(10));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
+        request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
         request.waitForActiveShards(waitForActiveShards);
         return request;
     }

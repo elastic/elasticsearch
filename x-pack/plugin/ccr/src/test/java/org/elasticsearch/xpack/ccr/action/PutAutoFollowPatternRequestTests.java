@@ -43,12 +43,12 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName(randomAlphaOfLength(4));
 
-        request.getBody().setRemoteCluster(randomAlphaOfLength(4));
-        request.getBody().setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
+        request.setRemoteCluster(randomAlphaOfLength(4));
+        request.setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
         if (randomBoolean()) {
-            request.getBody().setFollowIndexNamePattern(randomAlphaOfLength(4));
+            request.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
-        ResumeFollowActionRequestTests.generateFollowParameters(request.getBody());
+        ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;
     }
 
@@ -57,12 +57,12 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         // follower index parameter is not part of the request body and is provided in the url path.
         // So this field cannot be used for creating a test instance for xcontent testing.
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.getBody().setRemoteCluster(randomAlphaOfLength(4));
-        request.getBody().setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
+        request.setRemoteCluster(randomAlphaOfLength(4));
+        request.setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
         if (randomBoolean()) {
-            request.getBody().setFollowIndexNamePattern(randomAlphaOfLength(4));
+            request.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
-        ResumeFollowActionRequestTests.generateFollowParameters(request.getBody());
+        ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;
     }
 
@@ -77,39 +77,39 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[remote_cluster] is missing"));
 
-        request.getBody().setRemoteCluster("_alias");
+        request.setRemoteCluster("_alias");
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[leader_index_patterns] is missing"));
 
-        request.getBody().setLeaderIndexPatterns(Collections.emptyList());
+        request.setLeaderIndexPatterns(Collections.emptyList());
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[leader_index_patterns] is missing"));
 
-        request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         validationException = request.validate();
         assertThat(validationException, nullValue());
 
-        request.getBody().setMaxRetryDelay(TimeValue.ZERO);
+        request.getParameters().setMaxRetryDelay(TimeValue.ZERO);
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be positive but was [0ms]"));
 
-        request.getBody().setMaxRetryDelay(TimeValue.timeValueMinutes(10));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMinutes(10));
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be less than [5m] but was [10m]"));
 
-        request.getBody().setMaxRetryDelay(TimeValue.timeValueMinutes(1));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMinutes(1));
         validationException = request.validate();
         assertThat(validationException, nullValue());
     }
 
     public void testValidateName() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.getBody().setRemoteCluster("_alias");
-        request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         request.setName("name");
         ActionRequestValidationException validationException = request.validate();
@@ -118,8 +118,8 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
 
     public void testValidateNameComma() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.getBody().setRemoteCluster("_alias");
-        request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         request.setName("name1,name2");
         ActionRequestValidationException validationException = request.validate();
@@ -129,8 +129,8 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
 
     public void testValidateNameLeadingUnderscore() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.getBody().setRemoteCluster("_alias");
-        request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         request.setName("_name");
         ActionRequestValidationException validationException = request.validate();
@@ -140,8 +140,8 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
 
     public void testValidateNameUnderscores() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.getBody().setRemoteCluster("_alias");
-        request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         request.setName("n_a_m_e_");
         ActionRequestValidationException validationException = request.validate();
@@ -150,8 +150,8 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
 
     public void testValidateNameTooLong() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.getBody().setRemoteCluster("_alias");
-        request.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         StringBuilder stringBuilder = new StringBuilder();
         for (int i = 0; i < 256; i++) {

@@ -514,19 +514,19 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
             PutFollowAction.Request request = new PutFollowAction.Request();
-            request.getBody().setRemoteCluster(remoteCluster);
-            request.getBody().setLeaderIndex(indexToFollow.getName());
+            request.setRemoteCluster(remoteCluster);
+            request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);
-            request.getBody().setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
-            request.getBody().setMaxReadRequestSize(pattern.getMaxReadRequestSize());
-            request.getBody().setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
-            request.getBody().setMaxWriteRequestOperationCount(pattern.getMaxWriteRequestOperationCount());
-            request.getBody().setMaxWriteRequestSize(pattern.getMaxWriteRequestSize());
-            request.getBody().setMaxOutstandingWriteRequests(pattern.getMaxOutstandingWriteRequests());
-            request.getBody().setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
-            request.getBody().setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
-            request.getBody().setMaxRetryDelay(pattern.getMaxRetryDelay());
-            request.getBody().setReadPollTimeout(pattern.getPollTimeout());
+            request.getParameters().setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
+            request.getParameters().setMaxReadRequestSize(pattern.getMaxReadRequestSize());
+            request.getParameters().setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
+            request.getParameters().setMaxWriteRequestOperationCount(pattern.getMaxWriteRequestOperationCount());
+            request.getParameters().setMaxWriteRequestSize(pattern.getMaxWriteRequestSize());
+            request.getParameters().setMaxOutstandingWriteRequests(pattern.getMaxOutstandingWriteRequests());
+            request.getParameters().setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
+            request.getParameters().setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
+            request.getParameters().setMaxRetryDelay(pattern.getMaxRetryDelay());
+            request.getParameters().setReadPollTimeout(pattern.getPollTimeout());
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {

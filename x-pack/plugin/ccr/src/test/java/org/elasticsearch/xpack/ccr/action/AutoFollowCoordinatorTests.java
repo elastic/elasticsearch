@@ -107,8 +107,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
                 assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
-                assertThat(followRequest.getBody().getRemoteCluster(), equalTo("remote"));
-                assertThat(followRequest.getBody().getLeaderIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
+                assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 successHandler.run();
             }
@@ -225,8 +225,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                  PutFollowAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
-                assertThat(followRequest.getBody().getRemoteCluster(), equalTo("remote"));
-                assertThat(followRequest.getBody().getLeaderIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
+                assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 successHandler.run();
             }
@@ -282,8 +282,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                  PutFollowAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
-                assertThat(followRequest.getBody().getRemoteCluster(), equalTo("remote"));
-                assertThat(followRequest.getBody().getLeaderIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
+                assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 failureHandler.accept(failure);
             }

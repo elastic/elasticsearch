@@ -28,9 +28,9 @@ public class PutFollowActionRequestTests extends AbstractSerializingTestCase<Put
         request.waitForActiveShards(randomFrom(ActiveShardCount.DEFAULT, ActiveShardCount.NONE, ActiveShardCount.ONE,
             ActiveShardCount.ALL));
 
-        request.getBody().setRemoteCluster(randomAlphaOfLength(4));
-        request.getBody().setLeaderIndex(randomAlphaOfLength(4));
-        ResumeFollowActionRequestTests.generateFollowParameters(request.getBody());
+        request.setRemoteCluster(randomAlphaOfLength(4));
+        request.setLeaderIndex(randomAlphaOfLength(4));
+        ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;
     }
 
@@ -39,15 +39,16 @@ public class PutFollowActionRequestTests extends AbstractSerializingTestCase<Put
         // follower index parameter and wait for active shards params are not part of the request body and
         // are provided in the url path. So these fields cannot be used for creating a test instance for xcontent testing.
         PutFollowAction.Request request = new PutFollowAction.Request();
-        request.getBody().setRemoteCluster(randomAlphaOfLength(4));
-        request.getBody().setLeaderIndex(randomAlphaOfLength(4));
-        ResumeFollowActionRequestTests.generateFollowParameters(request.getBody());
+        request.setRemoteCluster(randomAlphaOfLength(4));
+        request.setLeaderIndex(randomAlphaOfLength(4));
+        request.setFollowerIndex("followerIndex");
+        ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;
     }
 
     @Override
     protected PutFollowAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return PutFollowAction.Request.fromXContent(parser, null, ActiveShardCount.DEFAULT);
+        return PutFollowAction.Request.fromXContent(parser, "followerIndex", ActiveShardCount.DEFAULT);
     }
 
     @Override

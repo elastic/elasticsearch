@@ -269,7 +269,7 @@ public class FollowParameters implements Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || (o instanceof FollowParameters == false)) return false;
         FollowParameters that = (FollowParameters) o;
         return Objects.equals(maxReadRequestOperationCount, that.maxReadRequestOperationCount) &&
             Objects.equals(maxWriteRequestOperationCount, that.maxWriteRequestOperationCount) &&

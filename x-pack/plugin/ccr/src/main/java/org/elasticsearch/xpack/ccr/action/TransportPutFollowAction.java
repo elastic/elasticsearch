@@ -103,11 +103,11 @@ public final class TransportPutFollowAction
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        String remoteCluster = request.getBody().getRemoteCluster();
+        String remoteCluster = request.getRemoteCluster();
         // Validates whether the leader cluster has been configured properly:
         client.getRemoteClusterClient(remoteCluster);
 
-        String leaderIndex = request.getBody().getLeaderIndex();
+        String leaderIndex = request.getLeaderIndex();
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             client,
             remoteCluster,
@@ -121,13 +121,13 @@ public final class TransportPutFollowAction
             final PutFollowAction.Request request,
             final ActionListener<PutFollowAction.Response> listener) {
         if (leaderIndexMetaData == null) {
-            listener.onFailure(new IllegalArgumentException("leader index [" + request.getBody().getLeaderIndex() + "] does not exist"));
+            listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
         }
         // soft deletes are enabled by default on indices created on 7.0.0 or later
         if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
             IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexMetaData.getSettings()).onOrAfter(Version.V_7_0_0)) == false) {
-            listener.onFailure(new IllegalArgumentException("leader index [" + request.getBody().getLeaderIndex() +
+            listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
                 "] does not have soft deletes enabled"));
             return;
         }
@@ -135,9 +135,9 @@ public final class TransportPutFollowAction
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowerIndex())
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getBody().getRemoteCluster();
+        final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
         final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
-            .indices(request.getBody().getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
+            .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
             .renameReplacement(request.getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(settingsBuilder);
 
@@ -221,7 +221,7 @@ public final class TransportPutFollowAction
         activeShardsObserver.waitForActiveShards(new String[]{request.getFollowerIndex()},
             request.waitForActiveShards(), request.timeout(), result -> {
                 if (result) {
-                    FollowParameters parameters = request.getBody();
+                    FollowParameters parameters = request.getParameters();
                     ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
                         resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
                         resumeFollowRequest.getParameters().setMaxOutstandingReadRequests(parameters.getMaxOutstandingReadRequests());

@@ -437,10 +437,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         atLeastDocsIndexed(leaderClient(), "index1", numDocsIndexed / 3);
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getBody().setMaxReadRequestOperationCount(maxOpsPerRead);
-        followRequest.getBody().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
-        followRequest.getBody().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
-        followRequest.getBody().setMaxWriteBufferCount(randomIntBetween(1024, 10240));
+        followRequest.getParameters().setMaxReadRequestOperationCount(maxOpsPerRead);
+        followRequest.getParameters().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
+        followRequest.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
+        followRequest.getParameters().setMaxWriteBufferCount(randomIntBetween(1024, 10240));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         availableDocs.release(numDocsIndexed * 2  + bulkSize);
         atLeastDocsIndexed(leaderClient(), "index1", numDocsIndexed);
@@ -535,7 +535,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getBody().setMaxReadRequestSize(new ByteSizeValue(1, ByteSizeUnit.BYTES));
+        followRequest.getParameters().setMaxReadRequestSize(new ByteSizeValue(1, ByteSizeUnit.BYTES));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
@@ -728,14 +728,14 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen("index1");
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getBody().setRemoteCluster("another_cluster");
+        followRequest.setRemoteCluster("another_cluster");
         Exception e = expectThrows(NoSuchRemoteClusterException.class,
             () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
         assertThat(e.getMessage(), equalTo("no such remote cluster: [another_cluster]"));
         PutAutoFollowPatternAction.Request putAutoFollowRequest = new PutAutoFollowPatternAction.Request();
         putAutoFollowRequest.setName("name");
-        putAutoFollowRequest.getBody().setRemoteCluster("another_cluster");
-        putAutoFollowRequest.getBody().setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        putAutoFollowRequest.setRemoteCluster("another_cluster");
+        putAutoFollowRequest.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         e = expectThrows(NoSuchRemoteClusterException.class,
             () -> followerClient().execute(PutAutoFollowPatternAction.INSTANCE, putAutoFollowRequest).actionGet());
         assertThat(e.getMessage(), equalTo("no such remote cluster: [another_cluster]"));

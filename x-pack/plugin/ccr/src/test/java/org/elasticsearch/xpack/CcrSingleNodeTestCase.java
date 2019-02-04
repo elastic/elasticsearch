@@ -96,11 +96,11 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected PutFollowAction.Request getPutFollowRequest(String leaderIndex, String followerIndex) {
         PutFollowAction.Request request = new PutFollowAction.Request();
-        request.getBody().setRemoteCluster("local");
-        request.getBody().setLeaderIndex(leaderIndex);
+        request.setRemoteCluster("local");
+        request.setLeaderIndex(leaderIndex);
         request.setFollowerIndex(followerIndex);
-        request.getBody().setMaxRetryDelay(TimeValue.timeValueMillis(1));
-        request.getBody().setReadPollTimeout(TimeValue.timeValueMillis(1));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(1));
+        request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
         request.waitForActiveShards(ActiveShardCount.ONE);
         return request;
     }

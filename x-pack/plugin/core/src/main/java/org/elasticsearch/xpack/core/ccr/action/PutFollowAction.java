@@ -49,19 +49,33 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
 
+        private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
+        private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
+        private static final ObjectParser<PutFollowParameters, Void> PARSER = new ObjectParser<>(NAME, PutFollowParameters::new);
+
+        static {
+            PARSER.declareString((putFollowParameters, value) -> putFollowParameters.remoteCluster = value, REMOTE_CLUSTER_FIELD);
+            PARSER.declareString((putFollowParameters, value) -> putFollowParameters.leaderIndex = value, LEADER_INDEX_FIELD);
+            FollowParameters.initParser(PARSER);
+        }
+
         public static Request fromXContent(final XContentParser parser, final String followerIndex, ActiveShardCount waitForActiveShards)
             throws IOException {
-            Body body = Body.PARSER.parse(parser, null);
+            PutFollowParameters parameters = PARSER.parse(parser, null);
 
             Request request = new Request();
-            request.setFollowerIndex(followerIndex);
-            request.setBody(body);
             request.waitForActiveShards(waitForActiveShards);
+            request.setFollowerIndex(followerIndex);
+            request.setRemoteCluster(parameters.remoteCluster);
+            request.setLeaderIndex(parameters.leaderIndex);
+            request.setParameters(parameters);
             return request;
         }
 
+        private String remoteCluster;
+        private String leaderIndex;
         private String followerIndex;
-        private Body body = new Body();
+        private FollowParameters parameters = new FollowParameters();
         private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
 
         public Request() {
@@ -75,12 +89,28 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             this.followerIndex = followerIndex;
         }
 
-        public Body getBody() {
-            return body;
+        public String getRemoteCluster() {
+            return remoteCluster;
         }
 
-        public void setBody(Body body) {
-            this.body = body;
+        public void setRemoteCluster(String remoteCluster) {
+            this.remoteCluster = remoteCluster;
+        }
+
+        public String getLeaderIndex() {
+            return leaderIndex;
+        }
+
+        public void setLeaderIndex(String leaderIndex) {
+            this.leaderIndex = leaderIndex;
+        }
+
+        public FollowParameters getParameters() {
+            return parameters;
+        }
+
+        public void setParameters(FollowParameters parameters) {
+            this.parameters = parameters;
         }
 
         public ActiveShardCount waitForActiveShards() {
@@ -106,7 +136,13 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException e = body.validate();
+            ActionRequestValidationException e = parameters.validate();
+            if (remoteCluster == null) {
+                e = addValidationError(REMOTE_CLUSTER_FIELD.getPreferredName() + " is missing", e);
+            }
+            if (leaderIndex == null) {
+                e = addValidationError(LEADER_INDEX_FIELD.getPreferredName() + " is missing", e);
+            }
             if (followerIndex == null) {
                 e = addValidationError("follower_index is missing", e);
             }
@@ -125,15 +161,10 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                this.followerIndex = in.readString();
-                body = new Body(in);
-            } else {
-                String remoteCluster = in.readString();
-                String leaderIndex = in.readString();
-                this.followerIndex = in.readString();
-                body = new Body(in, remoteCluster, leaderIndex);
-            }
+            this.remoteCluster = in.readString();
+            this.leaderIndex = in.readString();
+            this.followerIndex = in.readString();
+            this.parameters = new FollowParameters(in);
             if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
                 waitForActiveShards(ActiveShardCount.readFrom(in));
             }
@@ -142,12 +173,10 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeString(followerIndex);
-                body.writeTo(out);
-            } else {
-                body.writeTo(out, followerIndex);
-            }
+            out.writeString(remoteCluster);
+            out.writeString(leaderIndex);
+            out.writeString(followerIndex);
+            parameters.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
                 waitForActiveShards.writeTo(out);
             }
@@ -155,7 +184,14 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return body.toXContent(builder, params);
+            builder.startObject();
+            {
+                builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
+                builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
+                parameters.toXContentFragment(builder);
+            }
+            builder.endObject();
+            return builder;
         }
 
         @Override
@@ -163,115 +199,22 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(followerIndex, request.followerIndex) &&
-                Objects.equals(body, request.body) &&
+            return Objects.equals(remoteCluster, request.remoteCluster) &&
+                Objects.equals(leaderIndex, request.leaderIndex) &&
+                Objects.equals(followerIndex, request.followerIndex) &&
+                Objects.equals(parameters, request.parameters) &&
                 Objects.equals(waitForActiveShards, request.waitForActiveShards);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(followerIndex, body, waitForActiveShards);
+            return Objects.hash(remoteCluster, leaderIndex, followerIndex, parameters, waitForActiveShards);
         }
 
-        public static class Body extends FollowParameters implements ToXContentObject {
-
-            private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
-            private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
-
-            private static final ObjectParser<Body, Void> PARSER = new ObjectParser<>(NAME, Body::new);
-
-            static {
-                PARSER.declareString(Body::setRemoteCluster, REMOTE_CLUSTER_FIELD);
-                PARSER.declareString(Body::setLeaderIndex, LEADER_INDEX_FIELD);
-                initParser(PARSER);
-            }
+        private static class PutFollowParameters extends FollowParameters {
 
             private String remoteCluster;
             private String leaderIndex;
-
-            public Body() {
-            }
-
-            public String getRemoteCluster() {
-                return remoteCluster;
-            }
-
-            public void setRemoteCluster(String remoteCluster) {
-                this.remoteCluster = remoteCluster;
-            }
-
-            public String getLeaderIndex() {
-                return leaderIndex;
-            }
-
-            public void setLeaderIndex(String leaderIndex) {
-                this.leaderIndex = leaderIndex;
-            }
-
-            @Override
-            public ActionRequestValidationException validate() {
-                ActionRequestValidationException e = super.validate();
-                if (remoteCluster == null) {
-                    e = addValidationError(REMOTE_CLUSTER_FIELD.getPreferredName() + " is missing", e);
-                }
-                if (leaderIndex == null) {
-                    e = addValidationError(LEADER_INDEX_FIELD.getPreferredName() + " is missing", e);
-                }
-                return e;
-            }
-
-            public Body(StreamInput in) throws IOException {
-                this.remoteCluster = in.readString();
-                this.leaderIndex = in.readString();
-                fromStreamInput(in);
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(remoteCluster);
-                out.writeString(leaderIndex);
-                super.writeTo(out);
-            }
-
-            private Body(StreamInput in, String remoteCluster, String leaderIndex) throws IOException {
-                this.remoteCluster = remoteCluster;
-                this.leaderIndex = leaderIndex;
-                fromStreamInput(in);
-            }
-
-            private void writeTo(StreamOutput out, String followerIndex) throws IOException {
-                out.writeString(remoteCluster);
-                out.writeString(leaderIndex);
-                out.writeString(followerIndex);
-                super.writeTo(out);
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                builder.startObject();
-                {
-                    builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
-                    builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
-                    toXContentFragment(builder);
-                }
-                builder.endObject();
-                return builder;
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                if (!super.equals(o)) return false;
-                Body body = (Body) o;
-                return Objects.equals(remoteCluster, body.remoteCluster) &&
-                    Objects.equals(leaderIndex, body.leaderIndex);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(super.hashCode(), remoteCluster, leaderIndex);
-            }
         }
 
     }

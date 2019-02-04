@@ -284,12 +284,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             notifyFailedSnapshotShard(snapshot, shard.key, lastSnapshotStatus.getFailure());
                         }
                     } else {
-                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> curr : entry.shards()) {
-                            // due to CS batching we might have missed the INIT state and straight went into ABORTED
-                            // notify master that abort has completed by moving to FAILED
-                            if (curr.value.state() == State.ABORTED) {
-                                notifyFailedSnapshotShard(snapshot, curr.key, curr.value.reason());
-                            }
+                        // due to CS batching we might have missed the INIT state and straight went into ABORTED
+                        // notify master that abort has completed by moving to FAILED
+                        if (shard.value.state() == State.ABORTED) {
+                            notifyFailedSnapshotShard(snapshot, shard.key, shard.value.reason());
                         }
                     }
                 }

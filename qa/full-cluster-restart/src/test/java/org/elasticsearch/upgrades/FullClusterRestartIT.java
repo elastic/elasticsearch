@@ -923,8 +923,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // We therefore use the deprecated typed APIs when running against the current version.
         if (isRunningAgainstOldCluster() == false) {
             createTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
-            createTemplateRequest.setOptions(expectTypeRemovalWarnings());
         }
+        createTemplateRequest.setOptions(allowTypeRemovalWarnings());
 
         client().performRequest(createTemplateRequest);
 
@@ -1133,8 +1133,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // We therefore use the deprecated typed APIs when running against the current version.
         if (isRunningAgainstOldCluster() == false) {
             getTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
-            getTemplateRequest.setOptions(expectTypeRemovalWarnings());
         }
+        getTemplateRequest.setOptions(allowTypeRemovalWarnings());
 
         Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(getTemplateRequest));
         Map<String, Object> expectedTemplate = new HashMap<>();

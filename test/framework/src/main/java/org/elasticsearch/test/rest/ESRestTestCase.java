@@ -263,7 +263,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * @deprecated this method is only required while we deprecate types and can be removed in 8.0
      */
     @Deprecated
-    public static RequestOptions expectTypeRemovalWarnings() {
+    public static RequestOptions allowTypeRemovalWarnings() {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.setWarningsHandler(new WarningsHandler() {
                 @Override

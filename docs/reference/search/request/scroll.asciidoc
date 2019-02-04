@@ -55,22 +55,20 @@ results.
 
 [source,js]
 --------------------------------------------------
-curl -XGET <1> 'localhost:9200/_search/scroll' <2> -d'
+curl -XGET 'localhost:9200/_search/scroll' -d' <1>
 {
-    "scroll" : "1m", <3>
-    "scroll_id" : "c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1" <4>
+    "scroll" : "1m", <2>
+    "scroll_id" : "c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1" <3>
 }
 '
 --------------------------------------------------
-
 added[2.0.0-beta1, body based parameters were added in 2.0.0]
 
-<1> `GET` or `POST` can be used.
-<2> The URL should not include the `index` or `type` name -- these
-    are specified in the original `search` request instead.
-<3> The `scroll` parameter tells Elasticsearch to keep the search context open
+<1> `GET` or `POST` can be used and the URL should not include the `index`
+    or `type` name -- this is specified in the original `search` request instead.
+<2> The `scroll` parameter tells Elasticsearch to keep the search context open
     for another `1m`.
-<4> The `scroll_id` parameter
+<3> The `scroll_id` parameter
 
 Each call to the `scroll` API returns the next batch of results until there
 are no more results left to return, ie the `hits` array is empty.

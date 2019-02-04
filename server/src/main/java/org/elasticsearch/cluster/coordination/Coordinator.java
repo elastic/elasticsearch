@@ -341,10 +341,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 // Bump our term. However if there is a publication in flight then doing so would cancel the publication, so don't do that
                 // since we check whether a term bump is needed at the end of the publication too.
                 if (publicationInProgress()) {
-                    logger.debug("updateMaxTermSeen: maxTermSeen = {} > currentTerm = {}, enqueueing term bump",
-                        maxTermSeen, currentTerm);
+                    logger.debug("updateMaxTermSeen: maxTermSeen = {} > currentTerm = {}, enqueueing term bump", maxTermSeen, currentTerm);
                 } else {
                     try {
+                        logger.debug("updateMaxTermSeen: maxTermSeen = {} > currentTerm = {}, bumping term", maxTermSeen, currentTerm);
                         ensureTermAtLeast(getLocalNode(), maxTermSeen);
                         startElection();
                     } catch (Exception e) {
@@ -1129,6 +1129,21 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     public Iterable<DiscoveryNode> getFoundPeers() {
         // TODO everyone takes this and adds the local node. Maybe just add the local node here?
         return peerFinder.getFoundPeers();
+    }
+
+    /**
+     * If there is any current committed publication, this method cancels it.
+     * This method is used exclusively by tests.
+     * @return true if publication was cancelled, false if there is no current committed publication.
+     */
+    boolean cancelCommittedPublication() {
+        synchronized (mutex) {
+            if (currentPublication.isPresent() && currentPublication.get().isCommitted()) {
+                currentPublication.get().cancel("cancelCommittedPublication");
+                return true;
+            }
+            return false;
+        }
     }
 
     class CoordinatorPublication extends Publication {

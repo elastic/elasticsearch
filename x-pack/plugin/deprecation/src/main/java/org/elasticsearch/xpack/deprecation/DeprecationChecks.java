@@ -51,6 +51,7 @@ public class DeprecationChecks {
             NodeDeprecationChecks::gcsRepositoryChanges,
             NodeDeprecationChecks::fileDiscoveryPluginRemoved,
             NodeDeprecationChecks::defaultSSLSettingsRemoved,
+            NodeDeprecationChecks::transportSslEnabledWithoutSecurityEnabled,
             NodeDeprecationChecks::watcherNotificationsSecureSettingsCheck,
             NodeDeprecationChecks::auditIndexSettingsCheck
         ));

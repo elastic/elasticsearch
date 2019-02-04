@@ -33,7 +33,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     /** Creates a license state with the given license type and active state, and checks the given method returns expected. */
     void assertAllowed(OperationMode mode, boolean active, Predicate<XPackLicenseState> predicate, boolean expected) {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(mode, active, null);
+        licenseState.update(mode, active, Version.CURRENT);
         assertEquals(expected, predicate.test(licenseState));
     }
 
@@ -90,6 +90,9 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(true));
         assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
+
+        assertWarnings("Automatically enabling security because [xpack.security.transport.ssl.enabled] is true." +
+            " This behaviour will be removed in a future version of Elasticsearch. Please set [xpack.security.enabled] to true");
 
         licenseState = new XPackLicenseState(Settings.EMPTY);
         assertThat(licenseState.isAuthAllowed(), is(false));
@@ -239,6 +242,9 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(true));
         assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
+
+        assertWarnings("Automatically enabling security because the current trial license was generated before 6.3.0." +
+            " This behaviour will be removed in a future version of Elasticsearch. Please set [xpack.security.enabled] to true");
     }
 
     public void testSecurityAckBasicToNotGoldOrStandard() {

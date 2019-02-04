@@ -58,7 +58,11 @@ import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateResponse;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -274,6 +278,34 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(2, type2.getDocCount());
         assertEquals(0, type2.getAggregations().asList().size());
     }  
+
+    public void testSearchWithCompositeAgg() throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        List<CompositeValuesSourceBuilder<?>> sources
+            = Collections.singletonList(new TermsValuesSourceBuilder("terms").field("type.keyword").missingBucket(true).order("asc"));
+        searchSourceBuilder.aggregation(AggregationBuilders.composite("composite", sources));
+        searchSourceBuilder.size(0);
+        searchRequest.source(searchSourceBuilder);
+        searchRequest.indices("index");
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        assertNull(searchResponse.getSuggest());
+        assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
+        assertEquals(0, searchResponse.getHits().getHits().length);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
+        CompositeAggregation compositeAgg = searchResponse.getAggregations().get("composite");
+        assertEquals("composite", compositeAgg.getName());
+        assertEquals(2, compositeAgg.getBuckets().size());
+        CompositeAggregation.Bucket bucket1 = compositeAgg.getBuckets().get(0);
+        assertEquals(3, bucket1.getDocCount());
+        assertEquals("{terms=type1}", bucket1.getKeyAsString());
+        assertEquals(0, bucket1.getAggregations().asList().size());
+        CompositeAggregation.Bucket bucket2 = compositeAgg.getBuckets().get(1);
+        assertEquals(2, bucket2.getDocCount());
+        assertEquals("{terms=type2}", bucket2.getKeyAsString());
+        assertEquals(0, bucket2.getAggregations().asList().size());
+    }
 
     public void testSearchWithRangeAgg() throws IOException {
         {

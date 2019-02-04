@@ -24,7 +24,8 @@ import org.elasticsearch.test.AbstractStreamableTestCase;
 public class RefreshStatsTests extends AbstractStreamableTestCase<RefreshStats> {
     @Override
     protected RefreshStats createTestInstance() {
-        return new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
+        return new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(),
+            randomNonNegativeLong(), randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
     }
 
     @Override
@@ -36,19 +37,23 @@ public class RefreshStatsTests extends AbstractStreamableTestCase<RefreshStats> 
     protected RefreshStats mutateInstance(RefreshStats instance) {
         long total = instance.getTotal();
         long totalInMillis = instance.getTotalTimeInMillis();
+        long externalTotal = instance.getExternalTotal();
+        long externalTotalInMillis = instance.getExternalTotalTimeInMillis();
         int listeners = instance.getListeners();
         switch (randomInt(2)) {
         case 0:
-            total += between(1, 2000);
+            externalTotal += between(1, 2000);
+            total += externalTotal + between(1, 2000);
             break;
         case 1:
-            totalInMillis += between(1, 2000);
+            externalTotalInMillis += between(1,2000);
+            totalInMillis += externalTotalInMillis + between(1, 2000);
             break;
         case 2:
         default:
             listeners += between(1, 2000);
             break;
         }
-        return new RefreshStats(total, totalInMillis, listeners);
+        return new RefreshStats(total, totalInMillis, externalTotal, externalTotalInMillis, listeners);
     }
 }

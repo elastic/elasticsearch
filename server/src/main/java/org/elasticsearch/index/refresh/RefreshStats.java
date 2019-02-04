@@ -36,6 +36,10 @@ public class RefreshStats implements Streamable, ToXContentFragment {
 
     private long totalTimeInMillis;
 
+    private long externalTotal;
+
+    private long externalTotalTimeInMillis;
+
     /**
      * Number of waiting refresh listeners.
      */
@@ -45,9 +49,11 @@ public class RefreshStats implements Streamable, ToXContentFragment {
 
     }
 
-    public RefreshStats(long total, long totalTimeInMillis, int listeners) {
+    public RefreshStats(long total, long totalTimeInMillis, long externalTotal, long externalTotalTimeInMillis, int listeners) {
         this.total = total;
         this.totalTimeInMillis = totalTimeInMillis;
+        this.externalTotal = externalTotal;
+        this.externalTotalTimeInMillis = externalTotalTimeInMillis;
         this.listeners = listeners;
     }
 
@@ -61,6 +67,8 @@ public class RefreshStats implements Streamable, ToXContentFragment {
         }
         this.total += refreshStats.total;
         this.totalTimeInMillis += refreshStats.totalTimeInMillis;
+        this.externalTotal += refreshStats.externalTotal;
+        this.externalTotalTimeInMillis += refreshStats.externalTotalTimeInMillis;
         this.listeners += refreshStats.listeners;
     }
 
@@ -71,20 +79,38 @@ public class RefreshStats implements Streamable, ToXContentFragment {
         return this.total;
     }
 
+    /*
+     * The total number of external refresh executed.
+     */
+    public long getExternalTotal() { return this.externalTotal; }
+
     /**
-     * The total time merges have been executed (in milliseconds).
+     * The total time spent executing refreshes (in milliseconds).
      */
     public long getTotalTimeInMillis() {
         return this.totalTimeInMillis;
     }
 
     /**
-     * The total time merges have been executed.
+     * The total time spent executing external refreshes (in milliseconds).
+     */
+    public long getExternalTotalTimeInMillis() {
+        return this.externalTotalTimeInMillis;
+    }
+
+    /**
+     * The total time refreshes have been executed.
      */
     public TimeValue getTotalTime() {
         return new TimeValue(totalTimeInMillis);
     }
 
+    /**
+     * The total time external refreshes have been executed.
+     */
+    public TimeValue getExternalTotalTime() {
+        return new TimeValue(externalTotalTimeInMillis);
+    }
     /**
      * The number of waiting refresh listeners.
      */
@@ -97,6 +123,8 @@ public class RefreshStats implements Streamable, ToXContentFragment {
         builder.startObject("refresh");
         builder.field("total", total);
         builder.humanReadableField("total_time_in_millis", "total_time", getTotalTime());
+        builder.field("external_total", externalTotal);
+        builder.humanReadableField("external_total_time_in_millis", "external_total_time", getExternalTotalTime());
         builder.field("listeners", listeners);
         builder.endObject();
         return builder;
@@ -106,6 +134,8 @@ public class RefreshStats implements Streamable, ToXContentFragment {
     public void readFrom(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
+        externalTotal = in.readVLong();
+        externalTotalTimeInMillis = in.readVLong();
         listeners = in.readVInt();
     }
 
@@ -113,6 +143,8 @@ public class RefreshStats implements Streamable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
+        out.writeVLong(externalTotal);
+        out.writeVLong(externalTotalTimeInMillis);
         out.writeVInt(listeners);
     }
 
@@ -124,11 +156,13 @@ public class RefreshStats implements Streamable, ToXContentFragment {
         RefreshStats rhs = (RefreshStats) obj;
         return total == rhs.total
                 && totalTimeInMillis == rhs.totalTimeInMillis
+                && externalTotal == rhs.externalTotal
+                && externalTotalTimeInMillis == rhs.externalTotalTimeInMillis
                 && listeners == rhs.listeners;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(total, totalTimeInMillis, listeners);
+        return Objects.hash(total, totalTimeInMillis, externalTotal, externalTotalTimeInMillis, listeners);
     }
 }

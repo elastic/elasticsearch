@@ -160,7 +160,8 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                            + "\"total_size_in_bytes\":4"
                          + "},"
                          + "\"refresh\":{"
-                           + "\"total_time_in_millis\":14"
+                           + "\"total_time_in_millis\":14,"
+                           + "\"external_total_time_in_millis\":14"
                          + "},"
                          + "\"query_cache\":{"
                            + "\"memory_size_in_bytes\":5,"
@@ -322,7 +323,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         commonStats.getQueryCache().add(new QueryCacheStats(++iota, ++iota, ++iota, ++iota, no));
         commonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
         commonStats.getStore().add(new StoreStats(++iota));
-        commonStats.getRefresh().add(new RefreshStats(no, ++iota, (int) no));
+        commonStats.getRefresh().add(new RefreshStats(no, ++iota, no, ++iota, (int) no));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(++iota, ++iota, no, no, no, no, no, no, false, ++iota);
         commonStats.getIndexing().add(new IndexingStats(indexingStats, null));

@@ -1513,28 +1513,28 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testExternalRefreshMetric() throws IOException {
         IndexShard shard = newStartedShard();
-        assertThat(shard.externalRefreshStats().getTotal(), equalTo(2L)); // refresh on: finalize and end of recovery
-        long initialTotalTime = shard.externalRefreshStats().getTotalTimeInMillis();
+        assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L)); // refresh on: finalize and end of recovery
+        long initialTotalTime = shard.refreshStats().getExternalTotalTimeInMillis();
         // check time advances
-        for (int i = 1; shard.externalRefreshStats().getTotalTimeInMillis() == initialTotalTime; i++) {
+        for (int i = 1; shard.refreshStats().getExternalTotalTimeInMillis() == initialTotalTime; i++) {
             indexDoc(shard, "_doc", "test");
-            assertThat(shard.externalRefreshStats().getTotal(), equalTo(2L + i - 1));
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L + i - 1));
             shard.refresh("test");
-            assertThat(shard.externalRefreshStats().getTotal(), equalTo(2L + i));
-            assertThat(shard.externalRefreshStats().getTotalTimeInMillis(), greaterThanOrEqualTo(initialTotalTime));
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L + i));
+            assertThat(shard.refreshStats().getExternalTotalTimeInMillis(), greaterThanOrEqualTo(initialTotalTime));
         }
-        long externalRefreshCount = shard.externalRefreshStats().getTotal();
+        long externalRefreshCount = shard.refreshStats().getExternalTotal();
 
         indexDoc(shard, "_doc", "test");
         try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "_doc", "test",
             new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
-            assertThat(shard.externalRefreshStats().getTotal(), equalTo(externalRefreshCount));
-            assertThat(shard.externalRefreshStats().getTotal(), equalTo(shard.refreshStats().getTotal() - 1));
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1));
         }
         indexDoc(shard, "_doc", "test");
         shard.writeIndexingBuffer();
-        assertThat(shard.externalRefreshStats().getTotal(), equalTo(externalRefreshCount));
-        assertThat(shard.externalRefreshStats().getTotal(), equalTo(shard.refreshStats().getTotal() - 2));
+        assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
+        assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 2));
         closeShards(shard);
     }
 

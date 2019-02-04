@@ -187,9 +187,9 @@ public class DateUtils {
      * @param utcMillis the milliseconds since the epoch
      * @return The milliseconds since the epoch rounded down to the beginning of the year
      */
-    public static long getFirstDayOfYearMillis(long utcMillis) {
+    public static long roundYear(long utcMillis) {
         int year = getYear(utcMillis);
-        return calculateFirstDayOfYearMillis(year);
+        return utcMillisAtStartOfYear(year);
     }
 
     /**
@@ -219,8 +219,8 @@ public class DateUtils {
      * @param year the year
      * @return the milliseconds since the epoch of the first of january at midnight of the specified year
      */
-    // see org.joda.time.chrono.GregorianChronology
-    private static long calculateFirstDayOfYearMillis(int year) {
+    // see org.joda.time.chrono.GregorianChronology.calculateFirstDayOfYearMillis
+    private static long utcMillisAtStartOfYear(int year) {
         // Initial value is just temporary.
         int leapYears = year / 100;
         if (year < 0) {
@@ -248,21 +248,21 @@ public class DateUtils {
     private static final long APPROX_MILLIS_AT_EPOCH_DIVIDED_BY_TWO = (1970L * MILLIS_PER_YEAR) / 2;
 
     // see org.joda.time.chrono.BasicChronology
-    private static int getYear(long instant) {
+    private static int getYear(long utcMillis) {
         // Get an initial estimate of the year, and the millis value that
         // represents the start of that year. Then verify estimate and fix if
         // necessary.
 
         // Initial estimate uses values divided by two to avoid overflow.
         long unitMillis = AVERAGE_MILLIS_PER_YEAR_DIVIDED_BY_TWO;
-        long i2 = (instant >> 1) + APPROX_MILLIS_AT_EPOCH_DIVIDED_BY_TWO;
+        long i2 = (utcMillis >> 1) + APPROX_MILLIS_AT_EPOCH_DIVIDED_BY_TWO;
         if (i2 < 0) {
             i2 = i2 - unitMillis + 1;
         }
         int year = (int) (i2 / unitMillis);
 
-        long yearStart = calculateFirstDayOfYearMillis(year);
-        long diff = instant - yearStart;
+        long yearStart = utcMillisAtStartOfYear(year);
+        long diff = utcMillis - yearStart;
 
         if (diff < 0) {
             year--;
@@ -277,7 +277,7 @@ public class DateUtils {
 
             yearStart += oneYear;
 
-            if (yearStart <= instant) {
+            if (yearStart <= utcMillis) {
                 // Didn't go too far, so actually add one year.
                 year++;
             }
@@ -287,7 +287,7 @@ public class DateUtils {
     }
 
     // see org.joda.time.chrono.BasicGJChronology
-    private static int getMonthOfYear(long millis, int year) {
+    private static int getMonthOfYear(long utcMillis, int year) {
         // Perform a binary search to get the month. To make it go even faster,
         // compare using ints instead of longs. The number of milliseconds per
         // year exceeds the limit of a 32-bit int's capacity, so divide by
@@ -296,7 +296,7 @@ public class DateUtils {
         // the instant isn't measured in milliseconds, but in units of
         // (128/125)seconds.
 
-        int i = (int)((millis - getYearMillis(year)) >> 10);
+        int i = (int)((utcMillis - utcMillisAtStartOfYear(year)) >> 10);
 
         // There are 86400000 milliseconds per day, but divided by 1024 is
         // 84375. There are 84375 (128/125)seconds per day.
@@ -317,10 +317,6 @@ public class DateUtils {
                 : ((i < 273 * 84375)
                 ? ((i < 212 * 84375) ? 7 : (i < 243 * 84375) ? 8 : 9)
                 : ((i < 304 * 84375) ? 10 : (i < 334 * 84375) ? 11 : 12)));
-    }
-
-    private static long getYearMillis(int year) {
-        return calculateFirstDayOfYearMillis(year);
     }
 
     // see org.joda.time.chrono.BasicGJChronology

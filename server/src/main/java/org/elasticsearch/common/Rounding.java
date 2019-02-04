@@ -62,7 +62,7 @@ public abstract class Rounding implements Writeable {
         },
         YEAR_OF_CENTURY((byte) 2, ChronoField.YEAR_OF_ERA) {
             long roundFloor(long utcMillis) {
-                return DateUtils.getFirstDayOfYearMillis(utcMillis);
+                return DateUtils.roundYear(utcMillis);
             }
         },
         QUARTER_OF_YEAR((byte) 3, IsoFields.QUARTER_OF_YEAR) {

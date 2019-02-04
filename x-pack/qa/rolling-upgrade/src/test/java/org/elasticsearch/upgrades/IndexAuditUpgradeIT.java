@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.hasSize;
 
@@ -62,12 +63,11 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33867")
     public void testAuditLogs() throws Exception {
         assertBusy(() -> {
             assertAuditDocsExist();
             assertNumUniqueNodeNameBuckets(expectedNumUniqueNodeNameBuckets());
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     private int expectedNumUniqueNodeNameBuckets() throws IOException {

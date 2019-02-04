@@ -91,6 +91,7 @@ public class WatcherRequestConvertersTests extends ESTestCase {
             long seqNo = randomNonNegativeLong();
             long ifPrimaryTerm = randomLongBetween(1, 200);
             putWatchRequest.setIfSeqNo(seqNo);
+            putWatchRequest.setIfPrimaryTerm(ifPrimaryTerm);
             expectedParams.put("if_seq_no", String.valueOf(seqNo));
             expectedParams.put("if_primary_term", String.valueOf(ifPrimaryTerm));
         }

@@ -56,6 +56,8 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.util.Arrays;
@@ -63,6 +65,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -72,7 +75,6 @@ import static org.elasticsearch.client.RestClientTestUtil.getAllErrorStatusCodes
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.getOkStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
-import static org.elasticsearch.client.SyncResponseListenerTests.assertExceptionStackContainsCallingMethod;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -115,14 +117,12 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                         HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                         HttpClientContext context = (HttpClientContext) invocationOnMock.getArguments()[2];
                         assertThat(context.getAuthCache().get(node.getHost()), instanceOf(BasicScheme.class));
-                        final FutureCallback<HttpResponse> futureCallback =
-                            (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
                         HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
                         //return the desired status code or exception depending on the path
                         if (request.getURI().getPath().equals("/soe")) {
-                            futureCallback.failed(new SocketTimeoutException());
+                            throw new SocketTimeoutException();
                         } else if (request.getURI().getPath().equals("/coe")) {
-                            futureCallback.failed(new ConnectTimeoutException());
+                            throw new ConnectTimeoutException();
                         } else {
                             int statusCode = Integer.parseInt(request.getURI().getPath().substring(1));
                             StatusLine statusLine = new BasicStatusLine(new ProtocolVersion("http", 1, 1), statusCode, "");
@@ -140,14 +140,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                             //return the same headers that were sent
                             httpResponse.setHeaders(request.getAllHeaders());
                             // Call the callback asynchronous to better simulate how async http client works
-                            exec.execute(new Runnable() {
+                            return exec.submit(new Callable<HttpResponse>() {
                                 @Override
-                                public void run() {
-                                    futureCallback.completed(httpResponse);
+                                public HttpResponse call() {
+                                    return httpResponse;
                                 }
                             });
                         }
-                        return null;
                     }
                 });
 
@@ -461,7 +460,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             //randomly add some ignore parameter, which doesn't get sent as part of the request
             String ignore = Integer.toString(randomFrom(RestClientTestUtil.getAllErrorStatusCodes()));
             if (randomBoolean()) {
-                ignore += "," + Integer.toString(randomFrom(RestClientTestUtil.getAllErrorStatusCodes()));
+                ignore += "," + randomFrom(RestClientTestUtil.getAllErrorStatusCodes());
             }
             request.addParameter("ignore", ignore);
         }
@@ -527,5 +526,31 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             //all good
         }
         return expectedRequest;
+    }
+
+    /**
+     * Asserts that the provided {@linkplain Exception} contains the method
+     * that called this <strong>somewhere</strong> on its stack. This is
+     * normally the case for synchronous calls but {@link RestClient} performs
+     * synchronous calls by performing asynchronous calls and blocking the
+     * current thread until the call returns so it has to take special care
+     * to make sure that the caller shows up in the exception. We use this
+     * assertion to make sure that we don't break that "special care".
+     */
+    //TODO do we still need this?
+    private static void assertExceptionStackContainsCallingMethod(Exception e) {
+        // 0 is getStackTrace
+        // 1 is this method
+        // 2 is the caller, what we want
+        StackTraceElement myMethod = Thread.currentThread().getStackTrace()[2];
+        for (StackTraceElement se : e.getStackTrace()) {
+            if (se.getClassName().equals(myMethod.getClassName())
+                && se.getMethodName().equals(myMethod.getMethodName())) {
+                return;
+            }
+        }
+        StringWriter stack = new StringWriter();
+        e.printStackTrace(new PrintWriter(stack));
+        fail("didn't find the calling method (looks like " + myMethod + ") in:\n" + stack);
     }
 }

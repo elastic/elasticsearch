@@ -1,0 +1,20 @@
+{
+  "ml.put_data_frame_analytics": {
+    "methods": [ "PUT" ],
+    "url": {
+      "path": "/_ml/data_frame/analytics/{id}",
+      "paths": [ "/_ml/data_frame/analytics/{id}" ],
+      "parts": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the data frame analytics to create"
+        }
+      }
+    },
+    "body": {
+      "description" : "The data frame analytics configuration",
+      "required" : true
+    }
+  }
+}

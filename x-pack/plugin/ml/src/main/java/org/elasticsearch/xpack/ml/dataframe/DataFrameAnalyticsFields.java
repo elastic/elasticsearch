@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.dataframe;
 
-public final class DataFrameFields {
+public final class DataFrameAnalyticsFields {
 
     public static final String ID = "_id_copy";
 
-    private DataFrameFields() {}
+    private DataFrameAnalyticsFields() {}
 }

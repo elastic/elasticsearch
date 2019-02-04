@@ -1,0 +1,46 @@
+---
+"Test start given missing config":
+  - do:
+      catch: missing
+      ml.start_data_frame_analytics:
+        id: "missing_config"
+
+---
+"Test start given missing source index":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "missing_index"
+        body: >
+          {
+            "source": "missing",
+            "dest": "missing-dest",
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+  - do:
+      catch: /cannot retrieve data because index \[missing\] does not exist/
+      ml.start_data_frame_analytics:
+        id: "missing_index"
+
+---
+"Test start given source index has no compatible fields":
+
+  - do:
+      indices.create:
+        index: empty-index
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo"
+        body: >
+          {
+            "source": "empty-index",
+            "dest": "empty-index-dest",
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+  - do:
+      catch: /No compatible fields could be detected in index \[empty-index\]/
+      ml.start_data_frame_analytics:
+        id: "foo"

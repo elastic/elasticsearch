@@ -1,0 +1,370 @@
+---
+"Test get-all and get-all-stats given no analytics exist":
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "_all"
+  - match: { count: 0 }
+  - match: { data_frame_analytics: [] }
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "_all"
+  - match: { count: 0 }
+  - match: { data_frame_analytics: [] }
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "*"
+  - match: { count: 0 }
+  - match: { data_frame_analytics: [] }
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "*"
+  - match: { count: 0 }
+  - match: { data_frame_analytics: [] }
+
+---
+"Test put valid config with default outlier detection":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": "source_index",
+            "dest": "dest_index",
+            "analyses": [{"outlier_detection":{}}]
+          }
+  - match: { id: "simple-outlier-detection" }
+  - match: { source: "source_index" }
+  - match: { dest: "dest_index" }
+  - match: { analyses: [{"outlier_detection":{}}] }
+
+---
+"Test put config with inconsistent body/param ids":
+
+  - do:
+      catch: /Inconsistent id; 'body_id' specified in the body differs from 'url_id' specified as a URL argument/
+      ml.put_data_frame_analytics:
+        id: "url_id"
+        body: >
+          {
+            "id": "body_id",
+            "source": "source_index",
+            "dest": "dest_index",
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+---
+"Test put config with invalid id":
+
+  - do:
+      catch: /Invalid id*/
+      ml.put_data_frame_analytics:
+        id: "this id contains spaces"
+        body: >
+          {
+            "source": "source_index",
+            "dest": "dest_index",
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+---
+"Test put config with unknown top level field":
+
+  - do:
+      catch: /unknown field \[unknown_field\], parser not found/
+      ml.put_data_frame_analytics:
+        id: "unknown_field"
+        body: >
+          {
+            "source": "source_index",
+            "dest": "dest_index",
+            "analyses": [{"outlier_detection":{}}],
+            "unknown_field": 42
+          }
+
+---
+"Test put config with unknown field in outlier detection analysis":
+
+  - do:
+      catch: /Data frame analysis \[outlier_detection\] does not support one or more provided parameters \[unknown_field\]/
+      ml.put_data_frame_analytics:
+        id: "unknown_field"
+        body: >
+          {
+            "source": "source_index",
+            "dest": "dest_index",
+            "analyses": [{"outlier_detection":{"unknown_field": 42}}]
+          }
+
+---
+"Test put config given missing source":
+
+  - do:
+      catch: /\[source\] must not be null/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "dest": "dest_index",
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+---
+"Test put config given missing dest":
+
+  - do:
+      catch: /\[dest\] must not be null/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": "source_index",
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+---
+"Test put config given missing analyses":
+
+  - do:
+      catch: /\[analyses\] must not be null/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": "source_index",
+            "dest": "dest_index"
+          }
+
+---
+"Test put config given empty analyses":
+
+  - do:
+      catch: /One or more analyses are required/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": "source_index",
+            "dest": "dest_index",
+            "analyses": []
+          }
+
+---
+"Test put config given two analyses":
+
+  - do:
+      catch: /Does not yet support multiple analyses/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": "source_index",
+            "dest": "dest_index",
+            "analyses": [{"outlier_detection":{}}, {"outlier_detection":{}}]
+          }
+
+---
+"Test get given multiple analytics":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-1"
+        body: >
+          {
+            "source": "foo-1_source",
+            "dest": "foo-1_dest",
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-2"
+        body: >
+          {
+            "source": "foo-2_source",
+            "dest": "foo-2_dest",
+            "analyses": [{"outlier_detection":{}}]
+          }
+  - match: { id: "foo-2" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "bar"
+        body: >
+          {
+            "source": "bar_source",
+            "dest": "bar_dest",
+            "analyses": [{"outlier_detection":{}}]
+          }
+  - match: { id: "bar" }
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "*"
+  - match: { count: 3 }
+  - match: { data_frame_analytics.0.id: "bar" }
+  - match: { data_frame_analytics.1.id: "foo-1" }
+  - match: { data_frame_analytics.2.id: "foo-2" }
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "foo-*"
+  - match: { count: 2 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.1.id: "foo-2" }
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "bar"
+  - match: { count: 1 }
+  - match: { data_frame_analytics.0.id: "bar" }
+
+  - do:
+      ml.get_data_frame_analytics:
+        from: 1
+  - match: { count: 2 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.1.id: "foo-2" }
+
+  - do:
+      ml.get_data_frame_analytics:
+        size: 2
+  - match: { count: 2 }
+  - match: { data_frame_analytics.0.id: "bar" }
+  - match: { data_frame_analytics.1.id: "foo-1" }
+
+  - do:
+      ml.get_data_frame_analytics:
+        from: 1
+        size: 1
+  - match: { count: 1 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+
+---
+"Test get given missing analytics":
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics:
+        id: "missing-analytics"
+
+---
+"Test get stats given multiple analytics":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-1"
+        body: >
+          {
+            "source": "foo-1_source",
+            "dest": "foo-1_dest",
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-2"
+        body: >
+          {
+            "source": "foo-2_source",
+            "dest": "foo-2_dest",
+            "analyses": [{"outlier_detection":{}}]
+          }
+  - match: { id: "foo-2" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "bar"
+        body: >
+          {
+            "source": "bar_source",
+            "dest": "bar_dest",
+            "analyses": [{"outlier_detection":{}}]
+          }
+  - match: { id: "bar" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "*"
+  - match: { count: 3 }
+  - match: { data_frame_analytics.0.id: "bar" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.1.id: "foo-1" }
+  - match: { data_frame_analytics.1.state: "stopped" }
+  - match: { data_frame_analytics.2.id: "foo-2" }
+  - match: { data_frame_analytics.2.state: "stopped" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "foo-*"
+  - match: { count: 2 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.1.id: "foo-2" }
+  - match: { data_frame_analytics.1.state: "stopped" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "bar"
+  - match: { count: 1 }
+  - match: { data_frame_analytics.0.id: "bar" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        from: 2
+  - match: { count: 1 }
+  - match: { data_frame_analytics.0.id: "foo-2" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        size: 2
+  - match: { count: 2 }
+  - match: { data_frame_analytics.0.id: "bar" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.1.id: "foo-1" }
+  - match: { data_frame_analytics.1.state: "stopped" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        from: 1
+        size: 1
+  - match: { count: 1 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+
+---
+"Test delete given stopped config":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo"
+        body: >
+          {
+            "source": "source",
+            "dest": "dest",
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+  - do:
+      ml.delete_data_frame_analytics:
+        id: "foo"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics:
+        id: "foo"
+
+---
+"Test delete given missing config":
+
+  - do:
+      catch: missing
+      ml.delete_data_frame_analytics:
+        id: "missing_config"

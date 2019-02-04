@@ -1,0 +1,16 @@
+{
+  "ml.start_data_frame_analytics": {
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_ml/data_frame/analytics/{id}/_start",
+      "paths": [ "/_ml/data_frame/analytics/{id}/_start" ],
+      "parts": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the data frame analytics to start"
+        }
+      }
+    }
+  }
+}

@@ -26,6 +26,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -144,6 +145,7 @@ public class ElasticsearchMappings {
 
         addJobConfigFields(builder);
         addDatafeedConfigFields(builder);
+        addDataFrameAnalyticsFields(builder);
 
         builder.endObject()
                .endObject()
@@ -383,6 +385,32 @@ public class ElasticsearchMappings {
         .endObject()
         .startObject(DatafeedConfig.HEADERS.getPreferredName())
             .field(ENABLED, false)
+        .endObject();
+    }
+
+    public static void addDataFrameAnalyticsFields(XContentBuilder builder) throws IOException {
+        builder.startObject(DataFrameAnalyticsConfig.ID.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject()
+        .startObject(DataFrameAnalyticsConfig.SOURCE.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject()
+        .startObject(DataFrameAnalyticsConfig.DEST.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject()
+        .startObject(DataFrameAnalyticsConfig.ANALYSES.getPreferredName())
+            .startObject(PROPERTIES)
+                .startObject("outlier_detection")
+                    .startObject(PROPERTIES)
+                        .startObject("number_neighbours")
+                            .field(TYPE, INTEGER)
+                        .endObject()
+                        .startObject("method")
+                            .field(TYPE, KEYWORD)
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
         .endObject();
     }
 

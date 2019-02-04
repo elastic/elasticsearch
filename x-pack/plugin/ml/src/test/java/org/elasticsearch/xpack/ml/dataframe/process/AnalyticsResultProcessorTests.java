@@ -16,7 +16,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameDataExtractor;
+import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 

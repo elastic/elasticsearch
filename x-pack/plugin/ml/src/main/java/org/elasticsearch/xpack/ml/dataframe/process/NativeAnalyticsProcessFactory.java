@@ -62,7 +62,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
             try {
                 IOUtils.close(analyticsProcess);
             } catch (IOException ioe) {
-                LOGGER.error("Can't close analytics", ioe);
+                LOGGER.error("Can't close data frame analytics process", ioe);
             }
             throw e;
         }
@@ -76,7 +76,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
             analyticsBuilder.build();
             processPipes.connectStreams(PROCESS_STARTUP_TIMEOUT);
         } catch (IOException e) {
-            String msg = "Failed to launch analytics for job " + jobId;
+            String msg = "Failed to launch data frame analytics process for job " + jobId;
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

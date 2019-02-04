@@ -1,0 +1,17 @@
+{
+  "ml.delete_data_frame_analytics": {
+    "methods": [ "DELETE" ],
+    "url": {
+      "path": "/_ml/data_frame/analytics/{id}",
+      "paths": [ "/_ml/data_frame/analytics/{id}" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The ID of the data frame analytics to delete"
+        }
+      }
+    },
+    "body": null
+  }
+}

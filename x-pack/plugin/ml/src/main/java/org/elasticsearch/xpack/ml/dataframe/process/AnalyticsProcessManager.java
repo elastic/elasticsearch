@@ -13,17 +13,20 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalysis;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameDataExtractor;
-import org.elasticsearch.xpack.ml.dataframe.DataFrameDataExtractorFactory;
+import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
+import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
+import org.elasticsearch.xpack.ml.dataframe.analyses.DataFrameAnalysesUtils;
+import org.elasticsearch.xpack.ml.dataframe.analyses.DataFrameAnalysis;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 public class AnalyticsProcessManager {
 
@@ -42,19 +45,20 @@ public class AnalyticsProcessManager {
         this.processFactory = Objects.requireNonNull(analyticsProcessFactory);
     }
 
-    public void runJob(String jobId, DataFrameDataExtractorFactory dataExtractorFactory) {
+    public void runJob(DataFrameAnalyticsConfig config, DataFrameDataExtractorFactory dataExtractorFactory,
+                       Consumer<Exception> finishHandler) {
         threadPool.generic().execute(() -> {
             DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
-            AnalyticsProcess process = createProcess(jobId, createProcessConfig(dataExtractor));
+            AnalyticsProcess process = createProcess(config.getId(), createProcessConfig(config, dataExtractor));
             ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
             AnalyticsResultProcessor resultProcessor = new AnalyticsResultProcessor(client, dataExtractorFactory.newExtractor(true));
             executorService.execute(() -> resultProcessor.process(process));
-            executorService.execute(() -> processData(jobId, dataExtractor, process, resultProcessor));
+            executorService.execute(() -> processData(config.getId(), dataExtractor, process, resultProcessor, finishHandler));
         });
     }
 
     private void processData(String jobId, DataFrameDataExtractor dataExtractor, AnalyticsProcess process,
-                             AnalyticsResultProcessor resultProcessor) {
+                             AnalyticsResultProcessor resultProcessor, Consumer<Exception> finishHandler) {
         try {
             writeHeaderRecord(dataExtractor, process);
             writeDataRows(dataExtractor, process);
@@ -66,13 +70,18 @@ public class AnalyticsProcessManager {
             LOGGER.info("[{}] Result processor has completed", jobId);
         } catch (IOException e) {
             LOGGER.error(new ParameterizedMessage("[{}] Error writing data to the process", jobId), e);
+            // TODO Handle this failure by setting the task state to FAILED
         } finally {
             LOGGER.info("[{}] Closing process", jobId);
             try {
                 process.close();
                 LOGGER.info("[{}] Closed process", jobId);
+
+                // This results in marking the persistent task as complete
+                finishHandler.accept(null);
             } catch (IOException e) {
                 LOGGER.error("[{}] Error closing data frame analyzer process", jobId);
+                finishHandler.accept(e);
             }
         }
     }
@@ -119,15 +128,19 @@ public class AnalyticsProcessManager {
         ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
         AnalyticsProcess process = processFactory.createAnalyticsProcess(jobId, analyticsProcessConfig, executorService);
         if (process.isProcessAlive() == false) {
-            throw ExceptionsHelper.serverError("Failed to start analytics process");
+            throw ExceptionsHelper.serverError("Failed to start data frame analytics process");
         }
         return process;
     }
 
-    private AnalyticsProcessConfig createProcessConfig(DataFrameDataExtractor dataExtractor) {
+    private AnalyticsProcessConfig createProcessConfig(DataFrameAnalyticsConfig config, DataFrameDataExtractor dataExtractor) {
         DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
-        AnalyticsProcessConfig config = new AnalyticsProcessConfig(dataSummary.rows, dataSummary.cols,
-                new ByteSizeValue(1, ByteSizeUnit.GB), 1, new DataFrameAnalysis("outliers"));
-        return config;
+        List<DataFrameAnalysis> dataFrameAnalyses = DataFrameAnalysesUtils.readAnalyses(config.getAnalyses());
+        // TODO We will not need this assertion after we add support for multiple analyses
+        assert dataFrameAnalyses.size() == 1;
+
+        AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(dataSummary.rows, dataSummary.cols,
+                new ByteSizeValue(1, ByteSizeUnit.GB), 1, dataFrameAnalyses.get(0));
+        return processConfig;
     }
 }

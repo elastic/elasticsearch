@@ -217,7 +217,7 @@ public class RestClient implements Closeable {
             if (nodeTuple.nodes.hasNext()) {
                 return performRequest(nodeTuple, request, cause);
             }
-            if (cause instanceof  IOException) {
+            if (cause instanceof IOException) {
                 throw (IOException)cause;
             }
             if (cause instanceof RuntimeException) {
@@ -225,15 +225,15 @@ public class RestClient implements Closeable {
             }
             throw new RuntimeException(cause);
         }
-        InternalResponse internalResponse = onResponse(request, context.node, httpResponse);
-        if (internalResponse.responseException == null) {
-            return internalResponse.response;
+        ResponseOrException responseOrException = onResponse(request, context.node, httpResponse);
+        if (responseOrException.responseException == null) {
+            return responseOrException.response;
         }
-        addSuppressedException(previousException, internalResponse.responseException);
+        addSuppressedException(previousException, responseOrException.responseException);
         if (nodeTuple.nodes.hasNext()) {
-            return performRequest(nodeTuple, request, internalResponse.responseException);
+            return performRequest(nodeTuple, request, responseOrException.responseException);
         } else {
-            throw internalResponse.responseException;
+            throw responseOrException.responseException;
         }
     }
 
@@ -249,7 +249,7 @@ public class RestClient implements Closeable {
         return e;
     }
 
-    private InternalResponse onResponse(InternalRequest request, Node node, HttpResponse httpResponse) throws IOException {
+    private ResponseOrException onResponse(InternalRequest request, Node node, HttpResponse httpResponse) throws IOException {
         RequestLogger.logResponse(logger, request.httpRequest, node.getHost(), httpResponse);
         int statusCode = httpResponse.getStatusLine().getStatusCode();
         Response response = new Response(request.httpRequest.getRequestLine(), node.getHost(), httpResponse);
@@ -258,14 +258,14 @@ public class RestClient implements Closeable {
             if (request.warningsHandler.warningsShouldFailRequest(response.getWarnings())) {
                 throw new WarningFailureException(response);
             } else {
-                return new InternalResponse(response);
+                return new ResponseOrException(response);
             }
         } else {
             ResponseException responseException = new ResponseException(response);
             if (isRetryStatus(statusCode)) {
                 //mark host dead and retry against next one
                 onFailure(node);
-                return new InternalResponse(responseException);
+                return new ResponseOrException(responseException);
             } else {
                 //mark host alive and don't retry, as the error should be a request problem
                 onResponse(node);
@@ -308,15 +308,15 @@ public class RestClient implements Closeable {
             @Override
             public void completed(HttpResponse httpResponse) {
                 try {
-                    InternalResponse internalResponse = onResponse(request, context.node, httpResponse);
-                    if (internalResponse.responseException == null) {
-                        listener.onSuccess(internalResponse.response);
+                    ResponseOrException responseOrException = onResponse(request, context.node, httpResponse);
+                    if (responseOrException.responseException == null) {
+                        listener.onSuccess(responseOrException.response);
                     } else {
                         if (nodeTuple.nodes.hasNext()) {
-                            listener.trackFailure(internalResponse.responseException);
+                            listener.trackFailure(responseOrException.responseException);
                             performRequestAsync(nodeTuple, request, listener);
                         } else {
-                            listener.onDefinitiveFailure(internalResponse.responseException);
+                            listener.onDefinitiveFailure(responseOrException.responseException);
                         }
                     }
                 } catch(Exception e) {
@@ -755,16 +755,16 @@ public class RestClient implements Closeable {
         return ignoreErrorCodes;
     }
 
-    private static class InternalResponse {
+    private static class ResponseOrException {
         private final Response response;
         private final ResponseException responseException;
 
-        InternalResponse(Response response) {
+        ResponseOrException(Response response) {
             this.response = Objects.requireNonNull(response);
             this.responseException = null;
         }
 
-        InternalResponse(ResponseException responseException) {
+        ResponseOrException(ResponseException responseException) {
             this.responseException = Objects.requireNonNull(responseException);
             this.response = null;
         }

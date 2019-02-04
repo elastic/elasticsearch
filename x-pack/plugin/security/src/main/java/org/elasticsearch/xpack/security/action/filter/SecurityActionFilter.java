@@ -28,20 +28,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
-import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
-import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 
 import java.io.IOException;
-import java.util.Set;
 import java.util.function.Predicate;
 
 public class SecurityActionFilter implements ActionFilter {
@@ -53,19 +48,17 @@ public class SecurityActionFilter implements ActionFilter {
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
     private final SecurityActionMapper actionMapper = new SecurityActionMapper();
-    private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
     private final DestructiveOperations destructiveOperations;
 
     public SecurityActionFilter(AuthenticationService authcService, AuthorizationService authzService,
-                                XPackLicenseState licenseState, Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
+                                XPackLicenseState licenseState, ThreadPool threadPool,
                                 SecurityContext securityContext, DestructiveOperations destructiveOperations) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.licenseState = licenseState;
-        this.requestInterceptors = requestInterceptors;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = securityContext;
         this.destructiveOperations = destructiveOperations;
@@ -167,24 +160,8 @@ public class SecurityActionFilter implements ActionFilter {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be non null for authorization"));
         } else {
-            authzService.authorize(authentication, securityAction, request, ActionListener.wrap(ignore -> {
-                /*
-                 * We use a separate concept for code that needs to be run after authentication and authorization that could
-                 * affect the running of the action. This is done to make it more clear of the state of the request.
-                 */
-                // FIXME this needs to be done in a way that allows us to operate without a role
-                Role role = null;
-                AuthorizationInfo authorizationInfo = threadContext.getTransient("_authz_info");
-                if (authorizationInfo instanceof RBACAuthorizationInfo) {
-                    role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-                }
-                for (RequestInterceptor interceptor : requestInterceptors) {
-                    if (interceptor.supports(request)) {
-                        interceptor.intercept(request, authentication, role, securityAction);
-                    }
-                }
-                listener.onResponse(null);
-            }, listener::onFailure));
+            authzService.authorize(authentication, securityAction, request, ActionListener.wrap(ignore -> listener.onResponse(null),
+                listener::onFailure));
         }
     }
 }

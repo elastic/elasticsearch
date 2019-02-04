@@ -65,7 +65,6 @@ GET /cluster_one:twitter/_search
 {
   "took": 150,
   "timed_out": false,
-  "num_reduce_phases": 2,
   "_shards": {
     "total": 1,
     "successful": 1,

@@ -26,9 +26,9 @@ import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.support.ArrayObjectIterator;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -158,7 +158,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
     }
 
-    private Map<String, Object> addTimestampToDocument(Map<String, Object> data, DateTime executionTime) {
+    private Map<String, Object> addTimestampToDocument(Map<String, Object> data, ZonedDateTime executionTime) {
         if (action.executionTimeField != null) {
             data = mutableMap(data);
             data.put(action.executionTimeField, WatcherDateTimeUtils.formatDate(executionTime));

@@ -232,7 +232,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         }).when(rolesStore).getRoles(any(User.class), any(FieldPermissionsCache.class), any(ActionListener.class));
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
-            auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings), null);
+            auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings), null,
+            Collections.emptySet());
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
@@ -622,6 +623,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThrowsAuthorizationException(
             () -> authorize(authentication, CreateIndexAction.NAME, request),
             IndicesAliasesAction.NAME, "test user");
+        verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(CreateIndexAction.NAME), eq(request),
+            authzInfoRoles(new String[]{role.getName()}));
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(IndicesAliasesAction.NAME), eq(request),
             authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
@@ -656,7 +659,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, null);
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, null, Collections.emptySet());
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() }, null);
@@ -683,7 +686,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             .build();
         final Authentication authentication = createAuthentication(new AnonymousUser(settings));
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
-            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings), null);
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings), null,
+            Collections.emptySet());
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
@@ -1366,6 +1370,13 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
 
             @Override
+            public void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                                          Map<String, List<String>> indexNameToNewNames,
+                                                          ActionListener<AuthorizationResult> listener) {
+                throw new UnsupportedOperationException("not implemented");
+            }
+
+            @Override
             public void checkPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo,
                                         HasPrivilegesRequest hasPrivilegesRequest,
                                         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
@@ -1382,7 +1393,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
             auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(Settings.EMPTY),
-            engine);
+            engine, Collections.emptySet());
         Authentication authentication = createAuthentication(new User("test user", "a_all"));
         assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
 

@@ -73,6 +73,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
@@ -310,6 +311,30 @@ public class RBACEngine implements AuthorizationEngine {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo.getAction(), aliasAndIndexLookup));
+        } else {
+            listener.onFailure(
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
+        }
+    }
+
+    @Override
+    public void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
+                                                  Map<String, List<String>> indexNameToNewNames,
+                                                  ActionListener<AuthorizationResult> listener) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo) {
+            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+            Map<String, Automaton> permissionMap = new HashMap<>();
+            for (Entry<String, List<String>> entry : indexNameToNewNames.entrySet()) {
+                Automaton existingPermissions = permissionMap.computeIfAbsent(entry.getKey(), role.indices()::allowedActionsMatcher);
+                for (String alias : entry.getValue()) {
+                    Automaton newNamePermissions = permissionMap.computeIfAbsent(alias, role.indices()::allowedActionsMatcher);
+                    if (Operations.subsetOf(newNamePermissions, existingPermissions) == false) {
+                        listener.onResponse(AuthorizationResult.deny());
+                        return;
+                    }
+                }
+            }
+            listener.onResponse(AuthorizationResult.granted());
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
@@ -556,8 +581,7 @@ public class RBACEngine implements AuthorizationEngine {
         return ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType);
     }
 
-    // FIXME make this pkg private!
-    public static class RBACAuthorizationInfo implements AuthorizationInfo {
+    static class RBACAuthorizationInfo implements AuthorizationInfo {
 
         private final Role role;
         private final Map<String, Object> info;
@@ -570,8 +594,7 @@ public class RBACEngine implements AuthorizationEngine {
                 authenticatedUserRole == null ? this : new RBACAuthorizationInfo(authenticatedUserRole, null);
         }
 
-        // FIXME make this pkg private!
-        public Role getRole() {
+        Role getRole() {
             return role;
         }
 

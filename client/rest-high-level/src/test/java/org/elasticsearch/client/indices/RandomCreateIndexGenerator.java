@@ -24,9 +24,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAlias;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-
 public class RandomCreateIndexGenerator {
 
     /**
@@ -60,15 +57,5 @@ public class RandomCreateIndexGenerator {
         org.elasticsearch.index.RandomCreateIndexGenerator.randomMappingFields(builder, true);
         builder.endObject();
         return builder;
-    }
-
-    /**
-     * Sets random aliases to the provided {@link CreateIndexRequest}
-     */
-    public static void randomAliases(CreateIndexRequest request) {
-        int aliasesNo = randomIntBetween(0, 2);
-        for (int i = 0; i < aliasesNo; i++) {
-            request.alias(randomAlias());
-        }
     }
 }

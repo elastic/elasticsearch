@@ -126,7 +126,7 @@ public final class RandomCreateIndexGenerator {
         }
     }
 
-    public static Alias randomAlias() {
+    private static Alias randomAlias() {
         Alias alias = new Alias(randomAlphaOfLength(5));
 
         if (randomBoolean()) {

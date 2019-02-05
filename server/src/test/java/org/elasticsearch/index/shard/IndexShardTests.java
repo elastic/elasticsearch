@@ -21,7 +21,6 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -46,8 +45,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -62,7 +59,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
@@ -105,9 +101,9 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.store.StoreUtils;
@@ -121,12 +117,8 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
@@ -143,7 +135,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -174,7 +165,6 @@ import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -2159,9 +2149,12 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRestoreShard() throws IOException {
         final IndexShard source = newStartedShard(true);
-        IndexShard target = newStartedShard(true);
+        IndexShard target = newStartedShard(true, Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), source.indexSettings().isSoftDeleteEnabled()).build());
 
         indexDoc(source, "_doc", "0");
+        EngineTestCase.generateNewSeqNo(source.getEngine()); // create a gap in the history
+        indexDoc(source, "_doc", "2");
         if (randomBoolean()) {
             source.refresh("test");
         }
@@ -2197,16 +2190,18 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             }
         }));
-        assertThat(target.getLocalCheckpoint(), equalTo(0L));
-        assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(0L));
-        assertThat(target.getReplicationTracker().getGlobalCheckpoint(), equalTo(0L));
+        assertThat(target.getLocalCheckpoint(), equalTo(2L));
+        assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
+        assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
         IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted());
         assertThat(target.getReplicationTracker().getTrackedLocalCheckpointForShard(
-            target.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(0L));
+            target.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(2L));
+        assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(2L));
 
-        assertDocs(target, "0");
+        assertDocs(target, "0", "2");
 
-        closeShards(source, target);
+        closeShard(source, false);
+        closeShards(target);
     }
 
     public void testSearcherWrapperIsUsed() throws IOException {
@@ -2432,10 +2427,20 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestamp,
-                                                    long maxSeqNoOfUpdatesOrDeletes, ActionListener<Long> listener){
-                    super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
-                        ActionListener.runAfter(listener, () -> assertFalse(replica.isSyncNeeded())));
+                public void indexTranslogOperations(
+                        final List<Translog.Operation> operations,
+                        final int totalTranslogOps,
+                        final long maxSeenAutoIdTimestamp,
+                        final long maxSeqNoOfUpdatesOrDeletes,
+                        final RetentionLeases retentionLeases,
+                        final ActionListener<Long> listener){
+                    super.indexTranslogOperations(
+                            operations,
+                            totalTranslogOps,
+                            maxSeenAutoIdTimestamp,
+                            maxSeqNoOfUpdatesOrDeletes,
+                            retentionLeases,
+                            ActionListener.runAfter(listener, () -> assertFalse(replica.isSyncNeeded())));
                 }
             }, true, true);
 
@@ -2539,14 +2544,26 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxAutoIdTimestamp,
-                                                    long maxSeqNoOfUpdatesOrDeletes, ActionListener<Long> listener){
-                    super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
-                        ActionListener.wrap(checkpoint -> {
-                            listener.onResponse(checkpoint);
-                            // Shard should now be active since we did recover:
-                            assertTrue(replica.isActive());
-                        }, listener::onFailure));
+                public void indexTranslogOperations(
+                        final List<Translog.Operation> operations,
+                        final int totalTranslogOps,
+                        final long maxAutoIdTimestamp,
+                        final long maxSeqNoOfUpdatesOrDeletes,
+                        final RetentionLeases retentionLeases,
+                        final ActionListener<Long> listener){
+                    super.indexTranslogOperations(
+                            operations,
+                            totalTranslogOps,
+                            maxAutoIdTimestamp,
+                            maxSeqNoOfUpdatesOrDeletes,
+                            retentionLeases,
+                            ActionListener.wrap(
+                                    checkpoint -> {
+                                        listener.onResponse(checkpoint);
+                                        // Shard should now be active since we did recover:
+                                        assertTrue(replica.isActive());
+                                    },
+                                    listener::onFailure));
                 }
             }, false, true);
 
@@ -2589,13 +2606,25 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
 
                 @Override
-                public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxAutoIdTimestamp,
-                                                    long maxSeqNoOfUpdatesOrDeletes, ActionListener<Long> listener)  {
-                    super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
-                        ActionListener.wrap(checkpoint -> {
-                            assertListenerCalled.accept(replica);
-                            listener.onResponse(checkpoint);
-                        }, listener::onFailure));
+                public void indexTranslogOperations(
+                        final List<Translog.Operation> operations,
+                        final int totalTranslogOps,
+                        final long maxAutoIdTimestamp,
+                        final long maxSeqNoOfUpdatesOrDeletes,
+                        final RetentionLeases retentionLeases,
+                        final ActionListener<Long> listener)  {
+                    super.indexTranslogOperations(
+                            operations,
+                            totalTranslogOps,
+                            maxAutoIdTimestamp,
+                            maxSeqNoOfUpdatesOrDeletes,
+                            retentionLeases,
+                            ActionListener.wrap(
+                                    checkpoint -> {
+                                        assertListenerCalled.accept(replica);
+                                        listener.onResponse(checkpoint);
+                                    },
+                                    listener::onFailure));
                 }
 
                 @Override
@@ -3129,107 +3158,6 @@ public class IndexShardTests extends IndexShardTestCase {
         assert localCheckpoint == indexShard.getLocalCheckpoint();
         assert !gap || (localCheckpoint != max);
         return new Result(localCheckpoint, max);
-    }
-
-    /** A dummy repository for testing which just needs restore overridden */
-    private abstract static class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
-        private final String indexName;
-
-        RestoreOnlyRepository(String indexName) {
-            this.indexName = indexName;
-        }
-
-        @Override
-        protected void doStart() {
-        }
-
-        @Override
-        protected void doStop() {
-        }
-
-        @Override
-        protected void doClose() {
-        }
-
-        @Override
-        public RepositoryMetaData getMetadata() {
-            return null;
-        }
-
-        @Override
-        public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
-            return null;
-        }
-
-        @Override
-        public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
-            return null;
-        }
-
-        @Override
-        public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
-            return null;
-        }
-
-        @Override
-        public RepositoryData getRepositoryData() {
-            Map<IndexId, Set<SnapshotId>> map = new HashMap<>();
-            map.put(new IndexId(indexName, "blah"), emptySet());
-            return new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(), map, Collections.emptyList());
-        }
-
-        @Override
-        public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData) {
-        }
-
-        @Override
-        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure,
-                                             int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                             boolean includeGlobalState) {
-            return null;
-        }
-
-        @Override
-        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId) {
-        }
-
-        @Override
-        public long getSnapshotThrottleTimeInNanos() {
-            return 0;
-        }
-
-        @Override
-        public long getRestoreThrottleTimeInNanos() {
-            return 0;
-        }
-
-        @Override
-        public String startVerification() {
-            return null;
-        }
-
-        @Override
-        public void endVerification(String verificationToken) {
-        }
-
-        @Override
-        public boolean isReadOnly() {
-            return false;
-        }
-
-        @Override
-        public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                                  IndexShardSnapshotStatus snapshotStatus) {
-        }
-
-        @Override
-        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
-            return null;
-        }
-
-        @Override
-        public void verify(String verificationToken, DiscoveryNode localNode) {
-        }
     }
 
     public void testIsSearchIdle() throws Exception {

@@ -47,26 +47,29 @@ enum DateFormat {
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
             return (date) -> {
                 ZonedDateTime zonedDateTime = DateFormatters.from(DateFormatter.forPattern("strict_date_time").parse(date));
-                return timezone == null ? zonedDateTime : zonedDateTime.withZoneSameInstant(timezone);
+                return zonedDateTime.withZoneSameInstant(timezone == null ? ZoneOffset.UTC : timezone);
             };
         }
     },
     Unix {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
-            return date -> Instant.ofEpochMilli((long) (Double.parseDouble(date) * 1000.0)).atZone(timezone);
+            return date -> Instant.ofEpochMilli((long) (Double.parseDouble(date) * 1000.0))
+                .atZone(timezone == null ? ZoneOffset.UTC : timezone);
         }
     },
     UnixMs {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
-            return date -> Instant.ofEpochMilli(Long.parseLong(date)).atZone(timezone);
+            return date -> Instant.ofEpochMilli(Long.parseLong(date))
+                .atZone(timezone == null ? ZoneOffset.UTC : timezone);
         }
     },
     Tai64n {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
-            return date -> Instant.ofEpochMilli(parseMillis(date)).atZone(timezone);
+            return date -> Instant.ofEpochMilli(parseMillis(date))
+                .atZone(timezone == null ? ZoneOffset.UTC : timezone);
         }
 
         private long parseMillis(String date) {

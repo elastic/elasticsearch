@@ -71,6 +71,34 @@ teardown:
                   "target_field" : "date_target_3",
                   "formats" : [ "dd/MMM/yyyy:H:m:s Z" ]
                 }
+              },
+              {
+                "date" : {
+                  "field" : "date_source_4",
+                  "target_field" : "date_target_4",
+                  "formats" : [ "UNIX" ]
+                }
+              },
+              {
+                "date" : {
+                  "field" : "date_source_5",
+                  "target_field" : "date_target_5",
+                  "formats" : [ "UNIX_MS" ]
+                }
+              },
+              {
+                "date" : {
+                  "field" : "date_source_6",
+                  "target_field" : "date_target_6",
+                  "formats" : [ "TAI64N" ]
+                }
+              },
+              {
+                "date" : {
+                  "field" : "date_source_7",
+                  "target_field" : "date_target_7",
+                  "formats" : [ "ISO8601" ]
+                }
               }
             ]
           }
@@ -81,7 +109,7 @@ teardown:
         index: test
         id: 1
         pipeline: "my_pipeline"
-        body: { date_source_1: "2018-02-05T13:44:56.657+0100", date_source_2: "2017-04-04 13:43:09 +0200", date_source_3: "10/Aug/2018:09:45:56 +0200" }
+        body: { date_source_1: "2018-02-05T13:44:56.657+0100", date_source_2: "2017-04-04 13:43:09 +0200", date_source_3: "10/Aug/2018:09:45:56 +0200", date_source_4: "1", date_source_5: "1", date_source_6: "4000000050d506482dbdf024", date_source_7: "2018-02-05T13:44:56.657+0100" }
 
   - do:
       get:
@@ -93,4 +121,12 @@ teardown:
   - match: { _source.date_target_2: "2017-04-04T11:43:09.000Z" }
   - match: { _source.date_source_3: "10/Aug/2018:09:45:56 +0200" }
   - match: { _source.date_target_3: "2018-08-10T07:45:56.000Z" }
+  - match: { _source.date_source_4: "1" }
+  - match: { _source.date_target_4: "1970-01-01T00:00:01.000Z" }
+  - match: { _source.date_source_5: "1" }
+  - match: { _source.date_target_5: "1970-01-01T00:00:00.001Z" }
+  - match: { _source.date_source_6: "4000000050d506482dbdf024" }
+  - match: { _source.date_target_6: "2012-12-22T01:00:46.767Z" }
+  - match: { _source.date_source_7: "2018-02-05T13:44:56.657+0100" }
+  - match: { _source.date_target_7: "2018-02-05T12:44:56.657Z" }
 

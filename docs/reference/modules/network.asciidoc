@@ -28,19 +28,18 @@ because `:` is a special character in YAML.
 +
 Defaults to `_local_`.
 
-`discovery.zen.ping.unicast.hosts`::
+`discovery.seed_hosts`::
 
 In order to join a cluster, a node needs to know the hostname or IP address of
 at least some of the other nodes in the cluster.  This setting provides the
-initial list of other nodes that this node will try to contact. Accepts IP
-addresses or hostnames.  If a hostname lookup resolves to multiple IP
-addresses then each IP address will be used for discovery.
+initial list of addresses this node will try to contact. Accepts IP addresses
+or hostnames. If a hostname lookup resolves to multiple IP addresses then each
+IP address will be used for discovery.
 https://en.wikipedia.org/wiki/Round-robin_DNS[Round robin DNS] -- returning a
 different IP from a list on each lookup -- can be used for discovery; non-
-existent IP addresses will throw exceptions and cause another DNS lookup
-on the next round of pinging (subject to JVM DNS caching).
-+
-Defaults to `["127.0.0.1", "[::1]"]`.
+existent IP addresses will throw exceptions and cause another DNS lookup on the
+next round of pinging (subject to JVM DNS caching).  + Defaults to
+`["127.0.0.1", "[::1]"]`.
 
 `http.port`::
 

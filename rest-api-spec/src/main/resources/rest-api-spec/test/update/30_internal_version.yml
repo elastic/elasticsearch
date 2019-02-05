@@ -1,9 +1,9 @@
 ---
 "Internal version":
-  - skip:
-    features: warnings
+ - skip:
+      features: warnings
 
-  - do:
+ - do:
       catch:        missing
       update:
           index:    test_1

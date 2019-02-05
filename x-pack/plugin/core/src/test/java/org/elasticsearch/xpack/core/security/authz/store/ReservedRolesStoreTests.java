@@ -139,9 +139,9 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -849,6 +849,23 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(APMSystemRole, RestrictedIndicesNames.NAMES_SET);
     }
 
+    public void testAPMUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
+        final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("apm_user");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.builder(roleDescriptor, null).build();
+
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
+
+        assertNoAccessAllowed(role, "foo");
+
+        assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
+    }
+
     public void testMachineLearningAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
 
@@ -1011,7 +1028,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(now);
         for (String index : new String[]{ Watch.INDEX, historyIndex, TriggeredWatchStoreField.INDEX_NAME }) {
             assertOnlyReadAllowed(role, index);
@@ -1041,7 +1058,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(TriggeredWatchStoreField.INDEX_NAME), is(false));
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(now);
         for (String index : new String[]{ Watch.INDEX, historyIndex }) {
             assertOnlyReadAllowed(role, index);

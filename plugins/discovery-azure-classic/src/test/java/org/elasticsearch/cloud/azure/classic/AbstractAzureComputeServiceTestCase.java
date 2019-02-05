@@ -35,7 +35,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.azure.classic.AzureUnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -50,6 +49,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.common.util.CollectionUtils.newSingletonArrayList;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 
 public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCase {
 
@@ -64,11 +64,7 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put("discovery.zen.hosts_provider", "azure");
-
-        // Make the test run faster
-        builder.put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "1s")
-            .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "500ms");
+            .put(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "azure");
 
         // We add a fake subscription_id to start mock compute service
         builder.put(Management.SUBSCRIPTION_ID_SETTING.getKey(), "fake")

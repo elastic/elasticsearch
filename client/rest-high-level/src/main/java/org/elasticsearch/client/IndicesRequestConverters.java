@@ -33,8 +33,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
@@ -46,6 +44,8 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsRequest;
+import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
@@ -54,7 +54,6 @@ import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -152,6 +151,10 @@ final class IndicesRequestConverters {
         return request;
     }
 
+    /**
+     * converter for the legacy server-side {@link org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest} that still supports
+     * types
+     */
     @Deprecated
     static Request putMapping(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest putMappingRequest) throws IOException {
         // The concreteIndex is an internal concept, not applicable to requests made over the REST API.
@@ -396,6 +399,28 @@ final class IndicesRequestConverters {
         return request;
     }
 
+    /**
+     * converter for the legacy server-side {@link org.elasticsearch.action.admin.indices.get.GetIndexRequest} that
+     * still supports types
+     */
+    @Deprecated
+    static Request getIndex(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest) {
+        String[] indices = getIndexRequest.indices() == null ? Strings.EMPTY_ARRAY : getIndexRequest.indices();
+
+        String endpoint = RequestConverters.endpoint(indices);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withIndicesOptions(getIndexRequest.indicesOptions());
+        params.withLocal(getIndexRequest.local());
+        params.withIncludeDefaults(getIndexRequest.includeDefaults());
+        params.withHuman(getIndexRequest.humanReadable());
+        params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, Boolean.TRUE.toString());
+
+        return request;
+    }
+
     static Request getIndex(GetIndexRequest getIndexRequest) {
         String[] indices = getIndexRequest.indices() == null ? Strings.EMPTY_ARRAY : getIndexRequest.indices();
 
@@ -408,9 +433,30 @@ final class IndicesRequestConverters {
         params.withIncludeDefaults(getIndexRequest.includeDefaults());
         params.withHuman(getIndexRequest.humanReadable());
         params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
-        // Force "include_type_name" parameter since responses need to be compatible when coming from 7.0 nodes
-        params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.TRUE.toString());
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, Boolean.FALSE.toString());
 
+        return request;
+    }
+
+    /**
+     * converter for the legacy server-side {@link org.elasticsearch.action.admin.indices.get.GetIndexRequest} that
+     * still supports types
+     */
+    @Deprecated
+    static Request indicesExist(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest) {
+        // this can be called with no indices as argument by transport client, not via REST though
+        if (getIndexRequest.indices() == null || getIndexRequest.indices().length == 0) {
+            throw new IllegalArgumentException("indices are mandatory");
+        }
+        String endpoint = RequestConverters.endpoint(getIndexRequest.indices(), "");
+        Request request = new Request(HttpHead.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withLocal(getIndexRequest.local());
+        params.withHuman(getIndexRequest.humanReadable());
+        params.withIndicesOptions(getIndexRequest.indicesOptions());
+        params.withIncludeDefaults(getIndexRequest.includeDefaults());
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, Boolean.TRUE.toString());
         return request;
     }
 
@@ -427,6 +473,7 @@ final class IndicesRequestConverters {
         params.withHuman(getIndexRequest.humanReadable());
         params.withIndicesOptions(getIndexRequest.indicesOptions());
         params.withIncludeDefaults(getIndexRequest.includeDefaults());
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, Boolean.FALSE.toString());
         return request;
     }
 
@@ -445,18 +492,18 @@ final class IndicesRequestConverters {
     }
 
     /**
-     * @deprecated This uses the old form of PutIndexTemplateRequest which uses types. 
+     * @deprecated This uses the old form of PutIndexTemplateRequest which uses types.
      * Use (@link {@link #putTemplate(PutIndexTemplateRequest)} instead
      */
     @Deprecated
-    static Request putTemplate(org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest) 
+    static Request putTemplate(org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest)
             throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_template")
             .addPathPart(putIndexTemplateRequest.name()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withMasterTimeout(putIndexTemplateRequest.masterNodeTimeout());
-        params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.TRUE.toString());
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, Boolean.TRUE.toString());
         if (putIndexTemplateRequest.create()) {
             params.putParam("create", Boolean.TRUE.toString());
         }
@@ -474,7 +521,7 @@ final class IndicesRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withMasterTimeout(putIndexTemplateRequest.masterNodeTimeout());
         if (putIndexTemplateRequest.mappings() != null) {
-            params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.FALSE.toString());
+            params.putParam(INCLUDE_TYPE_NAME_PARAMETER, Boolean.FALSE.toString());
         }
         if (putIndexTemplateRequest.create()) {
             params.putParam("create", Boolean.TRUE.toString());
@@ -515,11 +562,11 @@ final class IndicesRequestConverters {
     static Request getTemplatesWithDocumentTypes(GetIndexTemplatesRequest getIndexTemplatesRequest) {
         return getTemplates(getIndexTemplatesRequest, true);
     }
-    
+
     static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest) {
         return getTemplates(getIndexTemplatesRequest, false);
     }
-    
+
     private static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest, boolean includeTypeName) {
         final String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_template")
@@ -529,9 +576,9 @@ final class IndicesRequestConverters {
         final RequestConverters.Params params = new RequestConverters.Params(request);
         params.withLocal(getIndexTemplatesRequest.isLocal());
         params.withMasterTimeout(getIndexTemplatesRequest.getMasterNodeTimeout());
-        params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.toString(includeTypeName));
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, Boolean.toString(includeTypeName));
         return request;
-    }    
+    }
 
     static Request templatesExist(IndexTemplatesExistRequest indexTemplatesExistRequest) {
         final String endpoint = new RequestConverters.EndpointBuilder()

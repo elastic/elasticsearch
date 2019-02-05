@@ -1367,6 +1367,12 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(simpleKey, s -> defaultValue.apply(s).getStringRep(), minTimeValueParser(key, minValue), properties);
     }
 
+    public static Setting<TimeValue> timeSetting(
+          final String key, TimeValue defaultValue, final TimeValue minValue, final TimeValue maxValue, final Property... properties) {
+        final SimpleKey simpleKey = new SimpleKey(key);
+        return new Setting<>(simpleKey, s -> defaultValue.getStringRep(), minMaxTimeValueParser(key, minValue, maxValue), properties);
+    }
+
     private static Function<String, TimeValue> minTimeValueParser(final String key, final TimeValue minValue) {
         return s -> {
             final TimeValue value = TimeValue.parseTimeValue(s, null, key);
@@ -1377,6 +1383,22 @@ public class Setting<T> implements ToXContentObject {
                         s,
                         key,
                         minValue.getStringRep());
+                throw new IllegalArgumentException(message);
+            }
+            return value;
+        };
+    }
+
+    private static Function<String, TimeValue> minMaxTimeValueParser(final String key, final TimeValue minValue, final TimeValue maxValue) {
+        return s -> {
+            final TimeValue value = minTimeValueParser(key, minValue).apply(s);
+            if (value.millis() > maxValue.millis()) {
+                final String message = String.format(
+                        Locale.ROOT,
+                        "failed to parse value [%s] for setting [%s], must be <= [%s]",
+                        s,
+                        key,
+                        maxValue.getStringRep());
                 throw new IllegalArgumentException(message);
             }
             return value;

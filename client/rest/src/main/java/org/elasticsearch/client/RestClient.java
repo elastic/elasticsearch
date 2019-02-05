@@ -765,10 +765,13 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Wrap whatever exception we received, copying the type where possible so the synchronous API looks as much as possible
-     * like the asynchronous API. We wrap the exception so that the caller's signature shows up in any exception we throw.
+     * Wrap whatever exception we may receive, copying the type where possible so the synchronous API looks as much as possible
+     * like the asynchronous API. We wrap the exception so that the caller's signature shows up in any exception we re-throw.
      */
     private static Exception extractAndWrapCause(Exception exception) {
+        if (exception instanceof InterruptedException) {
+            throw new RuntimeException("thread waiting for the response was interrupted", exception);
+        }
         if (exception instanceof ExecutionException) {
             ExecutionException executionException = (ExecutionException)exception;
             Throwable t = executionException.getCause() == null ? executionException : executionException.getCause();

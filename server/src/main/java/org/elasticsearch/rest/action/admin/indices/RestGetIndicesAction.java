@@ -47,8 +47,8 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestGetIndicesAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetIndicesAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get indices requests is deprecated. "
-            + "The parameter will be removed in the next major version.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get indices requests"
+            + " is deprecated. The parameter will be removed in the next major version.";
 
     private static final Set<String> allowedResponseParameters = Collections
             .unmodifiableSet(Stream.concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream())

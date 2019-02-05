@@ -389,12 +389,6 @@ public class DeterministicTaskQueue {
             }
 
             @Override
-            public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
-                // reject on shutdown not implemented for deterministic task queue, so this is equivalent to schedule here.
-                schedule(command, delay, executor);
-            }
-
-            @Override
             public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
                 return super.scheduleWithFixedDelay(command, interval, executor);
             }

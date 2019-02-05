@@ -354,11 +354,8 @@ public class ThreadPool implements Scheduler, Closeable {
     }
 
     public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
-        if (!Names.SAME.equals(executor)) {
-            command = new ThreadedRunnableAllowShutdown(command, executor(executor));
-        }
         try {
-            scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS);
+            schedule(command, delay, executor);
         } catch (EsRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
                 logger.debug(new ParameterizedMessage("could not schedule execution of [{}] after [{}] on [{}] as executor is shut down",
@@ -504,7 +501,16 @@ public class ThreadPool implements Scheduler, Closeable {
 
         @Override
         public void run() {
-            executor.execute(runnable);
+            try {
+                executor.execute(runnable);
+            } catch (EsRejectedExecutionException e) {
+                if (e.isExecutorShutdown()) {
+                    logger.debug(new ParameterizedMessage("could not schedule execution of [{}] on [{}] as executor is shut down",
+                        runnable, executor), e);
+                } else {
+                    throw e;
+                }
+            }
         }
 
         @Override
@@ -520,36 +526,6 @@ public class ThreadPool implements Scheduler, Closeable {
         @Override
         public String toString() {
             return "[threaded] " + runnable.toString();
-        }
-    }
-
-    class ThreadedRunnableAllowShutdown implements Runnable {
-        private final Runnable runnable;
-
-        private final Executor executor;
-
-        ThreadedRunnableAllowShutdown(Runnable runnable, Executor executor) {
-            this.runnable = runnable;
-            this.executor = executor;
-        }
-
-        @Override
-        public void run() {
-            try {
-                executor.execute(runnable);
-            } catch (EsRejectedExecutionException e) {
-                if (e.isExecutorShutdown()) {
-                    logger.debug(new ParameterizedMessage("could not schedule execution of [{}] on [{}] as executor is shut down",
-                        runnable, executor), e);
-                } else {
-                    throw e;
-                }
-            }
-        }
-
-        @Override
-        public String toString() {
-            return "[threaded-allow-shutdown]" + runnable.toString();
         }
     }
 

@@ -37,7 +37,7 @@ final class VectorDVAtomicFieldData implements AtomicFieldData {
     private final LeafReader reader;
     private final String field;
 
-    public VectorDVAtomicFieldData(LeafReader reader, String field) {
+    VectorDVAtomicFieldData(LeafReader reader, String field) {
         this.reader = reader;
         this.field = field;
     }

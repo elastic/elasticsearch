@@ -47,6 +47,8 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -75,8 +77,6 @@ import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
-import org.elasticsearch.client.indices.rollover.RolloverRequest;
-import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ValidationException;
@@ -90,7 +90,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -100,7 +99,6 @@ import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
-import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 
@@ -1111,6 +1109,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         {
             RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
+                    highLevelClient().indices()::rolloverAsync, highLevelClient().indices()::rollover,
                     highLevelClient().indices()::rolloverAsync);
             assertFalse(rolloverResponse.isRolledOver());
             assertFalse(rolloverResponse.isDryRun());
@@ -1130,6 +1129,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             rolloverRequest.addMaxIndexAgeCondition(new TimeValue(1));
             rolloverRequest.dryRun(true);
             RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
+                    highLevelClient().indices()::rolloverAsync, highLevelClient().indices()::rollover,
                     highLevelClient().indices()::rolloverAsync);
             assertFalse(rolloverResponse.isRolledOver());
             assertTrue(rolloverResponse.isDryRun());
@@ -1141,11 +1141,10 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
         {
-            String mappings = "{\"properties\":{\"field2\":{\"type\":\"keyword\"}}}";
-            rolloverRequest.getCreateIndexRequest().mapping(mappings, XContentType.JSON);
             rolloverRequest.dryRun(false);
             rolloverRequest.addMaxIndexSizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
             RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
+                    highLevelClient().indices()::rolloverAsync, highLevelClient().indices()::rollover,
                     highLevelClient().indices()::rolloverAsync);
             assertTrue(rolloverResponse.isRolledOver());
             assertFalse(rolloverResponse.isDryRun());
@@ -1157,34 +1156,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test", rolloverResponse.getOldIndex());
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
-    }
-
-    public void testRolloverWithTypes() throws IOException {
-        highLevelClient().indices().create(new CreateIndexRequest("test").alias(new Alias("alias")), RequestOptions.DEFAULT);
-        highLevelClient().index(new IndexRequest("test", "_doc", "1").source("field", "value"), RequestOptions.DEFAULT);
-        highLevelClient().index(new IndexRequest("test", "_doc", "2").source("field", "value")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
-
-        org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest =
-            new org.elasticsearch.action.admin.indices.rollover.RolloverRequest("alias", "test_new");
-        rolloverRequest.addMaxIndexDocsCondition(1);
-
-        Settings.Builder settings = Settings.builder().put("number_of_shards", 1);
-        rolloverRequest.getCreateIndexRequest().mapping("_doc", "field2", "type=keyword")
-            .settings(settings);
-
-        org.elasticsearch.action.admin.indices.rollover.RolloverResponse rolloverResponse = execute(
-            rolloverRequest,
-            highLevelClient().indices()::rollover,
-            highLevelClient().indices()::rolloverAsync,
-            expectWarnings(RestRolloverIndexAction.TYPES_DEPRECATION_MESSAGE)
-        );
-        assertTrue(rolloverResponse.isRolledOver());
-        assertFalse(rolloverResponse.isDryRun());
-        Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
-        assertTrue(conditionStatus.get("[max_docs: 1]"));
-        assertEquals("test", rolloverResponse.getOldIndex());
-        assertEquals("test_new", rolloverResponse.getNewIndex());
     }
 
     public void testGetAlias() throws IOException {

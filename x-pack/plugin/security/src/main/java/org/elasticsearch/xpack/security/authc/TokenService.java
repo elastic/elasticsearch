@@ -838,7 +838,8 @@ public final class TokenService {
                                     }
                                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
                                         ActionListener.<UpdateResponse>wrap(
-                                            updateResponse -> createUserToken(newUserTokenId, authentication, userAuth, listener, metadata, true),
+                                            updateResponse ->
+                                                createUserToken(newUserTokenId, authentication, userAuth, listener, metadata, true),
                                             e -> {
                                                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                                                 if (cause instanceof VersionConflictEngineException ||

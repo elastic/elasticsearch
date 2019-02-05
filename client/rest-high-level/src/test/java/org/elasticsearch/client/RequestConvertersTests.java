@@ -893,11 +893,13 @@ public class RequestConvertersTests extends ESTestCase {
             if (randomBoolean()) {
                 docWriteRequest.routing(randomAlphaOfLength(10));
             }
-            if (randomBoolean()) {
-                docWriteRequest.version(randomNonNegativeLong());
-            }
-            if (randomBoolean()) {
-                docWriteRequest.versionType(randomFrom(VersionType.values()));
+            if (opType != DocWriteRequest.OpType.UPDATE) {
+                if (randomBoolean()) {
+                    docWriteRequest.version(randomNonNegativeLong());
+                }
+                if (randomBoolean()) {
+                    docWriteRequest.versionType(randomFrom(VersionType.values()));
+                }
             }
             bulkRequest.add(docWriteRequest);
         }

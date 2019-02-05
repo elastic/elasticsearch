@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -52,7 +51,6 @@ import java.util.concurrent.TimeUnit;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests snapshot operations during disruptions.
@@ -156,9 +154,6 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
                 logger.info("--> got exception from race in master operation retries");
             } else {
                 logger.info("--> got exception from hanged master", ex);
-                assertThat(cause, instanceOf(MasterNotDiscoveredException.class));
-                cause = cause.getCause();
-                assertThat(cause, instanceOf(FailedToCommitClusterStateException.class));
             }
         }
 

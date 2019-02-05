@@ -597,7 +597,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                         .setSize(0)
                         .setQuery(QueryBuilders.matchAllQuery())
                         .get()
-                        .getHits().getTotalHits().value;
+                        .getHits().getTotalHits();
 
                     if (count == lastKnownCount.get()) {
                         // no progress - try to refresh for the next time

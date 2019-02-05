@@ -53,8 +53,9 @@ public final class CcrSettings {
      * File chunk size to send during recovery
      */
     public static final Setting<ByteSizeValue> RECOVERY_CHUNK_SIZE =
-        Setting.byteSizeSetting("ccr.indices.recovery.chunk_size", new ByteSizeValue(64, ByteSizeUnit.KB),
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
+        Setting.byteSizeSetting("ccr.indices.recovery.chunk_size", new ByteSizeValue(1, ByteSizeUnit.MB),
+            new ByteSizeValue(1, ByteSizeUnit.KB), new ByteSizeValue(1, ByteSizeUnit.GB), Setting.Property.Dynamic,
+            Setting.Property.NodeScope);
 
     /**
      * The leader must open resources for a ccr recovery. If there is no activity for this interval of time,

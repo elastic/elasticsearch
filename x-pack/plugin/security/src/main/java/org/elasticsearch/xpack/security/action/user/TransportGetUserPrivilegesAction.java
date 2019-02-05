@@ -63,13 +63,14 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
     protected void doExecute(GetUserPrivilegesRequest request, ActionListener<GetUserPrivilegesResponse> listener) {
         final String username = request.username();
 
-        final User user = Authentication.getAuthentication(threadPool.getThreadContext()).getUser();
+        final Authentication authentication = Authentication.getAuthentication(threadPool.getThreadContext());
+        final User user = authentication.getUser();
         if (user.principal().equals(username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only list the privileges of their own account"));
             return;
         }
 
-        authorizationService.roles(user, ActionListener.wrap(
+        authorizationService.roles(user, authentication, ActionListener.wrap(
             role -> listener.onResponse(buildResponseObject(role)),
             listener::onFailure));
     }

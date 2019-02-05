@@ -65,6 +65,7 @@ import javax.crypto.SecretKey;
 import static java.time.Clock.systemUTC;
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -406,6 +407,29 @@ public class TokenServiceTests extends ESTestCase {
         SecretKey key = TokenService.computeSecretKey("some random passphrase".toCharArray(), saltArr);
         SecretKey key2 = TokenService.computeSecretKey("some random passphrase".toCharArray(), saltArr);
         assertArrayEquals(key.getEncoded(), key2.getEncoded());
+    }
+
+    public void testTokenExpiryConfig() {
+        TimeValue expiration =  TokenService.TOKEN_EXPIRATION.get(tokenServiceEnabledSettings);
+        assertThat(expiration, equalTo(TimeValue.timeValueMinutes(20L)));
+        // Configure Minimum expiration
+        tokenServiceEnabledSettings = Settings.builder().put(TokenService.TOKEN_EXPIRATION.getKey(), "1s").build();
+        expiration =  TokenService.TOKEN_EXPIRATION.get(tokenServiceEnabledSettings);
+        assertThat(expiration, equalTo(TimeValue.timeValueSeconds(1L)));
+        // Configure Maximum expiration
+        tokenServiceEnabledSettings = Settings.builder().put(TokenService.TOKEN_EXPIRATION.getKey(), "60m").build();
+        expiration =  TokenService.TOKEN_EXPIRATION.get(tokenServiceEnabledSettings);
+        assertThat(expiration, equalTo(TimeValue.timeValueHours(1L)));
+        // Outside range should fail
+        tokenServiceEnabledSettings = Settings.builder().put(TokenService.TOKEN_EXPIRATION.getKey(), "1ms").build();
+        IllegalArgumentException ile = expectThrows(IllegalArgumentException.class,
+                () -> TokenService.TOKEN_EXPIRATION.get(tokenServiceEnabledSettings));
+        assertThat(ile.getMessage(),
+                containsString("failed to parse value [1ms] for setting [xpack.security.authc.token.timeout], must be >= [1s]"));
+        tokenServiceEnabledSettings = Settings.builder().put(TokenService.TOKEN_EXPIRATION.getKey(), "120m").build();
+        ile = expectThrows(IllegalArgumentException.class, () -> TokenService.TOKEN_EXPIRATION.get(tokenServiceEnabledSettings));
+        assertThat(ile.getMessage(),
+                containsString("failed to parse value [120m] for setting [xpack.security.authc.token.timeout], must be <= [1h]"));
     }
 
     public void testTokenExpiry() throws Exception {

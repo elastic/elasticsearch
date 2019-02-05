@@ -53,16 +53,16 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         this.realmName = realmName;
     }
 
+    public void setIssuer(String issuer) {
+        this.issuer = issuer;
+    }
+
     public void setState(String state) {
         this.state = state;
     }
 
     public void setNonce(String nonce) {
         this.nonce = nonce;
-    }
-
-    public void setIssuer(String issuer) {
-        this.issuer = issuer;
     }
 
     public OpenIdConnectPrepareAuthenticationRequest() {

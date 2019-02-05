@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Database;
 import org.elasticsearch.xpack.sql.expression.function.scalar.User;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
@@ -169,7 +170,8 @@ public class FunctionRegistry {
                 def(Greatest.class, Greatest::new, "GREATEST"),
                 def(Least.class, Least::new, "LEAST"));
         // Date
-        addToMap(def(CurrentDateTime.class, CurrentDateTime::new, "CURRENT_TIMESTAMP", "NOW"),
+        addToMap(def(CurrentDate.class, CurrentDate::new, "CURRENT_DATE", "CURDATE", "TODAY"),
+                def(CurrentDateTime.class, CurrentDateTime::new, "CURRENT_TIMESTAMP", "NOW"),
                 def(DayName.class, DayName::new, "DAY_NAME", "DAYNAME"),
                 def(DayOfMonth.class, DayOfMonth::new, "DAY_OF_MONTH", "DAYOFMONTH", "DAY", "DOM"),
                 def(DayOfWeek.class, DayOfWeek::new, "DAY_OF_WEEK", "DAYOFWEEK", "DOW"),

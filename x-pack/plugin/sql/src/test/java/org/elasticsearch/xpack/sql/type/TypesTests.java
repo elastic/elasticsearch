@@ -171,20 +171,20 @@ public class TypesTests extends ESTestCase {
     public void testGeoField() {
         Map<String, EsField> mapping = loadMapping("mapping-geo.json");
         EsField dt = mapping.get("location");
-        assertThat(dt.getDataType().esType, is("unsupported"));
+        assertThat(dt.getDataType().typeName, is("unsupported"));
     }
 
     public void testIpField() {
         Map<String, EsField> mapping = loadMapping("mapping-ip.json");
         assertThat(mapping.size(), is(1));
         EsField dt = mapping.get("ip_addr");
-        assertThat(dt.getDataType().esType, is("ip"));
+        assertThat(dt.getDataType().typeName, is("ip"));
     }
 
     public void testUnsupportedTypes() {
         Map<String, EsField> mapping = loadMapping("mapping-unsupported.json");
         EsField dt = mapping.get("range");
-        assertThat(dt.getDataType().esType, is("unsupported"));
+        assertThat(dt.getDataType().typeName, is("unsupported"));
     }
 
     public static Map<String, EsField> loadMapping(String name) {

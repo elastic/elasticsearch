@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import java.util.List;
 import java.util.stream.Collectors;
 
-
 public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTransportAction<OpenIdConnectPrepareAuthenticationRequest,
     OpenIdConnectPrepareAuthenticationResponse> {
 

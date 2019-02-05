@@ -16,10 +16,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
-import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.analyses.DataFrameAnalysesUtils;
 import org.elasticsearch.xpack.ml.dataframe.analyses.DataFrameAnalysis;
+import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
+import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,7 +51,9 @@ public class AnalyticsProcessManager {
             DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
             AnalyticsProcess process = createProcess(config.getId(), createProcessConfig(config, dataExtractor));
             ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
-            AnalyticsResultProcessor resultProcessor = new AnalyticsResultProcessor(client, dataExtractorFactory.newExtractor(true));
+            DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
+                dataExtractorFactory.newExtractor(true));
+            AnalyticsResultProcessor resultProcessor = new AnalyticsResultProcessor(dataFrameRowsJoiner);
             executorService.execute(() -> resultProcessor.process(process));
             executorService.execute(() -> processData(config.getId(), dataExtractor, process, resultProcessor, finishHandler));
         });

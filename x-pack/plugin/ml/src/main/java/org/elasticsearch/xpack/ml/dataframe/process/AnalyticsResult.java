@@ -9,46 +9,38 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
 public class AnalyticsResult implements ToXContentObject {
 
     public static final ParseField TYPE = new ParseField("analytics_result");
-    public static final ParseField CHECKSUM = new ParseField("checksum");
-    public static final ParseField RESULTS = new ParseField("results");
 
     static final ConstructingObjectParser<AnalyticsResult, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
-            a -> new AnalyticsResult((Integer) a[0], (Map<String, Object>) a[1]));
+            a -> new AnalyticsResult((RowResults) a[0]));
 
     static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), CHECKSUM);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, context) -> p.map(), RESULTS);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), RowResults.PARSER, RowResults.TYPE);
     }
 
-    private final int checksum;
-    private final Map<String, Object> results;
+    private final RowResults rowResults;
 
-    public AnalyticsResult(int checksum, Map<String, Object> results) {
-        this.checksum = Objects.requireNonNull(checksum);
-        this.results = Objects.requireNonNull(results);
+    public AnalyticsResult(RowResults rowResults) {
+        this.rowResults = rowResults;
     }
 
-    public int getChecksum() {
-        return checksum;
-    }
-
-    public Map<String, Object> getResults() {
-        return results;
+    public RowResults getRowResults() {
+        return rowResults;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(CHECKSUM.getPreferredName(), checksum);
-        builder.field(RESULTS.getPreferredName(), results);
+        if (rowResults != null) {
+            builder.field(RowResults.TYPE.getPreferredName(), rowResults);
+        }
         builder.endObject();
         return builder;
     }
@@ -63,11 +55,11 @@ public class AnalyticsResult implements ToXContentObject {
         }
 
         AnalyticsResult that = (AnalyticsResult) other;
-        return checksum == that.checksum && Objects.equals(results, that.results);
+        return Objects.equals(rowResults, that.rowResults);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(checksum, results);
+        return Objects.hash(rowResults);
     }
 }

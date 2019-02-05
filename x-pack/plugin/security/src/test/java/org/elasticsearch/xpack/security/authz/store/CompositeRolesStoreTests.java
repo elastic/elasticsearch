@@ -860,9 +860,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class));
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), rds -> {});
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
-
 
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
         final User user = new User("no role user");
@@ -900,7 +899,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(settings),
-                new XPackLicenseState(settings), cache, mock(ApiKeyService.class));
+                new XPackLicenseState(settings), cache, mock(ApiKeyService.class), rds -> {});
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
 
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
@@ -927,7 +926,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class));
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), rds -> {});
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
 
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
@@ -954,7 +953,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class));
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, mock(ApiKeyService.class), rds -> {});
         verify(fileRolesStore).addListener(any(Consumer.class)); // adds a listener in ctor
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
             () -> compositeRolesStore.getRoles(SystemUser.INSTANCE, null, null));
@@ -985,7 +984,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 nativePrivStore, Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService);
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService, rds -> {});
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = new Authentication(new User("test api key user", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"), null, Version.CURRENT, AuthenticationType.API_KEY, Collections.emptyMap());
@@ -1027,7 +1026,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
                 nativePrivStore, Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
-                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService);
+                new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService, rds -> {});
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = new Authentication(new User("test api key user", "api_key"),
             new RealmRef("_es_api_key", "_es_api_key", "node"), null, Version.CURRENT, AuthenticationType.API_KEY, Collections.emptyMap());

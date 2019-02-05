@@ -35,12 +35,14 @@ public class DeprecationChecks {
         Collections.unmodifiableList(Arrays.asList(
             ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkShardLimit,
+            ClusterDeprecationChecks::checkNoMasterBlock,
             ClusterDeprecationChecks::checkClusterName
         ));
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             NodeDeprecationChecks::httpEnabledSettingRemoved,
+            NodeDeprecationChecks::noMasterBlockRenamed,
             NodeDeprecationChecks::auditLogPrefixSettingsCheck,
             NodeDeprecationChecks::indexThreadPoolCheck,
             NodeDeprecationChecks::bulkThreadPoolCheck,

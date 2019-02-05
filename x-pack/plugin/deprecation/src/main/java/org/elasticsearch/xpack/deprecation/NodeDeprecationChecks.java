@@ -7,10 +7,20 @@ package org.elasticsearch.xpack.deprecation;
 
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
@@ -188,6 +198,57 @@ public class NodeDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#tls-setting-fallback",
                 "each component must have TLS/SSL configured explicitly");
+        }
+        return null;
+    }
+
+    static DeprecationIssue tlsv1ProtocolDisabled(Settings nodeSettings, PluginsAndModules plugins) {
+        final Set<String> contexts = new TreeSet<>();
+
+        nodeSettings.keySet().stream()
+            .filter(key -> key.contains(".ssl."))
+            .map(key -> key.replaceAll("\\.ssl\\..*$", ".ssl"))
+            .distinct()
+            .filter(sslPrefix -> nodeSettings.hasValue(sslPrefix + ".supported_protocols") == false)
+            .forEach(contexts::add);
+        final Map<String, Settings> realms = RealmSettings.getRealmSettings(nodeSettings);
+        realms.forEach((name, realmSettings) -> {
+            final String type = realmSettings.get("type");
+            final String sslPrefix = RealmSettings.PREFIX + name + ".ssl";
+            if (LdapRealmSettings.LDAP_TYPE.equals(type) || LdapRealmSettings.AD_TYPE.equals(type)) {
+                final List<String> urls = realmSettings.getAsList(SessionFactorySettings.URLS_SETTING);
+                if (urls != null && urls.stream().anyMatch(u -> u.startsWith("ldaps://"))) {
+                    if (nodeSettings.hasValue(sslPrefix + ".supported_protocols") == false) {
+                        contexts.add(sslPrefix);
+                    }
+                }
+            } else if (SamlRealmSettings.TYPE.equals(type)) {
+                final String path = SamlRealmSettings.IDP_METADATA_PATH.get(realmSettings);
+                if (Strings.hasText(path) && path.startsWith("https://")) {
+                    if (nodeSettings.hasValue(sslPrefix + ".supported_protocols") == false) {
+                        contexts.add(sslPrefix);
+                    }
+                }
+            }
+        });
+
+        final Map<String, Settings> mon = nodeSettings.getGroups("xpack.monitoring.exporters");
+        for (Map.Entry<String, Settings> entry : mon.entrySet()) {
+            final List<String> hosts = entry.getValue().getAsList("host");
+            if (hosts != null && hosts.stream().anyMatch(h -> h.startsWith("https://"))) {
+                String sslPrefix = "xpack.monitoring.exporters." + entry.getKey() + ".ssl";
+                if (nodeSettings.hasValue(sslPrefix + ".supported_protocols") == false) {
+                    contexts.add(sslPrefix);
+                }
+            }
+        }
+
+        if (contexts.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "TLS v1.0 has been removed from default TLS/SSL protocols",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#tls-v1-removed",
+                "These ssl contexts rely on the default TLS/SSL protocols: " + contexts);
         }
         return null;
     }

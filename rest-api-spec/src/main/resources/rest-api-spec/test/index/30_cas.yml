@@ -3,7 +3,7 @@
 
  - skip:
       version: " - 6.99.99"
-      reason:  cas ops are introduced in 7.0.0
+      reason:  typesless api was introduces in 7.0
 
  - do:
       index:

@@ -507,6 +507,9 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             } else {
                 assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][id]: " +
                     "version conflict, current version [2] is different than the one provided [5]]", exception.getMessage());
+                assertWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. " +
+                    "Please use the `if_seq_no` and `if_primary_term` parameters instead. " +
+                    "(request for index [index], type [type], id [id])");
             }
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
@@ -575,9 +578,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testUpdate() throws IOException {
-        highLevelClient().indices().create(
-            new CreateIndexRequest("index").settings(Collections.singletonMap("index.number_of_shards", "1")),
-            RequestOptions.DEFAULT);
         {
             UpdateRequest updateRequest = new UpdateRequest("index", "type", "does_not_exist");
             updateRequest.doc(singletonMap("field", "value"), randomFrom(XContentType.values()));

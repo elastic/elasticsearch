@@ -140,7 +140,6 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
@@ -1931,9 +1930,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
             initialTransportClientSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         }
-        if (addTestZenDiscovery() && getUseZen2() == false) {
-            initialNodeSettings.put(TestZenDiscovery.USE_ZEN2.getKey(), false);
-        }
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
@@ -1979,14 +1975,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return true;
     }
 
-    /**
-     * Iff this returns true test zen discovery implementations is used for the test runs.
-     * The default is {@code true}.
-     */
-    protected boolean addTestZenDiscovery() {
-        return true;
-    }
-
     /** Returns {@code true} iff this test cluster should use a dummy http transport */
     protected boolean addMockHttpTransport() {
         return true;
@@ -2027,9 +2015,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         if (addMockTransportService()) {
             mocks.add(getTestTransportPlugin());
-        }
-        if (addTestZenDiscovery()) {
-            mocks.add(TestZenDiscovery.TestPlugin.class);
         }
         if (addMockHttpTransport()) {
             mocks.add(MockHttpTransport.TestPlugin.class);

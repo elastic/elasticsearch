@@ -70,7 +70,6 @@ final class WatcherRequestConverters {
 
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request)
-            .withVersion(putWatchRequest.getVersion())
             .withIfSeqNo(putWatchRequest.ifSeqNo())
             .withIfPrimaryTerm(putWatchRequest.ifPrimaryTerm());
         if (putWatchRequest.isActive() == false) {

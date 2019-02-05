@@ -233,7 +233,7 @@ public class RestClient implements Closeable {
             if (cause instanceof RuntimeException) {
                 throw (RuntimeException) cause;
             }
-            throw new IllegalStateException("cause must be either RuntimeException or IOException", cause);
+            throw new IllegalStateException("unexpected exception type: must be either RuntimeException or IOException", cause);
         }
         ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
         if (responseOrResponseException.responseException == null) {
@@ -765,8 +765,8 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Wrap whatever exception we may receive, copying the type where possible so the synchronous API looks as much as possible
-     * like the asynchronous API. We wrap the exception so that the caller's signature shows up in any exception we re-throw.
+     * Wrap the exception so the caller's signature shows up in the stack trace, taking care to copy the original type and message
+     * where possible so async and sync code don't have to check different exceptions.
      */
     private static Exception extractAndWrapCause(Exception exception) {
         if (exception instanceof InterruptedException) {

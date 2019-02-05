@@ -1121,7 +1121,7 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
      * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
-     * {@link #exists(GetIndexRequest, RequestOptions, ActionListener)} should be used instead, which accepts a new request object.
+     * {@link #exists(GetIndexRequest, RequestOptions)} should be used instead, which accepts a new request object.
      */
     @Deprecated
     public boolean exists(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, Header... headers) throws IOException {

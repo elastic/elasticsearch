@@ -2157,9 +2157,12 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRestoreShard() throws IOException {
         final IndexShard source = newStartedShard(true);
-        IndexShard target = newStartedShard(true);
+        IndexShard target = newStartedShard(true, Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), source.indexSettings().isSoftDeleteEnabled()).build());
 
         indexDoc(source, "_doc", "0");
+        EngineTestCase.generateNewSeqNo(source.getEngine()); // create a gap in the history
+        indexDoc(source, "_doc", "2");
         if (randomBoolean()) {
             source.refresh("test");
         }
@@ -2195,16 +2198,18 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             }
         }));
-        assertThat(target.getLocalCheckpoint(), equalTo(0L));
-        assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(0L));
-        assertThat(target.getReplicationTracker().getGlobalCheckpoint(), equalTo(0L));
+        assertThat(target.getLocalCheckpoint(), equalTo(2L));
+        assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
+        assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
         IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted());
         assertThat(target.getReplicationTracker().getTrackedLocalCheckpointForShard(
-            target.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(0L));
+            target.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(2L));
+        assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(2L));
 
-        assertDocs(target, "0");
+        assertDocs(target, "0", "2");
 
-        closeShards(source, target);
+        closeShard(source, false);
+        closeShards(target);
     }
 
     public void testSearcherWrapperIsUsed() throws IOException {

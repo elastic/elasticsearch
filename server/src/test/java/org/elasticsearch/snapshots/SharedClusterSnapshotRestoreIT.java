@@ -3637,6 +3637,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     @TestLogging("org.elasticsearch.snapshots:TRACE")
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/38226")
     public void testAbortedSnapshotDuringInitDoesNotStart() throws Exception {
         final Client client = client();
 

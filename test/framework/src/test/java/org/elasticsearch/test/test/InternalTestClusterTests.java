@@ -35,7 +35,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.NodeConfigurationSource;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -72,7 +71,7 @@ import static org.hamcrest.Matchers.not;
 public class InternalTestClusterTests extends ESTestCase {
 
     private static Collection<Class<? extends Plugin>> mockPlugins() {
-        return Arrays.asList(getTestTransportPlugin(), TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class);
+        return Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class);
     }
 
     public void testInitializiationIsConsistent() {

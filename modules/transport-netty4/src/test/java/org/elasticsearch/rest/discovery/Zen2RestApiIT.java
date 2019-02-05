@@ -36,7 +36,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -50,11 +49,6 @@ import static org.hamcrest.core.Is.is;
 // should be able to move these tests to run against a proper cluster instead. TODO do this.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 public class Zen2RestApiIT extends ESNetty4IntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(TestZenDiscovery.USE_ZEN2.getKey(), true).build();
-    }
 
     @Override
     protected boolean addMockHttpTransport() {

@@ -22,6 +22,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,7 +42,7 @@ import java.util.Objects;
  */
 public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContentObject {
 
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", true, Builder::new);
     static {
         PARSER.declareString(Builder::setId, new ParseField("id"));
         PARSER.declareField((parser, builder, aVoid) -> {
@@ -121,6 +122,11 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
         return readDiffFrom(PipelineConfiguration::readFrom, in);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     @Override

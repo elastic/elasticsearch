@@ -335,21 +335,32 @@ public class ThreadPool implements Scheduler, Closeable {
      * context of the calling thread you may call <code>threadPool.getThreadContext().preserveContext</code> on the runnable before passing
      * it to this method.
      *
+     * @param command the command to run
      * @param delay delay before the task executes
      * @param executor the name of the thread pool on which to execute this task. SAME means "execute on the scheduler thread" which changes
      *        the meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the
      *        command completes.
-     * @param command the command to run
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
      *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
      *         the ScheduledFuture will cannot interact with it.
      * @throws org.elasticsearch.common.util.concurrent.EsRejectedExecutionException if the task cannot be scheduled for execution
      */
-    public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
+    @Override
+    public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
         if (!Names.SAME.equals(executor)) {
             command = new ThreadedRunnable(command, executor(executor));
         }
-        return scheduler.schedule(new ThreadPool.LoggingRunnable(command), delay.millis(), TimeUnit.MILLISECONDS);
+        return new ScheduledCancellableAdapter(scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
+    }
+
+
+    /**
+     * Only in 6.7, to be used in the one case where the old style schedule is necessary to stay API backwards compatible.
+     * @deprecated
+     */
+    @Deprecated
+    public ScheduledFuture<?> scheduleDeprecated(TimeValue delay, String executor, Runnable command) {
+        return ScheduledCancellableAdapter.toScheduledFuture(schedule(command, delay, executor));
     }
 
     @Override

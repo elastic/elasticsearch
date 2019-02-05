@@ -18,23 +18,36 @@ import java.util.Objects;
 
 public class AggregateFunctionAttribute extends FunctionAttribute {
 
+    // used when dealing with a inner agg (avg -> stats) to keep track of
+    // packed id
+    // used since the functionId points to the compoundAgg
+    private final ExpressionId innerId;
     private final String propertyPath;
 
-    AggregateFunctionAttribute(Source source, String name, DataType dataType, ExpressionId id,
-            String functionId, String propertyPath) {
-        this(source, name, dataType, null, Nullability.FALSE, id, false, functionId, propertyPath);
+    AggregateFunctionAttribute(Source source, String name, DataType dataType, ExpressionId id, String functionId) {
+        this(source, name, dataType, null, Nullability.FALSE, id, false, functionId, null, null);
     }
 
-    public AggregateFunctionAttribute(Source source, String name, DataType dataType, String qualifier,
-            Nullability nullable, ExpressionId id, boolean synthetic, String functionId, String propertyPath) {
-        super(source, name, dataType, qualifier, nullable, id, synthetic, functionId);
+    AggregateFunctionAttribute(Source source, String name, DataType dataType, ExpressionId id, String functionId, ExpressionId innerId,
+            String propertyPath) {
+        this(source, name, dataType, null, Nullability.FALSE, id, false, functionId, innerId, propertyPath);
+    }
+
+    public AggregateFunctionAttribute(Source source, String name, DataType dataType, String qualifier, Nullability nullability,
+            ExpressionId id, boolean synthetic, String functionId, ExpressionId innerId, String propertyPath) {
+        super(source, name, dataType, qualifier, nullability, id, synthetic, functionId);
+        this.innerId = innerId;
         this.propertyPath = propertyPath;
     }
 
     @Override
     protected NodeInfo<AggregateFunctionAttribute> info() {
-        return NodeInfo.create(this, AggregateFunctionAttribute::new,
-            name(), dataType(), qualifier(), nullable(), id(), synthetic(), functionId(), propertyPath);
+        return NodeInfo.create(this, AggregateFunctionAttribute::new, name(), dataType(), qualifier(), nullable(), id(), synthetic(),
+                functionId(), innerId, propertyPath);
+    }
+
+    public ExpressionId innerId() {
+        return innerId != null ? innerId : id();
     }
 
     public String propertyPath() {
@@ -43,33 +56,38 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
 
     @Override
     protected Expression canonicalize() {
-        return new AggregateFunctionAttribute(source(), "<none>", dataType(), null, Nullability.TRUE, id(), false, "<none>", null);
+        return new AggregateFunctionAttribute(source(), "<none>", dataType(), null, Nullability.TRUE, id(), false, "<none>", null, null);
     }
 
     @Override
-    protected Attribute clone(Source source, String name, String qualifier, Nullability nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Source source, String name, String qualifier, Nullability nullability, ExpressionId id, boolean synthetic) {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
         // that is the functionId is actually derived from the expression id to easily track it across contexts
-        return new AggregateFunctionAttribute(source, name, dataType(), qualifier, nullable, id, synthetic, functionId(), propertyPath);
+        return new AggregateFunctionAttribute(source, name, dataType(), qualifier, nullability, id, synthetic, functionId(), innerId,
+                propertyPath);
     }
 
     public AggregateFunctionAttribute withFunctionId(String functionId, String propertyPath) {
-        return new AggregateFunctionAttribute(source(), name(), dataType(), qualifier(), nullable(),
-                id(), synthetic(), functionId, propertyPath);
+        return new AggregateFunctionAttribute(source(), name(), dataType(), qualifier(), nullable(), id(), synthetic(), functionId, innerId,
+                propertyPath);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), propertyPath);
+        return Objects.hash(super.hashCode(), innerId, propertyPath);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && Objects.equals(propertyPath(), ((AggregateFunctionAttribute) obj).propertyPath());
+        if (super.equals(obj)) {
+            AggregateFunctionAttribute other = (AggregateFunctionAttribute) obj;
+            return Objects.equals(innerId, other.innerId) && Objects.equals(propertyPath, other.propertyPath);
+        }
+        return false;
     }
 
     @Override
     protected String label() {
-        return "a->" + functionId();
+        return "a->" + innerId();
     }
 }

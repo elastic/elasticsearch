@@ -522,7 +522,7 @@ public class JobManager {
 
     private void updateJobIndex(UpdateJobAction.Request request, ActionListener<Job> updatedJobListener) {
         jobConfigProvider.updateJobWithValidation(request.getJobId(), request.getJobUpdate(), maxModelMemoryLimit,
-                this::validate, updatedJobListener);
+                this::validate, clusterService.state().nodes().getMinNodeVersion(), updatedJobListener);
     }
 
     private void updateJobClusterState(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
@@ -846,7 +846,8 @@ public class JobManager {
                         .setEstablishedModelMemory(response)
                         .build();
 
-                jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(
+                jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit,
+                    clusterService.state().nodes().getMinNodeVersion(), ActionListener.wrap(
                         job -> {
                             auditor.info(request.getJobId(),
                                     Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));

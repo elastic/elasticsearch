@@ -34,7 +34,7 @@ public abstract class Step {
         return key;
     }
 
-    public final StepKey getNextStepKey() {
+    public StepKey getNextStepKey() {
         return nextStepKey;
     }
 

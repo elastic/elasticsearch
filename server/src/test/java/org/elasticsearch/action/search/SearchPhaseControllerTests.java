@@ -306,9 +306,13 @@ public class SearchPhaseControllerTests extends ESTestCase {
         return fetchResults;
     }
 
+    private static SearchRequest randomSearchRequest() {
+        return randomBoolean() ? new SearchRequest() : new SearchRequest("remote", 0, randomBoolean());
+    }
+
     public void testConsumer() {
         int bufferSize = randomIntBetween(2, 3);
-        SearchRequest request = randomBoolean() ? new SearchRequest() : new SearchRequest("remote");
+        SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(request, 3);
@@ -366,7 +370,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int expectedNumResults = randomIntBetween(1, 100);
         int bufferSize = randomIntBetween(2, 200);
 
-        SearchRequest request = randomBoolean() ? new SearchRequest() : new SearchRequest("remote");
+        SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")));
         request.setBatchedReduceSize(bufferSize);
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer =
@@ -410,7 +414,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     public void testConsumerOnlyAggs() {
         int expectedNumResults = randomIntBetween(1, 100);
         int bufferSize = randomIntBetween(2, 200);
-        SearchRequest request = randomBoolean() ? new SearchRequest() : new SearchRequest("remote");
+        SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
         request.setBatchedReduceSize(bufferSize);
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer =
@@ -444,7 +448,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     public void testConsumerOnlyHits() {
         int expectedNumResults = randomIntBetween(1, 100);
         int bufferSize = randomIntBetween(2, 200);
-        SearchRequest request = randomBoolean() ? new SearchRequest() : new SearchRequest("remote");
+        SearchRequest request = randomSearchRequest();
         if (randomBoolean()) {
             request.source(new SearchSourceBuilder().size(randomIntBetween(1, 10)));
         }
@@ -475,8 +479,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
 
     private void assertFinalReduction(SearchRequest searchRequest) {
         assertThat(reductions.size(), greaterThanOrEqualTo(1));
-        //the last reduction step was the final one only if no cluster alias was provided with the search request
-        assertEquals(searchRequest.getLocalClusterAlias() == null, reductions.get(reductions.size() - 1));
+        assertEquals(searchRequest.isFinalReduce(), reductions.get(reductions.size() - 1));
     }
 
     public void testNewSearchPhaseResults() {
@@ -548,7 +551,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     public void testConsumerSortByField() {
         int expectedNumResults = randomIntBetween(1, 100);
         int bufferSize = randomIntBetween(2, 200);
-        SearchRequest request = randomBoolean() ? new SearchRequest() : new SearchRequest("remote");
+        SearchRequest request = randomSearchRequest();
         int size = randomIntBetween(1, 10);
         request.setBatchedReduceSize(bufferSize);
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer =
@@ -583,7 +586,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     public void testConsumerFieldCollapsing() {
         int expectedNumResults = randomIntBetween(30, 100);
         int bufferSize = randomIntBetween(2, 200);
-        SearchRequest request = randomBoolean() ? new SearchRequest() : new SearchRequest("remote");
+        SearchRequest request = randomSearchRequest();
         int size = randomIntBetween(5, 10);
         request.setBatchedReduceSize(bufferSize);
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> consumer =

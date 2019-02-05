@@ -27,8 +27,10 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -62,12 +64,15 @@ public class DanglingIndicesState implements ClusterStateListener {
     private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public DanglingIndicesState(NodeEnvironment nodeEnv, MetaStateService metaStateService,
+    public DanglingIndicesState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
                                 LocalAllocateDangledIndices allocateDangledIndices, ClusterService clusterService) {
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
-        clusterService.addListener(this);
+        if (DiscoveryNode.isDataNode(settings)
+            || DiscoveryNode.isMasterNode(settings)) {
+            clusterService.addListener(this);
+        }
     }
 
     /**

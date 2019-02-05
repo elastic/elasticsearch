@@ -90,7 +90,7 @@ public class IngestService implements ClusterStateApplier {
             new Processor.Parameters(
                 env, scriptService, analysisRegistry,
                 threadPool.getThreadContext(), threadPool::relativeTimeInMillis,
-                (delay, command) -> threadPool.schedule(
+                (delay, command) -> threadPool.scheduleDeprecated(
                     TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC, command
                 ), this
             )
@@ -335,7 +335,7 @@ public class IngestService implements ClusterStateApplier {
         return new Pipeline(id, description, null, new CompoundProcessor(failureProcessor));
     }
 
-    static ClusterState innerPut(PutPipelineRequest request, ClusterState currentState) {
+    public static ClusterState innerPut(PutPipelineRequest request, ClusterState currentState) {
         IngestMetadata currentIngestMetadata = currentState.metaData().custom(IngestMetadata.TYPE);
         Map<String, PipelineConfiguration> pipelines;
         if (currentIngestMetadata != null) {

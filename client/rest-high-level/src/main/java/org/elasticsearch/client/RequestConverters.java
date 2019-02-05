@@ -75,7 +75,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -882,6 +882,24 @@ final class RequestConverters {
             return this;
         }
 
+        Params withIfSeqNo(long ifSeqNo) {
+            if (ifSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                return putParam("if_seq_no", Long.toString(ifSeqNo));
+            }
+            return this;
+        }
+
+        Params withIfPrimaryTerm(long ifPrimaryTerm) {
+            if (ifPrimaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+                return putParam("if_primary_term", Long.toString(ifPrimaryTerm));
+            }
+            return this;
+        }
+
+        Params withWaitForActiveShards(ActiveShardCount activeShardCount) {
+            return withWaitForActiveShards(activeShardCount, ActiveShardCount.DEFAULT);
+        }
+
         Params withIndicesOptions(IndicesOptions indicesOptions) {
             if (indicesOptions != null) {
                 withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
@@ -927,14 +945,6 @@ final class RequestConverters {
         Params withIncludeDefaults(boolean includeDefaults) {
             if (includeDefaults) {
                 return putParam("include_defaults", Boolean.TRUE.toString());
-            }
-            return this;
-        }
-
-        Params withIncludeTypeName(boolean includeTypeName) {
-            if (includeTypeName) {
-                return putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER,
-                        Boolean.toString(BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY));
             }
             return this;
         }

@@ -31,6 +31,7 @@ import java.util.Locale;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DateIndexNameProcessorTests extends ESTestCase {
 
@@ -97,6 +98,24 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         assertThat(document.getSourceAndMetadata().get("_index"),
             equalTo("<"+indexNamePrefix+"{"+DateTimeFormat.forPattern(indexNameFormat)
                 .print(dateTimeFunction.apply(date))+"||/"+dateRounding+"{"+indexNameFormat+"|UTC}}>"));
+    }
+
+    public void testJodaTimeDeprecation() throws Exception {
+        String indexNameFormat = "YYYY-MM-dd'T'HH:mm:ss.SSSZ";
+        String date = "2019-01-31T12:34:56.789Z";
+        Function<String, DateTime> dateTimeFunction = DateFormat.Iso8601.getFunction(null, DateTimeZone.UTC, null);
+
+        DateIndexNameProcessor dateProcessor = createProcessor("_field",
+            Collections.singletonList(dateTimeFunction),  DateTimeZone.UTC, "foo-","M", indexNameFormat);
+
+        IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null, null, null,
+            Collections.singletonMap("_field", date));
+        dateProcessor.execute(document);
+
+        assertWarnings("Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch." +
+            " Prefix your date format with '8' to use the new specifier.");
+        assertThat(document.getSourceAndMetadata().get("_index"),
+            is("<foo-{2019-01-31T12:34:56.789+0000||/M{" + indexNameFormat + "|UTC}}>"));
     }
 
     private DateIndexNameProcessor createProcessor(String field, List<Function<String, DateTime>> dateFormats,

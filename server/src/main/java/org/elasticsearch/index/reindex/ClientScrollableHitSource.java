@@ -156,7 +156,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
                         TimeValue delay = retries.next();
                         logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
                         countSearchRetry.run();
-                        threadPool.schedule(delay, ThreadPool.Names.SAME, retryWithContext);
+                        threadPool.schedule(retryWithContext, delay, ThreadPool.Names.SAME);
                     } else {
                         logger.warn(() -> new ParameterizedMessage(
                                 "giving up on search because we retried [{}] times without success", retryCount), e);
@@ -244,6 +244,16 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         @Override
         public String getParent() {
             return fieldValue(ParentFieldMapper.NAME);
+        }
+        
+        @Override
+        public long getSeqNo() {
+            return delegate.getSeqNo();
+        }
+
+        @Override
+        public long getPrimaryTerm() {
+            return delegate.getPrimaryTerm();
         }
 
         @Override

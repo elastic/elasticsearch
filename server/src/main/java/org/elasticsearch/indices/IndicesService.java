@@ -95,6 +95,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -211,7 +212,7 @@ public class IndicesService extends AbstractLifecycleComponent
     @Override
     protected void doStart() {
         // Start thread that will manage cleaning the field data cache periodically
-        threadPool.schedule(this.cleanInterval, ThreadPool.Names.SAME, this.cacheCleaner);
+        threadPool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
     }
 
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
@@ -381,23 +382,29 @@ public class IndicesService extends AbstractLifecycleComponent
 
         CommitStats commitStats;
         SeqNoStats seqNoStats;
+        RetentionLeaseStats retentionLeaseStats;
         try {
             commitStats = indexShard.commitStats();
             seqNoStats = indexShard.seqNoStats();
+            retentionLeaseStats = indexShard.getRetentionLeaseStats();
         } catch (AlreadyClosedException e) {
             // shard is closed - no stats is fine
             commitStats = null;
             seqNoStats = null;
+            retentionLeaseStats = null;
         }
 
-        return new IndexShardStats(indexShard.shardId(),
-                                   new ShardStats[] {
-                                       new ShardStats(indexShard.routingEntry(),
-                                                      indexShard.shardPath(),
-                                                      new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
-                                                      commitStats,
-                                                      seqNoStats)
-                                   });
+        return new IndexShardStats(
+                indexShard.shardId(),
+                new ShardStats[]{
+                        new ShardStats(
+                                indexShard.routingEntry(),
+                                indexShard.shardPath(),
+                                new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                                commitStats,
+                                seqNoStats,
+                                retentionLeaseStats)
+                });
     }
 
     /**
@@ -1171,7 +1178,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             // Reschedule itself to run again if not closed
             if (closed.get() == false) {
-                threadPool.schedule(interval, ThreadPool.Names.SAME, this);
+                threadPool.schedule(this, interval, ThreadPool.Names.SAME);
             }
         }
 

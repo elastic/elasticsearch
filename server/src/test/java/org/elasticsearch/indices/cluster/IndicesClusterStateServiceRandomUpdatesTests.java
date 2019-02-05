@@ -48,6 +48,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -384,7 +385,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         }
 
         // randomly start and fail allocated shards
-        List<ShardRouting> startedShards = new ArrayList<>();
+        final Map<ShardRouting, Long> startedShards = new HashMap<>();
         List<FailedShard> failedShards = new ArrayList<>();
         for (DiscoveryNode node : state.nodes()) {
             IndicesClusterStateService indicesClusterStateService = clusterStateServiceMap.get(node);
@@ -393,7 +394,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 for (MockIndexShard indexShard : indexService) {
                     ShardRouting persistedShardRouting = indexShard.routingEntry();
                     if (persistedShardRouting.initializing() && randomBoolean()) {
-                        startedShards.add(persistedShardRouting);
+                        startedShards.put(persistedShardRouting, indexShard.term());
                     } else if (rarely()) {
                         failedShards.add(new FailedShard(persistedShardRouting, "fake shard failure", new Exception(), randomBoolean()));
                     }
@@ -481,7 +482,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 null,
                 primaryReplicaSyncer,
                 s -> {},
-                (s, leases, listener) -> {});
+                RetentionLeaseSyncer.EMPTY);
     }
 
     private class RecordingIndicesService extends MockIndicesService {

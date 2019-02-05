@@ -42,8 +42,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -57,8 +55,6 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
@@ -76,11 +72,14 @@ import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.GetMappingsRequest;
+import org.elasticsearch.client.indices.GetMappingsResponse;
+import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
+import org.elasticsearch.client.indices.IndexTemplateMetaData;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -589,12 +588,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::get-mappings-request
             GetMappingsRequest request = new GetMappingsRequest(); // <1>
             request.indices("twitter"); // <2>
-            request.types("_doc"); // <3>
             // end::get-mappings-request
 
             // tag::get-mappings-request-masterTimeout
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-            request.masterNodeTimeout("1m"); // <2>
+            request.setMasterTimeout(TimeValue.timeValueMinutes(1)); // <1>
             // end::get-mappings-request-masterTimeout
 
             // tag::get-mappings-request-indicesOptions
@@ -606,9 +603,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::get-mappings-execute
 
             // tag::get-mappings-response
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = getMappingResponse.mappings(); // <1>
-            MappingMetaData typeMapping = allMappings.get("twitter").get("_doc"); // <2>
-            Map<String, Object> mapping = typeMapping.sourceAsMap(); // <3>
+            Map<String, MappingMetaData> allMappings = getMappingResponse.mappings(); // <1>
+            MappingMetaData indexMapping = allMappings.get("twitter"); // <2>
+            Map<String, Object> mapping = indexMapping.sourceAsMap(); // <3>
             // end::get-mappings-response
 
             Map<String, String> type = new HashMap<>();
@@ -644,7 +641,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             GetMappingsRequest request = new GetMappingsRequest();
             request.indices("twitter");
-            request.types("_doc");
 
             // tag::get-mappings-execute-listener
             ActionListener<GetMappingsResponse> listener =
@@ -665,9 +661,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<GetMappingsResponse> latchListener = new LatchedActionListener<>(listener, latch);
             listener = ActionListener.wrap(r -> {
-                ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = r.mappings();
-                MappingMetaData typeMapping = allMappings.get("twitter").get("_doc");
-                Map<String, Object> mapping = typeMapping.sourceAsMap();
+                Map<String, MappingMetaData> allMappings = r.mappings();
+                MappingMetaData indexMapping = allMappings.get("twitter");
+                Map<String, Object> mapping = indexMapping.sourceAsMap();
 
                 Map<String, String> type = new HashMap<>();
                 type.put("type", "text");
@@ -2088,16 +2084,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-template-request-mappings-json
-            request.mapping("_doc", // <1>
+            request.mapping(// <1>
                 "{\n" +
-                    "  \"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"message\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      }\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
                     "    }\n" +
                     "  }\n" +
-                    "}", // <2>
+                    "}", 
                 XContentType.JSON);
             // end::put-template-request-mappings-json
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2105,14 +2099,16 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             //tag::put-template-request-mappings-map
             Map<String, Object> jsonMap = new HashMap<>();
-            Map<String, Object> message = new HashMap<>();
-            message.put("type", "text");
-            Map<String, Object> properties = new HashMap<>();
-            properties.put("message", message);
-            Map<String, Object> mapping = new HashMap<>();
-            mapping.put("properties", properties);
-            jsonMap.put("_doc", mapping);
-            request.mapping("_doc", jsonMap); // <1>
+            {
+                Map<String, Object> properties = new HashMap<>();
+                {
+                    Map<String, Object> message = new HashMap<>();
+                    message.put("type", "text");
+                    properties.put("message", message);
+                }
+                jsonMap.put("properties", properties);                
+            }
+            request.mapping(jsonMap); // <1>
             //end::put-template-request-mappings-map
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2121,29 +2117,19 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             {
-                builder.startObject("_doc");
+                builder.startObject("properties");
                 {
-                    builder.startObject("properties");
+                    builder.startObject("message");
                     {
-                        builder.startObject("message");
-                        {
-                            builder.field("type", "text");
-                        }
-                        builder.endObject();
+                        builder.field("type", "text");
                     }
                     builder.endObject();
                 }
                 builder.endObject();
             }
             builder.endObject();
-            request.mapping("_doc", builder); // <1>
+            request.mapping(builder); // <1>
             //end::put-template-request-mappings-xcontent
-            assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
-        }
-        {
-            //tag::put-template-request-mappings-shortcut
-            request.mapping("_doc", "message", "type=text"); // <1>
-            //end::put-template-request-mappings-shortcut
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
         }
 
@@ -2171,11 +2157,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             "    \"number_of_shards\": 1\n" +
             "  },\n" +
             "  \"mappings\": {\n" +
-            "    \"_doc\": {\n" +
-            "      \"properties\": {\n" +
-            "        \"message\": {\n" +
-            "          \"type\": \"text\"\n" +
-            "        }\n" +
+            "    \"properties\": {\n" +
+            "      \"message\": {\n" +
+            "        \"type\": \"text\"\n" +
             "      }\n" +
             "    }\n" +
             "  },\n" +
@@ -2238,13 +2222,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
             putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1));
-            putRequest.mapping("_doc",
+            putRequest.mapping(
                     "{\n" +
-                    "  \"_doc\": {\n" +
-                    "    \"properties\": {\n" +
-                    "      \"message\": {\n" +
-                    "        \"type\": \"text\"\n" +
-                    "      }\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
                     "    }\n" +
                     "  }\n" +
                     "}", XContentType.JSON);
@@ -2263,7 +2245,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-templates-request-masterTimeout
 
         // tag::get-templates-execute
-        GetIndexTemplatesResponse getTemplatesResponse = client.indices().getTemplate(request, RequestOptions.DEFAULT);
+        GetIndexTemplatesResponse getTemplatesResponse = client.indices().getIndexTemplate(request, RequestOptions.DEFAULT);
         // end::get-templates-execute
 
         // tag::get-templates-response
@@ -2293,7 +2275,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::get-templates-execute-async
-        client.indices().getTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        client.indices().getIndexTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::get-templates-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));

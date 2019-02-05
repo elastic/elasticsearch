@@ -84,8 +84,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -547,23 +549,45 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals(RestStatus.CREATED, indexResponse.status());
 
-            UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
-            updateRequest.doc(singletonMap("field", "updated"), randomFrom(XContentType.values()));
+            long lastUpdateSeqNo;
+            long lastUpdatePrimaryTerm;
+            {
+                UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+                updateRequest.doc(singletonMap("field", "updated"), randomFrom(XContentType.values()));
+                final UpdateResponse updateResponse = execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
+                assertEquals(RestStatus.OK, updateResponse.status());
+                assertEquals(indexResponse.getVersion() + 1, updateResponse.getVersion());
+                lastUpdateSeqNo = updateResponse.getSeqNo();
+                lastUpdatePrimaryTerm = updateResponse.getPrimaryTerm();
+                assertThat(lastUpdateSeqNo, greaterThanOrEqualTo(0L));
+                assertThat(lastUpdatePrimaryTerm, greaterThanOrEqualTo(1L));
+            }
 
-            UpdateResponse updateResponse = execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
-            assertEquals(RestStatus.OK, updateResponse.status());
-            assertEquals(indexResponse.getVersion() + 1, updateResponse.getVersion());
-
-            UpdateRequest updateRequestConflict = new UpdateRequest("index", "type", "id");
-            updateRequestConflict.doc(singletonMap("field", "with_version_conflict"), randomFrom(XContentType.values()));
-            updateRequestConflict.version(indexResponse.getVersion());
-
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () ->
-                    execute(updateRequestConflict, highLevelClient()::update, highLevelClient()::updateAsync,
-                            highLevelClient()::update, highLevelClient()::updateAsync));
-            assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][id]: version conflict, " +
-                            "current version [2] is different than the one provided [1]]", exception.getMessage());
+            {
+                final UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+                updateRequest.doc(singletonMap("field", "with_seq_no_conflict"), randomFrom(XContentType.values()));
+                if (randomBoolean()) {
+                    updateRequest.setIfSeqNo(lastUpdateSeqNo + 1);
+                    updateRequest.setIfPrimaryTerm(lastUpdatePrimaryTerm);
+                } else {
+                    updateRequest.setIfSeqNo(lastUpdateSeqNo + (randomBoolean() ? 0 : 1));
+                    updateRequest.setIfPrimaryTerm(lastUpdatePrimaryTerm + 1);
+                }
+                ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () ->
+                    execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync));
+                assertEquals(exception.toString(),RestStatus.CONFLICT, exception.status());
+                assertThat(exception.getMessage(), containsString("Elasticsearch exception [type=version_conflict_engine_exception"));
+            }
+            {
+                final UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
+                updateRequest.doc(singletonMap("field", "with_seq_no"), randomFrom(XContentType.values()));
+                updateRequest.setIfSeqNo(lastUpdateSeqNo);
+                updateRequest.setIfPrimaryTerm(lastUpdatePrimaryTerm);
+                final UpdateResponse updateResponse = execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
+                assertEquals(RestStatus.OK, updateResponse.status());
+                assertEquals(lastUpdateSeqNo + 1, updateResponse.getSeqNo());
+                assertEquals(lastUpdatePrimaryTerm, updateResponse.getPrimaryTerm());
+            }
         }
         {
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {

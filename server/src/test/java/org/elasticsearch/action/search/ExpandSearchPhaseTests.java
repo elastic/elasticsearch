@@ -248,6 +248,9 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 assertTrue(request.requests().stream().allMatch((r) -> version == r.source().version()));
                 assertTrue(request.requests().stream().allMatch((r) -> seqNoAndTerm == r.source().seqNoAndPrimaryTerm()));
                 assertTrue(request.requests().stream().allMatch((r) -> postFilter.equals(r.source().postFilter())));
+                assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().fetchSource() == false));
+                assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().includes().length == 0));
+                assertTrue(request.requests().stream().allMatch((r) -> r.source().fetchSource().excludes().length == 0));
             }
         };
         mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
@@ -255,6 +258,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 new CollapseBuilder("someField")
                     .setInnerHits(new InnerHitBuilder().setName("foobarbaz").setVersion(version).setSeqNoAndPrimaryTerm(seqNoAndTerm))
             )
+            .fetchSource(false)
             .postFilter(QueryBuilders.existsQuery("foo")))
             .preference("foobar")
             .routing("baz");

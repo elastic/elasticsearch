@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,11 +33,12 @@ public class DeprecationChecks {
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
+            ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkShardLimit,
             ClusterDeprecationChecks::checkClusterName
         ));
 
-    static List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> NODE_SETTINGS_CHECKS =
+    static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             NodeDeprecationChecks::httpEnabledSettingRemoved,
             NodeDeprecationChecks::auditLogPrefixSettingsCheck,
@@ -50,6 +52,8 @@ public class DeprecationChecks {
             NodeDeprecationChecks::gcsRepositoryChanges,
             NodeDeprecationChecks::fileDiscoveryPluginRemoved,
             NodeDeprecationChecks::defaultSSLSettingsRemoved,
+            NodeDeprecationChecks::tlsv1ProtocolDisabled,
+            NodeDeprecationChecks::transportSslEnabledWithoutSecurityEnabled,
             NodeDeprecationChecks::watcherNotificationsSecureSettingsCheck,
             NodeDeprecationChecks::auditIndexSettingsCheck
         ));
@@ -64,6 +68,12 @@ public class DeprecationChecks {
             IndexDeprecationChecks::shardOnStartupCheck,
             IndexDeprecationChecks::classicSimilarityMappingCheck,
             IndexDeprecationChecks::classicSimilaritySettingsCheck
+        ));
+
+    static List<Function<DatafeedConfig, DeprecationIssue>> ML_SETTINGS_CHECKS =
+            Collections.unmodifiableList(Arrays.asList(
+                    MlDeprecationChecks::checkDataFeedAggregations,
+                    MlDeprecationChecks::checkDataFeedQuery
             ));
 
     /**

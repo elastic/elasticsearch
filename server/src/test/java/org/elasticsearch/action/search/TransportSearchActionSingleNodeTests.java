@@ -26,13 +26,17 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testLocalClusterAlias() {
-        long nowInMillis = System.currentTimeMillis();
+        long nowInMillis = randomLongBetween(0, Long.MAX_VALUE);
         IndexRequest indexRequest = new IndexRequest("test", "type", "1");
         indexRequest.source("field", "value");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
@@ -40,7 +44,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         {
-            SearchRequest searchRequest = new SearchRequest("local", nowInMillis);
+            SearchRequest searchRequest = new SearchRequest("local", nowInMillis, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits());
             SearchHit[] hits = searchResponse.getHits().getHits();
@@ -51,7 +55,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals("1", hit.getId());
         }
         {
-            SearchRequest searchRequest = new SearchRequest("", nowInMillis);
+            SearchRequest searchRequest = new SearchRequest("", nowInMillis, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits());
             SearchHit[] hits = searchResponse.getHits().getHits();
@@ -90,19 +94,19 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(0, searchResponse.getTotalShards());
         }
         {
-            SearchRequest searchRequest = new SearchRequest("", 0);
+            SearchRequest searchRequest = new SearchRequest("", 0, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits());
         }
         {
-            SearchRequest searchRequest = new SearchRequest("", 0);
+            SearchRequest searchRequest = new SearchRequest("", 0, randomBoolean());
             searchRequest.indices("<test-{now/d}>");
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits());
             assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
         }
         {
-            SearchRequest searchRequest = new SearchRequest("", 0);
+            SearchRequest searchRequest = new SearchRequest("", 0, randomBoolean());
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
             RangeQueryBuilder rangeQuery = new RangeQueryBuilder("date");
             rangeQuery.gte("1970-01-01");
@@ -112,6 +116,48 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits());
             assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
+        }
+    }
+
+    public void testFinalReduce()  {
+        long nowInMillis = randomLongBetween(0, Long.MAX_VALUE);
+        {
+            IndexRequest indexRequest = new IndexRequest("test", "type", "1");
+            indexRequest.source("price", 10);
+            IndexResponse indexResponse = client().index(indexRequest).actionGet();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+        }
+        {
+            IndexRequest indexRequest = new IndexRequest("test", "type", "2");
+            indexRequest.source("price", 100);
+            IndexResponse indexResponse = client().index(indexRequest).actionGet();
+            assertEquals(RestStatus.CREATED, indexResponse.status());
+        }
+        client().admin().indices().prepareRefresh("test").get();
+
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.size(0);
+        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms", ValueType.NUMERIC);
+        terms.field("price");
+        terms.size(1);
+        source.aggregation(terms);
+
+        {
+            SearchRequest searchRequest = randomBoolean() ? new SearchRequest().source(source)
+                : new SearchRequest("remote", nowInMillis, true).source(source);
+            SearchResponse searchResponse = client().search(searchRequest).actionGet();
+            assertEquals(2, searchResponse.getHits().getTotalHits());
+            Aggregations aggregations = searchResponse.getAggregations();
+            LongTerms longTerms = aggregations.get("terms");
+            assertEquals(1, longTerms.getBuckets().size());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest("remote", nowInMillis, false).source(source);
+            SearchResponse searchResponse = client().search(searchRequest).actionGet();
+            assertEquals(2, searchResponse.getHits().getTotalHits());
+            Aggregations aggregations = searchResponse.getAggregations();
+            LongTerms longTerms = aggregations.get("terms");
+            assertEquals(2, longTerms.getBuckets().size());
         }
     }
 }

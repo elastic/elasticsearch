@@ -22,10 +22,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -43,6 +45,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
+@TestLogging("org.elasticsearch.xpack.ccr:TRACE,org.elasticsearch.index.shard:DEBUG")
 public class FollowerFailOverIT extends CcrIntegTestCase {
 
     @Override
@@ -118,6 +121,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         pauseFollow("follower-index");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33337")
     public void testFollowIndexAndCloseNode() throws Exception {
         getFollowerCluster().ensureAtLeastNumDataNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -230,8 +234,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         pauseFollow("follower-index");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37807")
-    public void testReadRequestsReturnsLatestMappingVersion() throws Exception {
+    public void testReadRequestsReturnLatestMappingVersion() throws Exception {
         InternalTestCluster leaderCluster = getLeaderCluster();
         Settings nodeAttributes = Settings.builder().put("node.attr.box", "large").build();
         String dataNode = leaderCluster.startDataOnlyNode(nodeAttributes);
@@ -244,6 +247,9 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                     .put("index.routing.allocation.require.box", "large"))
                 .get()
         );
+        getFollowerCluster().startDataOnlyNode(nodeAttributes);
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader-index", "follower-index")).get();
+        ensureFollowerGreen("follower-index");
         ClusterService clusterService = leaderCluster.clusterService(dataNode);
         ShardId shardId = clusterService.state().routingTable().index("leader-index").shard(0).shardId();
         IndicesService indicesService = leaderCluster.getInstance(IndicesService.class, dataNode);
@@ -265,22 +271,30 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         });
         leaderCluster.client().admin().indices().preparePutMapping().setType("doc")
             .setSource("balance", "type=long").setTimeout(TimeValue.ZERO).get();
-        IndexResponse indexResp = leaderCluster.client(dataNode).prepareIndex("leader-index", "doc", "1")
-            .setSource("{\"balance\": 100}", XContentType.JSON).setTimeout(TimeValue.ZERO).get();
-        assertThat(indexResp.getResult(), equalTo(DocWriteResponse.Result.CREATED));
-        assertThat(indexShard.getGlobalCheckpoint(), equalTo(0L));
-        getFollowerCluster().startDataOnlyNode(nodeAttributes);
-        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader-index", "follower-index")).get();
-        ensureFollowerGreen("follower-index");
-        // Make sure at least one read-request which requires mapping sync is completed.
-        assertBusy(() -> {
-            CcrClient ccrClient = new CcrClient(followerClient());
-            FollowStatsAction.StatsResponses responses = ccrClient.followStats(new FollowStatsAction.StatsRequest()).actionGet();
-            long bytesRead = responses.getStatsResponses().stream().mapToLong(r -> r.status().bytesRead()).sum();
-            assertThat(bytesRead, Matchers.greaterThan(0L));
-        }, 60, TimeUnit.SECONDS);
-        latch.countDown();
-        assertIndexFullyReplicatedToFollower("leader-index", "follower-index");
-        pauseFollow("follower-index");
+        try {
+            // Make sure the mapping is ready on the shard before we execute the index request; otherwise the index request
+            // will perform a dynamic mapping update which however will be blocked because the latch is remained closed.
+            assertBusy(() -> {
+                DocumentMapper mapper = indexShard.mapperService().documentMapper("doc");
+                assertNotNull(mapper);
+                assertNotNull(mapper.mappers().getMapper("balance"));
+            });
+            IndexResponse indexResp = leaderCluster.client().prepareIndex("leader-index", "doc", "1")
+                .setSource("{\"balance\": 100}", XContentType.JSON).setTimeout(TimeValue.ZERO).get();
+            assertThat(indexResp.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(indexShard.getGlobalCheckpoint(), equalTo(0L));
+            // Make sure at least one read-request which requires mapping sync is completed.
+            assertBusy(() -> {
+                CcrClient ccrClient = new CcrClient(followerClient());
+                FollowStatsAction.StatsResponses responses = ccrClient.followStats(new FollowStatsAction.StatsRequest()).actionGet();
+                long bytesRead = responses.getStatsResponses().stream().mapToLong(r -> r.status().bytesRead()).sum();
+                assertThat(bytesRead, Matchers.greaterThan(0L));
+            }, 60, TimeUnit.SECONDS);
+            latch.countDown();
+            assertIndexFullyReplicatedToFollower("leader-index", "follower-index");
+        } finally {
+            latch.countDown(); // no effect if latch was counted down - this makes sure teardown can make progress.
+            pauseFollow("follower-index");
+        }
     }
 }

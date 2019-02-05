@@ -31,14 +31,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,18 +58,39 @@ import java.util.function.Supplier;
  */
 public final class PainlessPlugin extends Plugin implements ScriptPlugin, ExtensiblePlugin, ActionPlugin {
 
-    private final Map<ScriptContext<?>, List<Whitelist>> extendedWhitelists = new HashMap<>();
+    private static final Map<ScriptContext<?>, List<Whitelist>> whitelists;
+
+    /*
+     * Contexts from Core that need custom whitelists can add them to the map below.
+     * Whitelist resources should be added as appropriately named, separate files
+     * under Painless' resources
+     */
+    static {
+        Map<ScriptContext<?>, List<Whitelist>> map = new HashMap<>();
+
+        // Moving Function Pipeline Agg
+        List<Whitelist> movFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        movFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.aggs.movfn.txt"));
+        map.put(MovingFunctionScript.CONTEXT, movFn);
+
+        // Functions used for scoring docs
+        List<Whitelist> scoreFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        scoreFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.score.txt"));
+        map.put(ScoreScript.CONTEXT, scoreFn);
+
+        whitelists = map;
+    }
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         Map<ScriptContext<?>, List<Whitelist>> contextsWithWhitelists = new HashMap<>();
         for (ScriptContext<?> context : contexts) {
             // we might have a context that only uses the base whitelists, so would not have been filled in by reloadSPI
-            List<Whitelist> whitelists = extendedWhitelists.get(context);
-            if (whitelists == null) {
-                whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+            List<Whitelist> contextWhitelists = whitelists.get(context);
+            if (contextWhitelists == null) {
+                contextWhitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
             }
-            contextsWithWhitelists.put(context, whitelists);
+            contextsWithWhitelists.put(context, contextWhitelists);
         }
         return new PainlessScriptEngine(settings, contextsWithWhitelists);
     }
@@ -80,15 +104,15 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     public void reloadSPI(ClassLoader loader) {
         for (PainlessExtension extension : ServiceLoader.load(PainlessExtension.class, loader)) {
             for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : extension.getContextWhitelists().entrySet()) {
-                List<Whitelist> existing = extendedWhitelists.computeIfAbsent(entry.getKey(),
+                List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(),
                     c -> new ArrayList<>(Whitelist.BASE_WHITELISTS));
                 existing.addAll(entry.getValue());
             }
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public List<ScriptContext> getContexts() {
+    @Override
+    public List<ScriptContext<?>> getContexts() {
         return Collections.singletonList(PainlessExecuteAction.PainlessTestScript.CONTEXT);
     }
 

@@ -25,7 +25,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.TransportResponse;
 
 /**
- * This class is a base class for all search releated results. It contains the shard target it
+ * This class is a base class for all search related results. It contains the shard target it
  * was executed against, a shard index used to reference the result on the coordinating node
  * and a request ID that is used to reference the request context on the executing node. The
  * request ID is particularly important since it is used to reference and maintain a context

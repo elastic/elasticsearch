@@ -1,0 +1,71 @@
+[[templating-role-query]]
+==== Templating a role query
+
+When you create a role, you can specify a query that defines the 
+<<document-level-security,document level security permissions>>. You can 
+optionally use Mustache templates in the role query to insert the username of the
+current authenticated user into the role. Like other places in {es} that support
+templating or scripting, you can specify inline, stored, or file-based templates
+and define custom parameters. You access the details for the current
+authenticated user through the `_user` parameter.
+
+For example, the following role query uses a template to insert the username
+of the current authenticated user:
+
+[source,js]
+--------------------------------------------------
+POST /_security/role/example1
+{
+  "indices" : [
+    {
+      "names" : [ "my_index" ],
+      "privileges" : [ "read" ],
+      "query" : {
+        "template" : {
+          "source" : {
+            "term" : { "acl.username" : "{{_user.username}}" }
+          }
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+You can access the following information through the `_user` variable:
+
+[options="header"]
+|======
+| Property              | Description
+| `_user.username`      | The username of the current authenticated user.
+| `_user.full_name`     | If specified, the full name of the current authenticated user.
+| `_user.email`         | If specified, the email of the current authenticated user.
+| `_user.roles`         | If associated, a list of the role names of the current authenticated user.
+| `_user.metadata`      | If specified, a hash holding custom metadata of the current authenticated user.
+|======
+
+You can also access custom user metadata. For example, if you maintain a
+`group_id` in your user metadata, you can apply document level security
+based on the `group.id` field in your documents:
+
+[source,js]
+--------------------------------------------------
+POST /_security/role/example2
+{
+  "indices" : [
+    {
+      "names" : [ "my_index" ],
+      "privileges" : [ "read" ],
+      "query" : {
+        "template" : {
+          "source" : {
+            "term" : { "group.id" : "{{_user.metadata.group_id}}" }
+          }
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE

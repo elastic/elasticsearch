@@ -34,12 +34,15 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -54,6 +57,9 @@ public final class IngestDocument {
 
     private final Map<String, Object> sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
+
+    // Contains all pipelines that have been executed for this document
+    private final Set<Pipeline> executedPipelines = Collections.newSetFromMap(new IdentityHashMap<>());
 
     public IngestDocument(String index, String type, String id, String routing,
                           Long version, VersionType versionType, Map<String, Object> source) {
@@ -527,8 +533,7 @@ public final class IngestDocument {
 
     private static void appendValues(List<Object> list, Object value) {
         if (value instanceof List) {
-            List<?> valueList = (List<?>) value;
-            valueList.stream().forEach(list::add);
+            list.addAll((List<?>) value);
         } else {
             list.add(value);
         }
@@ -571,6 +576,17 @@ public final class IngestDocument {
     }
 
     /**
+     * Does the same thing as {@link #extractMetadata} but does not mutate the map.
+     */
+    public Map<MetaData, Object> getMetadata() {
+        Map<MetaData, Object> metadataMap = new EnumMap<>(MetaData.class);
+        for (MetaData metaData : MetaData.values()) {
+            metadataMap.put(metaData, sourceAndMetadata.get(metaData.getFieldName()));
+        }
+        return metadataMap;
+    }
+
+    /**
      * Returns the available ingest metadata fields, by default only timestamp, but it is possible to set additional ones.
      * Use only for reading values, modify them instead using {@link #setFieldValue(String, Object)} and {@link #removeField(String)}
      */
@@ -588,7 +604,7 @@ public final class IngestDocument {
     }
 
     @SuppressWarnings("unchecked")
-    private static <K, V> Map<K, V> deepCopyMap(Map<K, V> source) {
+    public static <K, V> Map<K, V> deepCopyMap(Map<K, V> source) {
         return (Map<K, V>) deepCopy(source);
     }
 
@@ -619,6 +635,23 @@ public final class IngestDocument {
             return ((Date) value).clone();
         } else {
             throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+        }
+    }
+
+    /**
+     * Executes the given pipeline with for this document unless the pipeline has already been executed
+     * for this document.
+     * @param pipeline Pipeline to execute
+     * @throws Exception On exception in pipeline execution
+     */
+    public IngestDocument executePipeline(Pipeline pipeline) throws Exception {
+        try {
+            if (this.executedPipelines.add(pipeline) == false) {
+                throw new IllegalStateException("Cycle detected for pipeline: " + pipeline.getId());
+            }
+            return pipeline.execute(this);
+        } finally {
+            executedPipelines.remove(pipeline);
         }
     }
 

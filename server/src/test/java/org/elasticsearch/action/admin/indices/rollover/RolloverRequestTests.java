@@ -73,7 +73,7 @@ public class RolloverRequestTests extends ESTestCase {
                 .endObject()
             .endObject();
         request.fromXContent(createParser(builder));
-        Map<String, Condition> conditions = request.getConditions();
+        Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(3));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition)conditions.get(MaxAgeCondition.NAME);
         assertThat(maxAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
@@ -109,7 +109,7 @@ public class RolloverRequestTests extends ESTestCase {
                 .endObject()
             .endObject();
         request.fromXContent(createParser(builder));
-        Map<String, Condition> conditions = request.getConditions();
+        Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
         assertThat(request.getCreateIndexRequest().mappings().size(), equalTo(1));
         assertThat(request.getCreateIndexRequest().aliases().size(), equalTo(1));
@@ -129,8 +129,8 @@ public class RolloverRequestTests extends ESTestCase {
                 cloneRequest.readFrom(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
                 assertThat(cloneRequest.getAlias(), equalTo(originalRequest.getAlias()));
-                for (Map.Entry<String, Condition> entry : cloneRequest.getConditions().entrySet()) {
-                    Condition condition = originalRequest.getConditions().get(entry.getKey());
+                for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {
+                    Condition<?> condition = originalRequest.getConditions().get(entry.getKey());
                     //here we compare the string representation as there is some information loss when serializing
                     //and de-serializing MaxAgeCondition
                     assertEquals(condition.toString(), entry.getValue().toString());

@@ -10,14 +10,14 @@ import java.util.List;
 import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class UnaryExec extends PhysicalPlan {
 
     private final PhysicalPlan child;
 
-    UnaryExec(Location location, PhysicalPlan child) {
-        super(location, Collections.singletonList(child));
+    UnaryExec(Source source, PhysicalPlan child) {
+        super(source, Collections.singletonList(child));
         this.child = child;
     }
 

@@ -3,13 +3,36 @@
   - do:
       catch: missing
       indices.get_mapping:
+        include_type_name: false
         index: test_index
-        type: not_test_type
   
 ---
-"Index missing, no indexes, no types":
+"Index missing, no indexes":
   - do:
       catch: missing
       indices.get_mapping:
         index: test_index
+
+---
+"Index missing, ignore_unavailable=true":
+  - skip:
+      version: " - 6.99.99"
+      reason: ignore_unavailable was ignored in previous versions
+  - do:
+      indices.get_mapping:
+        include_type_name: false
+        index: test_index
+        ignore_unavailable: true
+
+  - match: { '':  {} }
+
+---
+"Index missing, ignore_unavailable=true, allow_no_indices=false":
+  - do:
+      catch: missing
+      indices.get_mapping:
+        include_type_name: false
+        index: test_index
+        ignore_unavailable: true
+        allow_no_indices: false
 

@@ -22,6 +22,7 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,7 +36,6 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.util.Optional;
 
 /**
  * Shard level search request that gets created and consumed on the local node.
@@ -77,8 +77,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     ShardSearchLocalRequest() {
     }
 
-    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,
-                            AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias, String[] indexRoutings) {
+    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards, AliasFilter aliasFilter, float indexBoost,
+                            long nowInMillis, @Nullable String clusterAlias, String[] indexRoutings) {
         this(shardId, numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost,
                 searchRequest.allowPartialSearchResults(), indexRoutings, searchRequest.preference());
@@ -113,7 +113,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.indexRoutings = indexRoutings;
         this.preference = preference;
     }
-
 
     @Override
     public ShardId shardId() {
@@ -213,25 +212,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         types = in.readStringArray();
         aliasFilter = new AliasFilter(in);
-        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
-            indexBoost = in.readFloat();
-        } else {
-            // Nodes < 5.2.0 doesn't send index boost. Read it from source.
-            if (source != null) {
-                Optional<SearchSourceBuilder.IndexBoost> boost = source.indexBoosts()
-                    .stream()
-                    .filter(ib -> ib.getIndex().equals(shardId.getIndexName()))
-                    .findFirst();
-                indexBoost = boost.isPresent() ? boost.get().getBoost() : 1.0f;
-            } else {
-                indexBoost = 1.0f;
-            }
-        }
+        indexBoost = in.readFloat();
         nowInMillis = in.readVLong();
         requestCache = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
-            clusterAlias = in.readOptionalString();
-        }
+        clusterAlias = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             allowPartialSearchResults = in.readOptionalBoolean();
         }
@@ -254,16 +238,12 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         out.writeOptionalWriteable(source);
         out.writeStringArray(types);
         aliasFilter.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
-            out.writeFloat(indexBoost);
-        }
+        out.writeFloat(indexBoost);
         if (asKey == false) {
             out.writeVLong(nowInMillis);
         }
         out.writeOptionalBoolean(requestCache);
-        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
-            out.writeOptionalString(clusterAlias);
-        }
+        out.writeOptionalString(clusterAlias);
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
         }

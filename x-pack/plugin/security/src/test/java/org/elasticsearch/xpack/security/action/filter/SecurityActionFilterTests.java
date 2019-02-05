@@ -67,7 +67,6 @@ public class SecurityActionFilterTests extends ESTestCase {
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isStatsAndHealthAllowed()).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -79,12 +78,12 @@ public class SecurityActionFilterTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("id1", buildNewFakeTransportAddress(), Version.CURRENT))
-                .add(new DiscoveryNode("id2", buildNewFakeTransportAddress(), Version.V_5_4_0))
+                .add(new DiscoveryNode("id2", buildNewFakeTransportAddress(), Version.V_6_0_0))
                 .build();
         when(state.nodes()).thenReturn(nodes);
 
         SecurityContext securityContext = new SecurityContext(settings, threadContext);
-        filter = new SecurityActionFilter(Settings.EMPTY, authcService, authzService,
+        filter = new SecurityActionFilter(authcService, authzService,
                         licenseState, new HashSet<>(), threadPool, securityContext, destructiveOperations);
     }
 

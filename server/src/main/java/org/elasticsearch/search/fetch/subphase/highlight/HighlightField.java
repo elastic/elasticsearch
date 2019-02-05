@@ -68,14 +68,14 @@ public class HighlightField implements ToXContentFragment, Streamable {
     }
 
     /**
-     * The highlighted fragments. <tt>null</tt> if failed to highlight (for example, the field is not stored).
+     * The highlighted fragments. {@code null} if failed to highlight (for example, the field is not stored).
      */
     public Text[] fragments() {
         return fragments;
     }
 
     /**
-     * The highlighted fragments. <tt>null</tt> if failed to highlight (for example, the field is not stored).
+     * The highlighted fragments. {@code null} if failed to highlight (for example, the field is not stored).
      */
     public Text[] getFragments() {
         return fragments();

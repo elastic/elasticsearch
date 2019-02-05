@@ -29,7 +29,6 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
@@ -107,6 +106,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.TrueContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TryContext;
 import org.elasticsearch.painless.antlr.PainlessParser.VariableContext;
 import org.elasticsearch.painless.antlr.PainlessParser.WhileContext;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
@@ -174,9 +174,9 @@ import java.util.List;
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     public static SSource buildPainlessTree(ScriptClassInfo mainMethod, MainMethodReserved reserved, String sourceName,
-                                            String sourceText, CompilerSettings settings, Definition definition,
+                                            String sourceText, CompilerSettings settings, PainlessLookup painlessLookup,
                                             Printer debugStream) {
-        return new Walker(mainMethod, reserved, sourceName, sourceText, settings, definition, debugStream).source;
+        return new Walker(mainMethod, reserved, sourceName, sourceText, settings, painlessLookup, debugStream).source;
     }
 
     private final ScriptClassInfo scriptClassInfo;
@@ -184,29 +184,27 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     private final CompilerSettings settings;
     private final Printer debugStream;
     private final String sourceName;
-    private final String sourceText;
-    private final Definition definition;
+    private final PainlessLookup painlessLookup;
 
     private final Deque<Reserved> reserved = new ArrayDeque<>();
     private final Globals globals;
     private int syntheticCounter = 0;
 
     private Walker(ScriptClassInfo scriptClassInfo, MainMethodReserved reserved, String sourceName, String sourceText,
-                   CompilerSettings settings, Definition definition, Printer debugStream) {
+                   CompilerSettings settings, PainlessLookup painlessLookup, Printer debugStream) {
         this.scriptClassInfo = scriptClassInfo;
         this.reserved.push(reserved);
         this.debugStream = debugStream;
         this.settings = settings;
         this.sourceName = Location.computeSourceName(sourceName);
-        this.sourceText = sourceText;
         this.globals = new Globals(new BitSet(sourceText.length()));
-        this.definition = definition;
+        this.painlessLookup = painlessLookup;
         this.source = (SSource)visit(buildAntlrTree(sourceText));
     }
 
     private SourceContext buildAntlrTree(String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);
-        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName, definition);
+        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName, painlessLookup);
         PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
         ParserErrorStrategy strategy = new ParserErrorStrategy(sourceName);
 
@@ -263,11 +261,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        if (ctx.dstatement() != null) {
-            statements.add((AStatement)visit(ctx.dstatement()));
-        }
-
-        return new SSource(scriptClassInfo, settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
+        return new SSource(scriptClassInfo, settings, sourceName, debugStream, (MainMethodReserved)reserved.pop(),
                            location(ctx), functions, globals, statements);
     }
 
@@ -986,19 +980,20 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitNewstandardarray(NewstandardarrayContext ctx) {
-        String type = ctx.TYPE().getText();
+        StringBuilder type = new StringBuilder(ctx.TYPE().getText());
         List<AExpression> expressions = new ArrayList<>();
 
         for (ExpressionContext expression : ctx.expression()) {
+            type.append("[]");
             expressions.add((AExpression)visit(expression));
         }
 
-        return buildPostfixChain(new ENewArray(location(ctx), type, expressions, false), ctx.postdot(), ctx.postfix());
+        return buildPostfixChain(new ENewArray(location(ctx), type.toString(), expressions, false), ctx.postdot(), ctx.postfix());
     }
 
     @Override
     public ANode visitNewinitializedarray(NewinitializedarrayContext ctx) {
-        String type = ctx.TYPE().getText();
+        String type = ctx.TYPE().getText() + "[]";
         List<AExpression> expressions = new ArrayList<>();
 
         for (ExpressionContext expression : ctx.expression()) {

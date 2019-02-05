@@ -6,17 +6,17 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
-import java.util.Map;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
@@ -33,11 +33,6 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
                     "  indices:\n" +
                     "    - names: 'someindex'\n" +
                     "      privileges: [ all ]\n";
-
-    private static final String USERS =
-                    "user_a:" + USERS_PASSWD_HASHED + "\n" +
-                    "user_b:" + USERS_PASSWD_HASHED + "\n" +
-                    "user_c:" + USERS_PASSWD_HASHED + "\n";
 
     private static final String USERS_ROLES =
                     "role_a:user_a\n" +
@@ -57,9 +52,13 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
     }
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings() {
         return Settings.builder().put(super.nodeSettings())
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("path.repo", repositoryLocation)
                 .build();
     }
@@ -71,7 +70,13 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @Override
     protected String configUsers() {
-        return super.configUsers() + USERS;
+        final String usersPasswdHashed = new String(Hasher.resolve(
+            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
+        return super.configUsers() +
+            "user_a:" + usersPasswdHashed + "\n" +
+            "user_b:" + usersPasswdHashed + "\n" +
+            "user_c:" + usersPasswdHashed + "\n";
+
     }
 
     @Override
@@ -126,10 +131,12 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo", repoJson);
 
-        Map<String, String> params = singletonMap("refresh", "true");
-        assertAccessIsDenied("user_a", "PUT", "/someindex/bar/1", "{ \"name\" : \"elasticsearch\" }", params);
-        assertAccessIsDenied("user_b", "PUT", "/someindex/bar/1", "{ \"name\" : \"elasticsearch\" }", params);
-        assertAccessIsAllowed("user_c", "PUT", "/someindex/bar/1", "{ \"name\" : \"elasticsearch\" }", params);
+        Request createBar = new Request("PUT", "/someindex/bar/1");
+        createBar.setJsonEntity("{ \"name\" : \"elasticsearch\" }");
+        createBar.addParameter("refresh", "true");
+        assertAccessIsDenied("user_a", createBar);
+        assertAccessIsDenied("user_b", createBar);
+        assertAccessIsAllowed("user_c", createBar);
 
         assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo/my-snapshot", "{ \"indices\": \"someindex\" }");
         assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo/my-snapshot", "{ \"indices\": \"someindex\" }");
@@ -146,10 +153,11 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_b", "DELETE", "/someindex");
         assertAccessIsAllowed("user_c", "DELETE", "/someindex");
 
-        params = singletonMap("wait_for_completion", "true");
-        assertAccessIsDenied("user_b", "POST", "/_snapshot/my-repo/my-snapshot/_restore", null, params);
-        assertAccessIsDenied("user_c", "POST", "/_snapshot/my-repo/my-snapshot/_restore", null, params);
-        assertAccessIsAllowed("user_a", "POST", "/_snapshot/my-repo/my-snapshot/_restore", null, params);
+        Request restoreSnapshotRequest = new Request("POST", "/_snapshot/my-repo/my-snapshot/_restore");
+        restoreSnapshotRequest.addParameter("wait_for_completion", "true");
+        assertAccessIsDenied("user_b", restoreSnapshotRequest);
+        assertAccessIsDenied("user_c", restoreSnapshotRequest);
+        assertAccessIsAllowed("user_a", restoreSnapshotRequest);
 
         assertAccessIsDenied("user_a", "GET", "/someindex/bar/1");
         assertAccessIsDenied("user_b", "GET", "/someindex/bar/1");

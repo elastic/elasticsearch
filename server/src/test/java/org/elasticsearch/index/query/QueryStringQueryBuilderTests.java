@@ -21,6 +21,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -42,16 +44,17 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -61,25 +64,40 @@ import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisjunctionSubQuery;
-import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
+
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
+            .startObject("prefix_field")
+            .field("type", "text")
+            .startObject("index_prefixes").endObject()
+            .endObject()
+            .endObject().endObject().endObject();
+
+        mapperService.merge("_doc",
+            new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+    }
+
     @Override
     protected QueryStringQueryBuilder doCreateTestQueryBuilder() {
         int numTerms = randomIntBetween(0, 5);
@@ -90,12 +108,16 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(query);
         if (randomBoolean()) {
-            queryStringQueryBuilder.defaultField(randomBoolean() ?
-                STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10));
+            String defaultFieldName = randomFrom(STRING_FIELD_NAME,
+                STRING_ALIAS_FIELD_NAME,
+                randomAlphaOfLengthBetween(1, 10));
+            queryStringQueryBuilder.defaultField(defaultFieldName);
         } else {
             int numFields = randomIntBetween(1, 5);
             for (int i = 0; i < numFields; i++) {
-                String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
+                String fieldName = randomFrom(STRING_FIELD_NAME,
+                    STRING_ALIAS_FIELD_NAME,
+                    randomAlphaOfLengthBetween(1, 10));
                 if (randomBoolean()) {
                     queryStringQueryBuilder.field(fieldName);
                 } else {
@@ -126,9 +148,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.maxDeterminizedStates(randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.autoGeneratePhraseQueries(randomBoolean());
-        }
-        if (randomBoolean()) {
             queryStringQueryBuilder.enablePositionIncrements(randomBoolean());
         }
         if (randomBoolean()) {
@@ -153,16 +172,13 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.quoteFieldSuffix(randomAlphaOfLengthBetween(1, 3));
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.tieBreaker(randomFloat());
+            queryStringQueryBuilder.tieBreaker((float) randomDoubleBetween(0d, 1d, true));
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.minimumShouldMatch(randomMinimumShouldMatch());
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.useDisMax(randomBoolean());
-        }
-        if (randomBoolean()) {
-            queryStringQueryBuilder.timeZone(randomDateTimeZone().getID());
+            queryStringQueryBuilder.timeZone(randomZone().getId());
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.autoGenerateSynonymsPhraseQuery(randomBoolean());
@@ -196,7 +212,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         String quoteFieldSuffix = instance.quoteFieldSuffix();
         Float tieBreaker = instance.tieBreaker();
         String minimumShouldMatch = instance.minimumShouldMatch();
-        String timeZone = instance.timeZone() == null ? null : instance.timeZone().getID();
+        String timeZone = instance.timeZone() == null ? null : instance.timeZone().getId();
         boolean autoGenerateSynonymsPhraseQuery = instance.autoGenerateSynonymsPhraseQuery();
         boolean fuzzyTranspositions = instance.fuzzyTranspositions();
 
@@ -304,12 +320,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             break;
         case 20:
             if (timeZone == null) {
-                timeZone = randomDateTimeZone().getID();
+                timeZone = randomZone().getId();
             } else {
                 if (randomBoolean()) {
                     timeZone = null;
                 } else {
-                    timeZone = randomValueOtherThan(timeZone, () -> randomDateTimeZone().getID());
+                    timeZone = randomValueOtherThan(timeZone, () -> randomZone().getId());
                 }
             }
             break;
@@ -377,11 +393,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     @Override
     protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder,
                                        Query query, SearchContext context) throws IOException {
-        assertThat(query, either(instanceOf(TermQuery.class))
-            .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
-            .or(instanceOf(PhraseQuery.class)).or(instanceOf(BoostQuery.class))
-            .or(instanceOf(MultiPhrasePrefixQuery.class)).or(instanceOf(PrefixQuery.class)).or(instanceOf(SpanQuery.class))
-            .or(instanceOf(MatchNoDocsQuery.class)));
+        // nothing yet, put additional assertions here.
     }
 
     // Tests fix for https://github.com/elastic/elasticsearch/issues/29403
@@ -404,7 +416,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryTermQuery() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("test").defaultField(STRING_FIELD_NAME).toQuery(createShardContext());
         assertThat(query, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) query;
@@ -412,7 +423,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryPhraseQuery() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("\"term1 term2\"")
             .defaultField(STRING_FIELD_NAME)
             .phraseSlop(3)
@@ -426,7 +436,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryBoosts() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext shardContext = createShardContext();
         QueryStringQueryBuilder queryStringQuery = queryStringQuery(STRING_FIELD_NAME + ":boosted^2");
         Query query = queryStringQuery.toQuery(shardContext);
@@ -466,7 +475,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryMultipleTermsBooleanQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("test1 test2").field(STRING_FIELD_NAME)
             .toQuery(createShardContext());
         assertThat(query, instanceOf(BooleanQuery.class));
@@ -479,7 +487,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryMultipleFieldsBooleanQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("test").field(STRING_FIELD_NAME)
             .field(STRING_FIELD_NAME_2)
             .toQuery(createShardContext());
@@ -493,7 +500,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryMultipleFieldsDisMaxQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("test").field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2)
             .toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
@@ -504,19 +510,19 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryFieldsWildcard() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("test").field("mapped_str*").toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
-        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
+        assertThat(dQuery.getDisjuncts().size(), equalTo(3));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
-            equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+            equalTo(new Term(STRING_FIELD_NAME, "test")));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
+            equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 2).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME, "test")));
     }
 
     public void testToQueryDisMaxQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("test").field(STRING_FIELD_NAME, 2.2f)
             .field(STRING_FIELD_NAME_2)
             .toQuery(createShardContext());
@@ -528,7 +534,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryWildcardQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), STRING_FIELD_NAME);
@@ -550,8 +555,22 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
     }
 
+    public void testToQueryWildcardWithIndexedPrefixes() throws Exception {
+        QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), "prefix_field");
+        Query query = queryParser.parse("foo*");
+        Query expectedQuery = new ConstantScoreQuery(new TermQuery(new Term("prefix_field._index_prefix", "foo")));
+        assertThat(query, equalTo(expectedQuery));
+
+        query = queryParser.parse("g*");
+        Automaton a = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar()));
+        expectedQuery = new ConstantScoreQuery(new BooleanQuery.Builder()
+            .add(new AutomatonQuery(new Term("prefix_field._index_prefix", "g*"), a), Occur.SHOULD)
+            .add(new TermQuery(new Term("prefix_field", "g")), Occur.SHOULD)
+            .build());
+        assertThat(query, equalTo(expectedQuery));
+    }
+
     public void testToQueryWilcardQueryWithSynonyms() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), STRING_FIELD_NAME);
@@ -584,7 +603,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryWithGraph() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         for (Operator op : Operator.values()) {
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), STRING_FIELD_NAME);
@@ -683,23 +701,28 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             // span query with slop
             query = queryParser.parse("\"that guinea pig smells\"~2");
-            expectedQuery = new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
-                .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
-                .addClause(
-                    new SpanOrQuery(
-                        new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
-                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
-                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
-                .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
+            PhraseQuery pq1 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "that"))
+                .add(new Term(STRING_FIELD_NAME, "guinea"))
+                .add(new Term(STRING_FIELD_NAME, "pig"))
+                .add(new Term(STRING_FIELD_NAME, "smells"))
                 .setSlop(2)
+                .build();
+            PhraseQuery pq2 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "that"))
+                .add(new Term(STRING_FIELD_NAME, "cavy"))
+                .add(new Term(STRING_FIELD_NAME, "smells"))
+                .setSlop(2)
+                .build();
+            expectedQuery = new BooleanQuery.Builder()
+                .add(pq1, Occur.SHOULD)
+                .add(pq2, Occur.SHOULD)
                 .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
         }
     }
 
     public void testToQueryRegExpQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("/foo*bar/").defaultField(STRING_FIELD_NAME)
             .maxDeterminizedStates(5000)
             .toQuery(createShardContext());
@@ -709,7 +732,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryRegExpQueryTooComplex() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryStringQueryBuilder queryBuilder = queryStringQuery("/[ac]*a[ac]{50,200}/").defaultField(STRING_FIELD_NAME);
 
         TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class,
@@ -722,7 +744,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
      * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
      */
     public void testToQueryRegExpQueryMaxDeterminizedStatesParsing() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject(); {
             builder.startObject("query_string"); {
@@ -745,7 +766,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
      * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
      */
     public void testEnabledPositionIncrements() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject(); {
@@ -763,8 +783,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-
         int length = randomIntBetween(1, 10);
         StringBuilder queryString = new StringBuilder();
         for (int i = 0; i < length; i++) {
@@ -789,7 +807,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testFuzzyNumeric() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryStringQueryBuilder query = queryStringQuery("12~0.2").defaultField(INT_FIELD_NAME);
         QueryShardContext context = createShardContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -801,7 +818,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testPrefixNumeric() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryStringQueryBuilder query = queryStringQuery("12*").defaultField(INT_FIELD_NAME);
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class,
@@ -813,7 +829,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testExactGeo() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryStringQueryBuilder query = queryStringQuery("2,3").defaultField(GEO_POINT_FIELD_NAME);
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class,
@@ -825,7 +840,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testTimezone() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String queryAsString = "{\n" +
                 "    \"query_string\":{\n" +
                 "        \"time_zone\":\"Europe/Paris\",\n" +
@@ -835,7 +849,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryBuilder queryBuilder = parseQuery(queryAsString);
         assertThat(queryBuilder, instanceOf(QueryStringQueryBuilder.class));
         QueryStringQueryBuilder queryStringQueryBuilder = (QueryStringQueryBuilder) queryBuilder;
-        assertThat(queryStringQueryBuilder.timeZone(), equalTo(DateTimeZone.forID("Europe/Paris")));
+        assertThat(queryStringQueryBuilder.timeZone(), equalTo(ZoneId.of("Europe/Paris")));
 
         String invalidQueryAsString = "{\n" +
                 "    \"query_string\":{\n" +
@@ -843,11 +857,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "        \"query\":\"" + DATE_FIELD_NAME + ":[2012 TO 2014]\"\n" +
                 "    }\n" +
                 "}";
-        expectThrows(IllegalArgumentException.class, () -> parseQuery(invalidQueryAsString));
+        expectThrows(DateTimeException.class, () -> parseQuery(invalidQueryAsString));
     }
 
     public void testToQueryBooleanQueryMultipleBoosts() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         int numBoosts = randomIntBetween(2, 10);
         float[] boosts = new float[numBoosts + 1];
         String queryStringPrefix = "";
@@ -886,7 +899,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryPhraseQueryBoostAndSlop() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryStringQueryBuilder queryStringQueryBuilder =
             new QueryStringQueryBuilder("\"test phrase\"~2").field(STRING_FIELD_NAME, 5f);
         Query query = queryStringQueryBuilder.toQuery(createShardContext());
@@ -900,7 +912,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryWildcardNonExistingFields() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryStringQueryBuilder queryStringQueryBuilder =
             new QueryStringQueryBuilder("foo bar").field("invalid*");
         Query query = queryStringQueryBuilder.toQuery(createShardContext());
@@ -919,7 +930,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToQueryTextParsing() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         {
             QueryStringQueryBuilder queryBuilder =
                 new QueryStringQueryBuilder("foo bar")
@@ -1018,16 +1028,27 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryShardContext context = createShardContext();
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(STRING_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
-        if (getCurrentTypes().length > 0) {
+        if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                && (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false)) {
+            assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME))));
+        } else {
+            assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)))));
+        }
+
+        for (boolean quoted : new boolean[] {true, false}) {
+            String value = (quoted ? "\"" : "") + STRING_FIELD_NAME + (quoted ? "\"" : "");
+            queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
+            query = queryBuilder.toQuery(context);
             if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                    && (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false)) {
+                && (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false)) {
                 assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME))));
             } else {
                 assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)))));
             }
-        } else {
-            assertThat(query, equalTo(new MatchNoDocsQuery()));
         }
+        QueryShardContext contextNoType = createShardContextWithNoType();
+        query = queryBuilder.toQuery(contextNoType);
+        assertThat(query, equalTo(new MatchNoDocsQuery()));
 
         queryBuilder = new QueryStringQueryBuilder("*:*");
         query = queryBuilder.toQuery(context);
@@ -1041,7 +1062,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testDisabledFieldNamesField() throws Exception {
-        assumeTrue("No types", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         context.getMapperService().merge("_doc",
             new CompressedXContent(
@@ -1099,7 +1119,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testExpandedTerms() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         // Prefix
         Query query = new QueryStringQueryBuilder("aBc*")
                 .field(STRING_FIELD_NAME)
@@ -1162,7 +1181,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testLenientRewriteToMatchNoDocs() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         // Term
         Query query = new QueryStringQueryBuilder("hello")
             .field(INT_FIELD_NAME)
@@ -1191,50 +1209,52 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field("unmapped_field")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new BooleanQuery.Builder().build(), query);
 
         // Unmapped prefix field
         query = new QueryStringQueryBuilder("unmapped_field:hello")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new BooleanQuery.Builder().build(), query);
 
         // Unmapped fields
         query = new QueryStringQueryBuilder("hello")
             .lenient(true)
             .field("unmapped_field")
+            .field("another_field")
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new BooleanQuery.Builder().build(), query);
     }
 
     public void testDefaultField() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         context.getIndexSettings().updateIndexMetaData(
             newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                 STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
         );
-        Query query = new QueryStringQueryBuilder("hello")
-            .toQuery(context);
-        Query expected = new DisjunctionMaxQuery(
-            Arrays.asList(
-                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
-                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
-            ), 0.0f
-        );
-        assertEquals(expected, query);
-        // Reset the default value
-        context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index",
-                context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
-        );
+        try {
+            Query query = new QueryStringQueryBuilder("hello")
+                .toQuery(context);
+            Query expected = new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                    new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
+                ), 0.0f
+            );
+            assertEquals(expected, query);
+        } finally {
+            // Reset the default value
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index",
+                    context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
+            );
+        }
     }
 
     /**
      * the quote analyzer should overwrite any other forced analyzer in quoted parts of the query
      */
     public void testQuoteAnalyzer() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         // Prefix
         Query query = new QueryStringQueryBuilder("ONE \"TWO THREE\"")
                 .field(STRING_FIELD_NAME)
@@ -1253,7 +1273,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testQuoteFieldSuffix() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext context = createShardContext();
         assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")),
             new QueryStringQueryBuilder("bar")
@@ -1284,8 +1303,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testToFuzzyQuery() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-
         Query query = new QueryStringQueryBuilder("text~2")
             .field(STRING_FIELD_NAME)
             .fuzzyPrefixLength(2)
@@ -1297,29 +1314,160 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testWithStopWords() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new QueryStringQueryBuilder("the quick fox")
             .field(STRING_FIELD_NAME)
-            .analyzer("english")
+            .analyzer("stop")
             .toQuery(createShardContext());
-        BooleanQuery expected = new BooleanQuery.Builder()
-            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
-            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
+        Query expected = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
             .build();
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
+                    .build(),
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME_2, "quick")), Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME_2, "fox")), Occur.SHOULD)
+                    .build()
+            ), 0f);
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("the")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        assertEquals(new BooleanQuery.Builder().build(), query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new QueryStringQueryBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new BooleanQuery.Builder().build(), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new QueryStringQueryBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .field(STRING_FIELD_NAME_2)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
         assertEquals(expected, query);
     }
 
     public void testWithPrefixStopWords() throws Exception {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = new QueryStringQueryBuilder("the* quick fox")
             .field(STRING_FIELD_NAME)
-            .analyzer("english")
+            .analyzer("stop")
             .toQuery(createShardContext());
         BooleanQuery expected = new BooleanQuery.Builder()
             .add(new PrefixQuery(new Term(STRING_FIELD_NAME, "the")), Occur.SHOULD)
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
             .build();
+        assertEquals(expected, query);
+    }
+
+    public void testCrossFields() throws Exception {
+        final QueryShardContext context = createShardContext();
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index", context.getIndexSettings().getSettings(),
+                Settings.builder().putList("index.query.default_field",
+                    STRING_FIELD_NAME, STRING_FIELD_NAME_2).build())
+        );
+        try {
+            Term[] blendedTerms = new Term[2];
+            blendedTerms[0] = new Term(STRING_FIELD_NAME, "foo");
+            blendedTerms[1] = new Term(STRING_FIELD_NAME_2, "foo");
+
+            Query query = new QueryStringQueryBuilder("foo")
+                .analyzer("whitespace")
+                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                .toQuery(createShardContext());
+            Query expected = BlendedTermQuery.dismaxBlendedQuery(blendedTerms, 1.0f);
+            assertEquals(expected, query);
+
+            query = new QueryStringQueryBuilder("foo mapped_string:10")
+                .analyzer("whitespace")
+                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                .toQuery(createShardContext());
+            expected = new BooleanQuery.Builder()
+                .add(BlendedTermQuery.dismaxBlendedQuery(blendedTerms, 1.0f), Occur.SHOULD)
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "10")), Occur.SHOULD)
+                .build();
+            assertEquals(expected, query);
+        } finally {
+            // Reset the default value
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index",
+                    context.getIndexSettings().getSettings(),
+                    Settings.builder().putList("index.query.default_field", "*").build())
+            );
+        }
+    }
+
+    public void testPhraseSlop() throws Exception {
+        Query query = new QueryStringQueryBuilder("quick fox")
+            .field(STRING_FIELD_NAME)
+            .type(MultiMatchQueryBuilder.Type.PHRASE)
+            .toQuery(createShardContext());
+
+        PhraseQuery expected = new PhraseQuery.Builder()
+            .add(new Term(STRING_FIELD_NAME, "quick"))
+            .add(new Term(STRING_FIELD_NAME, "fox"))
+            .build();
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("quick fox")
+            .field(STRING_FIELD_NAME)
+            .type(MultiMatchQueryBuilder.Type.PHRASE)
+            .phraseSlop(2)
+            .toQuery(createShardContext());
+
+        expected = new PhraseQuery.Builder()
+            .add(new Term(STRING_FIELD_NAME, "quick"))
+            .add(new Term(STRING_FIELD_NAME, "fox"))
+            .setSlop(2)
+            .build();
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("\"quick fox\"")
+            .field(STRING_FIELD_NAME)
+            .phraseSlop(2)
+            .toQuery(createShardContext());
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("\"quick fox\"~2")
+            .field(STRING_FIELD_NAME)
+            .phraseSlop(10)
+            .toQuery(createShardContext());
+        assertEquals(expected, query);
+    }
+
+    public void testAnalyzedPrefix() throws Exception {
+        Query query = new QueryStringQueryBuilder("quick* @&*")
+            .field(STRING_FIELD_NAME)
+            .analyzer("standard")
+            .analyzeWildcard(true)
+            .toQuery(createShardContext());
+        Query expected = new PrefixQuery(new Term(STRING_FIELD_NAME, "quick"));
         assertEquals(expected, query);
     }
 

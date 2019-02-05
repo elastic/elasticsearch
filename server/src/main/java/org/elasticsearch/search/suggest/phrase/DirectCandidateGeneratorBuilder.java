@@ -21,7 +21,7 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.JaroWinklerDistance;
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
@@ -156,7 +156,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
      * specified. This value will be compared to the string distance result
      * of each candidate spelling correction.
      * <p>
-     * Default is <tt>0.5</tt>
+     * Default is {@code 0.5}
      */
     public DirectCandidateGeneratorBuilder accuracy(float accuracy) {
         this.accuracy = accuracy;
@@ -233,7 +233,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
      * Sets the maximum edit distance candidate suggestions can have in
      * order to be considered as a suggestion. Can only be a value between 1
      * and 2. Any other value result in an bad request error being thrown.
-     * Defaults to <tt>2</tt>.
+     * Defaults to {@code 2}.
      */
     public DirectCandidateGeneratorBuilder maxEdits(Integer maxEdits) {
         if (maxEdits < 1 || maxEdits > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
@@ -250,7 +250,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
     /**
      * A factor that is used to multiply with the size in order to inspect
      * more candidate suggestions. Can improve accuracy at the cost of
-     * performance. Defaults to <tt>5</tt>.
+     * performance. Defaults to {@code 5}.
      */
     public DirectCandidateGeneratorBuilder maxInspections(Integer maxInspections) {
         this.maxInspections = maxInspections;
@@ -266,7 +266,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
      * can exist in order to be corrected. Can be a relative percentage
      * number (e.g 0.4) or an absolute number to represent document
      * frequencies. If an value higher than 1 is specified then fractional
-     * can not be specified. Defaults to <tt>0.01</tt>.
+     * can not be specified. Defaults to {@code 0.01}.
      * <p>
      * This can be used to exclude high frequency terms from being
      * suggested. High frequency terms are usually spelled correctly on top
@@ -298,7 +298,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
 
     /**
      * The minimum length a suggest text term must have in order to be
-     * corrected. Defaults to <tt>4</tt>.
+     * corrected. Defaults to {@code 4}.
      */
     public DirectCandidateGeneratorBuilder minWordLength(int minWordLength) {
         this.minWordLength = minWordLength;
@@ -466,7 +466,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         } else if ("damerau_levenshtein".equals(distanceVal)) {
             return new LuceneLevenshteinDistance();
         } else if ("levenshtein".equals(distanceVal)) {
-            return new LevensteinDistance();
+            return new LevenshteinDistance();
         } else if ("jaro_winkler".equals(distanceVal)) {
             return new JaroWinklerDistance();
         } else if ("ngram".equals(distanceVal)) {

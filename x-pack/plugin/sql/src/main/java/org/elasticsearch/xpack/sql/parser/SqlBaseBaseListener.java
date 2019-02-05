@@ -1,8 +1,3 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
- */
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.sql.parser;
 
@@ -129,18 +124,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterSysCatalogs(SqlBaseParser.SysCatalogsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitSysCatalogs(SqlBaseParser.SysCatalogsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterSysTables(SqlBaseParser.SysTablesContext ctx) { }
   /**
    * {@inheritDoc}
@@ -177,18 +160,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterSysTableTypes(SqlBaseParser.SysTableTypesContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitSysTableTypes(SqlBaseParser.SysTableTypesContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterQuery(SqlBaseParser.QueryContext ctx) { }
   /**
    * {@inheritDoc}
@@ -208,6 +179,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitQueryNoWith(SqlBaseParser.QueryNoWithContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterLimitClause(SqlBaseParser.LimitClauseContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLimitClause(SqlBaseParser.LimitClauseContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -525,6 +508,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterPredicated(SqlBaseParser.PredicatedContext ctx) { }
   /**
    * {@inheritDoc}
@@ -549,6 +544,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterLikePattern(SqlBaseParser.LikePatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLikePattern(SqlBaseParser.LikePatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterPattern(SqlBaseParser.PatternContext ctx) { }
   /**
    * {@inheritDoc}
@@ -556,6 +563,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitPattern(SqlBaseParser.PatternContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPatternEscape(SqlBaseParser.PatternEscapeContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPatternEscape(SqlBaseParser.PatternEscapeContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -633,6 +652,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterConstantDefault(SqlBaseParser.ConstantDefaultContext ctx) { }
   /**
    * {@inheritDoc}
@@ -657,13 +688,13 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterFunctionCall(SqlBaseParser.FunctionCallContext ctx) { }
+  @Override public void enterFunction(SqlBaseParser.FunctionContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitFunctionCall(SqlBaseParser.FunctionCallContext ctx) { }
+  @Override public void exitFunction(SqlBaseParser.FunctionContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -676,18 +707,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitSubqueryExpression(SqlBaseParser.SubqueryExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterColumnReference(SqlBaseParser.ColumnReferenceContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitColumnReference(SqlBaseParser.ColumnReferenceContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -717,6 +736,114 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterCastExpression(SqlBaseParser.CastExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitCastExpression(SqlBaseParser.CastExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterCastTemplate(SqlBaseParser.CastTemplateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitCastTemplate(SqlBaseParser.CastTemplateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterExtractExpression(SqlBaseParser.ExtractExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitExtractExpression(SqlBaseParser.ExtractExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterExtractTemplate(SqlBaseParser.ExtractTemplateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitExtractTemplate(SqlBaseParser.ExtractTemplateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFunctionExpression(SqlBaseParser.FunctionExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFunctionExpression(SqlBaseParser.FunctionExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFunctionTemplate(SqlBaseParser.FunctionTemplateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFunctionTemplate(SqlBaseParser.FunctionTemplateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFunctionName(SqlBaseParser.FunctionNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFunctionName(SqlBaseParser.FunctionNameContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterNullLiteral(SqlBaseParser.NullLiteralContext ctx) { }
   /**
    * {@inheritDoc}
@@ -724,6 +851,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitNullLiteral(SqlBaseParser.NullLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterIntervalLiteral(SqlBaseParser.IntervalLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIntervalLiteral(SqlBaseParser.IntervalLiteralContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -777,6 +916,54 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterDateEscapedLiteral(SqlBaseParser.DateEscapedLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDateEscapedLiteral(SqlBaseParser.DateEscapedLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterTimeEscapedLiteral(SqlBaseParser.TimeEscapedLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitTimeEscapedLiteral(SqlBaseParser.TimeEscapedLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterTimestampEscapedLiteral(SqlBaseParser.TimestampEscapedLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitTimestampEscapedLiteral(SqlBaseParser.TimestampEscapedLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterGuidEscapedLiteral(SqlBaseParser.GuidEscapedLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitGuidEscapedLiteral(SqlBaseParser.GuidEscapedLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterComparisonOperator(SqlBaseParser.ComparisonOperatorContext ctx) { }
   /**
    * {@inheritDoc}
@@ -796,6 +983,30 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitBooleanValue(SqlBaseParser.BooleanValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterInterval(SqlBaseParser.IntervalContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitInterval(SqlBaseParser.IntervalContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterIntervalField(SqlBaseParser.IntervalFieldContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitIntervalField(SqlBaseParser.IntervalFieldContext ctx) { }
   /**
    * {@inheritDoc}
    *

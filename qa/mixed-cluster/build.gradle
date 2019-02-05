@@ -54,18 +54,18 @@ for (Version version : bwcVersions.wireCompatible) {
     bwcTest.dependsOn(versionBwcTest)
   }
 
-  /* To support taking index snapshots, we have to set path.repo setting */
   tasks.getByName("${baseName}#mixedClusterTestRunner").configure {
+    /* To support taking index snapshots, we have to set path.repo setting */
     systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
   }
 }
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.snapshotsWireCompatible) {
+    for (final def version : bwcVersions.unreleasedWireCompatible) {
       dependsOn "v${version}#bwcTest"
     }
   }

@@ -11,9 +11,10 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.sql.DatabaseMetaData;
 import java.util.Comparator;
@@ -27,15 +28,23 @@ import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
 
+/**
+ * System command designed to be used by JDBC / ODBC for column metadata.
+ * In JDBC it used for {@link DatabaseMetaData#getTypeInfo()},
+ * in ODBC for <a href="https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function">SQLGetTypeInfo</a>
+ */
 public class SysTypes extends Command {
 
-    public SysTypes(Location location) {
-        super(location);
+    private final Integer type;
+
+    public SysTypes(Source source, int type) {
+        super(source);
+        this.type = Integer.valueOf(type);
     }
 
     @Override
     protected NodeInfo<SysTypes> info() {
-        return NodeInfo.create(this);
+        return NodeInfo.create(this, SysTypes::new, type);
     }
 
     @Override
@@ -65,11 +74,16 @@ public class SysTypes extends Command {
 
     @Override
     public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        List<List<?>> rows = Stream.of(DataType.values())
-                // sort by SQL int type (that's what the JDBC/ODBC specs want)
-                .sorted(Comparator.comparing(t -> t.jdbcType))
+        Stream<DataType> values = Stream.of(DataType.values());
+        if (type.intValue() != 0) {
+            values = values.filter(t -> type.equals(t.sqlType.getVendorTypeNumber()));
+        }
+        List<List<?>> rows = values
+                // sort by SQL int type (that's what the JDBC/ODBC specs want) followed by name
+                .sorted(Comparator.comparing((DataType t) -> t.sqlType.getVendorTypeNumber()).thenComparing(DataType::sqlName))
                 .map(t -> asList(t.esType.toUpperCase(Locale.ROOT),
-                        t.jdbcType.getVendorTypeNumber(),
+                        t.sqlType.getVendorTypeNumber(),
+                        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size?view=sql-server-2017
                         t.defaultPrecision,
                         "'",
                         "'",
@@ -83,16 +97,17 @@ public class SysTypes extends Command {
                         // only numerics are signed
                         !t.isSigned(),
                         //no fixed precision scale SQL_FALSE
-                        false,
+                        Boolean.FALSE,
+                        // not auto-incremented
+                        Boolean.FALSE,
                         null,
-                        null,
-                        null,
-                        null,
+                        DataTypes.metaSqlMinimumScale(t),
+                        DataTypes.metaSqlMaximumScale(t),
                         // SQL_DATA_TYPE - ODBC wants this to be not null
-                        0,
-                        null,
+                        DataTypes.metaSqlDataType(t),
+                        DataTypes.metaSqlDateTimeSub(t),
                         // Radix
-                        t.isInteger ? Integer.valueOf(10) : (t.isRational ? Integer.valueOf(2) : null),
+                        DataTypes.metaSqlRadix(t),
                         null
                         ))
                 .collect(toList());
@@ -102,7 +117,7 @@ public class SysTypes extends Command {
 
     @Override
     public int hashCode() {
-        return getClass().hashCode();
+        return type.hashCode();
     }
 
     @Override
@@ -115,6 +130,6 @@ public class SysTypes extends Command {
             return false;
         }
 
-        return true;
+        return type.equals(((SysTypes) obj).type);
     }
 }

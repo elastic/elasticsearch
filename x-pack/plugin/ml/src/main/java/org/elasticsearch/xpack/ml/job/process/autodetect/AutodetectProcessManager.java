@@ -5,49 +5,59 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
-import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
@@ -56,9 +66,11 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ScoresUpdater;
 import org.elasticsearch.xpack.ml.job.process.normalizer.ShortCircuitingRenormalizer;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Date;
@@ -78,36 +90,44 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.settings.Setting.Property;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class AutodetectProcessManager extends AbstractComponent {
+public class AutodetectProcessManager {
 
     // We should be able from the job config to estimate the memory/cpu a job needs to have,
     // and if we know that then we can prior to assigning a job to a node fail based on the
     // available resources on that node: https://github.com/elastic/x-pack-elasticsearch/issues/546
     // However, it is useful to also be able to apply a hard limit.
 
-    // WARNING: These settings cannot be made DYNAMIC, because they are tied to several threadpools
+    // WARNING: This setting cannot be made DYNAMIC, because it is tied to several threadpools
     // and a threadpool's size can't be changed at runtime.
     // See MachineLearning#getExecutorBuilders(...)
-    // TODO: Remove the deprecated setting in 7.0 and move the default value to the replacement setting
-    @Deprecated
-    public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
-            Setting.intSetting("max_running_jobs", 20, 1, 512, Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
-            Setting.intSetting("xpack.ml.max_open_jobs", MAX_RUNNING_JOBS_PER_NODE, 1, Property.NodeScope);
+            Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, 512, Property.NodeScope);
+
+    // Undocumented setting for integration test purposes
+    public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
+            Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Property.NodeScope);
+
+    private static final Logger logger = LogManager.getLogger(AutodetectProcessManager.class);
 
     private final Client client;
     private final Environment environment;
     private final ThreadPool threadPool;
     private final JobManager jobManager;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final AutodetectProcessFactory autodetectProcessFactory;
     private final NormalizerFactory normalizerFactory;
 
     private final JobResultsPersister jobResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
 
+    private NativeStorageProvider nativeStorageProvider;
     private final ConcurrentMap<Long, ProcessContext> processByAllocation = new ConcurrentHashMap<>();
+
+    // a map that manages the allocation of temporary space to jobs
+    private final ConcurrentMap<String, Path> nativeTmpStorage = new ConcurrentHashMap<>();
 
     private final int maxAllowedRunningJobs;
 
@@ -116,11 +136,10 @@ public class AutodetectProcessManager extends AbstractComponent {
     private final Auditor auditor;
 
     public AutodetectProcessManager(Environment environment, Settings settings, Client client, ThreadPool threadPool,
-                                    JobManager jobManager, JobProvider jobProvider, JobResultsPersister jobResultsPersister,
+                                    JobManager jobManager, JobResultsProvider jobResultsProvider, JobResultsPersister jobResultsPersister,
                                     JobDataCountsPersister jobDataCountsPersister,
                                     AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
                                     NamedXContentRegistry xContentRegistry, Auditor auditor) {
-        super(settings);
         this.environment = environment;
         this.client = client;
         this.threadPool = threadPool;
@@ -129,13 +148,22 @@ public class AutodetectProcessManager extends AbstractComponent {
         this.autodetectProcessFactory = autodetectProcessFactory;
         this.normalizerFactory = normalizerFactory;
         this.jobManager = jobManager;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.jobResultsPersister = jobResultsPersister;
         this.jobDataCountsPersister = jobDataCountsPersister;
         this.auditor = auditor;
+        this.nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
     }
 
-    public synchronized void closeAllJobsOnThisNode(String reason) throws IOException {
+    public void onNodeStartup() {
+        try {
+            nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
+        } catch (Exception e) {
+            logger.warn("Failed to cleanup native storage from previous invocation", e);
+        }
+    }
+
+    public synchronized void closeAllJobsOnThisNode(String reason) {
         int numJobs = processByAllocation.size();
         if (numJobs != 0) {
             logger.info("Closing [{}] jobs, because [{}]", numJobs, reason);
@@ -189,6 +217,13 @@ public class AutodetectProcessManager extends AbstractComponent {
      */
     public void persistJob(JobTask jobTask, Consumer<Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
+        if (communicator == null) {
+            String message = String.format(Locale.ROOT, "Cannot persist because job [%s] does not have a corresponding autodetect process",
+                jobTask.getJobId());
+            logger.debug(message);
+            handler.accept(ExceptionsHelper.conflictStatusException(message));
+            return;
+        }
         communicator.persistJob((aVoid, e) -> handler.accept(e));
     }
 
@@ -216,7 +251,8 @@ public class AutodetectProcessManager extends AbstractComponent {
                             XContentType xContentType, DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            throw ExceptionsHelper.conflictStatusException("Cannot process data because job [" + jobTask.getJobId() + "] is not open");
+            throw ExceptionsHelper.conflictStatusException("Cannot process data because job [" + jobTask.getJobId() +
+                "] does not have a corresponding autodetect process");
         }
         communicator.writeToJob(input, analysisRegistry, xContentType, params, handler);
     }
@@ -234,7 +270,8 @@ public class AutodetectProcessManager extends AbstractComponent {
         logger.debug("Flushing job {}", jobTask.getJobId());
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            String message = String.format(Locale.ROOT, "Cannot flush because job [%s] is not open", jobTask.getJobId());
+            String message = String.format(Locale.ROOT, "Cannot flush because job [%s] does not have a corresponding autodetect process",
+                jobTask.getJobId());
             logger.debug(message);
             handler.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
@@ -252,16 +289,40 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     /**
+     * Request temporary storage to be used for the job
+     *
+     * @param jobTask The job task
+     * @param requestedSize requested size
+     * @return a Path to local storage or null if storage is not available
+     */
+    public Path tryGetTmpStorage(JobTask jobTask, ByteSizeValue requestedSize) {
+        String jobId = jobTask.getJobId();
+        Path path = nativeTmpStorage.get(jobId);
+        if (path == null) {
+            path = nativeStorageProvider.tryGetLocalTmpStorage(jobId, requestedSize);
+            if (path != null) {
+                nativeTmpStorage.put(jobId, path);
+            }
+        } else if (!nativeStorageProvider.localTmpStorageHasEnoughSpace(path, requestedSize)) {
+            // the previous tmp location ran out of disk space, do not allow further usage
+            return null;
+        }
+        return path;
+    }
+
+    /**
      * Do a forecast for the running job.
      *
      * @param jobTask   The job task
      * @param params    Forecast parameters
      */
     public void forecastJob(JobTask jobTask, ForecastParams params, Consumer<Exception> handler) {
-        logger.debug("Forecasting job {}", jobTask.getJobId());
+        String jobId = jobTask.getJobId();
+        logger.debug("Forecasting job {}", jobId);
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            String message = String.format(Locale.ROOT, "Cannot forecast because job [%s] is not open", jobTask.getJobId());
+            String message = String.format(Locale.ROOT,
+                "Cannot forecast because job [%s] does not have a corresponding autodetect process", jobId);
             logger.debug(message);
             handler.accept(ExceptionsHelper.conflictStatusException(message));
             return;
@@ -271,110 +332,174 @@ public class AutodetectProcessManager extends AbstractComponent {
             if (e == null) {
                 handler.accept(null);
             } else {
-                String msg = String.format(Locale.ROOT, "[%s] exception while forecasting job", jobTask.getJobId());
+                String msg = String.format(Locale.ROOT, "[%s] exception while forecasting job", jobId);
                 logger.error(msg, e);
                 handler.accept(ExceptionsHelper.serverError(msg, e));
             }
         });
     }
 
-    public void writeUpdateProcessMessage(JobTask jobTask, UpdateParams updateParams,
-                                          Consumer<Exception> handler) {
+    public void writeUpdateProcessMessage(JobTask jobTask, UpdateParams updateParams, Consumer<Exception> handler) {
         AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
         if (communicator == null) {
-            String message = "Cannot process update model debug config because job [" + jobTask.getJobId() + "] is not open";
+            String message = "Cannot update the job config because job [" + jobTask.getJobId() +
+                "] does not have a corresponding autodetect process";
             logger.debug(message);
             handler.accept(ExceptionsHelper.conflictStatusException(message));
             return;
         }
 
+        UpdateProcessMessage.Builder updateProcessMessage = new UpdateProcessMessage.Builder();
+        updateProcessMessage.setModelPlotConfig(updateParams.getModelPlotConfig());
+        updateProcessMessage.setDetectorUpdates(updateParams.getDetectorUpdates());
+
+        // Step 3. Set scheduled events on message and write update process message
         ActionListener<QueryPage<ScheduledEvent>> eventsListener = ActionListener.wrap(
                 events -> {
-                    communicator.writeUpdateProcessMessage(updateParams, events == null ? null : events.results(), (aVoid, e) -> {
+                    updateProcessMessage.setScheduledEvents(events == null ? null : events.results());
+                    communicator.writeUpdateProcessMessage(updateProcessMessage.build(), (aVoid, e) -> {
                         if (e == null) {
                             handler.accept(null);
                         } else {
                             handler.accept(e);
                         }
                     });
-                },
-                handler::accept);
+                }, handler
+        );
 
-        if (updateParams.isUpdateScheduledEvents()) {
-            Job job = jobManager.getJobOrThrowIfUnknown(jobTask.getJobId());
-            DataCounts dataCounts = getStatistics(jobTask).get().v1();
-            ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().start(job.earliestValidTimestamp(dataCounts));
-            jobProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
+        // Step 2. Set the filter on the message and get scheduled events
+        ActionListener<MlFilter> filterListener = ActionListener.wrap(
+                filter -> {
+                    updateProcessMessage.setFilter(filter);
+
+                    if (updateParams.isUpdateScheduledEvents()) {
+                        jobManager.getJob(jobTask.getJobId(), new ActionListener<Job>() {
+                            @Override
+                            public void onResponse(Job job) {
+                                DataCounts dataCounts = getStatistics(jobTask).get().v1();
+                                ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder()
+                                        .start(job.earliestValidTimestamp(dataCounts));
+                                jobResultsProvider.scheduledEventsForJob(jobTask.getJobId(), job.getGroups(), query, eventsListener);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                handler.accept(e);
+                            }
+                        });
+                    } else {
+                        eventsListener.onResponse(null);
+                    }
+                }, handler
+        );
+
+        // Step 1. Get the filter
+        if (updateParams.getFilter() == null) {
+            filterListener.onResponse(null);
         } else {
-            eventsListener.onResponse(null);
-        }
-    }
+            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request();
+            getFilterRequest.setFilterId(updateParams.getFilter().getId());
+            executeAsyncWithOrigin(client, ML_ORIGIN, GetFiltersAction.INSTANCE, getFilterRequest,
+                    new ActionListener<GetFiltersAction.Response>() {
 
-    public void openJob(JobTask jobTask, Consumer<Exception> handler) {
-        String jobId = jobTask.getJobId();
-        Job job = jobManager.getJobOrThrowIfUnknown(jobId);
+                @Override
+                public void onResponse(GetFiltersAction.Response response) {
+                    filterListener.onResponse(response.getFilters().results().get(0));
+                }
 
-        if (job.getJobVersion() == null) {
-            handler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId
-                    + "] because jobs created prior to version 5.5 are not supported"));
-            return;
-        }
-
-        logger.info("Opening job [{}]", jobId);
-        processByAllocation.putIfAbsent(jobTask.getAllocationId(), new ProcessContext(jobTask));
-        jobProvider.getAutodetectParams(job, params -> {
-            // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     handler.accept(e);
                 }
-
-                @Override
-                protected void doRun() throws Exception {
-                    ProcessContext processContext = processByAllocation.get(jobTask.getAllocationId());
-                    if (processContext == null) {
-                        logger.debug("Aborted opening job [{}] as it has been closed", jobId);
-                        return;
-                    }
-                    if (processContext.getState() !=  ProcessContext.ProcessStateName.NOT_RUNNING) {
-                        logger.debug("Cannot open job [{}] when its state is [{}]", jobId, processContext.getState().getClass().getName());
-                        return;
-                    }
-
-                    try {
-                        createProcessAndSetRunning(processContext, params, handler);
-                        processContext.getAutodetectCommunicator().init(params.modelSnapshot());
-                        setJobState(jobTask, JobState.OPENED);
-                    } catch (Exception e1) {
-                        // No need to log here as the persistent task framework will log it
-                        try {
-                            // Don't leave a partially initialised process hanging around
-                            processContext.newKillBuilder()
-                                    .setAwaitCompletion(false)
-                                    .setFinish(false)
-                                    .kill();
-                            processByAllocation.remove(jobTask.getAllocationId());
-                        } finally {
-                            setJobState(jobTask, JobState.FAILED, e2 -> handler.accept(e1));
-                        }
-                    }
-                }
             });
-        }, e1 -> {
-            logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
-            setJobState(jobTask, JobState.FAILED, e2 -> handler.accept(e1));
-        });
+        }
     }
 
-    private void createProcessAndSetRunning(ProcessContext processContext, AutodetectParams params, Consumer<Exception> handler) {
+    public void openJob(JobTask jobTask, ClusterState clusterState, Consumer<Exception> closeHandler) {
+        String jobId = jobTask.getJobId();
+        logger.info("Opening job [{}]", jobId);
+
+        // Start the process
+        ActionListener<Boolean> stateAliasHandler = ActionListener.wrap(
+            r -> {
+                jobManager.getJob(jobId, ActionListener.wrap(
+                    job -> {
+                        if (job.getJobVersion() == null) {
+                            closeHandler.accept(ExceptionsHelper.badRequestException("Cannot open job [" + jobId
+                                + "] because jobs created prior to version 5.5 are not supported"));
+                            return;
+                        }
+
+                        processByAllocation.putIfAbsent(jobTask.getAllocationId(), new ProcessContext(jobTask));
+                        jobResultsProvider.getAutodetectParams(job, params -> {
+                            // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
+                            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
+                                @Override
+                                public void onFailure(Exception e) {
+                                    closeHandler.accept(e);
+                                }
+
+                                @Override
+                                protected void doRun() {
+                                    ProcessContext processContext = processByAllocation.get(jobTask.getAllocationId());
+                                    if (processContext == null) {
+                                        logger.debug("Aborted opening job [{}] as it has been closed", jobId);
+                                        return;
+                                    }
+                                    if (processContext.getState() !=  ProcessContext.ProcessStateName.NOT_RUNNING) {
+                                        logger.debug("Cannot open job [{}] when its state is [{}]",
+                                            jobId, processContext.getState().getClass().getName());
+                                        return;
+                                    }
+
+                                    try {
+                                        createProcessAndSetRunning(processContext, job, params, closeHandler);
+                                        processContext.getAutodetectCommunicator().init(params.modelSnapshot());
+                                        setJobState(jobTask, JobState.OPENED);
+                                    } catch (Exception e1) {
+                                        // No need to log here as the persistent task framework will log it
+                                        try {
+                                            // Don't leave a partially initialised process hanging around
+                                            processContext.newKillBuilder()
+                                                .setAwaitCompletion(false)
+                                                .setFinish(false)
+                                                .kill();
+                                            processByAllocation.remove(jobTask.getAllocationId());
+                                        } finally {
+                                            setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1));
+                                        }
+                                    }
+                                }
+                            });
+                        }, e1 -> {
+                            logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
+                            setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1));
+                        });
+                    },
+                    closeHandler
+                ));
+            },
+            closeHandler);
+
+        // Make sure the state index and alias exist
+        ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
+            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, stateAliasHandler),
+            closeHandler
+        );
+
+        // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
+        ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
+            ElasticsearchMappings::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+    }
+
+    private void createProcessAndSetRunning(ProcessContext processContext, Job job, AutodetectParams params, Consumer<Exception> handler) {
         // At this point we lock the process context until the process has been started.
         // The reason behind this is to ensure closing the job does not happen before
         // the process is started as that can result to the job getting seemingly closed
         // but the actual process is hanging alive.
         processContext.tryLock();
         try {
-            AutodetectCommunicator communicator = create(processContext.getJobTask(), params, handler);
+            AutodetectCommunicator communicator = create(processContext.getJobTask(), job, params, handler);
             processContext.setRunning(communicator);
         } finally {
             // Now that the process is running and we have updated its state we can unlock.
@@ -384,7 +509,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         }
     }
 
-    AutodetectCommunicator create(JobTask jobTask, AutodetectParams autodetectParams, Consumer<Exception> handler) {
+    AutodetectCommunicator create(JobTask jobTask, Job job, AutodetectParams autodetectParams, Consumer<Exception> handler) {
         // Closing jobs can still be using some or all threads in MachineLearning.AUTODETECT_THREAD_POOL_NAME
         // that an open job uses, so include them too when considering if enough threads are available.
         int currentRunningJobs = processByAllocation.size();
@@ -409,22 +534,19 @@ public class AutodetectProcessManager extends AbstractComponent {
             }
         }
 
-        Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
-        DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, autodetectParams.dataCounts(),
-                jobDataCountsPersister);
-        ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobProvider,
-                new JobRenormalizedResultsPersister(job.getId(), settings, client), normalizerFactory);
+        DataCountsReporter dataCountsReporter = new DataCountsReporter(job, autodetectParams.dataCounts(), jobDataCountsPersister);
+        ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobResultsProvider,
+                new JobRenormalizedResultsPersister(job.getId(), client), normalizerFactory);
         ExecutorService renormalizerExecutorService = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
         Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdater,
-                renormalizerExecutorService, job.getAnalysisConfig().getUsePerPartitionNormalization());
+                renormalizerExecutorService);
 
         AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams, autoDetectExecutorService,
                 onProcessCrash(jobTask));
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
-                client, auditor, jobId, renormalizer, jobResultsPersister, jobProvider, autodetectParams.modelSizeStats(),
-                autodetectParams.modelSnapshot() != null);
+                client, auditor, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
         ExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = createAutodetectExecutorService(autoDetectExecutorService);
@@ -477,6 +599,11 @@ public class AutodetectProcessManager extends AbstractComponent {
                 }
             }
             setJobState(jobTask, JobState.FAILED);
+            try {
+                removeTmpStorage(jobTask.getJobId());
+            } catch (IOException e) {
+                logger.error(new ParameterizedMessage("[{}] Failed to delete temporary files", jobTask.getJobId()), e);
+            }
         };
     }
 
@@ -535,6 +662,12 @@ public class AutodetectProcessManager extends AbstractComponent {
             // thread that gets into this method blocks until the first thread has finished closing the job
             processContext.unlock();
         }
+        // delete any tmp storage
+        try {
+            removeTmpStorage(jobId);
+        } catch (IOException e) {
+            logger.error(new ParameterizedMessage("[{}]Failed to delete temporary files", jobId), e);
+        }
     }
 
     int numberOfOpenJobs() {
@@ -559,6 +692,14 @@ public class AutodetectProcessManager extends AbstractComponent {
         return null;
     }
 
+    public boolean hasOpenAutodetectCommunicator(long jobAllocationId) {
+        ProcessContext processContext = processByAllocation.get(jobAllocationId);
+        if (processContext != null && processContext.getState() == ProcessContext.ProcessStateName.RUNNING) {
+            return processContext.getAutodetectCommunicator() != null;
+        }
+        return false;
+    }
+
     public Optional<Duration> jobOpenTime(JobTask jobTask) {
         AutodetectCommunicator communicator = getAutodetectCommunicator(jobTask);
         if (communicator == null) {
@@ -568,8 +709,8 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     void setJobState(JobTask jobTask, JobState state) {
-        JobTaskStatus taskStatus = new JobTaskStatus(state, jobTask.getAllocationId());
-        jobTask.updatePersistentStatus(taskStatus, new ActionListener<PersistentTask<?>>() {
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId());
+        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
             @Override
             public void onResponse(PersistentTask<?> persistentTask) {
                 logger.info("Successfully set job state to [{}] for job [{}]", state, jobTask.getJobId());
@@ -583,8 +724,8 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     void setJobState(JobTask jobTask, JobState state, CheckedConsumer<Exception, IOException> handler) {
-        JobTaskStatus taskStatus = new JobTaskStatus(state, jobTask.getAllocationId());
-        jobTask.updatePersistentStatus(taskStatus, new ActionListener<PersistentTask<?>>() {
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId());
+        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
                     @Override
                     public void onResponse(PersistentTask<?> persistentTask) {
                         try {
@@ -613,10 +754,21 @@ public class AutodetectProcessManager extends AbstractComponent {
         return Optional.of(new Tuple<>(communicator.getDataCounts(), communicator.getModelSizeStats()));
     }
 
+    private void removeTmpStorage(String jobId) throws IOException {
+        Path path = nativeTmpStorage.get(jobId);
+        if (path != null) {
+            nativeStorageProvider.cleanupLocalTmpStorage(path);
+        }
+    }
+
     ExecutorService createAutodetectExecutorService(ExecutorService executorService) {
         AutodetectWorkerExecutorService autoDetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
         executorService.submit(autoDetectWorkerExecutor::start);
         return autoDetectWorkerExecutor;
+    }
+
+    public ByteSizeValue getMinLocalStorageAvailable() {
+        return nativeStorageProvider.getMinLocalStorageAvailable();
     }
 
     /*
@@ -624,7 +776,7 @@ public class AutodetectProcessManager extends AbstractComponent {
      * operations are initially added to a queue and a worker thread from ml autodetect threadpool will process each
      * operation at a time.
      */
-    class AutodetectWorkerExecutorService extends AbstractExecutorService {
+    static class AutodetectWorkerExecutorService extends AbstractExecutorService {
 
         private final ThreadContext contextHolder;
         private final CountDownLatch awaitTermination = new CountDownLatch(1);
@@ -632,6 +784,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         private volatile boolean running = true;
 
+        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
         AutodetectWorkerExecutorService(ThreadContext contextHolder) {
             this.contextHolder = contextHolder;
         }
@@ -679,6 +832,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                         } catch (Exception e) {
                             logger.error("error handling job operation", e);
                         }
+                        EsExecutors.rethrowErrors(contextHolder.unwrap(runnable));
                     }
                 }
             } catch (InterruptedException e) {

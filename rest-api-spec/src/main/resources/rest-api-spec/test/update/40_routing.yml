@@ -1,8 +1,13 @@
 ---
 "Routing":
 
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
  - do:
      indices.create:
+       include_type_name: false
        index:    test_1
        body:
          settings:
@@ -18,7 +23,6 @@
  - do:
       update:
           index:   test_1
-          type:    test
           id:      1
           routing: 5
           body:
@@ -28,7 +32,6 @@
  - do:
       get:
           index:   test_1
-          type:    test
           id:      1
           routing: 5
           stored_fields:  _routing
@@ -39,7 +42,6 @@
       catch:      missing
       update:
           index:   test_1
-          type:    test
           id:      1
           body:
             doc:        { foo: baz }
@@ -47,7 +49,6 @@
  - do:
       update:
           index:   test_1
-          type:    test
           id:      1
           routing: 5
           _source: foo

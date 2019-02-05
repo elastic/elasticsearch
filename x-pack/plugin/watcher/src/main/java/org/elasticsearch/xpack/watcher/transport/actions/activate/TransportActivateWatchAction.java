@@ -14,14 +14,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequest;
@@ -52,11 +49,9 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
     private final Client client;
 
     @Inject
-    public TransportActivateWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Clock clock,
-                                        XPackLicenseState licenseState, WatchParser parser, Client client) {
-        super(settings, ActivateWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState, ActivateWatchRequest::new);
+    public TransportActivateWatchAction(TransportService transportService, ActionFilters actionFilters,
+                                        Clock clock, XPackLicenseState licenseState, WatchParser parser, Client client) {
+        super(ActivateWatchAction.NAME, transportService, actionFilters, licenseState, ActivateWatchRequest::new);
         this.clock = clock;
         this.parser = parser;
         this.client = client;

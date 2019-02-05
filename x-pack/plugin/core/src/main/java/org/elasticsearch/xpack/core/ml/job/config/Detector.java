@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,9 +15,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.writer.RecordWriter;
+import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
@@ -26,14 +24,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 
@@ -84,38 +81,35 @@ public class Detector implements ToXContentObject, Writeable {
     public static final ParseField PARTITION_FIELD_NAME_FIELD = new ParseField("partition_field_name");
     public static final ParseField USE_NULL_FIELD = new ParseField("use_null");
     public static final ParseField EXCLUDE_FREQUENT_FIELD = new ParseField("exclude_frequent");
-    // TODO: Remove the deprecated detector_rules setting in 7.0
-    public static final ParseField RULES_FIELD = new ParseField("rules", "detector_rules");
+    public static final ParseField CUSTOM_RULES_FIELD = new ParseField("custom_rules");
     public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    public static final ObjectParser<Builder, Void> METADATA_PARSER = new ObjectParser<>("detector", true, Builder::new);
-    public static final ObjectParser<Builder, Void> CONFIG_PARSER = new ObjectParser<>("detector", false, Builder::new);
-    public static final Map<MlParserType, ObjectParser<Builder, Void>> PARSERS = new EnumMap<>(MlParserType.class);
+    public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
+    public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
-    static {
-        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
-        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
-        for (MlParserType parserType : MlParserType.values()) {
-            ObjectParser<Builder, Void> parser = PARSERS.get(parserType);
-            assert parser != null;
-            parser.declareString(Builder::setDetectorDescription, DETECTOR_DESCRIPTION_FIELD);
-            parser.declareString(Builder::setFunction, FUNCTION_FIELD);
-            parser.declareString(Builder::setFieldName, FIELD_NAME_FIELD);
-            parser.declareString(Builder::setByFieldName, BY_FIELD_NAME_FIELD);
-            parser.declareString(Builder::setOverFieldName, OVER_FIELD_NAME_FIELD);
-            parser.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME_FIELD);
-            parser.declareBoolean(Builder::setUseNull, USE_NULL_FIELD);
-            parser.declareField(Builder::setExcludeFrequent, p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return ExcludeFrequent.forString(p.text());
-                }
-                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
-            parser.declareObjectArray(Builder::setRules, (p, c) ->
-                    DetectionRule.PARSERS.get(parserType).apply(p, c).build(), RULES_FIELD);
-            parser.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
-        }
+    private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, Void> parser = new ObjectParser<>("detector", ignoreUnknownFields, Builder::new);
+
+        parser.declareString(Builder::setDetectorDescription, DETECTOR_DESCRIPTION_FIELD);
+        parser.declareString(Builder::setFunction, FUNCTION_FIELD);
+        parser.declareString(Builder::setFieldName, FIELD_NAME_FIELD);
+        parser.declareString(Builder::setByFieldName, BY_FIELD_NAME_FIELD);
+        parser.declareString(Builder::setOverFieldName, OVER_FIELD_NAME_FIELD);
+        parser.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME_FIELD);
+        parser.declareBoolean(Builder::setUseNull, USE_NULL_FIELD);
+        parser.declareField(Builder::setExcludeFrequent, p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return ExcludeFrequent.forString(p.text());
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
+        parser.declareObjectArray(Builder::setRules,
+            (p, c) -> (ignoreUnknownFields ? DetectionRule.LENIENT_PARSER : DetectionRule.STRICT_PARSER).apply(p, c).build(),
+            CUSTOM_RULES_FIELD);
+        parser.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
+
+        return parser;
     }
 
     public static final String BY = "by";
@@ -191,23 +185,17 @@ public class Detector implements ToXContentObject, Writeable {
     );
 
     /**
-     * The set of functions that must not be used with overlapping buckets
+     * Functions that do not support rule conditions:
+     * <ul>
+     * <li>lat_long - because it is a multivariate feature
+     * <li>metric - because having the same conditions on min,max,mean is
+     * error-prone
+     * <li>rare - because the actual/typical value is not something a user can anticipate
+     * <li>freq_rare - because the actual/typical value is not something a user can anticipate
+     * </ul>
      */
-    public static final EnumSet<DetectorFunction> NO_OVERLAPPING_BUCKETS_FUNCTIONS = EnumSet.of(
-            DetectorFunction.RARE,
-            DetectorFunction.FREQ_RARE
-    );
-
-    /**
-     * The set of functions that should not be used with overlapping buckets
-     * as they gain no benefit but have overhead
-     */
-    public static final EnumSet<DetectorFunction> OVERLAPPING_BUCKETS_FUNCTIONS_NOT_NEEDED = EnumSet.of(
-            DetectorFunction.MIN,
-            DetectorFunction.MAX,
-            DetectorFunction.TIME_OF_DAY,
-            DetectorFunction.TIME_OF_WEEK
-    );
+    static final EnumSet<DetectorFunction> FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT = EnumSet.of(
+            DetectorFunction.LAT_LONG, DetectorFunction.METRIC, DetectorFunction.RARE, DetectorFunction.FREQ_RARE);
 
     /**
      * field names cannot contain any of these characters
@@ -239,13 +227,8 @@ public class Detector implements ToXContentObject, Writeable {
         partitionFieldName = in.readOptionalString();
         useNull = in.readBoolean();
         excludeFrequent = in.readBoolean() ? ExcludeFrequent.readFromStream(in) : null;
-        rules = in.readList(DetectionRule::new);
-        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-            detectorIndex = in.readInt();
-        } else {
-            // negative means unknown, and is expected for 5.4 jobs
-            detectorIndex = -1;
-        }
+        rules = Collections.unmodifiableList(in.readList(DetectionRule::new));
+        detectorIndex = in.readInt();
     }
 
     @Override
@@ -263,10 +246,12 @@ public class Detector implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        out.writeList(rules);
-        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-            out.writeInt(detectorIndex);
+        if (out.getVersion().onOrAfter(DetectionRule.VERSION_INTRODUCED)) {
+            out.writeList(rules);
+        } else {
+            out.writeList(Collections.emptyList());
         }
+        out.writeInt(detectorIndex);
     }
 
     @Override
@@ -293,12 +278,12 @@ public class Detector implements ToXContentObject, Writeable {
             builder.field(EXCLUDE_FREQUENT_FIELD.getPreferredName(), excludeFrequent);
         }
         if (rules.isEmpty() == false) {
-            builder.field(RULES_FIELD.getPreferredName(), rules);
+            builder.field(CUSTOM_RULES_FIELD.getPreferredName(), rules);
         }
         // negative means "unknown", which should only happen for a 5.4 job
         if (detectorIndex >= 0
                 // no point writing this to cluster state, as the indexes will get reassigned on reload anyway
-                && params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == false) {
+                && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
             builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         }
         builder.endObject();
@@ -381,7 +366,7 @@ public class Detector implements ToXContentObject, Writeable {
     }
 
     /**
-     * Excludes frequently-occuring metrics from the analysis;
+     * Excludes frequently-occurring metrics from the analysis;
      * can apply to 'by' field, 'over' field, or both
      *
      * @return the value that the user set
@@ -467,17 +452,6 @@ public class Detector implements ToXContentObject, Writeable {
 
     public static class Builder {
 
-        /**
-         * Functions that do not support rules:
-         * <ul>
-         * <li>lat_long - because it is a multivariate feature
-         * <li>metric - because having the same conditions on min,max,mean is
-         * error-prone
-         * </ul>
-         */
-        static final EnumSet<DetectorFunction> FUNCTIONS_WITHOUT_RULE_SUPPORT = EnumSet.of(
-                DetectorFunction.LAT_LONG, DetectorFunction.METRIC);
-
         private String detectorDescription;
         private DetectorFunction function;
         private String fieldName;
@@ -502,7 +476,7 @@ public class Detector implements ToXContentObject, Writeable {
             partitionFieldName = detector.partitionFieldName;
             useNull = detector.useNull;
             excludeFrequent = detector.excludeFrequent;
-            rules = new ArrayList<>(detector.getRules());
+            rules = new ArrayList<>(detector.rules);
             detectorIndex = detector.detectorIndex;
         }
 
@@ -598,14 +572,8 @@ public class Detector implements ToXContentObject, Writeable {
             }
 
             DetectorFunction function = this.function == null ? DetectorFunction.METRIC : this.function;
-            if (rules.isEmpty() == false) {
-                if (FUNCTIONS_WITHOUT_RULE_SUPPORT.contains(function)) {
-                    String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION, function);
-                    throw ExceptionsHelper.badRequestException(msg);
-                }
-                for (DetectionRule rule : rules) {
-                    checkScoping(rule);
-                }
+            for (DetectionRule rule : rules) {
+                validateRule(rule, function);
             }
 
             // partition, by and over field names cannot be duplicates
@@ -691,96 +659,37 @@ public class Detector implements ToXContentObject, Writeable {
             return field.chars().anyMatch(Character::isISOControl);
         }
 
-        private void checkScoping(DetectionRule rule) throws ElasticsearchParseException {
-            String targetFieldName = rule.getTargetFieldName();
-            checkTargetFieldNameIsValid(extractAnalysisFields(), targetFieldName);
-            for (RuleCondition condition : rule.getConditions()) {
-                List<String> validOptions = Collections.emptyList();
-                switch (condition.getType()) {
-                    case CATEGORICAL:
-                    case CATEGORICAL_COMPLEMENT:
-                        validOptions = extractAnalysisFields();
-                        break;
-                    case NUMERICAL_ACTUAL:
-                    case NUMERICAL_TYPICAL:
-                    case NUMERICAL_DIFF_ABS:
-                        validOptions = getValidFieldNameOptionsForNumeric(rule);
-                        break;
-                    case TIME:
-                    default:
-                        break;
-                }
-                if (!validOptions.contains(condition.getFieldName())) {
-                    String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_INVALID_FIELD_NAME, validOptions,
-                            condition.getFieldName());
-                    throw ExceptionsHelper.badRequestException(msg);
-                }
-            }
+        private void validateRule(DetectionRule rule, DetectorFunction function) {
+            checkFunctionHasRuleSupport(rule, function);
+            checkScoping(rule);
         }
 
-        private void checkTargetFieldNameIsValid(List<String> analysisFields, String targetFieldName)
-                throws ElasticsearchParseException {
-            if (targetFieldName != null && !analysisFields.contains(targetFieldName)) {
-                String msg =
-                        Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_INVALID_TARGET_FIELD_NAME, analysisFields, targetFieldName);
+        private void checkFunctionHasRuleSupport(DetectionRule rule, DetectorFunction function) {
+            if (ruleHasConditionOnResultValue(rule) && FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT.contains(function)) {
+                String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION, function);
                 throw ExceptionsHelper.badRequestException(msg);
             }
         }
 
-        private List<String> getValidFieldNameOptionsForNumeric(DetectionRule rule) {
-            List<String> result = new ArrayList<>();
-            if (overFieldName != null) {
-                result.add(byFieldName == null ? overFieldName : byFieldName);
-            } else if (byFieldName != null) {
-                result.add(byFieldName);
+        private static boolean ruleHasConditionOnResultValue(DetectionRule rule) {
+            for (RuleCondition condition : rule.getConditions()) {
+                switch (condition.getAppliesTo()) {
+                    case ACTUAL:
+                    case TYPICAL:
+                    case DIFF_FROM_TYPICAL:
+                        return true;
+                    case TIME:
+                        return false;
+                    default:
+                        throw new IllegalStateException("Unknown applies_to value [" + condition.getAppliesTo() + "]");
+                }
             }
-
-            if (rule.getTargetFieldName() != null) {
-                ScopingLevel targetLevel = ScopingLevel.from(this, rule.getTargetFieldName());
-                result = result.stream().filter(field -> targetLevel.isHigherThan(ScopingLevel.from(this, field)))
-                        .collect(Collectors.toList());
-            }
-
-            if (isEmptyFieldNameAllowed(rule)) {
-                result.add(null);
-            }
-            return result;
+            return false;
         }
 
-        private boolean isEmptyFieldNameAllowed(DetectionRule rule) {
-            List<String> analysisFields = extractAnalysisFields();
-            return analysisFields.isEmpty() || (rule.getTargetFieldName() != null && analysisFields.size() == 1);
+        private void checkScoping(DetectionRule rule) {
+            Set<String> analysisFields = new TreeSet<>(extractAnalysisFields());
+            rule.getScope().validate(analysisFields);
         }
-
-        enum ScopingLevel {
-            PARTITION(3),
-            OVER(2),
-            BY(1);
-
-            int level;
-
-            ScopingLevel(int level) {
-                this.level = level;
-            }
-
-            boolean isHigherThan(ScopingLevel other) {
-                return level > other.level;
-            }
-
-            static ScopingLevel from(Detector.Builder detector, String fieldName) {
-                if (fieldName.equals(detector.partitionFieldName)) {
-                    return ScopingLevel.PARTITION;
-                }
-                if (fieldName.equals(detector.overFieldName)) {
-                    return ScopingLevel.OVER;
-                }
-                if (fieldName.equals(detector.byFieldName)) {
-                    return ScopingLevel.BY;
-                }
-                throw ExceptionsHelper.badRequestException(
-                        "fieldName '" + fieldName + "' does not match an analysis field");
-            }
-        }
-
     }
 }

@@ -11,7 +11,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * A ack watch action request builder.
  */
-public class AckWatchRequestBuilder extends ActionRequestBuilder<AckWatchRequest, AckWatchResponse, AckWatchRequestBuilder> {
+public class AckWatchRequestBuilder extends ActionRequestBuilder<AckWatchRequest, AckWatchResponse> {
 
     public AckWatchRequestBuilder(ElasticsearchClient client) {
         super(client, AckWatchAction.INSTANCE, new AckWatchRequest());

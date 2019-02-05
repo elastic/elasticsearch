@@ -95,7 +95,22 @@ public class GeoHashTests extends ESTestCase {
             Rectangle expectedBbox = GeoHashUtils.bbox(geohash);
             Rectangle actualBbox = GeoHashUtils.bbox(extendedGeohash);
             assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expectedBbox, actualBbox);
-
         }
     }
+
+    public void testNorthPoleBoundingBox() {
+        Rectangle bbox = GeoHashUtils.bbox("zzbxfpgzupbx"); // Bounding box with maximum precision touching north pole
+        assertEquals(90.0, bbox.maxLat, 0.0000001); // Should be 90 degrees
+    }
+
+    public void testInvalidGeohashes() {
+        IllegalArgumentException ex;
+
+        ex = expectThrows(IllegalArgumentException.class, () -> GeoHashUtils.mortonEncode("55.5"));
+        assertEquals("unsupported symbol [.] in geohash [55.5]", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> GeoHashUtils.mortonEncode(""));
+        assertEquals("empty geohash", ex.getMessage());
+    }
+
 }

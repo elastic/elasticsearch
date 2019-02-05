@@ -21,6 +21,7 @@ package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.BaseDirectoryWrapper;
@@ -42,7 +43,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryService;
-import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -62,33 +62,25 @@ public class MockFSDirectoryService extends FsDirectoryService {
         Setting.doubleSetting("index.store.mock.random.io_exception_rate_on_open", 0.0d,  0.0d, Property.IndexScope, Property.NodeScope);
     public static final Setting<Double> RANDOM_IO_EXCEPTION_RATE_SETTING =
         Setting.doubleSetting("index.store.mock.random.io_exception_rate", 0.0d,  0.0d, Property.IndexScope, Property.NodeScope);
-    public static final Setting<Boolean> RANDOM_PREVENT_DOUBLE_WRITE_SETTING =
-        Setting.boolSetting("index.store.mock.random.prevent_double_write", true, Property.IndexScope, Property.NodeScope);// true is default in MDW
-    public static final Setting<Boolean> RANDOM_NO_DELETE_OPEN_FILE_SETTING =
-        Setting.boolSetting("index.store.mock.random.no_delete_open_file", true, Property.IndexScope, Property.NodeScope);// true is default in MDW
     public static final Setting<Boolean> CRASH_INDEX_SETTING =
-        Setting.boolSetting("index.store.mock.random.crash_index", true, Property.IndexScope, Property.NodeScope);// true is default in MDW
+        Setting.boolSetting("index.store.mock.random.crash_index", true, Property.IndexScope, Property.NodeScope);
 
     private final FsDirectoryService delegateService;
     private final Random random;
     private final double randomIOExceptionRate;
     private final double randomIOExceptionRateOnOpen;
     private final MockDirectoryWrapper.Throttling throttle;
-    private final boolean preventDoubleWrite;
-    private final boolean noDeleteOpenFile;
     private final boolean crashIndex;
 
     @Inject
-    public MockFSDirectoryService(IndexSettings idxSettings, IndexStore indexStore, final ShardPath path) {
-        super(idxSettings, indexStore, path);
+    public MockFSDirectoryService(IndexSettings idxSettings, final ShardPath path) {
+        super(idxSettings, path);
         Settings indexSettings = idxSettings.getSettings();
         final long seed = idxSettings.getValue(ESIntegTestCase.INDEX_TEST_SEED_SETTING);
         this.random = new Random(seed);
 
         randomIOExceptionRate = RANDOM_IO_EXCEPTION_RATE_SETTING.get(indexSettings);
         randomIOExceptionRateOnOpen = RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.get(indexSettings);
-        preventDoubleWrite = RANDOM_PREVENT_DOUBLE_WRITE_SETTING.get(indexSettings);
-        noDeleteOpenFile = RANDOM_NO_DELETE_OPEN_FILE_SETTING.exists(indexSettings) ? RANDOM_NO_DELETE_OPEN_FILE_SETTING.get(indexSettings) : random.nextBoolean();
         random.nextInt(shardId.getId() + 1); // some randomness per shard
         throttle = MockDirectoryWrapper.Throttling.NEVER;
         crashIndex = CRASH_INDEX_SETTING.get(indexSettings);
@@ -97,7 +89,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
             logger.debug("Using MockDirWrapper with seed [{}] throttle: [{}] crashIndex: [{}]", SeedUtils.formatSeed(seed),
                     throttle, crashIndex);
         }
-        delegateService = randomDirectoryService(indexStore, path);
+        delegateService = randomDirectoryService(idxSettings, path);
     }
 
 
@@ -159,8 +151,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         return w;
     }
 
-    private FsDirectoryService randomDirectoryService(IndexStore indexStore, ShardPath path) {
-        final IndexSettings indexSettings = indexStore.getIndexSettings();
+    private FsDirectoryService randomDirectoryService(IndexSettings indexSettings, ShardPath path) {
         final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData())
             .settings(Settings.builder()
                 // don't use the settings from indexSettings#getSettings() they are merged with node settings and might contain
@@ -170,7 +161,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                     RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey()))
             .build();
         final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings());
-        return new FsDirectoryService(newIndexSettings, indexStore, path);
+        return new FsDirectoryService(newIndexSettings, path);
     }
 
     public static final class ElasticsearchMockDirectoryWrapper extends MockDirectoryWrapper {

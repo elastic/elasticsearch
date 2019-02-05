@@ -6,21 +6,22 @@
 package org.elasticsearch.license;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.joda.DateMathParser;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.licensor.LicenseSigner;
+import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.hamcrest.MatcherAssert;
-import org.joda.time.format.DateTimeFormatter;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -28,6 +29,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -46,16 +48,15 @@ import static org.junit.Assert.assertThat;
 
 public class TestUtils {
 
-    private static final FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
-    private static final DateMathParser dateMathParser = new DateMathParser(formatDateTimeFormatter);
-    private static final DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
+    private static final DateFormatter formatDateTimeFormatter = DateFormatter.forPattern("yyyy-MM-dd");
+    private static final DateMathParser dateMathParser = formatDateTimeFormatter.toDateMathParser();
 
     public static String dateMathString(String time, final long now) {
-        return dateTimeFormatter.print(dateMathParser.parse(time, () -> now));
+        return formatDateTimeFormatter.format(dateMathParser.parse(time, () -> now).atZone(ZoneOffset.UTC));
     }
 
     public static long dateMath(String time, final long now) {
-        return dateMathParser.parse(time, () -> now);
+        return dateMathParser.parse(time, () -> now).toEpochMilli();
     }
 
     public static LicenseSpec generateRandomLicenseSpec(int version) {
@@ -209,12 +210,11 @@ public class TestUtils {
             this.maxNodes = maxNodes;
         }
     }
-
-    public static Path getTestPriKeyPath() throws Exception {
+    private static Path getTestPriKeyPath() throws Exception {
         return getResourcePath("/private.key");
     }
 
-    public static Path getTestPubKeyPath() throws Exception {
+    private static Path getTestPubKeyPath() throws Exception {
         return getResourcePath("/public.key");
     }
 
@@ -244,6 +244,19 @@ public class TestUtils {
         return generateSignedLicense(type, randomIntBetween(License.VERSION_START, License.VERSION_CURRENT), issueDate, expiryDuration);
     }
 
+    public static License generateSignedLicenseOldSignature() {
+        long issueDate = System.currentTimeMillis();
+        License.Builder specBuilder = License.builder()
+                .uid(UUID.randomUUID().toString())
+                .version(License.VERSION_START_DATE)
+                .issuedTo("customer")
+                .maxNodes(5)
+                .type("trial")
+                .issueDate(issueDate)
+                .expiryDate(issueDate + TimeValue.timeValueHours(24).getMillis());
+        return SelfGeneratedLicense.create(specBuilder, License.VERSION_START_DATE);
+    }
+
     /**
      * This method which chooses the license type randomly if the type is null. However, it will not randomly
      * choose trial or basic types as those types can only be self-generated.
@@ -269,7 +282,7 @@ public class TestUtils {
             builder.subscriptionType((type != null) ? type : randomFrom("dev", "gold", "platinum", "silver"));
             builder.feature(randomAlphaOfLength(10));
         }
-        LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
+        final LicenseSigner signer = new LicenseSigner(getTestPriKeyPath(), getTestPubKeyPath());
         return signer.sign(builder.build());
     }
 
@@ -341,20 +354,22 @@ public class TestUtils {
     public static class AssertingLicenseState extends XPackLicenseState {
         public final List<License.OperationMode> modeUpdates = new ArrayList<>();
         public final List<Boolean> activeUpdates = new ArrayList<>();
+        public final List<Version> trialVersionUpdates = new ArrayList<>();
 
         public AssertingLicenseState() {
             super(Settings.EMPTY);
         }
 
         @Override
-        void update(License.OperationMode mode, boolean active) {
+        void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
+            trialVersionUpdates.add(mostRecentTrialVersion);
         }
     }
 
     /**
-     * A license state that makes the {@link #update(License.OperationMode, boolean)}
+     * A license state that makes the {@link #update(License.OperationMode, boolean, Version)}
      * method public for use in tests.
      */
     public static class UpdatableLicenseState extends XPackLicenseState {
@@ -367,8 +382,8 @@ public class TestUtils {
         }
 
         @Override
-        public void update(License.OperationMode mode, boolean active) {
-            super.update(mode, active);
+        public void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
+            super.update(mode, active, mostRecentTrialVersion);
         }
     }
 

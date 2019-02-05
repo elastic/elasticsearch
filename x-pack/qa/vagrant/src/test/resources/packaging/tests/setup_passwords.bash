@@ -14,6 +14,7 @@ setup() {
         export PACKAGE_NAME="elasticsearch"
         clean_before_test
         install
+        set_debug_logging
 
         generate_trial_license
         verify_xpack_installation
@@ -55,12 +56,13 @@ echo 'y' | $ESHOME/bin/elasticsearch-setup-passwords auto
 SETUP_AUTO
     echo "$output" > /tmp/setup-passwords-output
     [ "$status" -eq 0 ] || {
-        echo "Expected x-pack elasticsearch-setup-passwords tool exit code to be zero"
+        echo "Expected x-pack elasticsearch-setup-passwords tool exit code to be zero but got $status"
         cat /tmp/setup-passwords-output
+        debug_collect_logs
         false
     }
 
-    curl -s -XGET localhost:9200 | grep "missing authentication token for REST"
+    curl -s -XGET localhost:9200 | grep "missing authentication credentials for REST"
 
     # Disable bash history expansion because passwords can contain "!"
     set +H

@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
@@ -23,8 +23,8 @@ public class Project extends UnaryPlan {
 
     private final List<? extends NamedExpression> projections;
 
-    public Project(Location location, LogicalPlan child, List<? extends NamedExpression> projections) {
-        super(location, child);
+    public Project(Source source, LogicalPlan child, List<? extends NamedExpression> projections) {
+        super(source, child);
         this.projections = projections;
     }
 
@@ -35,7 +35,7 @@ public class Project extends UnaryPlan {
 
     @Override
     protected Project replaceChild(LogicalPlan newChild) {
-        return new Project(location(), newChild, projections);
+        return new Project(source(), newChild, projections);
     }
 
     public List<? extends NamedExpression> projections() {

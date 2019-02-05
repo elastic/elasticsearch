@@ -62,6 +62,11 @@ public class DeprecationRestHandler implements RestHandler {
         handler.handleRequest(request, channel, client);
     }
 
+    @Override
+    public boolean supportsContentStream() {
+        return handler.supportsContentStream();
+    }
+
     /**
      * This does a very basic pass at validating that a header's value contains only expected characters according to RFC-5987, and those
      * that it references.

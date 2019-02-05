@@ -6,19 +6,16 @@
 package org.elasticsearch.xpack.watcher.notification.hipchat;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 
 import static org.hamcrest.Matchers.is;
@@ -41,11 +38,7 @@ public class HipChatAccountsTests extends ESTestCase {
                 new HashSet<>(HipChatService.getSettings())));
         HipChatAccount account = service.getAccount("account1");
 
-        HipChatMessage.Template template = new HipChatMessage.Template.Builder(new TextTemplate("foo"))
-                .addRooms(new TextTemplate("room"))
-                .setFrom("from")
-                .build();
-        HipChatMessage hipChatMessage = template.render(new MockTextTemplateEngine(), new HashMap<>());
+        HipChatMessage hipChatMessage = new HipChatMessage("body", new String[]{"rooms"}, null, "from", null, null, null);
 
         ArgumentCaptor<HttpRequest> argumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
         when(httpClient.execute(argumentCaptor.capture())).thenReturn(new HttpResponse(200));
@@ -58,9 +51,11 @@ public class HipChatAccountsTests extends ESTestCase {
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.notification.hipchat.account." + name + ".secure_auth_token", randomAlphaOfLength(50));
         HipChatAccount.Profile profile = randomFrom(HipChatAccount.Profile.values());
         builder.put("xpack.notification.hipchat.account." + name + ".profile", profile.value());
-        builder.put("xpack.notification.hipchat.account." + name + ".auth_token", randomAlphaOfLength(50));
+        builder.setSecureSettings(secureSettings);
         if (profile == HipChatAccount.Profile.INTEGRATION) {
             builder.put("xpack.notification.hipchat.account." + name + ".room", randomAlphaOfLength(10));
         }

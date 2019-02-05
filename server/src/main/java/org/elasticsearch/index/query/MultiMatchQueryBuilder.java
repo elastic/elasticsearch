@@ -39,7 +39,6 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MultiMatchQuery;
 import org.elasticsearch.index.search.QueryParserHelper;
-import org.elasticsearch.index.search.QueryStringQueryParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -68,7 +67,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
     private static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency");
     private static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
-    private static final ParseField USE_DIS_MAX_FIELD = new ParseField("use_dis_max");
     private static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField OPERATOR_FIELD = new ParseField("operator");
@@ -93,7 +91,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private int maxExpansions = DEFAULT_MAX_EXPANSIONS;
     private String minimumShouldMatch;
     private String fuzzyRewrite = null;
-    private Boolean useDisMax;
     private Float tieBreaker;
     private Boolean lenient;
     private Float cutoffFrequency = null;
@@ -225,7 +222,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         maxExpansions = in.readVInt();
         minimumShouldMatch = in.readOptionalString();
         fuzzyRewrite = in.readOptionalString();
-        useDisMax = in.readOptionalBoolean();
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            in.readOptionalBoolean(); // unused use_dis_max flag
+        }
         tieBreaker = in.readOptionalFloat();
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             lenient = in.readOptionalBoolean();
@@ -257,7 +256,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         out.writeVInt(maxExpansions);
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(fuzzyRewrite);
-        out.writeOptionalBoolean(useDisMax);
+        if (out.getVersion().before(Version.V_7_0_0)) {
+            out.writeOptionalBoolean(null);
+        }
         out.writeOptionalFloat(tieBreaker);
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalBoolean(lenient);
@@ -337,7 +338,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     }
 
     /**
-     * Sets the operator to use when using a boolean query. Defaults to <tt>OR</tt>.
+     * Sets the operator to use when using a boolean query. Defaults to {@code OR}.
      */
     public MultiMatchQueryBuilder operator(Operator operator) {
         if (operator == null) {
@@ -440,27 +441,13 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     }
 
     /**
-     * @deprecated use a tieBreaker of 1.0f to disable "dis-max"
-     * query or select the appropriate {@link Type}
-     */
-    @Deprecated
-    public MultiMatchQueryBuilder useDisMax(Boolean useDisMax) {
-        this.useDisMax = useDisMax;
-        return this;
-    }
-
-    public Boolean useDisMax() {
-        return useDisMax;
-    }
-
-    /**
      * <p>Tie-Breaker for "best-match" disjunction queries (OR-Queries).
      * The tie breaker capability allows documents that match more than one query clause
      * (in this case on more than one field) to be scored better than documents that
      * match only the best of the fields, without confusing this with the better case of
      * two distinct matches in the multiple fields.</p>
      *
-     * <p>A tie-breaker value of <tt>1.0</tt> is interpreted as a signal to score queries as
+     * <p>A tie-breaker value of {@code 1.0} is interpreted as a signal to score queries as
      * "most-match" queries where all matching query clauses are considered for scoring.</p>
      *
      * @see Type
@@ -477,7 +464,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * match only the best of the fields, without confusing this with the better case of
      * two distinct matches in the multiple fields.</p>
      *
-     * <p>A tie-breaker value of <tt>1.0</tt> is interpreted as a signal to score queries as
+     * <p>A tie-breaker value of {@code 1.0} is interpreted as a signal to score queries as
      * "most-match" queries where all matching query clauses are considered for scoring.</p>
      *
      * @see Type
@@ -546,7 +533,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
     /**
      * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Defaults to <tt>true</tt>.
+     * Defaults to {@code true}.
      */
     public boolean autoGenerateSynonymsPhraseQuery() {
         return autoGenerateSynonymsPhraseQuery;
@@ -593,9 +580,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         }
         if (fuzzyRewrite != null) {
             builder.field(FUZZY_REWRITE_FIELD.getPreferredName(), fuzzyRewrite);
-        }
-        if (useDisMax != null) {
-            builder.field(USE_DIS_MAX_FIELD.getPreferredName(), useDisMax);
         }
         if (tieBreaker != null) {
             builder.field(TIE_BREAKER_FIELD.getPreferredName(), tieBreaker);
@@ -675,8 +659,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                     minimumShouldMatch = parser.textOrNull();
                 } else if (FUZZY_REWRITE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fuzzyRewrite = parser.textOrNull();
-                } else if (USE_DIS_MAX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    useDisMax = parser.booleanValue();
                 } else if (TIE_BREAKER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tieBreaker = parser.floatValue();
                 }  else if (CUTOFF_FREQUENCY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -725,7 +707,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 .cutoffFrequency(cutoffFrequency)
                 .fuzziness(fuzziness)
                 .fuzzyRewrite(fuzzyRewrite)
-                .useDisMax(useDisMax)
                 .maxExpansions(maxExpansions)
                 .minimumShouldMatch(minimumShouldMatch)
                 .operator(operator)
@@ -799,16 +780,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         multiMatchQuery.setAutoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
         multiMatchQuery.setTranspositions(fuzzyTranspositions);
 
-        if (useDisMax != null) { // backwards foobar
-            boolean typeUsesDismax = type.tieBreaker() != 1.0f;
-            if (typeUsesDismax != useDisMax) {
-                if (useDisMax && tieBreaker == null) {
-                    multiMatchQuery.setTieBreaker(0.0f);
-                } else {
-                    multiMatchQuery.setTieBreaker(1.0f);
-                }
-            }
-        }
         Map<String, Float> newFieldsBoosts;
         if (fieldsBoosts.isEmpty()) {
             // no fields provided, defaults to index.query.default_field
@@ -829,7 +800,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     @Override
     protected int doHashCode() {
         return Objects.hash(value, fieldsBoosts, type, operator, analyzer, slop, fuzziness,
-                prefixLength, maxExpansions, minimumShouldMatch, fuzzyRewrite, useDisMax, tieBreaker, lenient,
+                prefixLength, maxExpansions, minimumShouldMatch, fuzzyRewrite, tieBreaker, lenient,
                 cutoffFrequency, zeroTermsQuery, autoGenerateSynonymsPhraseQuery, fuzzyTranspositions);
     }
 
@@ -846,7 +817,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 Objects.equals(maxExpansions, other.maxExpansions) &&
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
                 Objects.equals(fuzzyRewrite, other.fuzzyRewrite) &&
-                Objects.equals(useDisMax, other.useDisMax) &&
                 Objects.equals(tieBreaker, other.tieBreaker) &&
                 Objects.equals(lenient, other.lenient) &&
                 Objects.equals(cutoffFrequency, other.cutoffFrequency) &&

@@ -128,9 +128,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         request.scroll(new Scroll(TimeValue.timeValueMinutes(1)));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicInteger movedCounter = new AtomicInteger(0);
-        ActionListener listener = new ActionListener() {
+        ActionListener<SearchResponse> listener = new ActionListener<SearchResponse>() {
             @Override
-            public void onResponse(Object o) {
+            public void onResponse(SearchResponse o) {
                 try {
                     fail("got a result");
                 } finally {
@@ -374,9 +374,9 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         SearchScrollRequest request = new SearchScrollRequest();
         request.scroll(new Scroll(TimeValue.timeValueMinutes(1)));
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener listener = new ActionListener() {
+        ActionListener<SearchResponse> listener = new ActionListener<SearchResponse>() {
             @Override
-            public void onResponse(Object o) {
+            public void onResponse(SearchResponse o) {
                 try {
                     fail("got a result");
                 } finally {

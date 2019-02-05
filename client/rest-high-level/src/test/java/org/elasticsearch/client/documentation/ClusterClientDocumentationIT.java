@@ -21,16 +21,28 @@ package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,24 +51,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * This class is used to generate the Java Cluster API documentation.
- * You need to wrap your code between two tags like:
- * // tag::example
- * // end::example
- *
- * Where example is your tag name.
- *
- * Then in the documentation, you can extract what is between tag and end tags with
- * ["source","java",subs="attributes,callouts,macros"]
- * --------------------------------------------------
- * include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[example]
- * --------------------------------------------------
- *
- * The column width of the code block is 84. If the code contains a line longer
- * than 84, the line will be cut and a horizontal scroll bar will be displayed.
- * (the code indentation of the tag is not included in the width)
+ * Documentation for Cluster APIs in the high level java client.
+ * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
 public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -68,19 +68,19 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-settings-request
 
         // tag::put-settings-create-settings
-        String transientSettingKey = 
+        String transientSettingKey =
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
         int transientSettingValue = 10;
-        Settings transientSettings = 
+        Settings transientSettings =
                 Settings.builder()
                 .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES)
                 .build(); // <1>
 
-        String persistentSettingKey = 
+        String persistentSettingKey =
                 EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
-        String persistentSettingValue = 
+        String persistentSettingValue =
                 EnableAllocationDecider.Allocation.NONE.name();
-        Settings persistentSettings = 
+        Settings persistentSettings =
                 Settings.builder()
                 .put(persistentSettingKey, persistentSettingValue)
                 .build(); // <2>
@@ -93,9 +93,9 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-settings-settings-builder
-            Settings.Builder transientSettingsBuilder = 
+            Settings.Builder transientSettingsBuilder =
                     Settings.builder()
-                    .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES); 
+                    .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES);
             request.transientSettings(transientSettingsBuilder); // <1>
             // end::put-settings-settings-builder
         }
@@ -125,7 +125,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-settings-request-masterTimeout
 
         // tag::put-settings-execute
-        ClusterUpdateSettingsResponse response = client.cluster().putSettings(request);
+        ClusterUpdateSettingsResponse response = client.cluster().putSettings(request, RequestOptions.DEFAULT);
         // end::put-settings-execute
 
         // tag::put-settings-response
@@ -141,7 +141,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.transientSettings(Settings.builder().putNull(transientSettingKey).build()); // <1>
         // tag::put-settings-request-reset-transient
         request.persistentSettings(Settings.builder().putNull(persistentSettingKey));
-        ClusterUpdateSettingsResponse resetResponse = client.cluster().putSettings(request);
+        ClusterUpdateSettingsResponse resetResponse = client.cluster().putSettings(request, RequestOptions.DEFAULT);
 
         assertTrue(resetResponse.isAcknowledged());
     }
@@ -152,7 +152,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
 
             // tag::put-settings-execute-listener
-            ActionListener<ClusterUpdateSettingsResponse> listener = 
+            ActionListener<ClusterUpdateSettingsResponse> listener =
                     new ActionListener<ClusterUpdateSettingsResponse>() {
                 @Override
                 public void onResponse(ClusterUpdateSettingsResponse response) {
@@ -171,8 +171,246 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::put-settings-execute-async
-            client.cluster().putSettingsAsync(request, listener); // <1>
+            client.cluster().putSettingsAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-settings-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    @SuppressWarnings("unused")
+    public void testClusterGetSettings() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::get-settings-request
+        ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
+        // end::get-settings-request
+
+        // tag::get-settings-request-includeDefaults
+        request.includeDefaults(true); // <1>
+        // end::get-settings-request-includeDefaults
+
+        // tag::get-settings-request-local
+        request.local(true); // <1>
+        // end::get-settings-request-local
+
+        // tag::get-settings-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::get-settings-request-masterTimeout
+
+        // tag::get-settings-execute
+        ClusterGetSettingsResponse response = client.cluster().getSettings(request, RequestOptions.DEFAULT); // <1>
+        // end::get-settings-execute
+
+        // tag::get-settings-response
+        Settings persistentSettings = response.getPersistentSettings(); // <1>
+        Settings transientSettings = response.getTransientSettings(); // <2>
+        Settings defaultSettings = response.getDefaultSettings(); // <3>
+        String settingValue = response.getSetting("cluster.routing.allocation.enable"); // <4>
+        // end::get-settings-response
+
+        assertThat(defaultSettings.size(), greaterThan(0));
+    }
+
+    public void testClusterGetSettingsAsync() throws InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        ClusterGetSettingsRequest request = new ClusterGetSettingsRequest();
+
+        // tag::get-settings-execute-listener
+        ActionListener<ClusterGetSettingsResponse> listener =
+            new ActionListener<ClusterGetSettingsResponse>() {
+                @Override
+                public void onResponse(ClusterGetSettingsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::get-settings-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::get-settings-execute-async
+        client.cluster().getSettingsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::get-settings-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    @SuppressWarnings("unused")
+    public void testClusterHealth() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        client.indices().create(new CreateIndexRequest("index"), RequestOptions.DEFAULT);
+        {
+            // tag::health-request
+            ClusterHealthRequest request = new ClusterHealthRequest();
+            // end::health-request
+        }
+        {
+            // tag::health-request-indices-ctr
+            ClusterHealthRequest request = new ClusterHealthRequest("index1", "index2");
+            // end::health-request-indices-ctr
+        }
+        {
+            // tag::health-request-indices-setter
+            ClusterHealthRequest request = new ClusterHealthRequest();
+            request.indices("index1", "index2");
+            // end::health-request-indices-setter
+        }
+        ClusterHealthRequest request = new ClusterHealthRequest();
+
+        // tag::health-request-timeout
+        request.timeout(TimeValue.timeValueSeconds(50)); // <1>
+        request.timeout("50s"); // <2>
+        // end::health-request-timeout
+
+        // tag::health-request-master-timeout
+        request.masterNodeTimeout(TimeValue.timeValueSeconds(20)); // <1>
+        request.masterNodeTimeout("20s"); // <2>
+        // end::health-request-master-timeout
+
+        // tag::health-request-wait-status
+        request.waitForStatus(ClusterHealthStatus.YELLOW); // <1>
+        request.waitForYellowStatus(); // <2>
+        // end::health-request-wait-status
+
+        // tag::health-request-wait-events
+        request.waitForEvents(Priority.NORMAL); // <1>
+        // end::health-request-wait-events
+
+        // tag::health-request-level
+        request.level(ClusterHealthRequest.Level.SHARDS); // <1>
+        // end::health-request-level
+
+        // tag::health-request-wait-relocation
+        request.waitForNoRelocatingShards(true); // <1>
+        // end::health-request-wait-relocation
+
+        // tag::health-request-wait-initializing
+        request.waitForNoInitializingShards(true); // <1>
+        // end::health-request-wait-initializing
+
+        // tag::health-request-wait-nodes
+        request.waitForNodes("2"); // <1>
+        request.waitForNodes(">=2"); // <2>
+        request.waitForNodes("le(2)"); // <3>
+        // end::health-request-wait-nodes
+
+        // tag::health-request-wait-active
+        request.waitForActiveShards(ActiveShardCount.ALL); // <1>
+        request.waitForActiveShards(1); // <2>
+        // end::health-request-wait-active
+
+        // tag::health-request-local
+        request.local(true); // <1>
+        // end::health-request-local
+
+        // tag::health-execute
+        ClusterHealthResponse response = client.cluster().health(request, RequestOptions.DEFAULT);
+        // end::health-execute
+
+        assertThat(response.isTimedOut(), equalTo(false));
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(response, notNullValue());
+        // tag::health-response-general
+        String clusterName = response.getClusterName(); // <1>
+        ClusterHealthStatus status = response.getStatus(); // <2>
+        // end::health-response-general
+
+        // tag::health-response-request-status
+        boolean timedOut = response.isTimedOut(); // <1>
+        RestStatus restStatus = response.status(); // <2>
+        // end::health-response-request-status
+
+        // tag::health-response-nodes
+        int numberOfNodes = response.getNumberOfNodes(); // <1>
+        int numberOfDataNodes = response.getNumberOfDataNodes(); // <2>
+        // end::health-response-nodes
+
+        {
+            // tag::health-response-shards
+            int activeShards = response.getActiveShards(); // <1>
+            int activePrimaryShards = response.getActivePrimaryShards(); // <2>
+            int relocatingShards = response.getRelocatingShards(); // <3>
+            int initializingShards = response.getInitializingShards(); // <4>
+            int unassignedShards = response.getUnassignedShards(); // <5>
+            int delayedUnassignedShards = response.getDelayedUnassignedShards(); // <6>
+            double activeShardsPercent = response.getActiveShardsPercent(); // <7>
+            // end::health-response-shards
+        }
+
+        // tag::health-response-task
+        TimeValue taskMaxWaitingTime = response.getTaskMaxWaitingTime(); // <1>
+        int numberOfPendingTasks = response.getNumberOfPendingTasks(); // <2>
+        int numberOfInFlightFetch = response.getNumberOfInFlightFetch(); // <3>
+        // end::health-response-task
+
+        // tag::health-response-indices
+        Map<String, ClusterIndexHealth> indices = response.getIndices(); // <1>
+        // end::health-response-indices
+
+        {
+            // tag::health-response-index
+            ClusterIndexHealth index = indices.get("index"); // <1>
+            ClusterHealthStatus indexStatus = index.getStatus();
+            int numberOfShards = index.getNumberOfShards();
+            int numberOfReplicas = index.getNumberOfReplicas();
+            int activeShards = index.getActiveShards();
+            int activePrimaryShards = index.getActivePrimaryShards();
+            int initializingShards = index.getInitializingShards();
+            int relocatingShards = index.getRelocatingShards();
+            int unassignedShards = index.getUnassignedShards();
+            // end::health-response-index
+
+            // tag::health-response-shard-details
+            Map<Integer, ClusterShardHealth> shards = index.getShards(); // <1>
+            ClusterShardHealth shardHealth = shards.get(0);
+            int shardId = shardHealth.getShardId();
+            ClusterHealthStatus shardStatus = shardHealth.getStatus();
+            int active = shardHealth.getActiveShards();
+            int initializing = shardHealth.getInitializingShards();
+            int unassigned = shardHealth.getUnassignedShards();
+            int relocating = shardHealth.getRelocatingShards();
+            boolean primaryActive = shardHealth.isPrimaryActive();
+            // end::health-response-shard-details
+        }
+    }
+
+    public void testClusterHealthAsync() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            ClusterHealthRequest request = new ClusterHealthRequest();
+
+            // tag::health-execute-listener
+            ActionListener<ClusterHealthResponse> listener =
+                new ActionListener<ClusterHealthResponse>() {
+                    @Override
+                    public void onResponse(ClusterHealthResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::health-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::health-execute-async
+            client.cluster().healthAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::health-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

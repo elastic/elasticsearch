@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.writer.RecordWriter;
+import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,7 +46,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
         TimeValue bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN;
         if (randomBoolean()) {
-            bucketSpan = TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000));
+            bucketSpan = TimeValue.timeValueSeconds(randomIntBetween(1, 1_000));
             builder.setBucketSpan(bucketSpan);
         }
         if (isCategorization) {
@@ -88,28 +88,11 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             builder.setLatency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
         }
         if (randomBoolean()) {
-            int numBucketSpans = randomIntBetween(0, 10);
-            List<TimeValue> multipleBucketSpans = new ArrayList<>();
-            for (int i = 2; i <= numBucketSpans; i++) {
-                multipleBucketSpans.add(TimeValue.timeValueSeconds(bucketSpan.getSeconds() * i));
-            }
-            builder.setMultipleBucketSpans(multipleBucketSpans);
-        }
-        if (randomBoolean()) {
             builder.setMultivariateByFields(randomBoolean());
         }
-        if (randomBoolean()) {
-            builder.setOverlappingBuckets(randomBoolean());
-        }
-        if (randomBoolean()) {
-            builder.setResultFinalizationWindow(randomNonNegativeLong());
-        }
 
-        boolean usePerPartitionNormalisation = randomBoolean();
-        builder.setUsePerPartitionNormalization(usePerPartitionNormalisation);
-        if (!usePerPartitionNormalisation) { // influencers can't be used with per partition normalisation
-            builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
-        }
+        builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
+
         return builder;
     }
 
@@ -120,7 +103,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
     @Override
     protected AnalysisConfig doParseInstance(XContentParser parser) {
-        return AnalysisConfig.CONFIG_PARSER.apply(parser, null).build();
+        return AnalysisConfig.STRICT_PARSER.apply(parser, null).build();
     }
 
     public void testFieldConfiguration_singleDetector_notPreSummarised() {
@@ -253,28 +236,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         for (Detector detector : ac.getDetectors()) {
             assertEquals(expectedDetectorIndex++, detector.getDetectorIndex());
         }
-    }
-
-    public void testFieldConfiguration_singleDetector_PreSummarised() {
-        // Multiple detectors, pre-summarised
-        AnalysisConfig.Builder builder = createConfigBuilder();
-        builder.setSummaryCountFieldName("summaryCount");
-        AnalysisConfig ac = builder.build();
-
-        assertTrue(ac.analysisFields().contains("summaryCount"));
-        assertEquals("summaryCount", ac.getSummaryCountFieldName());
-
-        builder = createConfigBuilder();
-        builder.setBucketSpan(TimeValue.timeValueSeconds(1000));
-        builder.setMultipleBucketSpans(Arrays.asList(
-                TimeValue.timeValueSeconds(5000), TimeValue.timeValueSeconds(10000), TimeValue.timeValueSeconds(24000)));
-        ac = builder.build();
-        assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(5000)));
-        assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(10000)));
-        assertTrue(ac.getMultipleBucketSpans().contains(TimeValue.timeValueSeconds(24000)));
-
-        assertEquals(1, ac.getDetectors().size());
-        assertEquals(0, ac.getDetectors().get(0).getDetectorIndex());
     }
 
     public void testBuild_GivenMlCategoryUsedAsByFieldButNoCategorizationFieldName() {
@@ -486,11 +447,9 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertFalse(config2.equals(config1));
     }
 
-    public void testExtractReferencedLists() {
-        DetectionRule rule1 = new DetectionRule.Builder(Collections.singletonList(RuleCondition.createCategorical("foo",
-                "filter1"))).build();
-        DetectionRule rule2 = new DetectionRule.Builder(Collections.singletonList(RuleCondition.createCategorical("foo",
-                "filter2"))).build();
+    public void testExtractReferencedFilters() {
+        DetectionRule rule1 = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "filter1")).build();
+        DetectionRule rule2 = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "filter2")).build();
         Detector.Builder detector1 = new Detector.Builder("count", null);
         detector1.setByFieldName("foo");
         detector1.setRules(Collections.singletonList(rule1));
@@ -599,152 +558,12 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
                 RecordWriter.CONTROL_FIELD_NAME), e.getMessage());
     }
 
-    public void testVerify_OverlappingBuckets() {
-        List<Detector> detectors;
-        Detector detector;
-
-        boolean onByDefault = false;
-
-        // Uncomment this when overlappingBuckets turned on by default
-        if (onByDefault) {
-            // Test overlappingBuckets unset
-            AnalysisConfig.Builder analysisConfig = createValidConfig();
-            analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(5000L));
-            detectors = new ArrayList<>();
-            detector = new Detector.Builder("count", null).build();
-            detectors.add(detector);
-            detector = new Detector.Builder("mean", "value").build();
-            detectors.add(detector);
-            analysisConfig.setDetectors(detectors);
-            AnalysisConfig ac = analysisConfig.build();
-            assertTrue(ac.getOverlappingBuckets());
-
-            // Test overlappingBuckets unset
-            analysisConfig = createValidConfig();
-            analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(5000L));
-            detectors = new ArrayList<>();
-            detector = new Detector.Builder("count", null).build();
-            detectors.add(detector);
-            detector = new Detector.Builder("rare", "value").build();
-            detectors.add(detector);
-            analysisConfig.setDetectors(detectors);
-            ac = analysisConfig.build();
-            assertFalse(ac.getOverlappingBuckets());
-
-            // Test overlappingBuckets unset
-            analysisConfig = createValidConfig();
-            analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(5000L));
-            detectors = new ArrayList<>();
-            detector = new Detector.Builder("count", null).build();
-            detectors.add(detector);
-            detector = new Detector.Builder("min", "value").build();
-            detectors.add(detector);
-            detector = new Detector.Builder("max", "value").build();
-            detectors.add(detector);
-            analysisConfig.setDetectors(detectors);
-            ac = analysisConfig.build();
-            assertFalse(ac.getOverlappingBuckets());
-        }
-
-        // Test overlappingBuckets set
-        AnalysisConfig.Builder analysisConfig = createValidConfig();
-        analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(5000L));
-        detectors = new ArrayList<>();
-        detector = new Detector.Builder("count", null).build();
-        detectors.add(detector);
-        Detector.Builder builder = new Detector.Builder("rare", null);
-        builder.setByFieldName("value");
-        detectors.add(builder.build());
-        analysisConfig.setOverlappingBuckets(false);
-        analysisConfig.setDetectors(detectors);
-        assertFalse(analysisConfig.build().getOverlappingBuckets());
-
-        // Test overlappingBuckets set
-        analysisConfig = createValidConfig();
-        analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(5000L));
-        analysisConfig.setOverlappingBuckets(true);
-        detectors = new ArrayList<>();
-        detector = new Detector.Builder("count", null).build();
-        detectors.add(detector);
-        builder = new Detector.Builder("rare", null);
-        builder.setByFieldName("value");
-        detectors.add(builder.build());
-        analysisConfig.setDetectors(detectors);
-        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, analysisConfig::build);
-        assertEquals("Overlapping buckets cannot be used with function '[rare]'", e.getMessage());
-
-        // Test overlappingBuckets set
-        analysisConfig = createValidConfig();
-        analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(5000L));
-        analysisConfig.setOverlappingBuckets(false);
-        detectors = new ArrayList<>();
-        detector = new Detector.Builder("count", null).build();
-        detectors.add(detector);
-        detector = new Detector.Builder("mean", "value").build();
-        detectors.add(detector);
-        analysisConfig.setDetectors(detectors);
-        AnalysisConfig ac = analysisConfig.build();
-        assertFalse(ac.getOverlappingBuckets());
-    }
-
     public void testVerify_GivenMetricAndSummaryCountField() {
         Detector d = new Detector.Builder("metric", "my_metric").build();
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d));
         ac.setSummaryCountFieldName("my_summary_count");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, ac::build);
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED, DetectorFunction.METRIC), e.getMessage());
-    }
-
-    public void testMultipleBucketsConfig() {
-        AnalysisConfig.Builder ac = createValidConfig();
-        ac.setMultipleBucketSpans(Arrays.asList(
-                TimeValue.timeValueSeconds(10L),
-                TimeValue.timeValueSeconds(15L),
-                TimeValue.timeValueSeconds(20L),
-                TimeValue.timeValueSeconds(25L),
-                TimeValue.timeValueSeconds(30L),
-                TimeValue.timeValueSeconds(35L)));
-        List<Detector> detectors = new ArrayList<>();
-        Detector detector = new Detector.Builder("count", null).build();
-        detectors.add(detector);
-        ac.setDetectors(detectors);
-
-        ac.setBucketSpan(TimeValue.timeValueSeconds(4L));
-        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, ac::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, "10s", "4s"), e.getMessage());
-
-        ac.setBucketSpan(TimeValue.timeValueSeconds(5L));
-        ac.build();
-
-        AnalysisConfig.Builder ac2 = createValidConfig();
-        ac2.setBucketSpan(TimeValue.timeValueSeconds(5L));
-        ac2.setDetectors(detectors);
-        ac2.setMultipleBucketSpans(Arrays.asList(
-                TimeValue.timeValueSeconds(10L),
-                TimeValue.timeValueSeconds(15L),
-                TimeValue.timeValueSeconds(20L),
-                TimeValue.timeValueSeconds(25L),
-                TimeValue.timeValueSeconds(30L)));
-        assertFalse(ac.equals(ac2));
-        ac2.setMultipleBucketSpans(Arrays.asList(
-                TimeValue.timeValueSeconds(10L),
-                TimeValue.timeValueSeconds(15L),
-                TimeValue.timeValueSeconds(20L),
-                TimeValue.timeValueSeconds(25L),
-                TimeValue.timeValueSeconds(30L),
-                TimeValue.timeValueSeconds(35L)));
-
-        ac.setBucketSpan(TimeValue.timeValueSeconds(222L));
-        ac.setMultipleBucketSpans(Collections.emptyList());
-        ac.build();
-
-        ac.setMultipleBucketSpans(Collections.singletonList(TimeValue.timeValueSeconds(222L)));
-        e = ESTestCase.expectThrows(ElasticsearchException.class, ac::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, "3.7m", "3.7m"), e.getMessage());
-
-        ac.setMultipleBucketSpans(Arrays.asList(TimeValue.timeValueSeconds(-444L), TimeValue.timeValueSeconds(-888L)));
-        e = ESTestCase.expectThrows(ElasticsearchException.class, ac::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, -444, "3.7m"), e.getMessage());
     }
 
     public void testVerify_GivenCategorizationFiltersButNoCategorizationFieldName() {
@@ -774,38 +593,13 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY), e.getMessage());
     }
 
-
-    public void testCheckDetectorsHavePartitionFields() {
-        AnalysisConfig.Builder config = createValidConfig();
-        config.setUsePerPartitionNormalization(true);
-
-        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, config::build);
-
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_PER_PARTITION_NORMALIZATION_REQUIRES_PARTITION_FIELD), e.getMessage());
-    }
-
     public void testCheckDetectorsHavePartitionFields_doesntThrowWhenValid() {
         AnalysisConfig.Builder config = createValidConfig();
         Detector.Builder builder = new Detector.Builder(config.build().getDetectors().get(0));
         builder.setPartitionFieldName("pField");
         config.build().getDetectors().set(0, builder.build());
-        config.setUsePerPartitionNormalization(true);
 
         config.build();
-    }
-
-    public void testCheckNoInfluencersAreSet() {
-
-        AnalysisConfig.Builder config = createValidConfig();
-        Detector.Builder builder = new Detector.Builder(config.build().getDetectors().get(0));
-        builder.setPartitionFieldName("pField");
-        config.build().getDetectors().set(0, builder.build());
-        config.setInfluencers(Arrays.asList("inf1", "inf2"));
-        config.setUsePerPartitionNormalization(true);
-
-        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, config::build);
-
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_PER_PARTITION_NORMALIZATION_CANNOT_USE_INFLUENCERS), e.getMessage());
     }
 
     public void testVerify_GivenCategorizationFiltersContainInvalidRegex() {
@@ -840,7 +634,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     @Override
     protected AnalysisConfig mutateInstance(AnalysisConfig instance) {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(instance);
-        switch (between(0, 12)) {
+        switch (between(0, 8)) {
         case 0:
             List<Detector> detectors = new ArrayList<>(instance.getDetectors());
             Detector.Builder detector = new Detector.Builder();
@@ -851,7 +645,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             break;
         case 1:
             builder.setBucketSpan(new TimeValue(instance.getBucketSpan().millis() + (between(1, 1000) * 1000)));
-            builder.setMultipleBucketSpans(Collections.emptyList());
             break;
         case 2:
             if (instance.getLatency() == null) {
@@ -917,44 +710,12 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             List<String> influencers = new ArrayList<>(instance.getInfluencers());
             influencers.add(randomAlphaOfLengthBetween(5, 10));
             builder.setInfluencers(influencers);
-            builder.setUsePerPartitionNormalization(false);
             break;
         case 8:
-            if (instance.getOverlappingBuckets() == null) {
-                builder.setOverlappingBuckets(randomBoolean());
-            } else {
-                builder.setOverlappingBuckets(instance.getOverlappingBuckets() == false);
-            }
-            break;
-        case 9:
-            if (instance.getResultFinalizationWindow() == null) {
-                builder.setResultFinalizationWindow(between(1, 100) * 1000L);
-            } else {
-                builder.setResultFinalizationWindow(instance.getResultFinalizationWindow() + (between(1, 100) * 1000));
-            }
-            break;
-        case 10:
             if (instance.getMultivariateByFields() == null) {
                 builder.setMultivariateByFields(randomBoolean());
             } else {
                 builder.setMultivariateByFields(instance.getMultivariateByFields() == false);
-            }
-            break;
-        case 11:
-            List<TimeValue> multipleBucketSpans;
-            if (instance.getMultipleBucketSpans() == null) {
-                multipleBucketSpans = new ArrayList<>();
-            } else {
-                multipleBucketSpans = new ArrayList<>(instance.getMultipleBucketSpans());
-            }
-            multipleBucketSpans.add(new TimeValue(between(2, 10) * instance.getBucketSpan().millis()));
-            builder.setMultipleBucketSpans(multipleBucketSpans);
-            break;
-        case 12:
-            boolean usePerPartitionNormalization = instance.getUsePerPartitionNormalization() == false;
-            builder.setUsePerPartitionNormalization(usePerPartitionNormalization);
-            if (usePerPartitionNormalization) {
-                builder.setInfluencers(Collections.emptyList());
             }
             break;
         default:

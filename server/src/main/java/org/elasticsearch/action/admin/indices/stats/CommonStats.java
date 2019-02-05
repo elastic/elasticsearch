@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -167,57 +168,61 @@ public class CommonStats implements Writeable, ToXContentFragment {
     public CommonStats(IndicesQueryCache indicesQueryCache, IndexShard indexShard, CommonStatsFlags flags) {
         CommonStatsFlags.Flag[] setFlags = flags.getFlags();
         for (CommonStatsFlags.Flag flag : setFlags) {
-            switch (flag) {
-                case Docs:
-                    docs = indexShard.docStats();
-                    break;
-                case Store:
-                    store = indexShard.storeStats();
-                    break;
-                case Indexing:
-                    indexing = indexShard.indexingStats(flags.types());
-                    break;
-                case Get:
-                    get = indexShard.getStats();
-                    break;
-                case Search:
-                    search = indexShard.searchStats(flags.groups());
-                    break;
-                case Merge:
-                    merge = indexShard.mergeStats();
-                    break;
-                case Refresh:
-                    refresh = indexShard.refreshStats();
-                    break;
-                case Flush:
-                    flush = indexShard.flushStats();
-                    break;
-                case Warmer:
-                    warmer = indexShard.warmerStats();
-                    break;
-                case QueryCache:
-                    queryCache = indicesQueryCache.getStats(indexShard.shardId());
-                    break;
-                case FieldData:
-                    fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
-                    break;
-                case Completion:
-                    completion = indexShard.completionStats(flags.completionDataFields());
-                    break;
-                case Segments:
-                    segments = indexShard.segmentStats(flags.includeSegmentFileSizes());
-                    break;
-                case Translog:
-                    translog = indexShard.translogStats();
-                    break;
-                case RequestCache:
-                    requestCache = indexShard.requestCache().stats();
-                    break;
-                case Recovery:
-                    recoveryStats = indexShard.recoveryStats();
-                    break;
-                default:
-                    throw new IllegalStateException("Unknown Flag: " + flag);
+            try {
+                switch (flag) {
+                    case Docs:
+                        docs = indexShard.docStats();
+                        break;
+                    case Store:
+                        store = indexShard.storeStats();
+                        break;
+                    case Indexing:
+                        indexing = indexShard.indexingStats(flags.types());
+                        break;
+                    case Get:
+                        get = indexShard.getStats();
+                        break;
+                    case Search:
+                        search = indexShard.searchStats(flags.groups());
+                        break;
+                    case Merge:
+                        merge = indexShard.mergeStats();
+                        break;
+                    case Refresh:
+                        refresh = indexShard.refreshStats();
+                        break;
+                    case Flush:
+                        flush = indexShard.flushStats();
+                        break;
+                    case Warmer:
+                        warmer = indexShard.warmerStats();
+                        break;
+                    case QueryCache:
+                        queryCache = indicesQueryCache.getStats(indexShard.shardId());
+                        break;
+                    case FieldData:
+                        fieldData = indexShard.fieldDataStats(flags.fieldDataFields());
+                        break;
+                    case Completion:
+                        completion = indexShard.completionStats(flags.completionDataFields());
+                        break;
+                    case Segments:
+                        segments = indexShard.segmentStats(flags.includeSegmentFileSizes());
+                        break;
+                    case Translog:
+                        translog = indexShard.translogStats();
+                        break;
+                    case RequestCache:
+                        requestCache = indexShard.requestCache().stats();
+                        break;
+                    case Recovery:
+                        recoveryStats = indexShard.recoveryStats();
+                        break;
+                    default:
+                        throw new IllegalStateException("Unknown Flag: " + flag);
+                }
+            } catch (AlreadyClosedException e) {
+                // shard is closed - no stats is fine
             }
         }
     }

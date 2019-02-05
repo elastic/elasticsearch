@@ -5,25 +5,26 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
+import org.elasticsearch.search.aggregations.metrics.Percentile;
+import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -34,6 +35,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Processes {@link Aggregation} objects and writes flat JSON documents for each leaf aggregation.
@@ -42,7 +44,7 @@ import java.util.TreeMap;
  */
 class AggregationToJsonProcessor {
 
-    private static final Logger LOGGER = Loggers.getLogger(AggregationToJsonProcessor.class);
+    private static final Logger LOGGER = LogManager.getLogger(AggregationToJsonProcessor.class);
 
     private final String timeField;
     private final Set<String> fields;
@@ -93,18 +95,39 @@ class AggregationToJsonProcessor {
 
         List<Aggregation> leafAggregations = new ArrayList<>();
         List<MultiBucketsAggregation> bucketAggregations = new ArrayList<>();
+        List<SingleBucketAggregation> singleBucketAggregations = new ArrayList<>();
 
         // Sort into leaf and bucket aggregations.
         // The leaf aggregations will be processed first.
         for (Aggregation agg : aggregations) {
             if (agg instanceof MultiBucketsAggregation) {
                 bucketAggregations.add((MultiBucketsAggregation)agg);
+            } else if (agg instanceof SingleBucketAggregation){
+                // Skip a level down for single bucket aggs, if they have a sub-agg that is not
+                // a bucketed agg we should treat it like a leaf in this bucket
+                SingleBucketAggregation singleBucketAggregation = (SingleBucketAggregation)agg;
+                for (Aggregation subAgg : singleBucketAggregation.getAggregations()) {
+                    if (subAgg instanceof MultiBucketsAggregation || subAgg instanceof SingleBucketAggregation) {
+                        singleBucketAggregations.add(singleBucketAggregation);
+                    } else {
+                        leafAggregations.add(subAgg);
+                    }
+                }
             } else {
                 leafAggregations.add(agg);
             }
         }
 
-        if (bucketAggregations.size() > 1) {
+        // If on the current level (indicated via bucketAggregations) or one of the next levels (singleBucketAggregations)
+        // we have more than 1 `MultiBucketsAggregation`, we should error out.
+        // We need to make the check in this way as each of the items in `singleBucketAggregations` is treated as a separate branch
+        // in the recursive handling of this method.
+        int bucketAggLevelCount = Math.max(bucketAggregations.size(), (int)singleBucketAggregations.stream()
+            .flatMap(s -> asList(s.getAggregations()).stream())
+            .filter(MultiBucketsAggregation.class::isInstance)
+            .count());
+
+        if (bucketAggLevelCount > 1) {
             throw new IllegalArgumentException("Multiple bucket aggregations at the same level are not supported");
         }
 
@@ -136,6 +159,18 @@ class AggregationToJsonProcessor {
                     noMoreBucketsToProcess = true;
                 }
             }
+        }
+        noMoreBucketsToProcess = singleBucketAggregations.isEmpty() && noMoreBucketsToProcess;
+        // we support more than one `SingleBucketAggregation` at each level
+        // However, we only want to recurse with multi/single bucket aggs.
+        // Non-bucketed sub-aggregations were handle as leaf aggregations at this level
+        for (SingleBucketAggregation singleBucketAggregation : singleBucketAggregations) {
+            processAggs(singleBucketAggregation.getDocCount(),
+                asList(singleBucketAggregation.getAggregations())
+                    .stream()
+                    .filter(
+                        aggregation -> (aggregation instanceof MultiBucketsAggregation || aggregation instanceof SingleBucketAggregation))
+                    .collect(Collectors.toList()));
         }
 
         // If there are no more bucket aggregations to process we've reached the end
@@ -175,15 +210,15 @@ class AggregationToJsonProcessor {
     }
 
     /*
-     * Date Histograms have a {@link DateTime} object as the key,
+     * Date Histograms have a {@link ZonedDateTime} object as the key,
      * Histograms have either a Double or Long.
      */
     private long toHistogramKeyToEpoch(Object key) {
-        if (key instanceof DateTime) {
-            return ((DateTime)key).getMillis();
+        if (key instanceof ZonedDateTime) {
+            return ((ZonedDateTime)key).toInstant().toEpochMilli();
         } else if (key instanceof Double) {
             return ((Double)key).longValue();
-        } else if (key instanceof Long){
+        } else if (key instanceof Long) {
             return (Long)key;
         } else {
             throw new IllegalStateException("Histogram key [" + key + "] cannot be converted to a timestamp");

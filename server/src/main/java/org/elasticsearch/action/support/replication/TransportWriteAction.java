@@ -33,23 +33,17 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -78,22 +72,18 @@ public abstract class TransportWriteAction<
     protected static Location syncOperationResultOrThrow(final Engine.Result operationResult,
                                                          final Location currentLocation) throws Exception {
         final Location location;
-        if (operationResult.hasFailure()) {
+        if (operationResult.getFailure() != null) {
             // check if any transient write operation failures should be bubbled up
             Exception failure = operationResult.getFailure();
             assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
-            if (!TransportActions.isShardNotAvailableException(failure)) {
-                throw failure;
-            } else {
-                location = currentLocation;
-            }
+            throw failure;
         } else {
             location = locationToSync(currentLocation, operationResult.getTranslogLocation());
         }
         return location;
     }
 
-    protected static Location locationToSync(Location current, Location next) {
+    public static Location locationToSync(Location current, Location next) {
         /* here we are moving forward in the translog with each operation. Under the hood this might
          * cross translog files which is ok since from the user perspective the translog is like a
          * tape where only the highest location needs to be fsynced in order to sync all previous
@@ -140,6 +130,7 @@ public abstract class TransportWriteAction<
             implements RespondingWriteResult {
         boolean finishedAsyncActions;
         public final Location location;
+        public final IndexShard primary;
         ActionListener<Response> listener = null;
 
         public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
@@ -147,6 +138,7 @@ public abstract class TransportWriteAction<
                                   IndexShard primary, Logger logger) {
             super(request, finalResponse, operationFailure);
             this.location = location;
+            this.primary = primary;
             assert location == null || operationFailure == null
                     : "expected either failure to be null or translog location to be null, " +
                     "but found: [" + location + "] translog location and [" + operationFailure + "] failure";
@@ -171,6 +163,7 @@ public abstract class TransportWriteAction<
          * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
          */
         protected void respondIfPossible(Exception ex) {
+            assert Thread.holdsLock(this);
             if (finishedAsyncActions && listener != null) {
                 if (ex == null) {
                     super.respond(listener);
@@ -214,7 +207,7 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void respond(ActionListener<TransportResponse.Empty> listener) {
+        public synchronized void respond(ActionListener<TransportResponse.Empty> listener) {
             this.listener = listener;
             respondIfPossible(null);
         }
@@ -223,6 +216,7 @@ public abstract class TransportWriteAction<
          * Respond if the refresh has occurred and the listener is ready. Always called while synchronized on {@code this}.
          */
         protected void respondIfPossible(Exception ex) {
+            assert Thread.holdsLock(this);
             if (finishedAsyncActions && listener != null) {
                 if (ex == null) {
                     super.respond(listener);
@@ -233,7 +227,7 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void onFailure(Exception ex) {
+        public synchronized void onFailure(Exception ex) {
             finishedAsyncActions = true;
             respondIfPossible(ex);
         }
@@ -384,7 +378,9 @@ public abstract class TransportWriteAction<
         @Override
         public void failShardIfNeeded(ShardRouting replica, String message, Exception exception,
                                       Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
-            logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
+            if (TransportActions.isShardNotAvailableException(exception) == false) {
+                logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
+            }
             shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, true, message, exception,
                 createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
         }

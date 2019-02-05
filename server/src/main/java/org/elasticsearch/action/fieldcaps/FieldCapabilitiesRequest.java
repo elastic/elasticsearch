@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -82,28 +80,18 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         fields = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
-            indices = in.readStringArray();
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-            mergeResults = in.readBoolean();
-        } else {
-            mergeResults = true;
-        }
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        mergeResults = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(fields);
-        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
-            out.writeStringArray(indices);
-            indicesOptions.writeIndicesOptions(out);
-            out.writeBoolean(mergeResults);
-        }
-    }
-
-    public static FieldCapabilitiesRequest parseFields(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeBoolean(mergeResults);
     }
 
     /**
@@ -123,7 +111,6 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     }
 
     /**
-     *
      * The list of indices to lookup
      */
     public FieldCapabilitiesRequest indices(String... indices) {

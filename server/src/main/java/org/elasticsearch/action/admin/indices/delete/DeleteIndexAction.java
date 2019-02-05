@@ -20,9 +20,9 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class DeleteIndexAction extends Action<DeleteIndexRequest, DeleteIndexResponse, DeleteIndexRequestBuilder> {
+public class DeleteIndexAction extends Action<AcknowledgedResponse> {
 
     public static final DeleteIndexAction INSTANCE = new DeleteIndexAction();
     public static final String NAME = "indices:admin/delete";
@@ -32,12 +32,7 @@ public class DeleteIndexAction extends Action<DeleteIndexRequest, DeleteIndexRes
     }
 
     @Override
-    public DeleteIndexResponse newResponse() {
-        return new DeleteIndexResponse();
-    }
-
-    @Override
-    public DeleteIndexRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new DeleteIndexRequestBuilder(client, this);
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 }

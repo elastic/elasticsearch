@@ -42,7 +42,6 @@ class AssistedConstructor<T> {
     private final ParameterListKey assistedParameters;
     private final List<Parameter> allParameters;
 
-    @SuppressWarnings("unchecked")
     AssistedConstructor(Constructor<T> constructor, List<TypeLiteral<?>> parameterTypes) {
         this.constructor = constructor;
 

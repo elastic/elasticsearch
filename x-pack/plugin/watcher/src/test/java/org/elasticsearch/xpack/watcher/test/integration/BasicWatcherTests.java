@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -18,9 +19,8 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchResponse;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
@@ -220,7 +220,11 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("my-template")
-                .setContent(BytesReference.bytes(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject()),
+                .setContent(BytesReference.bytes(
+                    jsonBuilder().startObject().startObject("script")
+                        .field("lang", "mustache")
+                        .field("source").value(searchSourceBuilder)
+                        .endObject().endObject()),
                         XContentType.JSON)
                 .get());
 
@@ -240,14 +244,14 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watcherClient.preparePutWatch("_name1")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(request).extractKeys("hits.total"))
+                        .input(searchInput(request).extractKeys("hits.total.value"))
                         .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
                 .get();
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
         watcherClient.preparePutWatch("_name2")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(request).extractKeys("hits.total"))
+                        .input(searchInput(request).extractKeys("hits.total.value"))
                         .condition(new CompareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0L)))
                 .get();
 

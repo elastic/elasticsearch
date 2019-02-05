@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,6 +49,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -56,6 +59,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +73,10 @@ import static java.util.Collections.unmodifiableMap;
  * Context object used to create lucene queries on the shard level.
  */
 public class QueryShardContext extends QueryRewriteContext {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(QueryShardContext.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
+        "in queries and aggregations is deprecated, prefer to use a field instead.";
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
@@ -80,9 +88,9 @@ public class QueryShardContext extends QueryRewriteContext {
     private final IndexReader reader;
     private final String clusterAlias;
     private String[] types = Strings.EMPTY_ARRAY;
-    private boolean cachable = true;
+    private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
-    private final String fullyQualifiedIndexName;
+    private final Index fullyQualifiedIndex;
 
     public void setTypes(String... types) {
         this.types = types;
@@ -96,7 +104,6 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
-    private boolean isFilter;
 
     public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
                              BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup, MapperService mapperService,
@@ -115,7 +122,8 @@ public class QueryShardContext extends QueryRewriteContext {
         this.indexSettings = indexSettings;
         this.reader = reader;
         this.clusterAlias = clusterAlias;
-        this.fullyQualifiedIndexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName());
+        this.fullyQualifiedIndex = new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
+            indexSettings.getIndex().getUUID());
     }
 
     public QueryShardContext(QueryShardContext source) {
@@ -130,7 +138,6 @@ public class QueryShardContext extends QueryRewriteContext {
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
-        this.isFilter = false;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -162,7 +169,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndexName);
+        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName());
     }
 
     public void addNamedQuery(String name, Query query) {
@@ -177,30 +184,17 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Return whether we are currently parsing a filter or a query.
-     */
-    public boolean isFilter() {
-        return isFilter;
-    }
-
-    /**
-     * Public for testing only!
-     *
-     * Sets whether we are currently parsing a filter or a query
-     */
-    public void setIsFilter(boolean isFilter) {
-        this.isFilter = isFilter;
-    }
-
-    /**
      * Returns all the fields that match a given pattern. If prefixed with a
      * type then the fields will be returned with a type prefix.
      */
     public Collection<String> simpleMatchToIndexNames(String pattern) {
-        return mapperService.simpleMatchToIndexNames(pattern);
+        return mapperService.simpleMatchToFullName(pattern);
     }
 
     public MappedFieldType fieldMapper(String name) {
+        if (name.equals(TypeFieldMapper.NAME)) {
+            deprecationLogger.deprecatedAndMaybeLog("query_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
         return failIfFieldMappingNotFound(name, mapperService.fullName(name));
     }
 
@@ -262,11 +256,9 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public Collection<String> queryTypes() {
         String[] types = getTypes();
-        if (types == null || types.length == 0) {
-            return getMapperService().types();
-        }
-        if (types.length == 1 && types[0].equals("_all")) {
-            return getMapperService().types();
+        if (types == null || types.length == 0 || (types.length == 1 && types[0].equals("_all"))) {
+            DocumentMapper mapper = getMapperService().documentMapper();
+            return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
         }
         return Arrays.asList(types);
     }
@@ -276,7 +268,7 @@ public class QueryShardContext extends QueryRewriteContext {
     public SearchLookup lookup() {
         if (lookup == null) {
             lookup = new SearchLookup(getMapperService(),
-                mappedFieldType -> indexFieldDataService.apply(mappedFieldType, fullyQualifiedIndexName), types);
+                mappedFieldType -> indexFieldDataService.apply(mappedFieldType, fullyQualifiedIndex.getName()), types);
         }
         return lookup;
     }
@@ -287,16 +279,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public Version indexVersionCreated() {
         return indexSettings.getIndexVersionCreated();
-    }
-
-    public ParsedQuery toFilter(QueryBuilder queryBuilder) {
-        return toQuery(queryBuilder, q -> {
-            Query filter = q.toFilter(this);
-            if (filter == null) {
-                return null;
-            }
-            return filter;
-        });
     }
 
     public ParsedQuery toQuery(QueryBuilder queryBuilder) {
@@ -351,7 +333,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * class says a request can be cached.
      */
     protected final void failIfFrozen() {
-        this.cachable = false;
+        this.cacheable = false;
         if (frozen.get() == Boolean.TRUE) {
             throw new IllegalArgumentException("features that prevent cachability are disabled on this context");
         } else {
@@ -372,10 +354,10 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns <code>true</code> iff the result of the processed search request is cachable. Otherwise <code>false</code>
+     * Returns <code>true</code> iff the result of the processed search request is cacheable. Otherwise <code>false</code>
      */
-    public final boolean isCachable() {
-        return cachable;
+    public final boolean isCacheable() {
+        return cacheable;
     }
 
     /**
@@ -427,9 +409,9 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns the fully qualified index name including a remote cluster alias if applicable
+     * Returns the fully qualified index including a remote cluster alias if applicable, and the index uuid
      */
-    public String getFullyQualifiedIndexName() {
-        return fullyQualifiedIndexName;
+    public Index getFullyQualifiedIndex() {
+        return fullyQualifiedIndex;
     }
 }

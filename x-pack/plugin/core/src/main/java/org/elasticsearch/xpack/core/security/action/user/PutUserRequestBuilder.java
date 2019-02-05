@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,10 +29,8 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, PutUserResponse, PutUserRequestBuilder>
+public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, PutUserResponse>
         implements WriteRequestBuilder<PutUserRequestBuilder> {
-
-    private final Hasher hasher = Hasher.BCRYPT;
 
     public PutUserRequestBuilder(ElasticsearchClient client) {
         this(client, PutUserAction.INSTANCE);
@@ -53,13 +50,14 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
-    public PutUserRequestBuilder password(@Nullable char[] password) {
+    public PutUserRequestBuilder password(char[] password, Hasher hasher) {
         if (password != null) {
             Validation.Error error = Validation.Users.validatePassword(password);
             if (error != null) {
-                ValidationException validationException = new ValidationException();
-                validationException.addValidationError(error.toString());
-                throw validationException;
+                throw validationException(error.toString());
+            }
+            if (request.passwordHash() != null) {
+                throw validationException("password_hash has already been set");
             }
             request.passwordHash(hasher.hash(new SecureString(password)));
         } else {
@@ -83,7 +81,15 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
-    public PutUserRequestBuilder passwordHash(char[] passwordHash) {
+    public PutUserRequestBuilder passwordHash(char[] passwordHash, Hasher configuredHasher) {
+        final Hasher resolvedHasher = Hasher.resolveFromHash(passwordHash);
+        if (resolvedHasher.equals(configuredHasher) == false) {
+            throw new IllegalArgumentException("Provided password hash uses [" + resolvedHasher
+                + "] but the configured hashing algorithm is [" + configuredHasher + "]");
+        }
+        if (request.passwordHash() != null) {
+            throw validationException("password_hash has already been set");
+        }
         request.passwordHash(passwordHash);
         return this;
     }
@@ -96,7 +102,8 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
     /**
      * Populate the put user request using the given source and username
      */
-    public PutUserRequestBuilder source(String username, BytesReference source, XContentType xContentType) throws IOException {
+    public PutUserRequestBuilder source(String username, BytesReference source, XContentType xContentType, Hasher hasher) throws
+        IOException {
         Objects.requireNonNull(xContentType);
         username(username);
         // EMPTY is ok here because we never call namedObject
@@ -113,7 +120,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                     if (token == XContentParser.Token.VALUE_STRING) {
                         String password = parser.text();
                         char[] passwordChars = password.toCharArray();
-                        password(passwordChars);
+                        password(passwordChars, hasher);
                         Arrays.fill(passwordChars, (char) 0);
                     } else {
                         throw new ElasticsearchParseException(
@@ -122,7 +129,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                 } else if (User.Fields.PASSWORD_HASH.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         char[] passwordChars = parser.text().toCharArray();
-                        passwordHash(passwordChars);
+                        passwordHash(passwordChars, hasher);
                     } else {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
@@ -179,4 +186,9 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         }
     }
 
+    private ValidationException validationException(String abc) {
+        ValidationException validationException = new ValidationException();
+        validationException.addValidationError(abc);
+        return validationException;
+    }
 }

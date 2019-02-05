@@ -21,7 +21,6 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -104,15 +103,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         this.classname = in.readString();
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            extendedPlugins = in.readList(StreamInput::readString);
+            extendedPlugins = in.readStringList();
         } else {
             extendedPlugins = Collections.emptyList();
         }
-        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
-            hasNativeController = in.readBoolean();
-        } else {
-            hasNativeController = false;
-        }
+        hasNativeController = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_6_0_0_beta2) && in.getVersion().before(Version.V_6_3_0)) {
             /*
              * Elasticsearch versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was
@@ -133,11 +128,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeString(classname);
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeStringList(extendedPlugins);
+            out.writeStringCollection(extendedPlugins);
         }
-        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
-            out.writeBoolean(hasNativeController);
-        }
+        out.writeBoolean(hasNativeController);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_beta2) && out.getVersion().before(Version.V_6_3_0)) {
             /*
              * Elasticsearch versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was

@@ -59,13 +59,17 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
@@ -198,6 +202,16 @@ public abstract class StreamInput extends InputStream {
     public int readInt() throws IOException {
         return ((readByte() & 0xFF) << 24) | ((readByte() & 0xFF) << 16)
                 | ((readByte() & 0xFF) << 8) | (readByte() & 0xFF);
+    }
+
+    /**
+     * Reads an optional {@link Integer}.
+     */
+    public Integer readOptionalInt() throws IOException {
+        if (readBoolean()) {
+            return readInt();
+        }
+        return null;
     }
 
     /**
@@ -515,7 +529,6 @@ public abstract class StreamInput extends InputStream {
         return (Map<String, Object>) readGenericValue();
     }
 
-    @SuppressWarnings({"unchecked"})
     @Nullable
     public Object readGenericValue() throws IOException {
         byte type = readByte();
@@ -646,6 +659,23 @@ public abstract class StreamInput extends InputStream {
     public DateTimeZone readOptionalTimeZone() throws IOException {
         if (readBoolean()) {
             return DateTimeZone.forID(readString());
+        }
+        return null;
+    }
+
+    /**
+     * Read a {@linkplain DateTimeZone}.
+     */
+    public ZoneId readZoneId() throws IOException {
+        return ZoneId.of(readString());
+    }
+
+    /**
+     * Read an optional {@linkplain ZoneId}.
+     */
+    public ZoneId readOptionalZoneId() throws IOException {
+        if (readBoolean()) {
+            return ZoneId.of(readString());
         }
         return null;
     }
@@ -926,11 +956,40 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a list of objects
+     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)} or
+     * {@link StreamOutput#writeStreamableList(List)}.
+     *
+     * @return the list of objects
+     * @throws IOException if an I/O exception occurs reading the list
      */
-    public <T> List<T> readList(Writeable.Reader<T> reader) throws IOException {
+    public <T> List<T> readList(final Writeable.Reader<T> reader) throws IOException {
+        return readCollection(reader, ArrayList::new);
+    }
+
+    /**
+     * Reads a list of strings. The list is expected to have been written using {@link StreamOutput#writeStringCollection(Collection)}.
+     *
+     * @return the list of strings
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public List<String> readStringList() throws IOException {
+        return readList(StreamInput::readString);
+    }
+
+    /**
+     * Reads a set of objects
+     */
+    public <T> Set<T> readSet(Writeable.Reader<T> reader) throws IOException {
+        return readCollection(reader, HashSet::new);
+    }
+
+    /**
+     * Reads a collection of objects
+     */
+    private <T, C extends Collection<? super T>> C readCollection(Writeable.Reader<T> reader,
+                                                                  IntFunction<C> constructor) throws IOException {
         int count = readArraySize();
-        List<T> builder = new ArrayList<>(count);
+        C builder = constructor.apply(count);
         for (int i=0; i<count; i++) {
             builder.add(reader.read(this));
         }
@@ -959,6 +1018,21 @@ public abstract class StreamInput extends InputStream {
             throw new IOException("Unknown " + enumClass.getSimpleName() + " ordinal [" + ordinal + "]");
         }
         return values[ordinal];
+    }
+
+    /**
+     * Reads an enum with type E that was serialized based on the value of it's ordinal
+     */
+    public <E extends Enum<E>> EnumSet<E> readEnumSet(Class<E> enumClass) throws IOException {
+        int size = readVInt();
+        if (size == 0) {
+             return EnumSet.noneOf(enumClass);
+        }
+        Set<E> enums = new HashSet<>(size);
+        for (int i = 0; i < size; i++) {
+            enums.add(readEnum(enumClass));
+        }
+        return EnumSet.copyOf(enums);
     }
 
     public static StreamInput wrap(byte[] bytes) {

@@ -1,6 +1,9 @@
 ---
 "Realtime":
 
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
 
  - do:
       indices.create:
@@ -25,14 +28,12 @@
       catch:        missing
       get_source:
           index:    test_1
-          type:     test
           id:       1
           realtime: false
 
  - do:
       get_source:
           index:    test_1
-          type:     test
           id:       1
           realtime: true
 
@@ -41,7 +42,6 @@
  - do:
       get_source:
           index:    test_1
-          type:     test
           id:       1
           realtime: false
           refresh:  true

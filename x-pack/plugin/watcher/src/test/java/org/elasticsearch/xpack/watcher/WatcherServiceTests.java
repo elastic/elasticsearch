@@ -5,20 +5,23 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
+import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -32,6 +35,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -41,42 +45,63 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
+import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class WatcherServiceTests extends ESTestCase {
 
-    public void testValidateStartWithClosedIndex() throws Exception {
+    private final ExecutorService executorService = EsExecutors.newDirectExecutorService();
+
+    private final Client client = mock(Client.class);
+
+    @Before
+    public void configureMockClient() {
+        when(client.settings()).thenReturn(Settings.EMPTY);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+    }
+
+    public void testValidateStartWithClosedIndex() {
         TriggerService triggerService = mock(TriggerService.class);
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         ExecutionService executionService = mock(ExecutionService.class);
-        when(executionService.validate(anyObject())).thenReturn(true);
         WatchParser parser = mock(WatchParser.class);
 
         WatcherService service = new WatcherService(Settings.EMPTY, triggerService, triggeredWatchStore,
-                executionService, parser, mock(Client.class));
+                executionService, parser, client, executorService) {
+            @Override
+            void stopExecutor() {
+            }
+        };
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDataBuilder = MetaData.builder();
@@ -91,20 +116,16 @@ public class WatcherServiceTests extends ESTestCase {
     }
 
     public void testLoadOnlyActiveWatches() throws Exception {
-        // this is just, so we dont have to add any mocking to the threadpool
-        Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
-
         TriggerService triggerService = mock(TriggerService.class);
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         ExecutionService executionService = mock(ExecutionService.class);
-        when(executionService.validate(anyObject())).thenReturn(true);
         WatchParser parser = mock(WatchParser.class);
-        Client client = mock(Client.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(client.threadPool()).thenReturn(threadPool);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        WatcherService service = new WatcherService(settings, triggerService, triggeredWatchStore,
-                executionService, parser, client);
+        WatcherService service = new WatcherService(Settings.EMPTY, triggerService, triggeredWatchStore,
+                executionService, parser, client, executorService) {
+            @Override
+            void stopExecutor() {
+            }
+        };
 
 
         // cluster state setup, with one node, one shard
@@ -136,21 +157,21 @@ public class WatcherServiceTests extends ESTestCase {
         RefreshResponse refreshResponse = mock(RefreshResponse.class);
         when(refreshResponse.getSuccessfulShards())
                 .thenReturn(clusterState.getMetaData().getIndices().get(Watch.INDEX).getNumberOfShards());
-        AdminClient adminClient = mock(AdminClient.class);
-        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
-        when(client.admin()).thenReturn(adminClient);
-        when(adminClient.indices()).thenReturn(indicesAdminClient);
-        PlainActionFuture<RefreshResponse> refreshFuture = new PlainActionFuture<>();
-        when(indicesAdminClient.refresh(any(RefreshRequest.class))).thenReturn(refreshFuture);
-        refreshFuture.onResponse(refreshResponse);
+        doAnswer(invocation -> {
+            ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
+            listener.onResponse(refreshResponse);
+            return null;
+        }).when(client).execute(eq(RefreshAction.INSTANCE), any(RefreshRequest.class), any(ActionListener.class));
 
         // empty scroll response, no further scrolling needed
         SearchResponseSections scrollSearchSections = new SearchResponseSections(SearchHits.empty(), null, null, false, false, null, 1);
         SearchResponse scrollSearchResponse = new SearchResponse(scrollSearchSections, "scrollId", 1, 1, 0, 10,
                 ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
-        PlainActionFuture<SearchResponse> searchScrollResponseFuture = new PlainActionFuture<>();
-        when(client.searchScroll(any(SearchScrollRequest.class))).thenReturn(searchScrollResponseFuture);
-        searchScrollResponseFuture.onResponse(scrollSearchResponse);
+        doAnswer(invocation -> {
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
+            listener.onResponse(scrollSearchResponse);
+            return null;
+        }).when(client).execute(eq(SearchScrollAction.INSTANCE), any(SearchScrollRequest.class), any(ActionListener.class));
 
         // one search response containing active and inactive watches
         int count = randomIntBetween(2, 200);
@@ -174,25 +195,80 @@ public class WatcherServiceTests extends ESTestCase {
             when(watch.status()).thenReturn(watchStatus);
             when(parser.parse(eq(id), eq(true), any(), eq(XContentType.JSON))).thenReturn(watch);
         }
-        SearchHits searchHits = new SearchHits(hits, count, 1.0f);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, false, null, 1);
         SearchResponse searchResponse = new SearchResponse(sections, "scrollId", 1, 1, 0, 10, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
-        PlainActionFuture<SearchResponse> searchResponseFuture = new PlainActionFuture<>();
-        when(client.search(any(SearchRequest.class))).thenReturn(searchResponseFuture);
-        searchResponseFuture.onResponse(searchResponse);
+        doAnswer(invocation -> {
+            ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
+            listener.onResponse(searchResponse);
+            return null;
+        }).when(client).execute(eq(SearchAction.INSTANCE), any(SearchRequest.class), any(ActionListener.class));
 
-        PlainActionFuture<ClearScrollResponse> clearScrollFuture = new PlainActionFuture<>();
-        when(client.clearScroll(any(ClearScrollRequest.class))).thenReturn(clearScrollFuture);
-        clearScrollFuture.onResponse(new ClearScrollResponse(true, 1));
+        doAnswer(invocation -> {
+            ActionListener<ClearScrollResponse> listener = (ActionListener<ClearScrollResponse>) invocation.getArguments()[2];
+            listener.onResponse(new ClearScrollResponse(true, 1));
+            return null;
+        }).when(client).execute(eq(ClearScrollAction.INSTANCE), any(ClearScrollRequest.class), any(ActionListener.class));
 
-        service.start(clusterState);
+        service.start(clusterState, () -> {});
 
         ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
         verify(triggerService).start(captor.capture());
         List<Watch> watches = captor.getValue();
         watches.forEach(watch -> assertThat(watch.status().state().isActive(), is(true)));
         assertThat(watches, hasSize(activeWatchCount));
+    }
+
+    public void testPausingWatcherServiceAlsoPausesTriggerService() {
+        String engineType = "foo";
+        TriggerEngine triggerEngine = mock(TriggerEngine.class);
+        when(triggerEngine.type()).thenReturn(engineType);
+        TriggerService triggerService = new TriggerService(Collections.singleton(triggerEngine));
+
+        Trigger trigger = mock(Trigger.class);
+        when(trigger.type()).thenReturn(engineType);
+
+        Watch watch = mock(Watch.class);
+        when(watch.trigger()).thenReturn(trigger);
+        when(watch.condition()).thenReturn(InternalAlwaysCondition.INSTANCE);
+        ExecutableNoneInput noneInput = new ExecutableNoneInput();
+        when(watch.input()).thenReturn(noneInput);
+
+        triggerService.add(watch);
+        assertThat(triggerService.count(), is(1L));
+
+        WatcherService service = new WatcherService(Settings.EMPTY, triggerService, mock(TriggeredWatchStore.class),
+            mock(ExecutionService.class), mock(WatchParser.class), client, executorService) {
+            @Override
+            void stopExecutor() {
+            }
+        };
+
+        service.pauseExecution("pausing");
+        assertThat(triggerService.count(), is(0L));
+        verify(triggerEngine).pauseExecution();
+    }
+
+    // if we have to reload the watcher service, the execution service should not be paused, as this might
+    // result in missing executions
+    public void testReloadingWatcherDoesNotPauseExecutionService() {
+        ExecutionService executionService = mock(ExecutionService.class);
+        TriggerService triggerService = mock(TriggerService.class);
+        WatcherService service = new WatcherService(Settings.EMPTY, triggerService, mock(TriggeredWatchStore.class),
+            executionService, mock(WatchParser.class), client, executorService) {
+            @Override
+            void stopExecutor() {
+            }
+        };
+
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        csBuilder.metaData(MetaData.builder());
+
+        service.reload(csBuilder.build(), "whatever");
+        verify(executionService).clearExecutionsAndQueue();
+        verify(executionService, never()).pause();
+        verify(triggerService).pauseExecution();
     }
 
     private static DiscoveryNode newNode() {

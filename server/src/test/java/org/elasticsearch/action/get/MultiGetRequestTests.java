@@ -54,9 +54,9 @@ public class MultiGetRequestTests extends ESTestCase {
             builder.endArray();
         }
         builder.endObject();
-        final XContentParser parser = createParser(builder);
-        final MultiGetRequest mgr = new MultiGetRequest();
-        final ParsingException e = expectThrows(
+        try (XContentParser parser = createParser(builder)) {
+            final MultiGetRequest mgr = new MultiGetRequest();
+            final ParsingException e = expectThrows(
                 ParsingException.class,
                 () -> {
                     final String defaultIndex = randomAlphaOfLength(5);
@@ -64,9 +64,10 @@ public class MultiGetRequestTests extends ESTestCase {
                     final FetchSourceContext fetchSource = FetchSourceContext.FETCH_SOURCE;
                     mgr.add(defaultIndex, defaultType, null, fetchSource, null, parser, true);
                 });
-        assertThat(
+            assertThat(
                 e.toString(),
                 containsString("unknown key [doc] for a START_ARRAY, expected [docs] or [ids]"));
+        }
     }
 
     public void testUnexpectedField() throws IOException {
@@ -97,24 +98,6 @@ public class MultiGetRequestTests extends ESTestCase {
                         "unexpected token [START_OBJECT], expected [FIELD_NAME] or [START_ARRAY]"));
     }
 
-    public void testAddWithInvalidSourceValueIsRejected() throws Exception {
-        String sourceValue = randomFrom("on", "off", "0", "1");
-        XContentParser parser = createParser(XContentFactory.jsonBuilder()
-            .startObject()
-                .startArray("docs")
-                    .startObject()
-                        .field("_source", sourceValue)
-                    .endObject()
-                .endArray()
-            .endObject()
-        );
-
-        MultiGetRequest multiGetRequest = new MultiGetRequest();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> multiGetRequest.add
-            (randomAlphaOfLength(5), randomAlphaOfLength(3), null, FetchSourceContext.FETCH_SOURCE, null, parser, true));
-        assertEquals("Failed to parse value [" + sourceValue + "] as only [true] or [false] are allowed.", ex.getMessage());
-    }
-
     public void testAddWithValidSourceValueIsAccepted() throws Exception {
         XContentParser parser = createParser(XContentFactory.jsonBuilder()
             .startObject()
@@ -141,16 +124,17 @@ public class MultiGetRequestTests extends ESTestCase {
             MultiGetRequest expected = createTestInstance();
             XContentType xContentType = randomFrom(XContentType.values());
             BytesReference shuffled = toShuffledXContent(expected, xContentType, ToXContent.EMPTY_PARAMS, false);
-            XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled);
-            MultiGetRequest actual = new MultiGetRequest();
-            actual.add(null, null, null, null, null, parser, true);
-            assertThat(parser.nextToken(), nullValue());
+            try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
+                MultiGetRequest actual = new MultiGetRequest();
+                actual.add(null, null, null, null, null, parser, true);
+                assertThat(parser.nextToken(), nullValue());
 
-            assertThat(actual.items.size(), equalTo(expected.items.size()));
-            for (int i = 0; i < expected.items.size(); i++) {
-                MultiGetRequest.Item expectedItem = expected.items.get(i);
-                MultiGetRequest.Item actualItem = actual.items.get(i);
-                assertThat(actualItem, equalTo(expectedItem));
+                assertThat(actual.items.size(), equalTo(expected.items.size()));
+                for (int i = 0; i < expected.items.size(); i++) {
+                    MultiGetRequest.Item expectedItem = expected.items.get(i);
+                    MultiGetRequest.Item actualItem = actual.items.get(i);
+                    assertThat(actualItem, equalTo(expectedItem));
+                }
             }
         }
     }

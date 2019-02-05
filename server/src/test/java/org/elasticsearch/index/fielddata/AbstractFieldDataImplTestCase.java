@@ -33,6 +33,7 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -72,7 +73,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     public void testDeletedDocs() throws Exception {
         add2SingleValuedDocumentsAndDeleteOneOfThem();
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
@@ -86,7 +87,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     public void testSingleValueAllSet() throws Exception {
         fillSingleValueAllSet();
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
@@ -114,7 +115,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10,
                     new Sort(sortField));
-            assertThat(topDocs.totalHits, equalTo(3L));
+            assertThat(topDocs.totalHits.value, equalTo(3L));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
             assertThat(toString(((FieldDoc) topDocs.scoreDocs[0]).fields[0]), equalTo(one()));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
@@ -125,7 +126,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10,
                     new Sort(sortField));
-            assertThat(topDocs.totalHits, equalTo(3L));
+            assertThat(topDocs.totalHits.value, equalTo(3L));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(2));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
@@ -156,7 +157,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     public void testSingleValueWithMissing() throws Exception {
         fillSingleValueWithMissing();
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
@@ -177,7 +178,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         // the segments are force merged to a single segment so that the sorted binary doc values can be asserted within a single segment.
         // Previously we used the SlowCompositeReaderWrapper but this is an unideal solution so force merging is a better idea.
         writer.forceMerge(1);
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
@@ -191,7 +192,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
             SortField sortField = indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
             TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits, equalTo(3L));
+            assertThat(topDocs.totalHits.value, equalTo(3L));
             assertThat(topDocs.scoreDocs.length, equalTo(3));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
@@ -199,7 +200,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             ;
             sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
             topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(sortField));
-            assertThat(topDocs.totalHits, equalTo(3L));
+            assertThat(topDocs.totalHits.value, equalTo(3L));
             assertThat(topDocs.scoreDocs.length, equalTo(3));
             assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
             assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
@@ -211,7 +212,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     public void testMultiValueWithMissing() throws Exception {
         fillMultiValueWithMissing();
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
@@ -227,7 +228,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     public void testMissingValueForAll() throws Exception {
         fillAllMissing();
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
         List<LeafReaderContext> readerContexts = refreshReader();
         for (LeafReaderContext readerContext : readerContexts) {
             AtomicFieldData fieldData = indexFieldData.load(readerContext);
@@ -251,14 +252,14 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     public void testSortMultiValuesFields() throws Exception {
         fillExtendedMvSet();
-        IndexFieldData indexFieldData = getForField("value");
+        IndexFieldData<?> indexFieldData = getForField("value");
 
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField =
             indexFieldData.sortField(null, MultiValueMode.MIN, null, false);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10,
                 new Sort(sortField));
-        assertThat(topDocs.totalHits, equalTo(8L));
+        assertThat(topDocs.totalHits.value, equalTo(8L));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(7));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("!08"));
@@ -280,7 +281,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         sortField = indexFieldData.sortField(null, MultiValueMode.MAX, null, true);
         topDocs = searcher.search(new MatchAllDocsQuery(), 10,
                 new Sort(sortField));
-        assertThat(topDocs.totalHits, equalTo(8L));
+        assertThat(topDocs.totalHits.value, equalTo(8L));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(6));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("10"));

@@ -19,10 +19,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -30,6 +32,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
@@ -49,7 +54,6 @@ import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -84,6 +88,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -147,9 +153,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(discoveryNode);
 
         executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, clock, parser,
-                clusterService, client);
-
-        executionService.start();
+                clusterService, client, EsExecutors.newDirectExecutorService());
     }
 
     public void testExecute() throws Exception {
@@ -1012,7 +1016,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
     public void testUpdateWatchStatusDoesNotUpdateState() throws Exception {
         WatchStatus status = new WatchStatus(DateTime.now(UTC), Collections.emptyMap());
-        Watch watch = new Watch("_id", new ManualTrigger(), new ExecutableNoneInput(logger), InternalAlwaysCondition.INSTANCE, null, null,
+        Watch watch = new Watch("_id", new ManualTrigger(), new ExecutableNoneInput(), InternalAlwaysCondition.INSTANCE, null, null,
                 Collections.emptyList(), null, status, 1L);
 
         final AtomicBoolean assertionsTriggered = new AtomicBoolean(false);
@@ -1073,6 +1077,33 @@ public class ExecutionServiceTests extends ESTestCase {
         assertThat(watchRecord.state(), is(ExecutionState.EXECUTED));
     }
 
+    public void testLoadingWatchExecutionUser() throws Exception {
+        DateTime now = now(UTC);
+        Watch watch = mock(Watch.class);
+        WatchStatus status = mock(WatchStatus.class);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
+
+        // Should be null
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
+        context.ensureWatchExists(() -> watch);
+        assertNull(context.getUser());
+
+        // Should still be null, header is not yet set
+        when(watch.status()).thenReturn(status);
+        context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
+        context.ensureWatchExists(() -> watch);
+        assertNull(context.getUser());
+
+        Authentication authentication = new Authentication(new User("joe", "admin"),
+            new Authentication.RealmRef("native_realm", "native", "node1"), null);
+
+        // Should no longer be null now that the proper header is set
+        when(status.getHeaders()).thenReturn(Collections.singletonMap(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
+        context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
+        context.ensureWatchExists(() -> watch);
+        assertThat(context.getUser(), equalTo("joe"));
+    }
+
     private WatchExecutionContext createMockWatchExecutionContext(String watchId, DateTime executionTime) {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         when(ctx.id()).thenReturn(new Wid(watchId, executionTime));
@@ -1118,7 +1149,8 @@ public class ExecutionServiceTests extends ESTestCase {
             if (request.id().equals(id)) {
                 listener.onResponse(response);
             } else {
-                GetResult notFoundResult = new GetResult(request.index(), request.type(), request.id(), -1, false, null, null);
+                GetResult notFoundResult =
+                    new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
                 listener.onResponse(new GetResponse(notFoundResult));
             }
             return null;
@@ -1132,7 +1164,8 @@ public class ExecutionServiceTests extends ESTestCase {
             if (request.id().equals(id)) {
                 listener.onFailure(e);
             } else {
-                GetResult notFoundResult = new GetResult(request.index(), request.type(), request.id(), -1, false, null, null);
+                GetResult notFoundResult =
+                    new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
                 listener.onResponse(new GetResponse(notFoundResult));
             }
             return null;

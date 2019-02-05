@@ -25,11 +25,12 @@ The following snippet shows a simple webhook action definition:
       "host" : "mylisteningserver", <5>
       "port" : 9200, <6>
       "path": ":/{{ctx.watch_id}", <7>
-      "body" : "{{ctx.watch_id}}:{{ctx.payload.hits.total}}" <8>
+      "body" : "{{ctx.watch_id}}:{{ctx.payload.hits.total.value}}" <8>
     }
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The id of the action
 <2> An optional <<transform, transform>> to transform the payload before
     executing the `webhook` action
@@ -49,7 +50,7 @@ For example, the following `webhook` action creates a new issue in GitHub:
 "actions" : {
   "create_github_issue" : {
     "transform": {
-      "script": "return ['title':'Found errors in \\'contact.html\\'', 'body' : 'Found ' + ctx.payload.hits.total + ' errors in the last 5 minutes', 'assignee' : 'web-admin', 'labels' : ['bug','sev2']]"
+      "script": "return ['title':'Found errors in \\'contact.html\\'', 'body' : 'Found ' + ctx.payload.hits.total.value + ' errors in the last 5 minutes', 'assignee' : 'web-admin', 'labels' : ['bug','sev2']]"
     },
     "webhook" : {
       "method" : "POST",
@@ -65,16 +66,17 @@ For example, the following `webhook` action creates a new issue in GitHub:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The username and password for the user creating the issue
 
 NOTE: By default, both the username and the password are stored in the `.watches`
-      index in plain text. When {security} is enabled, {watcher} can encrypt the
-      password before storing it.
+      index in plain text. When the {es} {security-features} are enabled,
+      {watcher} can encrypt the password before storing it.
 
 You can also use PKI-based authentication when submitting requests to a cluster
-secured with {security}. When you use PKI-based authentication instead of HTTP
-basic auth, you don't need to store any authentication information in the watch
-itself. To use PKI-based authentication, you {ref}/notification-settings.html#ssl-notification-settings
+that has {es} {security-features} enabled. When you use PKI-based authentication
+instead of HTTP basic auth, you don't need to store any authentication
+information in the watch itself. To use PKI-based authentication, you {ref}/notification-settings.html#ssl-notification-settings
 [configure the SSL key settings] for {watcher} in `elasticsearch.yml`.
 
 
@@ -101,6 +103,7 @@ the values serve as the parameter values:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The parameter values can contain templated strings.
 
 
@@ -123,11 +126,12 @@ the values serve as the header values:
       "headers" : {
         "Content-Type" : "application/yaml" <1>
       },
-      "body" : "count: {{ctx.payload.hits.total}}"
+      "body" : "count: {{ctx.payload.hits.total.value}}"
     }
   }
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The header values can contain templated strings.
 
 

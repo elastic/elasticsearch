@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.attachment;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
@@ -29,7 +30,6 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -52,7 +52,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class AttachmentProcessor extends AbstractProcessor {
 
-    private static final Logger logger = ESLoggerFactory.getLogger(AttachmentProcessor.class);
+    private static final Logger logger = LogManager.getLogger(AttachmentProcessor.class);
 
     static final String TYPE = "attachment";
 
@@ -90,13 +90,13 @@ public final class AttachmentProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) {
+    public IngestDocument execute(IngestDocument ingestDocument) {
         Map<String, Object> additionalFields = new HashMap<>();
 
         byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
 
         if (input == null && ignoreMissing) {
-            return;
+            return ingestDocument;
         } else if (input == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
         }
@@ -193,6 +193,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         ingestDocument.setFieldValue(targetField, additionalFields);
+        return ingestDocument;
     }
 
     @Override

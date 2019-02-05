@@ -38,6 +38,28 @@ public class CliReplTests extends ESTestCase {
         verifyNoMoreInteractions(mockCommand, mockSession);
     }
 
+    /**
+     * Test that empty commands are skipped. This includes commands that are
+     * just new lines.
+     */
+    public void testEmptyNotSent() {
+        CliTerminal cliTerminal = new TestTerminal(
+                ";",
+                "",
+                "",
+                ";",
+                "exit;"
+        );
+
+        CliSession mockSession = mock(CliSession.class);
+        CliCommand mockCommand = mock(CliCommand.class);
+
+        CliRepl cli = new CliRepl(cliTerminal, mockSession, mockCommand);
+        cli.execute();
+
+        verify(mockCommand, times(1)).handle(cliTerminal, mockSession, "logo");
+        verifyNoMoreInteractions(mockSession, mockCommand);
+    }
 
     public void testFatalCliExceptionHandling() throws Exception {
         CliTerminal cliTerminal = new TestTerminal(

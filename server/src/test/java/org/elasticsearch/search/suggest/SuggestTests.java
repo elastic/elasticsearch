@@ -19,9 +19,14 @@
 
 package org.elasticsearch.search.suggest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -30,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -37,6 +43,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,6 +51,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
@@ -114,10 +122,11 @@ public class SuggestTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        Option option = new Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
-        Entry<Option> entry = new Entry<>(new Text("entryText"), 42, 313);
+        PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"),
+            1.3f, true);
+        PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
         entry.addOption(option);
-        Suggestion<Entry<Option>> suggestion = new Suggestion<>("suggestionName", 5);
+        PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
         suggestion.addTerm(entry);
         Suggest suggest = new Suggest(Collections.singletonList(suggestion));
         BytesReference xContent = toXContent(suggest, XContentType.JSON, randomBoolean());
@@ -191,5 +200,62 @@ public class SuggestTests extends ESTestCase {
         }
     }
 
+    public void testMergingSuggestionOptions() {
+        String suggestedWord = randomAlphaOfLength(10);
+        String secondWord = randomAlphaOfLength(10);
+        Text suggestionText = new Text(suggestedWord + " " + secondWord);
+        Text highlighted = new Text("<em>" + suggestedWord + "</em> " + secondWord);
+        PhraseSuggestion.Entry.Option option1 = new PhraseSuggestion.Entry.Option(suggestionText, highlighted, 0.7f, false);
+        PhraseSuggestion.Entry.Option option2 = new PhraseSuggestion.Entry.Option(suggestionText, highlighted, 0.8f, true);
+        PhraseSuggestion.Entry.Option option3 = new PhraseSuggestion.Entry.Option(suggestionText, highlighted, 0.6f);
+        assertEquals(suggestionText, option1.getText());
+        assertEquals(highlighted, option1.getHighlighted());
+        assertFalse(option1.collateMatch());
+        assertTrue(option1.getScore() > 0.6f);
+        option1.mergeInto(option2);
+        assertEquals(suggestionText, option1.getText());
+        assertEquals(highlighted, option1.getHighlighted());
+        assertTrue(option1.collateMatch());
+        assertTrue(option1.getScore() > 0.7f);
+        option1.mergeInto(option3);
+        assertEquals(suggestionText, option1.getText());
+        assertEquals(highlighted, option1.getHighlighted());
+        assertTrue(option1.getScore() > 0.7f);
+        assertTrue(option1.collateMatch());
+    }
 
+    public void testSerialization() throws IOException {
+        final Version bwcVersion = VersionUtils.randomVersionBetween(random(),
+            Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+
+        final Suggest suggest = createTestItem();
+        final Suggest bwcSuggest;
+
+        NamedWriteableRegistry registry = new NamedWriteableRegistry
+            (new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(bwcVersion);
+            suggest.writeTo(out);
+            try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
+                in.setVersion(bwcVersion);
+                bwcSuggest = new Suggest(in);
+            }
+        }
+
+        assertEquals(suggest, bwcSuggest);
+
+        final Suggest backAgain;
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.CURRENT);
+            bwcSuggest.writeTo(out);
+            try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
+                in.setVersion(Version.CURRENT);
+                backAgain = new Suggest(in);
+            }
+        }
+
+        assertEquals(suggest, backAgain);
+    }
 }

@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
@@ -84,7 +84,7 @@ public class WatcherExecutorServiceBenchmark {
                         .condition(new ScriptCondition(new Script(
                                 ScriptType.INLINE,
                                 Script.DEFAULT_SCRIPT_LANG,
-                                "ctx.payload.hits.total > 0",
+                                "ctx.payload.hits.total.value > 0",
                                 emptyMap()))).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
@@ -126,7 +126,7 @@ public class WatcherExecutorServiceBenchmark {
                 PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(searchInput(templateRequest(new SearchSourceBuilder(), "test"))
-                                .extractKeys("hits.total"))
+                                .extractKeys("hits.total.value"))
                         .condition(new ScriptCondition(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 == 1", emptyMap())))
                         .addAction("_id", indexAction("index", "type")).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
@@ -207,12 +207,12 @@ public class WatcherExecutorServiceBenchmark {
 
         public BenchmarkWatcher(Settings settings) {
             super(settings);
-            Loggers.getLogger(BenchmarkWatcher.class, settings).info("using watcher benchmark plugin");
+            LogManager.getLogger(BenchmarkWatcher.class).info("using watcher benchmark plugin");
         }
 
         @Override
         protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
-            return new ScheduleTriggerEngineMock(settings, scheduleRegistry, clock);
+            return new ScheduleTriggerEngineMock(scheduleRegistry, clock);
         }
     }
 }

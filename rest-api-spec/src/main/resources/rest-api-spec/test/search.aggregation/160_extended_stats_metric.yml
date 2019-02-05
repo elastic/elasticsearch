@@ -53,6 +53,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_int_extended_stats:
@@ -88,6 +89,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -126,6 +128,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             constant_score:
@@ -170,6 +173,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_missing_extended_stats:
@@ -195,6 +199,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_missing_extended_stats:
@@ -210,6 +215,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_int_extended_stats:
@@ -235,6 +241,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_int_extended_stats:
@@ -273,6 +280,7 @@ setup:
   - do:
       catch: /\[sigma\] must be greater than or equal to 0. Found \[-1.0\] in \[the_int_extended_stats\]/
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_int_extended_stats:
@@ -283,6 +291,7 @@ setup:
   - do:
       catch: /x_content_parse_exception/
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_int_extended_stats:

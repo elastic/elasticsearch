@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.transport.filter;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
@@ -20,7 +19,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -38,10 +36,14 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     }
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("transport.profiles.client.port", randomClientPortRange)
                 // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
                 .put("transport.profiles.client.bind_host", "localhost")
@@ -66,7 +68,7 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
 
     public void testThatIpFilteringIsAppliedForProfile() throws Exception {
         try (Socket socket = new Socket()){
-            trySocketConnection(socket, new InetSocketAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
+            trySocketConnection(socket, getProfileAddress("client"));
             assertThat(socket.isClosed(), is(true));
         }
     }
@@ -83,9 +85,9 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
         }
     }
 
-    private static int getProfilePort(String profile) {
+    private static InetSocketAddress getProfileAddress(String profile) {
         TransportAddress transportAddress =
                 randomFrom(internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddresses());
-        return transportAddress.address().getPort();
+        return transportAddress.address();
     }
 }

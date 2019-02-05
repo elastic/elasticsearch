@@ -21,20 +21,18 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -130,7 +128,7 @@ public class BytesStreamsTests extends ESTestCase {
     public void testSingleFullPageBulkWrite() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
-        int expectedSize = BigArrays.BYTE_PAGE_SIZE;
+        int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
 
         // write in bulk
@@ -146,7 +144,7 @@ public class BytesStreamsTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
 
         int initialOffset = 10;
-        int additionalLength = BigArrays.BYTE_PAGE_SIZE;
+        int additionalLength = PageCacheRecycler.BYTE_PAGE_SIZE;
         byte[] expectedData = randomizedByteArrayWithSize(initialOffset + additionalLength);
 
         // first create initial offset
@@ -165,7 +163,7 @@ public class BytesStreamsTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
 
         int initialOffset = 10;
-        int additionalLength = BigArrays.BYTE_PAGE_SIZE * 2;
+        int additionalLength = PageCacheRecycler.BYTE_PAGE_SIZE * 2;
         byte[] expectedData = randomizedByteArrayWithSize(initialOffset + additionalLength);
         out.writeBytes(expectedData, 0, initialOffset);
         assertEquals(initialOffset, out.size());
@@ -183,7 +181,7 @@ public class BytesStreamsTests extends ESTestCase {
     public void testSingleFullPage() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
-        int expectedSize = BigArrays.BYTE_PAGE_SIZE;
+        int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
 
         // write byte-by-byte
@@ -200,7 +198,7 @@ public class BytesStreamsTests extends ESTestCase {
     public void testOneFullOneShortPage() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
-        int expectedSize = BigArrays.BYTE_PAGE_SIZE + 10;
+        int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE + 10;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
 
         // write byte-by-byte
@@ -217,7 +215,7 @@ public class BytesStreamsTests extends ESTestCase {
     public void testTwoFullOneShortPage() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
-        int expectedSize = (BigArrays.BYTE_PAGE_SIZE * 2) + 1;
+        int expectedSize = (PageCacheRecycler.BYTE_PAGE_SIZE * 2) + 1;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
 
         // write byte-by-byte
@@ -238,9 +236,9 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(position, out.position());
 
         out.seek(position += 10);
-        out.seek(position += BigArrays.BYTE_PAGE_SIZE);
-        out.seek(position += BigArrays.BYTE_PAGE_SIZE + 10);
-        out.seek(position += BigArrays.BYTE_PAGE_SIZE * 2);
+        out.seek(position += PageCacheRecycler.BYTE_PAGE_SIZE);
+        out.seek(position += PageCacheRecycler.BYTE_PAGE_SIZE + 10);
+        out.seek(position += PageCacheRecycler.BYTE_PAGE_SIZE * 2);
         assertEquals(position, out.position());
         assertEquals(position, BytesReference.toBytes(out.bytes()).length);
 
@@ -572,7 +570,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testReadWriteGeoPoint() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
             GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
             out.writeGenericValue(geoPoint);
             StreamInput wrap = out.bytes().streamInput();

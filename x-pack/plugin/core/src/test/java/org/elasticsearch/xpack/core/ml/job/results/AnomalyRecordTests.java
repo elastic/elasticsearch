@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -38,6 +37,9 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         anomalyRecord.setActual(Collections.singletonList(randomDouble()));
         anomalyRecord.setTypical(Collections.singletonList(randomDouble()));
         anomalyRecord.setProbability(randomDouble());
+        if (randomBoolean()) {
+            anomalyRecord.setMultiBucketImpact(randomDouble());
+        }
         anomalyRecord.setRecordScore(randomDouble());
         anomalyRecord.setInitialRecordScore(randomDouble());
         anomalyRecord.setInterim(randomBoolean());
@@ -148,7 +150,6 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         assertEquals(Arrays.asList("yes", "no"), serialisedSpoilerFieldValues);
     }
 
-    @SuppressWarnings("unchecked")
     public void testToXContentDoesNotIncludesReservedWordInputFields() throws IOException {
         AnomalyRecord record = createTestInstance();
         record.setByFieldName(AnomalyRecord.BUCKET_SPAN.getPreferredName());
@@ -158,7 +159,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         XContentParser parser = createParser(XContentType.JSON.xContent(), bytes);
         Object value = parser.map().get(AnomalyRecord.BUCKET_SPAN.getPreferredName());
         assertNotEquals("bar", value);
-        assertEquals((Long)record.getBucketSpan(), (Long)value);
+        assertEquals(record.getBucketSpan(), value);
     }
 
     public void testId() {

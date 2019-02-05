@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -29,15 +31,23 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * Rest endpoint to retrieve a Role from the security index
  */
 public class RestGetRolesAction extends SecurityBaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetRolesAction.class));
+
     public RestGetRolesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(GET, "/_xpack/security/role/", this);
-        controller.registerHandler(GET, "/_xpack/security/role/{name}", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/role/", this,
+            GET, "/_xpack/security/role/", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/role/{name}", this,
+            GET, "/_xpack/security/role/{name}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_get_roles_action";
+        return "security_get_roles_action";
     }
 
     @Override

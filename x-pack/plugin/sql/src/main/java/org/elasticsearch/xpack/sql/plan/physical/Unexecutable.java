@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.sql.session.Executable;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
-import java.util.Locale;
 
 // this is mainly a marker interface to validate a plan before being executed
 public interface Unexecutable extends Executable {

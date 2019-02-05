@@ -23,15 +23,15 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,7 +47,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -68,7 +68,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // initial cache
         TestEntity entity = new TestEntity(requestCacheStats, indexShard);
         Loader loader = new Loader(reader, 0);
-        BytesReference value = cache.getOrCompute(entity, loader, reader, termBytes);
+        BytesReference value = cache.getOrCompute(entity, loader, reader, termBytes, () -> termQuery.toString());
         assertEquals("foo", value.streamInput().readString());
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
@@ -79,7 +79,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // cache hit
         entity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(reader, 0);
-        value = cache.getOrCompute(entity, loader, reader, termBytes);
+        value = cache.getOrCompute(entity, loader, reader, termBytes, () -> termQuery.toString());
         assertEquals("foo", value.streamInput().readString());
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
@@ -119,14 +119,18 @@ public class IndicesRequestCacheTests extends ESTestCase {
         DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
-
+        if (randomBoolean()) {
+            writer.flush();
+            IOUtils.close(writer);
+            writer = new IndexWriter(dir, newIndexWriterConfig());
+        }
         writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
         DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
 
         // initial cache
         TestEntity entity = new TestEntity(requestCacheStats, indexShard);
         Loader loader = new Loader(reader, 0);
-        BytesReference value = cache.getOrCompute(entity, loader, reader, termBytes);
+        BytesReference value = cache.getOrCompute(entity, loader, reader, termBytes, () -> termQuery.toString());
         assertEquals("foo", value.streamInput().readString());
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
@@ -140,7 +144,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // cache the second
         TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(secondReader, 0);
-        value = cache.getOrCompute(entity, loader, secondReader, termBytes);
+        value = cache.getOrCompute(entity, loader, secondReader, termBytes, () -> termQuery.toString());
         assertEquals("bar", value.streamInput().readString());
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -152,7 +156,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
         secondEntity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(secondReader, 0);
-        value = cache.getOrCompute(secondEntity, loader, secondReader, termBytes);
+        value = cache.getOrCompute(secondEntity, loader, secondReader, termBytes, () -> termQuery.toString());
         assertEquals("bar", value.streamInput().readString());
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -162,7 +166,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
         entity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(reader, 0);
-        value = cache.getOrCompute(entity, loader, reader, termBytes);
+        value = cache.getOrCompute(entity, loader, reader, termBytes, () -> termQuery.toString());
         assertEquals("foo", value.streamInput().readString());
         assertEquals(2, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -222,9 +226,9 @@ public class IndicesRequestCacheTests extends ESTestCase {
             TestEntity secondEntity = new TestEntity(requestCacheStats, indexShard);
             Loader secondLoader = new Loader(secondReader, 0);
 
-            BytesReference value1 = cache.getOrCompute(entity, loader, reader, termBytes);
+            BytesReference value1 = cache.getOrCompute(entity, loader, reader, termBytes, () -> termQuery.toString());
             assertEquals("foo", value1.streamInput().readString());
-            BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondReader, termBytes);
+            BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondReader, termBytes, () -> termQuery.toString());
             assertEquals("bar", value2.streamInput().readString());
             size = requestCacheStats.stats().getMemorySize();
             IOUtils.close(reader, secondReader, writer, dir, cache);
@@ -257,12 +261,12 @@ public class IndicesRequestCacheTests extends ESTestCase {
         TestEntity thirddEntity = new TestEntity(requestCacheStats, indexShard);
         Loader thirdLoader = new Loader(thirdReader, 0);
 
-        BytesReference value1 = cache.getOrCompute(entity, loader, reader, termBytes);
+        BytesReference value1 = cache.getOrCompute(entity, loader, reader, termBytes, () -> termQuery.toString());
         assertEquals("foo", value1.streamInput().readString());
-        BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondReader, termBytes);
+        BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondReader, termBytes, () -> termQuery.toString());
         assertEquals("bar", value2.streamInput().readString());
         logger.info("Memory size: {}", requestCacheStats.stats().getMemorySize());
-        BytesReference value3 = cache.getOrCompute(thirddEntity, thirdLoader, thirdReader, termBytes);
+        BytesReference value3 = cache.getOrCompute(thirddEntity, thirdLoader, thirdReader, termBytes, () -> termQuery.toString());
         assertEquals("baz", value3.streamInput().readString());
         assertEquals(2, cache.count());
         assertEquals(1, requestCacheStats.stats().getEvictions());
@@ -298,12 +302,12 @@ public class IndicesRequestCacheTests extends ESTestCase {
         TestEntity thirddEntity = new TestEntity(requestCacheStats, differentIdentity);
         Loader thirdLoader = new Loader(thirdReader, 0);
 
-        BytesReference value1 = cache.getOrCompute(entity, loader, reader, termBytes);
+        BytesReference value1 = cache.getOrCompute(entity, loader, reader, termBytes, () -> termQuery.toString());
         assertEquals("foo", value1.streamInput().readString());
-        BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondReader, termBytes);
+        BytesReference value2 = cache.getOrCompute(secondEntity, secondLoader, secondReader, termBytes, () -> termQuery.toString());
         assertEquals("bar", value2.streamInput().readString());
         logger.info("Memory size: {}", requestCacheStats.stats().getMemorySize());
-        BytesReference value3 = cache.getOrCompute(thirddEntity, thirdLoader, thirdReader, termBytes);
+        BytesReference value3 = cache.getOrCompute(thirddEntity, thirdLoader, thirdReader, termBytes, () -> termQuery.toString());
         assertEquals("baz", value3.streamInput().readString());
         assertEquals(3, cache.count());
         final long hitCount = requestCacheStats.stats().getHitCount();
@@ -312,7 +316,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         cache.cleanCache();
         assertEquals(1, cache.count());
         // third has not been validated since it's a different identity
-        value3 = cache.getOrCompute(thirddEntity, thirdLoader, thirdReader, termBytes);
+        value3 = cache.getOrCompute(thirddEntity, thirdLoader, thirdReader, termBytes, () -> termQuery.toString());
         assertEquals(hitCount + 1, requestCacheStats.stats().getHitCount());
         assertEquals("baz", value3.streamInput().readString());
 
@@ -343,7 +347,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 TopDocs topDocs = searcher.search(new TermQuery(new Term("id", Integer.toString(id))), 1);
-                assertEquals(1, topDocs.totalHits);
+                assertEquals(1, topDocs.totalHits.value);
                 Document document = reader.document(topDocs.scoreDocs[0].doc);
                 out.writeString(document.get("value"));
                 loadedFromCache = false;
@@ -371,7 +375,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // initial cache
         TestEntity entity = new TestEntity(requestCacheStats, indexShard);
         Loader loader = new Loader(reader, 0);
-        BytesReference value = cache.getOrCompute(entity, loader, reader, termBytes);
+        BytesReference value = cache.getOrCompute(entity, loader, reader, termBytes, () -> termQuery.toString());
         assertEquals("foo", value.streamInput().readString());
         assertEquals(0, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
@@ -382,7 +386,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         // cache hit
         entity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(reader, 0);
-        value = cache.getOrCompute(entity, loader, reader, termBytes);
+        value = cache.getOrCompute(entity, loader, reader, termBytes, () -> termQuery.toString());
         assertEquals("foo", value.streamInput().readString());
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(1, requestCacheStats.stats().getMissCount());
@@ -396,7 +400,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         entity = new TestEntity(requestCacheStats, indexShard);
         loader = new Loader(reader, 0);
         cache.invalidate(entity, reader,  termBytes);
-        value = cache.getOrCompute(entity, loader, reader, termBytes);
+        value = cache.getOrCompute(entity, loader, reader, termBytes, () -> termQuery.toString());
         assertEquals("foo", value.streamInput().readString());
         assertEquals(1, requestCacheStats.stats().getHitCount());
         assertEquals(2, requestCacheStats.stats().getMissCount());
@@ -424,14 +428,23 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals(0, cache.numRegisteredCloseListeners());
     }
 
-    public void testEqualsKey() {
+    public void testEqualsKey() throws IOException {
         AtomicBoolean trueBoolean = new AtomicBoolean(true);
         AtomicBoolean falseBoolean = new AtomicBoolean(false);
-        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), 1L, new TestBytesReference(1));
-        IndicesRequestCache.Key key2 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), 1L, new TestBytesReference(1));
-        IndicesRequestCache.Key key3 = new IndicesRequestCache.Key(new TestEntity(null, falseBoolean), 1L, new TestBytesReference(1));
-        IndicesRequestCache.Key key4 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), 2L, new TestBytesReference(1));
-        IndicesRequestCache.Key key5 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), 1L, new TestBytesReference(2));
+        Directory dir = newDirectory();
+        IndexWriterConfig config = newIndexWriterConfig();
+        IndexWriter writer = new IndexWriter(dir, config);
+        IndexReader reader1 = DirectoryReader.open(writer);
+        IndexReader.CacheKey rKey1 = reader1.getReaderCacheHelper().getKey();
+        writer.addDocument(new Document());
+        IndexReader reader2 = DirectoryReader.open(writer);
+        IndexReader.CacheKey rKey2 = reader2.getReaderCacheHelper().getKey();
+        IOUtils.close(reader1, reader2, writer, dir);
+        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), rKey1, new TestBytesReference(1));
+        IndicesRequestCache.Key key2 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), rKey1, new TestBytesReference(1));
+        IndicesRequestCache.Key key3 = new IndicesRequestCache.Key(new TestEntity(null, falseBoolean), rKey1, new TestBytesReference(1));
+        IndicesRequestCache.Key key4 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), rKey2, new TestBytesReference(1));
+        IndicesRequestCache.Key key5 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), rKey1, new TestBytesReference(2));
         String s = "Some other random object";
         assertEquals(key1, key1);
         assertEquals(key1, key2);
@@ -484,11 +497,6 @@ public class IndicesRequestCacheTests extends ESTestCase {
         @Override
         public long ramBytesUsed() {
             return 0;
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return null;
         }
 
         @Override

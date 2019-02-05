@@ -143,7 +143,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     /**
      * Sets the operator to use for terms with a high document frequency
      * (greater than or equal to {@link #cutoffFrequency(float)}. Defaults to
-     * <tt>AND</tt>.
+     * {@code AND}.
      */
     public CommonTermsQueryBuilder highFreqOperator(Operator operator) {
         this.highFreqOperator = (operator == null) ? DEFAULT_HIGH_FREQ_OCCUR : operator;
@@ -156,7 +156,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     /**
      * Sets the operator to use for terms with a low document frequency (less
-     * than {@link #cutoffFrequency(float)}. Defaults to <tt>AND</tt>.
+     * than {@link #cutoffFrequency(float)}. Defaults to {@code AND}.
      */
     public CommonTermsQueryBuilder lowFreqOperator(Operator operator) {
         this.lowFreqOperator = (operator == null) ? DEFAULT_LOW_FREQ_OCCUR : operator;
@@ -185,7 +185,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
      * in [0..1] (or absolute number &gt;=1) representing the maximum threshold of
      * a terms document frequency to be considered a low frequency term.
      * Defaults to
-     * <tt>{@value #DEFAULT_CUTOFF_FREQ}</tt>
+     * {@code {@value #DEFAULT_CUTOFF_FREQ}}
      */
     public CommonTermsQueryBuilder cutoffFrequency(float cutoffFrequency) {
         this.cutoffFrequency = cutoffFrequency;
@@ -371,8 +371,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         Occur highFreqOccur = highFreqOperator.toBooleanClauseOccur();
         Occur lowFreqOccur = lowFreqOperator.toBooleanClauseOccur();
 
-        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur,
-                cutoffFrequency, fieldType);
+        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency);
         return parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
     }
 

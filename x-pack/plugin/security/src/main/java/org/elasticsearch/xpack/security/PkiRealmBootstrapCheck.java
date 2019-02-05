@@ -9,9 +9,9 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
@@ -25,34 +25,9 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 class PkiRealmBootstrapCheck implements BootstrapCheck {
 
     private final SSLService sslService;
-    private final List<SSLConfiguration> sslConfigurations;
 
-    PkiRealmBootstrapCheck(Settings settings, SSLService sslService) {
+    PkiRealmBootstrapCheck(SSLService sslService) {
         this.sslService = sslService;
-        this.sslConfigurations = loadSslConfigurations(settings);
-    }
-
-    /**
-     * {@link SSLConfiguration} may depend on {@link org.elasticsearch.common.settings.SecureSettings} that can only be read during startup.
-     * We need to preload these during component configuration.
-     */
-    private List<SSLConfiguration> loadSslConfigurations(Settings settings) {
-        final List<SSLConfiguration> list = new ArrayList<>();
-        if (HTTP_SSL_ENABLED.get(settings)) {
-            list.add(sslService.sslConfiguration(SSLService.getHttpTransportSSLSettings(settings), Settings.EMPTY));
-        }
-
-        if (XPackSettings.TRANSPORT_SSL_ENABLED.get(settings)) {
-            final Settings transportSslSettings = settings.getByPrefix(setting("transport.ssl."));
-            list.add(sslService.sslConfiguration(transportSslSettings, Settings.EMPTY));
-
-            settings.getGroups("transport.profiles.").values().stream()
-                    .map(SecurityNetty4Transport::profileSslSettings)
-                    .map(s -> sslService.sslConfiguration(s, transportSslSettings))
-                    .forEach(list::add);
-        }
-
-        return list;
     }
 
     /**
@@ -61,12 +36,15 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
      */
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
-        final Settings settings = context.settings;
-        final boolean pkiRealmEnabled = settings.getGroups(RealmSettings.PREFIX).values().stream()
-                .filter(s -> PkiRealmSettings.TYPE.equals(s.get("type")))
+        final Settings settings = context.settings();
+        final Map<RealmIdentifier, Settings> realms = RealmSettings.getRealmSettings(settings);
+        final boolean pkiRealmEnabled = realms.entrySet().stream()
+                .filter(e -> PkiRealmSettings.TYPE.equals(e.getKey().getType()))
+                .map(Map.Entry::getValue)
                 .anyMatch(s -> s.getAsBoolean("enabled", true));
         if (pkiRealmEnabled) {
-            for (SSLConfiguration configuration : this.sslConfigurations) {
+            for (String contextName : getSslContextNames(settings)) {
+                final SSLConfiguration configuration = sslService.getSSLConfiguration(contextName);
                 if (sslService.isSSLClientAuthEnabled(configuration)) {
                     return BootstrapCheckResult.success();
                 }
@@ -78,6 +56,21 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
         }
     }
 
+    private List<String> getSslContextNames(Settings settings) {
+        final List<String> list = new ArrayList<>();
+        if (HTTP_SSL_ENABLED.get(settings)) {
+            list.add(setting("http.ssl"));
+        }
+
+        if (XPackSettings.TRANSPORT_SSL_ENABLED.get(settings)) {
+            list.add(setting("transport.ssl"));
+            list.addAll(sslService.getTransportProfileContextNames());
+        }
+
+        return list;
+    }
+
+    // FIXME this is an antipattern move this out of a bootstrap check!
     @Override
     public boolean alwaysEnforce() {
         return true;

@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.watcher.transport.action.delete;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
-import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchResponse;
+import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
-import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
@@ -83,7 +83,7 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
             // watch has been executed successfully
             String state = ObjectPath.eval("state", source);
             assertThat(state, is("executed"));
-            // no exception occured
+            // no exception occurred
             assertThat(source, not(hasKey("exception")));
         }
     }

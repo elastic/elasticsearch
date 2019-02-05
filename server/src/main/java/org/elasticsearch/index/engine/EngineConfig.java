@@ -29,22 +29,25 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -75,11 +78,23 @@ public final class EngineConfig {
     private final List<ReferenceManager.RefreshListener> internalRefreshListener;
     @Nullable
     private final Sort indexSort;
-    private final TranslogRecoveryRunner translogRecoveryRunner;
     @Nullable
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
+    private final Supplier<Collection<RetentionLease>> retentionLeasesSupplier;
+
+    /**
+     * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
+     * soft deleted should be retained.
+     *
+     * @return a supplier of outstanding retention leases
+     */
+    public Supplier<Collection<RetentionLease>> retentionLeasesSupplier() {
+        return retentionLeasesSupplier;
+    }
+
     private final LongSupplier primaryTermSupplier;
+    private final TombstoneDocSupplier tombstoneDocSupplier;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -125,8 +140,10 @@ public final class EngineConfig {
                         TranslogConfig translogConfig, TimeValue flushMergesAfter,
                         List<ReferenceManager.RefreshListener> externalRefreshListener,
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
-                        TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService,
-                        LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier) {
+                        CircuitBreakerService circuitBreakerService, LongSupplier globalCheckpointSupplier,
+                        Supplier<Collection<RetentionLease>> retentionLeasesSupplier,
+                        LongSupplier primaryTermSupplier,
+                        TombstoneDocSupplier tombstoneDocSupplier) {
         this.shardId = shardId;
         this.allocationId = allocationId;
         this.indexSettings = indexSettings;
@@ -139,10 +156,20 @@ public final class EngineConfig {
         this.codecService = codecService;
         this.eventListener = eventListener;
         codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
-        // We give IndexWriter a "huge" (256 MB) buffer, so it won't flush on its own unless the ES indexing buffer is also huge and/or
-        // there are not too many shards allocated to this node.  Instead, IndexingMemoryController periodically checks
-        // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
-        indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
+        // We need to make the indexing buffer for this shard at least as large
+        // as the amount of memory that is available for all engines on the
+        // local node so that decisions to flush segments to disk are made by
+        // IndexingMemoryController rather than Lucene.
+        // Add an escape hatch in case this change proves problematic - it used
+        // to be a fixed amound of RAM: 256 MB.
+        // TODO: Remove this escape hatch in 8.x
+        final String escapeHatchProperty = "es.index.memory.max_index_buffer_size";
+        String maxBufferSize = System.getProperty(escapeHatchProperty);
+        if (maxBufferSize != null) {
+            indexingBufferSize = MemorySizeValue.parseBytesSizeValueOrHeapRatio(maxBufferSize, escapeHatchProperty);
+        } else {
+            indexingBufferSize = IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.get(indexSettings.getNodeSettings());
+        }
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
@@ -150,10 +177,11 @@ public final class EngineConfig {
         this.externalRefreshListener = externalRefreshListener;
         this.internalRefreshListener = internalRefreshListener;
         this.indexSort = indexSort;
-        this.translogRecoveryRunner = translogRecoveryRunner;
         this.circuitBreakerService = circuitBreakerService;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.primaryTermSupplier = primaryTermSupplier;
+        this.tombstoneDocSupplier = tombstoneDocSupplier;
     }
 
     /**
@@ -310,18 +338,6 @@ public final class EngineConfig {
      */
     public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
 
-    @FunctionalInterface
-    public interface TranslogRecoveryRunner {
-        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
-    }
-
-    /**
-     * Returns a runner that implements the translog recovery from the given snapshot
-     */
-    public TranslogRecoveryRunner getTranslogRecoveryRunner() {
-        return translogRecoveryRunner;
-    }
-
     /**
      * The refresh listeners to add to Lucene for externally visible refreshes
      */
@@ -362,5 +378,26 @@ public final class EngineConfig {
      */
     public LongSupplier getPrimaryTermSupplier() {
         return primaryTermSupplier;
+    }
+
+    /**
+     * A supplier supplies tombstone documents which will be used in soft-update methods.
+     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+     */
+    public interface TombstoneDocSupplier {
+        /**
+         * Creates a tombstone document for a delete operation.
+         */
+        ParsedDocument newDeleteTombstoneDoc(String type, String id);
+
+        /**
+         * Creates a tombstone document for a noop operation.
+         * @param reason the reason of an a noop
+         */
+        ParsedDocument newNoopTombstoneDoc(String reason);
+    }
+
+    public TombstoneDocSupplier getTombstoneDocSupplier() {
+        return tombstoneDocSupplier;
     }
 }

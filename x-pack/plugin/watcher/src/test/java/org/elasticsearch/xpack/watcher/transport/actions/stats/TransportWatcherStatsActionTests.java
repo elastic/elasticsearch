@@ -9,12 +9,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -26,7 +24,7 @@ import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
-import org.elasticsearch.xpack.watcher.WatcherService;
+import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.junit.Before;
@@ -59,8 +57,8 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         when(clusterState.getMetaData()).thenReturn(MetaData.EMPTY_META_DATA);
         when(clusterService.state()).thenReturn(clusterState);
 
-        WatcherService watcherService = mock(WatcherService.class);
-        when(watcherService.state()).thenReturn(WatcherState.STARTED);
+        WatcherLifeCycleService watcherLifeCycleService = mock(WatcherLifeCycleService.class);
+        when(watcherLifeCycleService.getState()).thenReturn(WatcherState.STARTED);
 
         ExecutionService executionService = mock(ExecutionService.class);
         when(executionService.executionThreadPoolQueueSize()).thenReturn(100L);
@@ -80,9 +78,8 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         secondTriggerServiceStats.inc("foo.bar.baz", 1024);
         when(triggerService.stats()).thenReturn(firstTriggerServiceStats, secondTriggerServiceStats);
 
-        action = new TransportWatcherStatsAction(Settings.EMPTY, transportService,
-                clusterService, threadPool, new ActionFilters(Collections.emptySet()),
-                new IndexNameExpressionResolver(Settings.EMPTY), watcherService, executionService, triggerService);
+        action = new TransportWatcherStatsAction(transportService, clusterService, threadPool, new
+            ActionFilters(Collections.emptySet()), watcherLifeCycleService, executionService, triggerService);
     }
 
     public void testWatcherStats() throws Exception {
@@ -92,7 +89,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         WatcherStatsResponse.Node nodeResponse2 = action.nodeOperation(new WatcherStatsRequest.Node(request, "nodeId2"));
 
         WatcherStatsResponse response = action.newResponse(request,
-                Arrays.asList(nodeResponse1, nodeResponse2), Collections.emptyList());
+            Arrays.asList(nodeResponse1, nodeResponse2), Collections.emptyList());
         assertThat(response.getWatchesCount(), is(40L));
 
         try (XContentBuilder builder = jsonBuilder()) {

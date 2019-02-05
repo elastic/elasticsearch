@@ -19,11 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.rounding.DateTimeUnit;
-import org.elasticsearch.common.rounding.Rounding;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,9 +38,10 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder.DATE_FIELD_UNITS;
@@ -70,9 +72,9 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         }, Histogram.INTERVAL_FIELD, ObjectParser.ValueType.LONG);
         PARSER.declareField(DateHistogramValuesSourceBuilder::timeZone, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return DateTimeZone.forID(p.text());
+                return ZoneId.of(p.text());
             } else {
-                return DateTimeZone.forOffsetHours(p.intValue());
+                return ZoneOffset.ofHours(p.intValue());
             }
         }, new ParseField("time_zone"), ObjectParser.ValueType.LONG);
         CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER, ValueType.NUMERIC);
@@ -82,7 +84,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     }
 
     private long interval = 0;
-    private DateTimeZone timeZone = null;
+    private ZoneId timeZone = null;
     private DateHistogramInterval dateHistogramInterval;
 
     public DateHistogramValuesSourceBuilder(String name) {
@@ -93,8 +95,10 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         super(in);
         this.interval = in.readLong();
         this.dateHistogramInterval = in.readOptionalWriteable(DateHistogramInterval::new);
-        if (in.readBoolean()) {
-            timeZone = DateTimeZone.forID(in.readString());
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            this.timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
+        } else {
+            this.timeZone = in.readOptionalZoneId();
         }
     }
 
@@ -102,10 +106,10 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeLong(interval);
         out.writeOptionalWriteable(dateHistogramInterval);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
+        if (out.getVersion().before(Version.V_7_0_0)) {
+            out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
+        } else {
+            out.writeOptionalZoneId(timeZone);
         }
     }
 
@@ -176,7 +180,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     /**
      * Sets the time zone to use for this aggregation
      */
-    public DateHistogramValuesSourceBuilder timeZone(DateTimeZone timeZone) {
+    public DateHistogramValuesSourceBuilder timeZone(ZoneId timeZone) {
         if (timeZone == null) {
             throw new IllegalArgumentException("[timeZone] must not be null: [" + name + "]");
         }
@@ -187,14 +191,14 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     /**
      * Gets the time zone to use for this aggregation
      */
-    public DateTimeZone timeZone() {
+    public ZoneId timeZone() {
         return timeZone;
     }
 
     private Rounding createRounding() {
         Rounding.Builder tzRoundingBuilder;
         if (dateHistogramInterval != null) {
-            DateTimeUnit dateTimeUnit = DATE_FIELD_UNITS.get(dateHistogramInterval.toString());
+            Rounding.DateTimeUnit dateTimeUnit = DATE_FIELD_UNITS.get(dateHistogramInterval.toString());
             if (dateTimeUnit != null) {
                 tzRoundingBuilder = Rounding.builder(dateTimeUnit);
             } else {
@@ -226,7 +230,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
             // is specified in the builder.
             final DocValueFormat docValueFormat = format() == null ? DocValueFormat.RAW : config.format();
             final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
-            return new CompositeValuesSourceConfig(name, fieldType, vs, docValueFormat, order(), missing());
+            return new CompositeValuesSourceConfig(name, fieldType, vs, docValueFormat, order(), missingBucket());
         } else {
             throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
         }

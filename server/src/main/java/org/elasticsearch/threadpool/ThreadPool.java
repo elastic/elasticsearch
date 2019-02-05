@@ -19,12 +19,12 @@
 
 package org.elasticsearch.threadpool;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,11 +33,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
@@ -61,7 +63,9 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class ThreadPool extends AbstractComponent implements Scheduler, Closeable {
+public class ThreadPool implements Scheduler, Closeable {
+
+    private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
     public static class Names {
         public static final String SAME = "same";
@@ -71,6 +75,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
         public static final String SEARCH = "search";
+        public static final String SEARCH_THROTTLED = "search_throttled";
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
         public static final String REFRESH = "refresh";
@@ -135,6 +140,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         map.put(Names.FORCE_MERGE, ThreadPoolType.FIXED);
         map.put(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING);
+        map.put(Names.SEARCH_THROTTLED, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -160,8 +166,6 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         Setting.timeSetting("thread_pool.estimated_time_interval", TimeValue.timeValueMillis(200), Setting.Property.NodeScope);
 
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
-        super(settings);
-
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
@@ -175,6 +179,8 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
         builders.put(Names.SEARCH, new AutoQueueAdjustingExecutorBuilder(settings,
                         Names.SEARCH, searchThreadPoolSize(availableProcessors), 1000, 1000, 1000, 2000));
+        builders.put(Names.SEARCH_THROTTLED, new AutoQueueAdjustingExecutorBuilder(settings,
+            Names.SEARCH_THROTTLED, 1, 100, 100, 100, 200));
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
         // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
         // the assumption here is that the listeners should be very lightweight on the listeners side
@@ -183,9 +189,11 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5)));
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
-        builders.put(Names.FETCH_SHARD_STARTED, new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
+        builders.put(Names.FETCH_SHARD_STARTED,
+                new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1));
-        builders.put(Names.FETCH_SHARD_STORE, new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
+        builders.put(Names.FETCH_SHARD_STORE,
+                new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
                 throw new IllegalArgumentException("builder with name [" + builder.name() + "] already exists");
@@ -197,7 +205,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         threadContext = new ThreadContext(settings);
 
         final Map<String, ExecutorHolder> executors = new HashMap<>();
-        for (@SuppressWarnings("unchecked") final Map.Entry<String, ExecutorBuilder> entry : builders.entrySet()) {
+        for (final Map.Entry<String, ExecutorBuilder> entry : builders.entrySet()) {
             final ExecutorBuilder.ExecutorSettings executorSettings = entry.getValue().getSettings(settings);
             final ExecutorHolder executorHolder = entry.getValue().build(executorSettings, threadContext);
             if (executors.containsKey(executorHolder.info.getName())) {
@@ -329,20 +337,34 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
      * it to this method.
      *
      * @param delay delay before the task executes
-     * @param executor the name of the thread pool on which to execute this task. SAME means "execute on the scheduler thread" which changes the
-     *        meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the command
-     *        completes.
+     * @param executor the name of the thread pool on which to execute this task. SAME means "execute on the scheduler thread" which changes
+     *        the meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the
+     *        command completes.
      * @param command the command to run
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
      *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
      *         the ScheduledFuture will cannot interact with it.
      * @throws org.elasticsearch.common.util.concurrent.EsRejectedExecutionException if the task cannot be scheduled for execution
      */
+    @Override
     public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
         if (!Names.SAME.equals(executor)) {
             command = new ThreadedRunnable(command, executor(executor));
         }
         return scheduler.schedule(new ThreadPool.LoggingRunnable(command), delay.millis(), TimeUnit.MILLISECONDS);
+    }
+
+    public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
+        try {
+            schedule(delay, executor, command);
+        } catch (EsRejectedExecutionException e) {
+            if (e.isExecutorShutdown()) {
+                logger.debug(new ParameterizedMessage("could not schedule execution of [{}] after [{}] on [{}] as executor is shut down",
+                    command, delay, executor), e);
+            } else {
+                throw e;
+            }
+        }
     }
 
     @Override
@@ -358,13 +380,18 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
                         command, executor), e));
     }
 
+    @Override
     public Runnable preserveContext(Runnable command) {
         return getThreadContext().preserveContext(command);
     }
 
-    public void shutdown() {
+    protected final void stopCachedTimeThread() {
         cachedTimeThread.running = false;
         cachedTimeThread.interrupt();
+    }
+
+    public void shutdown() {
+        stopCachedTimeThread();
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
@@ -374,8 +401,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
     }
 
     public void shutdownNow() {
-        cachedTimeThread.running = false;
-        cachedTimeThread.interrupt();
+        stopCachedTimeThread();
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {

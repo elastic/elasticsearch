@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.ClusterName;
@@ -33,24 +34,38 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.min;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
+import static org.elasticsearch.indices.IndicesServiceTests.createClusterForShardLimitTest;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
@@ -85,6 +100,21 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         return source * x == target;
     }
 
+    public void testNumberOfShards() {
+        {
+            final Version versionCreated = VersionUtils.randomVersionBetween(
+                    random(),
+                    Version.V_6_0_0_alpha1, VersionUtils.getPreviousVersion(Version.V_7_0_0));
+            final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
+            assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(5));
+        }
+        {
+            final Version versionCreated = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
+            final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
+            assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(1));
+        }
+    }
+
     public void testValidateShrinkIndex() {
         int numShards = randomIntBetween(2, 42);
         ClusterState state = createClusterState("source", numShards, randomIntBetween(0, 10),
@@ -95,9 +125,9 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 MetaDataCreateIndexService.validateShrinkIndex(state, "target", Collections.emptySet(), "source", Settings.EMPTY)
             ).getMessage());
 
-        assertEquals("no such index",
+        assertEquals("no such index [no_such_index]",
             expectThrows(IndexNotFoundException.class, () ->
-                MetaDataCreateIndexService.validateShrinkIndex(state, "no such index", Collections.emptySet(), "target", Settings.EMPTY)
+                MetaDataCreateIndexService.validateShrinkIndex(state, "no_such_index", Collections.emptySet(), "target", Settings.EMPTY)
             ).getMessage());
 
         Settings targetSettings = Settings.builder().put("index.number_of_shards", 1).build();
@@ -124,7 +154,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 MetaDataCreateIndexService.validateShrinkIndex(state, "source", Collections.emptySet(), "target", targetSettings)
 
             ).getMessage());
-        assertEquals("the number of source shards [8] must be a must be a multiple of [3]",
+        assertEquals("the number of source shards [8] must be a multiple of [3]",
             expectThrows(IllegalArgumentException.class, () ->
                     MetaDataCreateIndexService.validateShrinkIndex(createClusterState("source", 8, randomIntBetween(0, 10),
                         Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(), "target",
@@ -142,8 +172,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService service = new AllocationService(new AllocationDeciders(
+            Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -171,9 +201,9 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 MetaDataCreateIndexService.validateSplitIndex(state, "target", Collections.emptySet(), "source", targetSettings)
             ).getMessage());
 
-        assertEquals("no such index",
+        assertEquals("no such index [no_such_index]",
             expectThrows(IndexNotFoundException.class, () ->
-                MetaDataCreateIndexService.validateSplitIndex(state, "no such index", Collections.emptySet(), "target", targetSettings)
+                MetaDataCreateIndexService.validateSplitIndex(state, "no_such_index", Collections.emptySet(), "target", targetSettings)
             ).getMessage());
 
         assertEquals("the number of source shards [10] must be less that the number of target shards [5]",
@@ -191,7 +221,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             ).getMessage());
 
 
-        assertEquals("the number of source shards [3] must be a must be a factor of [4]",
+        assertEquals("the number of source shards [3] must be a factor of [4]",
             expectThrows(IllegalArgumentException.class, () ->
                 MetaDataCreateIndexService.validateSplitIndex(createClusterState("source", 3, randomIntBetween(0, 10),
                     Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(), "target",
@@ -212,8 +242,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).put("index.number_of_routing_shards", targetShards).build()))
             .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService service = new AllocationService(new AllocationDeciders(
+            Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -227,47 +257,155 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             Settings.builder().put("index.number_of_shards", targetShards).build());
     }
 
-    public void testResizeIndexSettings() {
-        String indexName = randomAlphaOfLength(10);
-        List<Version> versions = Arrays.asList(VersionUtils.randomVersion(random()), VersionUtils.randomVersion(random()),
-            VersionUtils.randomVersion(random()));
+    public void testPrepareResizeIndexSettings() {
+        final List<Version> versions = Arrays.asList(VersionUtils.randomVersion(random()), VersionUtils.randomVersion(random()));
         versions.sort(Comparator.comparingLong(l -> l.id));
-        Version version = versions.get(0);
-        Version minCompat = versions.get(1);
-        Version upgraded = versions.get(2);
-        // create one that won't fail
-        ClusterState clusterState = ClusterState.builder(createClusterState(indexName, randomIntBetween(2, 10), 0,
-            Settings.builder()
+        final Version version = versions.get(0);
+        final Version upgraded = versions.get(1);
+        final Settings indexSettings =
+                Settings.builder()
+                        .put("index.version.created", version)
+                        .put("index.version.upgraded", upgraded)
+                        .put("index.similarity.default.type", "BM25")
+                        .put("index.analysis.analyzer.default.tokenizer", "keyword")
+                        .put("index.soft_deletes.enabled", "true")
+                        .build();
+        runPrepareResizeIndexSettingsTest(
+                indexSettings,
+                Settings.EMPTY,
+                Collections.emptyList(),
+                randomBoolean(),
+                settings -> {
+                    assertThat("similarity settings must be copied", settings.get("index.similarity.default.type"), equalTo("BM25"));
+                    assertThat(
+                            "analysis settings must be copied",
+                            settings.get("index.analysis.analyzer.default.tokenizer"),
+                            equalTo("keyword"));
+                    assertThat(settings.get("index.routing.allocation.initial_recovery._id"), equalTo("node1"));
+                    assertThat(settings.get("index.allocation.max_retries"), equalTo("1"));
+                    assertThat(settings.getAsVersion("index.version.created", null), equalTo(version));
+                    assertThat(settings.getAsVersion("index.version.upgraded", null), equalTo(upgraded));
+                    assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true"));
+                });
+    }
+
+    public void testPrepareResizeIndexSettingsCopySettings() {
+        final int maxMergeCount = randomIntBetween(1, 16);
+        final int maxThreadCount = randomIntBetween(1, 16);
+        final Setting<String> nonCopyableExistingIndexSetting =
+                Setting.simpleString("index.non_copyable.existing", Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize);
+        final Setting<String> nonCopyableRequestIndexSetting =
+                Setting.simpleString("index.non_copyable.request", Setting.Property.IndexScope, Setting.Property.NotCopyableOnResize);
+        runPrepareResizeIndexSettingsTest(
+                Settings.builder()
+                        .put("index.merge.scheduler.max_merge_count", maxMergeCount)
+                        .put("index.non_copyable.existing", "existing")
+                        .build(),
+                Settings.builder()
+                        .put("index.blocks.write", (String) null)
+                        .put("index.merge.scheduler.max_thread_count", maxThreadCount)
+                        .put("index.non_copyable.request", "request")
+                        .build(),
+                Arrays.asList(nonCopyableExistingIndexSetting, nonCopyableRequestIndexSetting),
+                true,
+                settings -> {
+                    assertNull(settings.getAsBoolean("index.blocks.write", null));
+                    assertThat(settings.get("index.routing.allocation.require._name"), equalTo("node1"));
+                    assertThat(settings.getAsInt("index.merge.scheduler.max_merge_count", null), equalTo(maxMergeCount));
+                    assertThat(settings.getAsInt("index.merge.scheduler.max_thread_count", null), equalTo(maxThreadCount));
+                    assertNull(settings.get("index.non_copyable.existing"));
+                    assertThat(settings.get("index.non_copyable.request"), equalTo("request"));
+                });
+    }
+
+    public void testPrepareResizeIndexSettingsAnalysisSettings() {
+        // analysis settings from the request are not overwritten
+        runPrepareResizeIndexSettingsTest(
+                Settings.EMPTY,
+                Settings.builder().put("index.analysis.analyzer.default.tokenizer", "whitespace").build(),
+                Collections.emptyList(),
+                randomBoolean(),
+                settings ->
+                    assertThat(
+                            "analysis settings are not overwritten",
+                            settings.get("index.analysis.analyzer.default.tokenizer"),
+                            equalTo("whitespace"))
+                );
+
+    }
+
+    public void testPrepareResizeIndexSettingsSimilaritySettings() {
+        // similarity settings from the request are not overwritten
+        runPrepareResizeIndexSettingsTest(
+                Settings.EMPTY,
+                Settings.builder().put("index.similarity.sim.type", "DFR").build(),
+                Collections.emptyList(),
+                randomBoolean(),
+                settings ->
+                        assertThat("similarity settings are not overwritten", settings.get("index.similarity.sim.type"), equalTo("DFR")));
+
+    }
+
+    public void testDoNotOverrideSoftDeletesSettingOnResize() {
+        runPrepareResizeIndexSettingsTest(
+            Settings.builder().put("index.soft_deletes.enabled", "false").build(),
+            Settings.builder().put("index.soft_deletes.enabled", "true").build(),
+            Collections.emptyList(),
+            randomBoolean(),
+            settings -> assertThat(settings.get("index.soft_deletes.enabled"), equalTo("true")));
+    }
+
+    private void runPrepareResizeIndexSettingsTest(
+            final Settings sourceSettings,
+            final Settings requestSettings,
+            final Collection<Setting<?>> additionalIndexScopedSettings,
+            final boolean copySettings,
+            final Consumer<Settings> consumer) {
+        final String indexName = randomAlphaOfLength(10);
+
+        final Settings indexSettings = Settings.builder()
                 .put("index.blocks.write", true)
-                .put("index.similarity.default.type", "BM25")
-                .put("index.version.created", version)
-                .put("index.version.upgraded", upgraded)
-                .put("index.version.minimum_compatible", minCompat.luceneVersion.toString())
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "keyword")
-                .build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
-            .build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+                .put("index.routing.allocation.require._name", "node1")
+                .put(sourceSettings)
+                .build();
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        final ClusterState initialClusterState =
+                ClusterState
+                        .builder(createClusterState(indexName, randomIntBetween(2, 10), 0, indexSettings))
+                        .nodes(DiscoveryNodes.builder().add(newNode("node1")))
+                        .build();
+
+        final AllocationService service = new AllocationService(
+                new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
+                new TestGatewayAllocator(),
+                new BalancedShardsAllocator(Settings.EMPTY),
+                EmptyClusterInfoService.INSTANCE);
+
+        final RoutingTable initialRoutingTable = service.reroute(initialClusterState, "reroute").routingTable();
+        final ClusterState routingTableClusterState = ClusterState.builder(initialClusterState).routingTable(initialRoutingTable).build();
+
         // now we start the shard
-        routingTable = service.applyStartedShards(clusterState,
-            routingTable.index(indexName).shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        final RoutingTable routingTable = service.applyStartedShards(
+                routingTableClusterState,
+                initialRoutingTable.index(indexName).shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
+        final ClusterState clusterState = ClusterState.builder(routingTableClusterState).routingTable(routingTable).build();
 
-        Settings.Builder builder = Settings.builder();
-        builder.put("index.number_of_shards", 1);
-        MetaDataCreateIndexService.prepareResizeIndexSettings(clusterState, Collections.emptySet(), builder,
-            clusterState.metaData().index(indexName).getIndex(), "target", ResizeType.SHRINK);
-        assertEquals("similarity settings must be copied", "BM25", builder.build().get("index.similarity.default.type"));
-        assertEquals("analysis settings must be copied",
-            "keyword", builder.build().get("index.analysis.analyzer.my_analyzer.tokenizer"));
-        assertEquals("node1", builder.build().get("index.routing.allocation.initial_recovery._id"));
-        assertEquals("1", builder.build().get("index.allocation.max_retries"));
-        assertEquals(version, builder.build().getAsVersion("index.version.created", null));
-        assertEquals(upgraded, builder.build().getAsVersion("index.version.upgraded", null));
+        final Settings.Builder indexSettingsBuilder = Settings.builder().put("index.number_of_shards", 1).put(requestSettings);
+        final Set<Setting<?>> settingsSet =
+                Stream.concat(
+                        IndexScopedSettings.BUILT_IN_INDEX_SETTINGS.stream(),
+                        additionalIndexScopedSettings.stream())
+                        .collect(Collectors.toSet());
+        MetaDataCreateIndexService.prepareResizeIndexSettings(
+                clusterState,
+                Collections.emptySet(),
+                indexSettingsBuilder,
+                clusterState.metaData().index(indexName).getIndex(),
+                "target",
+                ResizeType.SHRINK,
+                copySettings,
+                new IndexScopedSettings(Settings.EMPTY, settingsSet));
+        consumer.accept(indexSettingsBuilder.build());
     }
 
     private DiscoveryNode newNode(String nodeId) {
@@ -308,7 +446,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         assertEquals(2048, MetaDataCreateIndexService.calculateNumRoutingShards(1024, Version.CURRENT));
         assertEquals(4096, MetaDataCreateIndexService.calculateNumRoutingShards(2048, Version.CURRENT));
 
-        Version latestV6 = VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1);
+        Version latestV6 = VersionUtils.getPreviousVersion(Version.V_7_0_0);
         int numShards = randomIntBetween(1, 1000);
         assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards, latestV6));
         assertEquals(numShards, MetaDataCreateIndexService.calculateNumRoutingShards(numShards,
@@ -333,4 +471,30 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             assertEquals("ratio is not a power of two", intRatio, Integer.highestOneBit(intRatio));
         }
     }
+
+    public void testShardLimit() {
+        int nodesInCluster = randomIntBetween(2,100);
+        ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
+        Settings clusterSettings = Settings.builder()
+            .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
+            .build();
+        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
+            clusterSettings);
+
+        Settings indexSettings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, counts.getFailingIndexShards())
+            .put(SETTING_NUMBER_OF_REPLICAS, counts.getFailingIndexReplicas())
+            .build();
+
+        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+        Optional<String> errorMessage = MetaDataCreateIndexService.checkShardLimit(indexSettings, state);
+        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
+        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
+        int maxShards = counts.getShardsPerNode() * nodesInCluster;
+        assertTrue(errorMessage.isPresent());
+        assertEquals("this action would add [" + totalShards + "] total shards, but this cluster currently has [" + currentShards
+            + "]/[" + maxShards + "] maximum shards open", errorMessage.get());
+    }
+
 }

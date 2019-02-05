@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -163,7 +162,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         String routing = String.valueOf(randomIntBetween(2, docs));
 
         logger.info("--> counting documents with routing [{}]", routing);
-        long expected = client().prepareSearch().setSize(0).setRouting(routing).get().getHits().getTotalHits();
+        long expected = client().prepareSearch().setSize(0).setRouting(routing).get().getHits().getTotalHits().value;
 
         logger.info("--> delete all documents with routing [{}] with a delete-by-query", routing);
         DeleteByQueryRequestBuilder delete = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery());

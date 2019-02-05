@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -46,7 +45,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
      * Read from a stream.
      */
     public ScoreFunctionBuilder(StreamInput in) throws IOException {
-        weight = in.readOptionalFloat();
+        weight = checkWeight(in.readOptionalFloat());
     }
 
     @Override
@@ -70,8 +69,15 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
      */
     @SuppressWarnings("unchecked")
     public final FB setWeight(float weight) {
-        this.weight = weight;
+        this.weight = checkWeight(weight);
         return (FB) this;
+    }
+
+    private Float checkWeight(Float weight) {
+        if (weight != null && Float.compare(weight, 0) < 0) {
+            throw new IllegalArgumentException("[weight] cannot be negative for a filtering function");
+        }
+        return weight;
     }
 
     /**
@@ -96,7 +102,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    public final String getWriteableName() {
+    public String getWriteableName() {
         return getName();
     }
 
@@ -110,8 +116,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
         }
         @SuppressWarnings("unchecked")
         FB other = (FB) obj;
-        return Objects.equals(weight, other.getWeight()) &&
-                doEquals(other);
+        return Objects.equals(weight, other.getWeight()) && doEquals(other);
     }
 
     /**

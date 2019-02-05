@@ -131,7 +131,7 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
                         5000);
 
         int threads = randomIntBetween(1, 5);
-        int measureWindow = randomIntBetween(10, 100);;
+        int measureWindow = randomIntBetween(10, 100);
         int min = randomIntBetween(4981, 4999);
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
         QueueResizingEsThreadPoolExecutor executor =
@@ -154,6 +154,7 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         context.close();
     }
 
+    @TestLogging("org.elasticsearch.common.util.concurrent:DEBUG")
     public void testAutoQueueSizingWithMax() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         ResizableBlockingQueue<Runnable> queue =
@@ -225,19 +226,13 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         context.close();
     }
 
-    private Function<Runnable, Runnable> randomBetweenLimitsWrapper(final int minNs, final int maxNs) {
-        return (runnable) -> {
-            return new SettableTimedRunnable(randomIntBetween(minNs, maxNs));
-        };
-    }
-
-    private Function<Runnable, Runnable> fastWrapper() {
+    private Function<Runnable, WrappedRunnable> fastWrapper() {
         return (runnable) -> {
             return new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(100));
         };
     }
 
-    private Function<Runnable, Runnable> slowWrapper() {
+    private Function<Runnable, WrappedRunnable> slowWrapper() {
         return (runnable) -> {
             return new SettableTimedRunnable(TimeUnit.MINUTES.toNanos(2));
         };

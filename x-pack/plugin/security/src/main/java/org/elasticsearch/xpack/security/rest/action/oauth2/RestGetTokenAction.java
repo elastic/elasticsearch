@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.Action;
@@ -12,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -26,7 +28,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
-import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
@@ -46,6 +47,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public final class RestGetTokenAction extends SecurityBaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetTokenAction.class));
     static final ConstructingObjectParser<CreateTokenRequest, Void> PARSER = new ConstructingObjectParser<>("token_request",
             a -> new CreateTokenRequest((String) a[0], (String) a[1], (SecureString) a[2], (String) a[3], (String) a[4]));
     static {
@@ -60,19 +62,22 @@ public final class RestGetTokenAction extends SecurityBaseRestHandler {
 
     public RestGetTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
         super(settings, xPackLicenseState);
-        controller.registerHandler(POST, "/_xpack/security/oauth2/token", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, "/_security/oauth2/token", this,
+            POST, "/_xpack/security/oauth2/token", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_get_token_action";
+        return "security_get_token_action";
     }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client)throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final CreateTokenRequest tokenRequest = PARSER.parse(parser, null);
-            final Action<CreateTokenRequest, CreateTokenResponse, CreateTokenRequestBuilder> action =
+            final Action<CreateTokenResponse> action =
                     "refresh_token".equals(tokenRequest.getGrantType()) ? RefreshTokenAction.INSTANCE : CreateTokenAction.INSTANCE;
             return channel -> client.execute(action, tokenRequest,
                     // this doesn't use the RestBuilderListener since we need to override the
@@ -105,6 +110,7 @@ public final class RestGetTokenAction extends SecurityBaseRestHandler {
 
         @Override
         public void onFailure(Exception e) {
+            logger.debug("Failed to create token", e);
             if (e instanceof ActionRequestValidationException) {
                 ActionRequestValidationException validationException = (ActionRequestValidationException) e;
                 final TokenRequestError error;

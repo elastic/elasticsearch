@@ -5,36 +5,69 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.util.List;
 import java.util.Objects;
 
-public class Order extends UnaryExpression {
+import static java.util.Collections.singletonList;
+
+public class Order extends Expression {
 
     public enum OrderDirection {
         ASC, DESC
     }
 
-    private final OrderDirection direction;
+    public enum NullsPosition {
+        FIRST, LAST;
+    }
 
-    public Order(Location location, Expression child, OrderDirection direction) {
-        super(location, child);
+    private final Expression child;
+    private final OrderDirection direction;
+    private final NullsPosition nulls;
+
+    public Order(Source source, Expression child, OrderDirection direction, NullsPosition nulls) {
+        super(source, singletonList(child));
+        this.child = child;
         this.direction = direction;
+        this.nulls = nulls == null ? (direction == OrderDirection.DESC ? NullsPosition.FIRST : NullsPosition.LAST) : nulls;
     }
 
     @Override
     protected NodeInfo<Order> info() {
-        return NodeInfo.create(this, Order::new, child(), direction);
+        return NodeInfo.create(this, Order::new, child, direction, nulls);
     }
 
     @Override
-    protected UnaryExpression replaceChild(Expression newChild) {
-        return new Order(location(), newChild, direction);
+    public Nullability nullable() {
+        return Nullability.FALSE;
+    }
+
+    @Override
+    public DataType dataType() {
+        return child.dataType();
+    }
+
+    @Override
+    public Order replaceChildren(List<Expression> newChildren) {
+        if (newChildren.size() != 1) {
+            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
+        }
+        return new Order(source(), newChildren.get(0), direction, nulls);
+    }
+
+    public Expression child() {
+        return child;
     }
 
     public OrderDirection direction() {
         return direction;
+    }
+
+    public NullsPosition nullsPosition() {
+        return nulls;
     }
 
     @Override
@@ -44,7 +77,7 @@ public class Order extends UnaryExpression {
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), direction);
+        return Objects.hash(child, direction, nulls);
     }
 
     @Override
@@ -59,6 +92,7 @@ public class Order extends UnaryExpression {
 
         Order other = (Order) obj;
         return Objects.equals(direction, other.direction)
-                && Objects.equals(child(), other.child());
+                && Objects.equals(nulls, other.nulls)
+                && Objects.equals(child, other.child);
     }
 }

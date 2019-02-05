@@ -139,17 +139,18 @@ public class HighlightBuilderTests extends ESTestCase {
                 shuffled = shuffleXContent(builder, "fields");
             }
 
-            XContentParser parser = createParser(shuffled);
-            parser.nextToken();
-            HighlightBuilder secondHighlightBuilder;
-            try {
-                secondHighlightBuilder = HighlightBuilder.fromXContent(parser);
-            } catch (RuntimeException e) {
-                throw new RuntimeException("Error parsing " + highlightBuilder, e);
+            try (XContentParser parser = createParser(shuffled)) {
+                parser.nextToken();
+                HighlightBuilder secondHighlightBuilder;
+                try {
+                    secondHighlightBuilder = HighlightBuilder.fromXContent(parser);
+                } catch (RuntimeException e) {
+                    throw new RuntimeException("Error parsing " + highlightBuilder, e);
+                }
+                assertNotSame(highlightBuilder, secondHighlightBuilder);
+                assertEquals(highlightBuilder, secondHighlightBuilder);
+                assertEquals(highlightBuilder.hashCode(), secondHighlightBuilder.hashCode());
             }
-            assertNotSame(highlightBuilder, secondHighlightBuilder);
-            assertEquals(highlightBuilder, secondHighlightBuilder);
-            assertEquals(highlightBuilder.hashCode(), secondHighlightBuilder.hashCode());
         }
     }
 
@@ -158,10 +159,10 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testUnknownArrayNameExpection() throws IOException {
         {
-            IllegalArgumentException e = expectParseThrows(IllegalArgumentException.class, "{\n" +
+            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                     "    \"bad_fieldname\" : [ \"field1\" 1 \"field2\" ]\n" +
                     "}\n");
-            assertEquals("[highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
+            assertEquals("[2:5] [highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
         }
 
         {
@@ -174,13 +175,14 @@ public class HighlightBuilderTests extends ESTestCase {
                     "}\n");
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
-            assertEquals("[highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
+            assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
         }
     }
 
     private <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
-        return expectThrows(exceptionClass, () -> HighlightBuilder.fromXContent(parser));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
+            return expectThrows(exceptionClass, () -> HighlightBuilder.fromXContent(parser));
+        }
     }
 
     /**
@@ -188,10 +190,10 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testUnknownFieldnameExpection() throws IOException {
         {
-            IllegalArgumentException e = expectParseThrows(IllegalArgumentException.class, "{\n" +
+            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                     "    \"bad_fieldname\" : \"value\"\n" +
                     "}\n");
-            assertEquals("[highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
+            assertEquals("[2:5] [highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
         }
 
         {
@@ -204,7 +206,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     "}\n");
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
-            assertEquals("[highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
+            assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
         }
     }
 
@@ -213,10 +215,10 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testUnknownObjectFieldnameExpection() throws IOException {
         {
-            IllegalArgumentException e = expectParseThrows(IllegalArgumentException.class, "{\n" +
+            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                     "    \"bad_fieldname\" :  { \"field\" : \"value\" }\n \n" +
                     "}\n");
-            assertEquals("[highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
+            assertEquals("[2:5] [highlight] unknown field [bad_fieldname], parser not found", e.getMessage());
         }
 
         {
@@ -229,7 +231,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     "}\n");
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
-            assertEquals("[highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
+            assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname], parser not found", e.getCause().getCause().getMessage());
         }
     }
 
@@ -389,30 +391,32 @@ public class HighlightBuilderTests extends ESTestCase {
         String highlightElement = "{\n" +
                 "    \"tags_schema\" : \"styled\"\n" +
                 "}\n";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
 
-        HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
-        assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
+            HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
+            assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
                 highlightBuilder.preTags());
-        assertArrayEquals("setting tags_schema 'styled' should alter post_tags", HighlightBuilder.DEFAULT_STYLED_POST_TAGS,
+            assertArrayEquals("setting tags_schema 'styled' should alter post_tags", HighlightBuilder.DEFAULT_STYLED_POST_TAGS,
                 highlightBuilder.postTags());
 
-        highlightElement = "{\n" +
+            highlightElement = "{\n" +
                 "    \"tags_schema\" : \"default\"\n" +
                 "}\n";
-        parser = createParser(JsonXContent.jsonXContent, highlightElement);
+        }
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
 
-        highlightBuilder = HighlightBuilder.fromXContent(parser);
-        assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlightBuilder.DEFAULT_PRE_TAGS,
+            HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
+            assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlightBuilder.DEFAULT_PRE_TAGS,
                 highlightBuilder.preTags());
-        assertArrayEquals("setting tags_schema 'default' should alter post_tags", HighlightBuilder.DEFAULT_POST_TAGS,
+            assertArrayEquals("setting tags_schema 'default' should alter post_tags", HighlightBuilder.DEFAULT_POST_TAGS,
                 highlightBuilder.postTags());
 
-        XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
+            XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" +
                 "    \"tags_schema\" : \"somthing_else\"\n" +
                 "}\n");
-        assertThat(e.getMessage(), containsString("[highlight] failed to parse field [tags_schema]"));
-        assertEquals("Unknown tag schema [somthing_else]", e.getCause().getMessage());
+            assertThat(e.getMessage(), containsString("[highlight] failed to parse field [tags_schema]"));
+            assertEquals("Unknown tag schema [somthing_else]", e.getCause().getMessage());
+        }
     }
 
     /**
@@ -420,22 +424,22 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testParsingEmptyStructure() throws IOException {
         String highlightElement = "{ }";
-        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
-
-        HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
-        assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
+            HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
+            assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
+        }
 
         highlightElement = "{ \"fields\" : { } }";
-        parser = createParser(JsonXContent.jsonXContent, highlightElement);
-
-        highlightBuilder = HighlightBuilder.fromXContent(parser);
-        assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
+            HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
+            assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
+        }
 
         highlightElement = "{ \"fields\" : { \"foo\" : { } } }";
-        parser = createParser(JsonXContent.jsonXContent, highlightElement);
-
-        highlightBuilder = HighlightBuilder.fromXContent(parser);
-        assertEquals("expected HighlightBuilder with field", new HighlightBuilder().field(new Field("foo")), highlightBuilder);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement)) {
+            HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(parser);
+            assertEquals("expected HighlightBuilder with field", new HighlightBuilder().field(new Field("foo")), highlightBuilder);
+        }
     }
 
     public void testPreTagsWithoutPostTags() throws IOException {
@@ -597,10 +601,10 @@ public class HighlightBuilderTests extends ESTestCase {
                     value = randomAlphaOfLengthBetween(1, 10);
                     break;
                 case 1:
-                    value = new Integer(randomInt(1000));
+                    value = Integer.valueOf(randomInt(1000));
                     break;
                 case 2:
-                    value = new Boolean(randomBoolean());
+                    value = Boolean.valueOf(randomBoolean());
                     break;
                 }
                 options.put(randomAlphaOfLengthBetween(1, 10), value);
@@ -706,9 +710,11 @@ public class HighlightBuilderTests extends ESTestCase {
             switch (randomIntBetween(0, 2)) {
                 // change settings that only exists on top level
                 case 0:
-                    mutation.useExplicitFieldOrder(!original.useExplicitFieldOrder()); break;
+                    mutation.useExplicitFieldOrder(!original.useExplicitFieldOrder());
+                    break;
                 case 1:
-                    mutation.encoder(original.encoder() + randomAlphaOfLength(2)); break;
+                    mutation.encoder(original.encoder() + randomAlphaOfLength(2));
+                    break;
                 case 2:
                     if (randomBoolean()) {
                         // add another field

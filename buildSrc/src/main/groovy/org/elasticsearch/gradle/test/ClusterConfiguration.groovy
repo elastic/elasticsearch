@@ -29,7 +29,7 @@ class ClusterConfiguration {
     private final Project project
 
     @Input
-    String distribution = 'zip'
+    String distribution = 'default'
 
     @Input
     int numNodes = 1
@@ -64,11 +64,33 @@ class ClusterConfiguration {
     boolean debug = false
 
     /**
-     * Configuration of the setting <tt>discovery.zen.minimum_master_nodes</tt> on the nodes.
+     * Configuration of the setting {@code discovery.zen.minimum_master_nodes} on the nodes.
      * In case of more than one node, this defaults to the number of nodes
      */
     @Input
-    Closure<Integer> minimumMasterNodes = { getNumNodes() > 1 ? getNumNodes() : -1 }
+    Closure<Integer> minimumMasterNodes = {
+        if (bwcVersion != null && bwcVersion.before("6.5.0")) {
+            return numNodes > 1 ? numNodes : -1
+        } else {
+            return numNodes > 1 ? numNodes.intdiv(2) + 1 : -1
+        }
+    }
+
+    /**
+     * Whether the initial_master_nodes setting should be automatically derived from the nodes
+     * in the cluster. Only takes effect if all nodes in the cluster understand this setting
+     * and the discovery type is not explicitly set.
+     */
+    @Input
+    boolean autoSetInitialMasterNodes = true
+
+    /**
+     * Whether the file-based discovery provider should be automatically setup based on
+     * the nodes in the cluster. Only takes effect if no other hosts provider is already
+     * configured.
+     */
+    @Input
+    boolean autoSetHostsProvider = true
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
@@ -87,8 +109,9 @@ class ClusterConfiguration {
      * A closure to call which returns the unicast host to connect to for cluster formation.
      *
      * This allows multi node clusters, or a new cluster to connect to an existing cluster.
-     * The closure takes two arguments, the NodeInfo for the first node in the cluster, and
-     * an AntBuilder which may be used to wait on conditions before returning.
+     * The closure takes three arguments, the NodeInfo for the first node in the cluster,
+     * the NodeInfo for the node current being configured, an AntBuilder which may be used
+     * to wait on conditions before returning.
      */
     @Input
     Closure unicastTransportUri = { NodeInfo seedNode, NodeInfo node, AntBuilder ant ->
@@ -101,6 +124,14 @@ class ClusterConfiguration {
             }
         }
         return seedNode.transportUri()
+    }
+
+    /**
+     * A closure to call which returns a manually supplied list of unicast seed hosts.
+     */
+    @Input
+    Closure<List<String>> otherUnicastHostAddresses = {
+        Collections.emptyList()
     }
 
     /**
@@ -136,7 +167,12 @@ class ClusterConfiguration {
         this.project = project
     }
 
-    Map<String, String> systemProperties = new HashMap<>()
+    // **Note** for systemProperties, settings, keystoreFiles etc:
+    // value could be a GString that is evaluated to just a String
+    // there are cases when value depends on task that is not executed yet on configuration stage
+    Map<String, Object> systemProperties = new HashMap<>()
+
+    Map<String, Object> environmentVariables = new HashMap<>()
 
     Map<String, Object> settings = new HashMap<>()
 
@@ -147,7 +183,7 @@ class ClusterConfiguration {
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
 
-    LinkedHashMap<String, Project> plugins = new LinkedHashMap<>()
+    LinkedHashMap<String, Object> plugins = new LinkedHashMap<>()
 
     List<Project> modules = new ArrayList<>()
 
@@ -156,8 +192,13 @@ class ClusterConfiguration {
     List<Object> dependencies = new ArrayList<>()
 
     @Input
-    void systemProperty(String property, String value) {
+    void systemProperty(String property, Object value) {
         systemProperties.put(property, value)
+    }
+
+    @Input
+    void environment(String variable, Object value) {
+        environmentVariables.put(variable, value)
     }
 
     @Input
@@ -183,6 +224,11 @@ class ClusterConfiguration {
     void plugin(String path) {
         Project pluginProject = project.project(path)
         plugins.put(pluginProject.name, pluginProject)
+    }
+
+    @Input
+    void mavenPlugin(String name, String mavenCoords) {
+        plugins.put(name, mavenCoords)
     }
 
     /** Add a module to the cluster. The project must be an esplugin and have a single zip default artifact. */

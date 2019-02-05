@@ -47,7 +47,7 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
                     @Override
                     protected Environment createEnv(Map<String, String> settings) throws UserException {
                         Settings.Builder builder = Settings.builder();
-                        settings.forEach((k,v) -> builder.put(k, v));
+                        settings.forEach((k, v) -> builder.put(k, v));
                         return TestEnvironment.newEnvironment(builder.build());
                     }
 
@@ -75,9 +75,12 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
         String[] runAs = Strings.EMPTY_ARRAY;
         RoleDescriptor rd = new RoleDescriptor("rolename", cluster, ips, runAs);
         assertThat(ESNativeRealmMigrateTool.MigrateUserOrRoles.createRoleJson(rd),
-                equalTo("{\"cluster\":[],\"indices\":[{\"names\":[\"i1\",\"i2\",\"i3\"]," +
-                                "\"privileges\":[\"all\"],\"field_security\":{\"grant\":[\"body\"]}}]," +
-                                "\"run_as\":[],\"metadata\":{},\"type\":\"role\"}"));
+                equalTo("{\"cluster\":[]," +
+                        "\"indices\":[{\"names\":[\"i1\",\"i2\",\"i3\"]," +
+                        "\"privileges\":[\"all\"],\"field_security\":{\"grant\":[\"body\"]}," +
+                        "\"allow_restricted_indices\":false}]," +
+                        "\"applications\":[]," +
+                        "\"run_as\":[],\"metadata\":{},\"type\":\"role\"}"));
     }
 
     public void testTerminalLogger() throws Exception {

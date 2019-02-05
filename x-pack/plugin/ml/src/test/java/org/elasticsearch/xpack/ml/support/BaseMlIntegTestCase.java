@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,19 +25,20 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -46,6 +48,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 import org.junit.Before;
 
@@ -53,7 +57,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -111,7 +114,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return Arrays.asList(TestZenDiscovery.TestPlugin.class, TestSeedPlugin.class);
+        return Arrays.asList(TestZenDiscovery.TestPlugin.class, TestSeedPlugin.class, MockHttpTransport.TestPlugin.class);
     }
 
     @Before
@@ -196,7 +199,6 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         builder.setQueryDelay(TimeValue.timeValueSeconds(1));
         builder.setFrequency(TimeValue.timeValueSeconds(1));
         builder.setIndices(indices);
-        builder.setTypes(Collections.singletonList("type"));
         return builder;
     }
 
@@ -271,8 +273,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static void deleteAllDatafeeds(Logger logger, Client client) throws Exception {
-        MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
-        MlMetadata mlMetadata = metaData.custom(MLMetadataField.TYPE);
+        final MachineLearningClient mlClient = new MachineLearningClient(client);
+        final QueryPage<DatafeedConfig> datafeeds =
+                mlClient.getDatafeeds(new GetDatafeedsAction.Request(GetDatafeedsAction.ALL)).actionGet().getResponse();
         try {
             logger.info("Closing all datafeeds (using _all)");
             StopDatafeedAction.Response stopResponse = client
@@ -293,30 +296,29 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                     "Had to resort to force-stopping datafeed, something went wrong?", e1);
         }
 
-        for (DatafeedConfig datafeed : mlMetadata.getDatafeeds().values()) {
-            String datafeedId = datafeed.getId();
+        for (final DatafeedConfig datafeed : datafeeds.results()) {
             assertBusy(() -> {
                 try {
-                    GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+                    GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeed.getId());
                     GetDatafeedsStatsAction.Response r = client.execute(GetDatafeedsStatsAction.INSTANCE, request).get();
                     assertThat(r.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
                 } catch (InterruptedException | ExecutionException e) {
                     throw new RuntimeException(e);
                 }
             });
-            DeleteDatafeedAction.Response deleteResponse =
-                    client.execute(DeleteDatafeedAction.INSTANCE, new DeleteDatafeedAction.Request(datafeedId)).get();
+            AcknowledgedResponse deleteResponse =
+                    client.execute(DeleteDatafeedAction.INSTANCE, new DeleteDatafeedAction.Request(datafeed.getId())).get();
             assertTrue(deleteResponse.isAcknowledged());
         }
     }
 
     public static void deleteAllJobs(Logger logger, Client client) throws Exception {
-        MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
-        MlMetadata mlMetadata = metaData.custom(MLMetadataField.TYPE);
+        final MachineLearningClient mlClient = new MachineLearningClient(client);
+        final QueryPage<Job> jobs = mlClient.getJobs(new GetJobsAction.Request(MetaData.ALL)).actionGet().getResponse();
 
         try {
             CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
-            closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
+            closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(30L));
             logger.info("Closing jobs using [{}]", MetaData.ALL);
             CloseJobAction.Response response = client.execute(CloseJobAction.INSTANCE, closeRequest)
                     .get();
@@ -325,7 +327,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             try {
                 CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
                 closeRequest.setForce(true);
-                closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
+                closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(30L));
                 CloseJobAction.Response response =
                         client.execute(CloseJobAction.INSTANCE, closeRequest).get();
                 assertTrue(response.isClosed());
@@ -336,15 +338,14 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                     e1);
         }
 
-        for (Map.Entry<String, Job> entry : mlMetadata.getJobs().entrySet()) {
-            String jobId = entry.getKey();
+        for (final Job job : jobs.results()) {
             assertBusy(() -> {
                 GetJobsStatsAction.Response statsResponse =
-                        client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId)).actionGet();
+                        client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
                 assertEquals(JobState.CLOSED, statsResponse.getResponse().results().get(0).getState());
             });
-            DeleteJobAction.Response response =
-                    client.execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId)).get();
+            AcknowledgedResponse response =
+                    client.execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(job.getId())).get();
             assertTrue(response.isAcknowledged());
         }
     }

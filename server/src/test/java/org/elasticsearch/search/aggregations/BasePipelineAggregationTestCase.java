@@ -106,13 +106,14 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         }
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
-        XContentParser parser = createParser(shuffled);
-        String contentString = factoriesBuilder.toString();
-        logger.info("Content string: {}", contentString);
-        PipelineAggregationBuilder newAgg = parse(parser);
-        assertNotSame(newAgg, testAgg);
-        assertEquals(testAgg, newAgg);
-        assertEquals(testAgg.hashCode(), newAgg.hashCode());
+        try (XContentParser parser = createParser(shuffled)) {
+            String contentString = factoriesBuilder.toString();
+            logger.info("Content string: {}", contentString);
+            PipelineAggregationBuilder newAgg = parse(parser);
+            assertNotSame(newAgg, testAgg);
+            assertEquals(testAgg, newAgg);
+            assertEquals(testAgg.hashCode(), newAgg.hashCode());
+        }
     }
 
     protected PipelineAggregationBuilder parse(XContentParser parser) throws IOException {
@@ -120,7 +121,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parser);
         assertThat(parsed.getAggregatorFactories(), hasSize(0));
         assertThat(parsed.getPipelineAggregatorFactories(), hasSize(1));
-        PipelineAggregationBuilder newAgg = parsed.getPipelineAggregatorFactories().get(0);
+        PipelineAggregationBuilder newAgg = parsed.getPipelineAggregatorFactories().iterator().next();
         assertNull(parser.nextToken());
         assertNotNull(newAgg);
         return newAgg;

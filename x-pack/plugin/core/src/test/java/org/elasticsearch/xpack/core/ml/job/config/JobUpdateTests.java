@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -18,17 +19,30 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
+    private boolean useInternalParser = randomBoolean();
+
     @Override
     protected JobUpdate createTestInstance() {
-        JobUpdate.Builder update = new JobUpdate.Builder(randomAlphaOfLength(4));
+        return createRandom(randomAlphaOfLength(4), null);
+    }
+
+    /**
+     * Creates a completely random update when the job is null
+     * or a random update that is is valid for the given job
+     */
+    public JobUpdate createRandom(String jobId, @Nullable Job job) {
+        JobUpdate.Builder update = new JobUpdate.Builder(jobId);
         if (randomBoolean()) {
             int groupsNum = randomIntBetween(0, 10);
             List<String> groups = new ArrayList<>(groupsNum);
@@ -41,30 +55,16 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setDescription(randomAlphaOfLength(20));
         }
         if (randomBoolean()) {
-            int size = randomInt(10);
-            List<JobUpdate.DetectorUpdate> detectorUpdates = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                String detectorDescription = null;
-                if (randomBoolean()) {
-                    detectorDescription = randomAlphaOfLength(12);
-                }
-                List<DetectionRule> detectionRules = null;
-                if (randomBoolean()) {
-                    detectionRules = new ArrayList<>();
-                    Condition condition = new Condition(Operator.GT, "5");
-                    detectionRules.add(new DetectionRule.Builder(
-                            Collections.singletonList(new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, condition, null)))
-                            .setTargetFieldName("foo").build());
-                }
-                detectorUpdates.add(new JobUpdate.DetectorUpdate(i, detectorDescription, detectionRules));
-            }
+            List<JobUpdate.DetectorUpdate> detectorUpdates = job == null ? createRandomDetectorUpdates()
+                    : createRandomDetectorUpdatesForJob(job);
             update.setDetectorUpdates(detectorUpdates);
         }
         if (randomBoolean()) {
             update.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10)));
         }
         if (randomBoolean()) {
-            update.setAnalysisLimits(AnalysisLimitsTests.createRandomized());
+            update.setAnalysisLimits(AnalysisLimits.validateAndSetDefaults(AnalysisLimitsTests.createRandomized(), null,
+                    AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB));
         }
         if (randomBoolean()) {
             update.setRenormalizationWindowDays(randomNonNegativeLong());
@@ -78,23 +78,97 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (randomBoolean()) {
             update.setResultsRetentionDays(randomNonNegativeLong());
         }
-        if (randomBoolean()) {
+        if (randomBoolean() && jobSupportsCategorizationFilters(job)) {
             update.setCategorizationFilters(Arrays.asList(generateRandomStringArray(10, 10, false)));
         }
         if (randomBoolean()) {
             update.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
-        if (randomBoolean()) {
+        if (useInternalParser && randomBoolean()) {
             update.setModelSnapshotId(randomAlphaOfLength(10));
         }
-        if (randomBoolean()) {
+        if (useInternalParser && randomBoolean()) {
             update.setModelSnapshotMinVersion(Version.CURRENT);
         }
-        if (randomBoolean()) {
-            update.setEstablishedModelMemory(randomNonNegativeLong());
+        if (useInternalParser && randomBoolean()) {
+            update.setJobVersion(randomFrom(Version.CURRENT, Version.V_6_2_0, Version.V_6_1_0));
+        }
+        if (useInternalParser) {
+            update.setClearFinishTime(randomBoolean());
         }
 
         return update.build();
+    }
+
+    private static boolean jobSupportsCategorizationFilters(@Nullable Job job) {
+        if (job == null) {
+            return true;
+        }
+        if (job.getAnalysisConfig().getCategorizationFieldName() == null) {
+            return false;
+        }
+        if (job.getAnalysisConfig().getCategorizationAnalyzerConfig() != null) {
+            return false;
+        }
+        return true;
+    }
+
+    private static List<JobUpdate.DetectorUpdate> createRandomDetectorUpdates() {
+        int size = randomInt(10);
+        List<JobUpdate.DetectorUpdate> detectorUpdates = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            String detectorDescription = null;
+            if (randomBoolean()) {
+                detectorDescription = randomAlphaOfLength(12);
+            }
+            List<DetectionRule> detectionRules = null;
+            if (randomBoolean()) {
+                detectionRules = new ArrayList<>();
+                detectionRules.add(new DetectionRule.Builder(
+                        Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5))).build());
+            }
+            detectorUpdates.add(new JobUpdate.DetectorUpdate(i, detectorDescription, detectionRules));
+        }
+        return detectorUpdates;
+    }
+
+    private static List<JobUpdate.DetectorUpdate> createRandomDetectorUpdatesForJob(Job job) {
+        AnalysisConfig analysisConfig = job.getAnalysisConfig();
+        int size = randomInt(analysisConfig.getDetectors().size());
+        List<JobUpdate.DetectorUpdate> detectorUpdates = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            String detectorDescription = null;
+            if (randomBoolean()) {
+                detectorDescription = randomAlphaOfLength(12);
+            }
+            int rulesSize = randomBoolean() ? randomIntBetween(1, 5) : 0;
+            List<DetectionRule> detectionRules = rulesSize == 0 ? null : new ArrayList<>(rulesSize);
+            for (int ruleIndex = 0; ruleIndex < rulesSize; ++ruleIndex) {
+                int detectorIndex = randomInt(analysisConfig.getDetectors().size() - 1);
+                Detector detector = analysisConfig.getDetectors().get(detectorIndex);
+                List<String> analysisFields = detector.extractAnalysisFields();
+                if (randomBoolean() || analysisFields.isEmpty()) {
+                    detectionRules.add(new DetectionRule.Builder(Collections.singletonList(new RuleCondition(
+                            randomFrom(RuleCondition.AppliesTo.values()), randomFrom(Operator.values()), randomDouble()))).build());
+                } else {
+                    RuleScope.Builder ruleScope = RuleScope.builder();
+                    int scopeSize = randomIntBetween(1, analysisFields.size());
+                    Set<String> analysisFieldsPickPot = new HashSet<>(analysisFields);
+                    for (int scopeIndex = 0; scopeIndex < scopeSize; ++scopeIndex) {
+                        String scopedField = randomFrom(analysisFieldsPickPot);
+                        analysisFieldsPickPot.remove(scopedField);
+                        if (randomBoolean()) {
+                            ruleScope.include(scopedField, MlFilterTests.randomValidFilterId());
+                        } else {
+                            ruleScope.exclude(scopedField, MlFilterTests.randomValidFilterId());
+                        }
+                    }
+                    detectionRules.add(new DetectionRule.Builder(ruleScope).build());
+                }
+            }
+            detectorUpdates.add(new JobUpdate.DetectorUpdate(i, detectorDescription, detectionRules));
+        }
+        return detectorUpdates;
     }
 
     @Override
@@ -104,19 +178,21 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
     @Override
     protected JobUpdate doParseInstance(XContentParser parser) {
-        return JobUpdate.PARSER.apply(parser, null).build();
+        if (useInternalParser) {
+            return JobUpdate.INTERNAL_PARSER.apply(parser, null).build();
+        } else {
+            return JobUpdate.EXTERNAL_PARSER.apply(parser, null).build();
+        }
     }
 
     public void testMergeWithJob() {
         List<JobUpdate.DetectorUpdate> detectorUpdates = new ArrayList<>();
         List<DetectionRule> detectionRules1 = Collections.singletonList(new DetectionRule.Builder(
-                Collections.singletonList(new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, new Condition(Operator.GT, "5")
-                        , null)))
-                .setTargetFieldName("mlcategory").build());
+                Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5)))
+                .build());
         detectorUpdates.add(new JobUpdate.DetectorUpdate(0, "description-1", detectionRules1));
         List<DetectionRule> detectionRules2 = Collections.singletonList(new DetectionRule.Builder(Collections.singletonList(
-                new RuleCondition(RuleConditionType.NUMERICAL_ACTUAL, null, null, new Condition(Operator.GT, "5"), null)))
-                .setTargetFieldName("host").build());
+                new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5))).build());
         detectorUpdates.add(new JobUpdate.DetectorUpdate(1, "description-2", detectionRules2));
 
         ModelPlotConfig modelPlotConfig = new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10));
@@ -137,6 +213,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         updateBuilder.setCategorizationFilters(categorizationFilters);
         updateBuilder.setCustomSettings(customSettings);
         updateBuilder.setModelSnapshotId(randomAlphaOfLength(10));
+        updateBuilder.setJobVersion(Version.V_6_1_0);
         JobUpdate update = updateBuilder.build();
 
         Job.Builder jobBuilder = new Job.Builder("foo");
@@ -150,8 +227,9 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         jobBuilder.setAnalysisConfig(ac);
         jobBuilder.setDataDescription(new DataDescription.Builder());
         jobBuilder.setCreateTime(new Date());
+        Job job = jobBuilder.build();
 
-        Job updatedJob = update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(0L));
+        Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
 
         assertEquals(update.getGroups(), updatedJob.getGroups());
         assertEquals(update.getDescription(), updatedJob.getDescription());
@@ -164,13 +242,28 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertEquals(update.getCategorizationFilters(), updatedJob.getAnalysisConfig().getCategorizationFilters());
         assertEquals(update.getCustomSettings(), updatedJob.getCustomSettings());
         assertEquals(update.getModelSnapshotId(), updatedJob.getModelSnapshotId());
+        assertEquals(update.getJobVersion(), updatedJob.getJobVersion());
         for (JobUpdate.DetectorUpdate detectorUpdate : update.getDetectorUpdates()) {
-            assertNotNull(updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
-            assertEquals(detectorUpdate.getDescription(),
-                    updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
-            assertNotNull(updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
-            assertEquals(detectorUpdate.getRules(),
-                    updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getRules());
+            Detector updatedDetector = updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex());
+            assertNotNull(updatedDetector);
+            assertEquals(detectorUpdate.getDescription(), updatedDetector.getDetectorDescription());
+            assertEquals(detectorUpdate.getRules(), updatedDetector.getRules());
+        }
+
+        assertThat(job, not(equalTo(updatedJob)));
+    }
+
+    public void testMergeWithJob_GivenRandomUpdates_AssertImmutability() {
+        for (int i = 0; i < 100; ++i) {
+            Job job = JobTests.createRandomizedJob();
+            JobUpdate update = createRandom(job.getId(), job);
+            while (update.isNoop(job)) {
+                update = createRandom(job.getId(), job);
+            }
+
+            Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
+
+            assertThat(job, not(equalTo(updatedJob)));
         }
     }
 
@@ -180,6 +273,8 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         update = new JobUpdate.Builder("foo").setModelPlotConfig(new ModelPlotConfig(true, "ff")).build();
         assertTrue(update.isAutodetectProcessUpdate());
         update = new JobUpdate.Builder("foo").setDetectorUpdates(Collections.singletonList(mock(JobUpdate.DetectorUpdate.class))).build();
+        assertTrue(update.isAutodetectProcessUpdate());
+        update = new JobUpdate.Builder("foo").setGroups(Arrays.asList("bar")).build();
         assertTrue(update.isAutodetectProcessUpdate());
     }
 

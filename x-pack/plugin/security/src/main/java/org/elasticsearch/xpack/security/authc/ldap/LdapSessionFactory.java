@@ -8,18 +8,17 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
@@ -46,15 +45,14 @@ public class LdapSessionFactory extends SessionFactory {
 
     public LdapSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
         super(config, sslService, threadPool);
-        Settings settings = config.settings();
-        userDnTemplates = LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+        userDnTemplates = config.getSetting(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING).toArray(Strings.EMPTY_ARRAY);
         if (userDnTemplates.length == 0) {
             throw new IllegalArgumentException("missing required LDAP setting ["
                     + RealmSettings.getFullSettingKey(config, LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING) + "]");
         }
         logger.info("Realm [{}] is in user-dn-template mode: [{}]", config.name(), userDnTemplates);
-        groupResolver = groupResolver(settings);
-        metaDataResolver = new LdapMetaDataResolver(settings, ignoreReferralErrors);
+        groupResolver = groupResolver(config);
+        metaDataResolver = new LdapMetaDataResolver(config, ignoreReferralErrors);
     }
 
     /**
@@ -115,7 +113,7 @@ public class LdapSessionFactory extends SessionFactory {
      * Securely escapes the username and inserts it into the template using MessageFormat
      *
      * @param username username to insert into the DN template.  Any commas, equals or plus will be escaped.
-     * @return DN (distinquished name) build from the template.
+     * @return DN (distinguished name) build from the template.
      */
     String buildDnFromTemplate(String username, String template) {
         //this value must be escaped to avoid manipulation of the template DN.
@@ -123,11 +121,11 @@ public class LdapSessionFactory extends SessionFactory {
         return new MessageFormat(template, Locale.ROOT).format(new Object[] { escapedUsername }, new StringBuffer(), null).toString();
     }
 
-    static GroupsResolver groupResolver(Settings settings) {
-        if (SearchGroupsResolverSettings.BASE_DN.exists(settings)) {
-            return new SearchGroupsResolver(settings);
+    static GroupsResolver groupResolver(RealmConfig realmConfig) {
+        if (realmConfig.hasSetting(SearchGroupsResolverSettings.BASE_DN)) {
+            return new SearchGroupsResolver(realmConfig);
         }
-        return new UserAttributeGroupsResolver(settings);
+        return new UserAttributeGroupsResolver(realmConfig);
     }
 
 }

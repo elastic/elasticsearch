@@ -30,9 +30,11 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
     public void testScrollIsPerUser() throws Exception {
         assertSecurityIndexActive();
         securityClient().preparePutRole("scrollable")
-                .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null)
+                .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null, randomBoolean())
                 .get();
-        securityClient().preparePutUser("other", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), "scrollable").get();
+        securityClient().preparePutUser("other", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), getFastStoredHashAlgoForTests(),
+            "scrollable")
+            .get();
 
         final int numDocs = randomIntBetween(4, 16);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
@@ -46,12 +48,12 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
                 .setQuery(matchAllQuery())
                 .setSize(1)
                 .get();
-        assertEquals(numDocs, response.getHits().getTotalHits());
+        assertEquals(numDocs, response.getHits().getTotalHits().value);
         assertEquals(1, response.getHits().getHits().length);
 
         if (randomBoolean()) {
             response = client().prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueSeconds(5L)).get();
-            assertEquals(numDocs, response.getHits().getTotalHits());
+            assertEquals(numDocs, response.getHits().getTotalHits().value);
             assertEquals(1, response.getHits().getHits().length);
         }
 

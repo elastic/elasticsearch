@@ -14,9 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
-import org.elasticsearch.http.netty4.Netty4HttpMockUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -26,7 +24,6 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
 
 import javax.net.ssl.SSLEngine;
-
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Locale;
@@ -42,17 +39,21 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
 
     private SSLService sslService;
     private Environment env;
-
+    private Path testnodeCert;
+    private Path testnodeKey;
     @Before
-    public void createSSLService() throws Exception {
-        Path testNodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+    public void createSSLService() {
+        testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
+
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path", testNodeStore)
-                .put("path.home", createTempDir())
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.security.http.ssl.key", testnodeKey)
+            .put("xpack.security.http.ssl.certificate", testnodeCert)
+            .put("path.home", createTempDir())
+            .setSecureSettings(secureSettings)
+            .build();
         env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(settings, env);
     }
@@ -65,7 +66,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
                 mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
@@ -82,7 +82,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
                 mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
@@ -99,7 +98,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
                 mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(true));
@@ -116,7 +114,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
                 mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
@@ -131,7 +128,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
                 new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
                 mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelHandler handler = transport.configureServerChannelHandler();
         EmbeddedChannel ch = new EmbeddedChannel(handler);
         SSLEngine defaultEngine = ch.pipeline().get(SslHandler.class).engine();
@@ -144,7 +140,6 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
         transport = new SecurityNetty4HttpServerTransport(settings, new NetworkService(Collections.emptyList()),
                 mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        Netty4HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         handler = transport.configureServerChannelHandler();
         ch = new EmbeddedChannel(handler);
         SSLEngine customEngine = ch.pipeline().get(SslHandler.class).engine();
@@ -152,44 +147,12 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
         assertThat(customEngine.getEnabledProtocols(), not(equalTo(defaultEngine.getEnabledProtocols())));
     }
 
-    public void testDisablesCompressionByDefaultForSsl() throws Exception {
-        Settings settings = Settings.builder()
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
-
-        Settings.Builder pluginSettingsBuilder = Settings.builder();
-        SecurityNetty4HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
-        assertThat(HttpTransportSettings.SETTING_HTTP_COMPRESSION.get(pluginSettingsBuilder.build()), is(false));
-    }
-
-    public void testLeavesCompressionOnIfNotSsl() throws Exception {
-        Settings settings = Settings.builder()
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), false).build();
-        Settings.Builder pluginSettingsBuilder = Settings.builder();
-        SecurityNetty4HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
-        assertThat(pluginSettingsBuilder.build().isEmpty(), is(true));
-    }
-
-    public void testDoesNotChangeExplicitlySetCompression() throws Exception {
-        Settings settings = Settings.builder()
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put(HttpTransportSettings.SETTING_HTTP_COMPRESSION.getKey(), true)
-                .build();
-
-        Settings.Builder pluginSettingsBuilder = Settings.builder();
-        SecurityNetty4HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
-        assertThat(pluginSettingsBuilder.build().isEmpty(), is(true));
-    }
-
     public void testThatExceptionIsThrownWhenConfiguredWithoutSslKey() throws Exception {
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.truststore.path",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
-                .setSecureSettings(secureSettings)
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put("path.home", createTempDir())
-                .build();
+            .put("xpack.security.http.ssl.certificate_authorities", testnodeCert)
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
         env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(settings, env);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -200,13 +163,13 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
 
     public void testNoExceptionWhenConfiguredWithoutSslKeySSLDisabled() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.truststore.path",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
-                .setSecureSettings(secureSettings)
-                .put("path.home", createTempDir())
-                .build();
+            .put("xpack.security.http.ssl.key", testnodeKey)
+            .put("xpack.security.http.ssl.certificate", testnodeCert)
+            .setSecureSettings(secureSettings)
+            .put("path.home", createTempDir())
+            .build();
         env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(settings, env);
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,

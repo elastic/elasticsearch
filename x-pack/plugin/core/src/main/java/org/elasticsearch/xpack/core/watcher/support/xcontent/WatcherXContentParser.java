@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -253,18 +251,6 @@ public class WatcherXContentParser implements XContentParser {
     @Override
     public boolean booleanValue() throws IOException {
         return parser.booleanValue();
-    }
-
-    @Override
-    @SuppressWarnings("deprecated")
-    public boolean isBooleanValueLenient() throws IOException {
-        return parser.isBooleanValueLenient();
-    }
-
-    @Override
-    @SuppressWarnings("deprecated")
-    public boolean booleanValueLenient() throws IOException {
-        return parser.booleanValueLenient();
     }
 
     @Override

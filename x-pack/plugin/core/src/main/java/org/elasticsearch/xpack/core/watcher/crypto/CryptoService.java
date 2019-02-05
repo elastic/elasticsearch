@@ -5,15 +5,16 @@
  */
 package org.elasticsearch.xpack.core.watcher.crypto;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
+import org.elasticsearch.common.CharArrays;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -34,7 +35,7 @@ import java.util.List;
 /**
  * Service that provides cryptographic methods based on a shared system key
  */
-public class CryptoService extends AbstractComponent {
+public class CryptoService {
 
     public static final String KEY_ALGO = "HmacSHA512";
     public static final int KEY_SIZE = 1024;
@@ -58,6 +59,7 @@ public class CryptoService extends AbstractComponent {
             Setting.intSetting(SecurityField.setting("encryption_key.length"), DEFAULT_KEY_LENGTH, Property.NodeScope);
     private static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING =
             new Setting<>(SecurityField.setting("encryption_key.algorithm"), DEFAULT_KEY_ALGORITH, s -> s, Property.NodeScope);
+    private static final Logger logger = LogManager.getLogger(CryptoService.class);
 
     private final SecureRandom secureRandom = new SecureRandom();
     private final String encryptionAlgorithm;
@@ -68,7 +70,6 @@ public class CryptoService extends AbstractComponent {
     private final SecretKey encryptionKey;
 
     public CryptoService(Settings settings) throws IOException {
-        super(settings);
         this.encryptionAlgorithm = ENCRYPTION_ALGO_SETTING.get(settings);
         final int keyLength = ENCRYPTION_KEY_LENGTH_SETTING.get(settings);
         this.ivLength = keyLength / 8;

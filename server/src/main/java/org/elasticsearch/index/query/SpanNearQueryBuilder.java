@@ -30,12 +30,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
 /**
  * Matches spans which are near one another. One can specify slop, the maximum number
@@ -165,9 +168,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         QueryBuilder query = parseInnerQueryBuilder(parser);
                         if (query instanceof SpanQueryBuilder == false) {
-                            throw new ParsingException(parser.getTokenLocation(), "spanNear [clauses] must be of type span query");
+                            throw new ParsingException(parser.getTokenLocation(), "span_near [clauses] must be of type span query");
                         }
-                        clauses.add((SpanQueryBuilder) query);
+                        final SpanQueryBuilder clause = (SpanQueryBuilder) query;
+                        checkNoBoost(NAME, currentFieldName, parser, clause);
+                        clauses.add(clause);
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
@@ -218,7 +223,8 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         }
         String spanNearFieldName = null;
         if (isGap) {
-            spanNearFieldName = ((SpanGapQueryBuilder) queryBuilder).fieldName();
+            String fieldName = ((SpanGapQueryBuilder) queryBuilder).fieldName();
+            spanNearFieldName = queryFieldName(context, fieldName);
         } else {
             spanNearFieldName = ((SpanQuery) query).getField();
         }
@@ -241,7 +247,9 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             isGap = queryBuilder instanceof SpanGapQueryBuilder;
             if (isGap) {
                 String fieldName = ((SpanGapQueryBuilder) queryBuilder).fieldName();
-                if (!spanNearFieldName.equals(fieldName)) {
+                String spanGapFieldName = queryFieldName(context, fieldName);
+
+                if (!spanNearFieldName.equals(spanGapFieldName)) {
                     throw new IllegalArgumentException("[span_near] clauses must have same field");
                 }
                 int gap = ((SpanGapQueryBuilder) queryBuilder).width();
@@ -253,6 +261,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             }
         }
         return builder.build();
+    }
+
+    private String queryFieldName(QueryShardContext context, String fieldName) {
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        return fieldType != null ? fieldType.name() : fieldName;
     }
 
     @Override
@@ -273,11 +286,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     /**
-     * SpanGapQueryBuilder enables gaps in a SpanNearQuery. 
+     * SpanGapQueryBuilder enables gaps in a SpanNearQuery.
      * Since, SpanGapQuery is private to SpanNearQuery, SpanGapQueryBuilder cannot
      * be used to generate a Query (SpanGapQuery) like another QueryBuilder.
-     * Instead, it just identifies a span_gap clause so that SpanNearQuery.addGap(int) 
-     * can be invoked for it. 
+     * Instead, it just identifies a span_gap clause so that SpanNearQuery.addGap(int)
+     * can be invoked for it.
      * This QueryBuilder is only applicable as a clause in SpanGapQueryBuilder but
      * yet to enforce this restriction.
      */
@@ -286,9 +299,9 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
         /** Name of field to match against. */
         private final String fieldName;
-    
+
         /** Width of the gap introduced. */
-        private final int width; 
+        private final int width;
 
         /**
          * Constructs a new SpanGapQueryBuilder term query.
@@ -301,7 +314,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                 throw new IllegalArgumentException("[span_gap] field name is null or empty");
             }
             //lucene has not coded any restriction on value of width.
-            //to-do : find if theoretically it makes sense to apply restrictions. 
+            //to-do : find if theoretically it makes sense to apply restrictions.
             this.fieldName = fieldName;
             this.width = width;
         }
@@ -330,11 +343,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
         @Override
         public Query toQuery(QueryShardContext context) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Query toFilter(QueryShardContext context) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -396,7 +404,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                     fieldName = currentFieldName;
                 } else if (token.isValue()) {
                     width = parser.intValue();
-                } 
+                }
             }
             SpanGapQueryBuilder result = new SpanGapQueryBuilder(fieldName, width);
             return result;
@@ -420,7 +428,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             return Objects.hash(getClass(), fieldName, width);
         }
 
-        
+
         @Override
         public final String toString() {
             return Strings.toString(this, true, true);

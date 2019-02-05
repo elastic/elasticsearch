@@ -21,10 +21,10 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -35,12 +35,11 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.TransportStartDatafeedActionTests;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction.DatafeedTask;
+import org.elasticsearch.xpack.ml.action.TransportStartDatafeedActionTests;
 import org.elasticsearch.xpack.ml.job.persistence.MockClientBuilder;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -50,6 +49,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
@@ -76,16 +76,14 @@ public class DatafeedManagerTests extends ESTestCase {
     private long currentTime = 120000;
     private Auditor auditor;
     private ArgumentCaptor<ClusterStateListener> capturedClusterStateListener = ArgumentCaptor.forClass(ClusterStateListener.class);
+    private AtomicBoolean hasOpenAutodetectCommunicator;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setUpTests() {
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        Job job = createDatafeedJob().build(new Date());
-        mlMetadata.putJob(job, false);
-        DatafeedConfig datafeed = createDatafeedConfig("datafeed_id", job.getId()).build();
-        mlMetadata.putDatafeed(datafeed, null);
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        Job.Builder job = createDatafeedJob().setCreateTime(new Date());
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         DiscoveryNodes nodes = DiscoveryNodes.builder()
@@ -93,8 +91,7 @@ public class DatafeedManagerTests extends ESTestCase {
                         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
                 .build();
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("cluster_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlMetadata.build())
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, tasks))
+                .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasks))
                 .nodes(nodes);
 
         clusterService = mock(ClusterService.class);
@@ -125,15 +122,21 @@ public class DatafeedManagerTests extends ESTestCase {
         datafeedJob = mock(DatafeedJob.class);
         when(datafeedJob.isRunning()).thenReturn(true);
         when(datafeedJob.stop()).thenReturn(true);
+        when(datafeedJob.getJobId()).thenReturn(job.getId());
         DatafeedJobBuilder datafeedJobBuilder = mock(DatafeedJobBuilder.class);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(datafeedJob);
             return null;
-        }).when(datafeedJobBuilder).build(any(), any(), any());
+        }).when(datafeedJobBuilder).build(any(), any());
 
-        datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder, () -> currentTime, auditor);
+        hasOpenAutodetectCommunicator = new AtomicBoolean(true);
+        AutodetectProcessManager autodetectProcessManager = mock(AutodetectProcessManager.class);
+        doAnswer(invocation -> hasOpenAutodetectCommunicator.get()).when(autodetectProcessManager).hasOpenAutodetectCommunicator(anyLong());
+
+        datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder, () -> currentTime, auditor,
+            autodetectProcessManager);
 
         verify(clusterService).addListener(capturedClusterStateListener.capture());
     }
@@ -227,7 +230,7 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(datafeedManager.isRunning(task.getAllocationId()), is(true));
     }
 
-    public void testStart_GivenNewlyCreatedJobLoopBackAndRealtime() throws Exception {
+    public void testStart_GivenNewlyCreatedJobLookBackAndRealtime() throws Exception {
         when(datafeedJob.runLookBack(anyLong(), anyLong())).thenReturn(1L);
         when(datafeedJob.runRealtime()).thenReturn(1L);
 
@@ -251,11 +254,10 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     public void testDatafeedTaskWaitsUntilJobIsOpened() {
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENING, tasksBuilder);
         ClusterState.Builder cs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
-                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
         when(clusterService.state()).thenReturn(cs.build());
 
         Consumer<Exception> handler = mockConsumer();
@@ -265,37 +267,108 @@ public class DatafeedManagerTests extends ESTestCase {
         // Verify datafeed has not started running yet as job is still opening
         verify(threadPool, never()).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
 
-        tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        tasksBuilder = PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENING, tasksBuilder);
         addJobTask("another_job", "node_id", JobState.OPENED, tasksBuilder);
         ClusterState.Builder anotherJobCs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
-                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
 
         capturedClusterStateListener.getValue().clusterChanged(new ClusterChangedEvent("_source", anotherJobCs.build(), cs.build()));
 
         // Still no run
         verify(threadPool, never()).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
 
-        tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        tasksBuilder = PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENED, tasksBuilder);
         ClusterState.Builder jobOpenedCs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
-                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
 
         capturedClusterStateListener.getValue().clusterChanged(
                 new ClusterChangedEvent("_source", jobOpenedCs.build(), anotherJobCs.build()));
+
+        // Now it should run as the job state changed to OPENED
+        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
+    }
+
+    public void testDatafeedTaskWaitsUntilAutodetectCommunicatorIsOpen() {
+
+        hasOpenAutodetectCommunicator.set(false);
+
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        addJobTask("job_id", "node_id", JobState.OPENED, tasksBuilder);
+        ClusterState.Builder cs = ClusterState.builder(clusterService.state())
+            .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+        when(clusterService.state()).thenReturn(cs.build());
+
+        Consumer<Exception> handler = mockConsumer();
+        DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
+        datafeedManager.run(task, handler);
+
+        // Verify datafeed has not started running yet as job doesn't have an open autodetect communicator
+        verify(threadPool, never()).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
+
+        tasksBuilder = PersistentTasksCustomMetaData.builder();
+        addJobTask("job_id", "node_id", JobState.OPENED, tasksBuilder);
+        addJobTask("another_job", "node_id", JobState.OPENED, tasksBuilder);
+        ClusterState.Builder anotherJobCs = ClusterState.builder(clusterService.state())
+            .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+
+        capturedClusterStateListener.getValue().clusterChanged(new ClusterChangedEvent("_source", anotherJobCs.build(), cs.build()));
+
+        // Still no run
+        verify(threadPool, never()).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
+
+        hasOpenAutodetectCommunicator.set(true);
+
+        capturedClusterStateListener.getValue().clusterChanged(
+            new ClusterChangedEvent("_source", cs.build(), anotherJobCs.build()));
+
+        // Now it should run as the autodetect communicator is open
+        verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
+    }
+
+    public void testDatafeedTaskWaitsUntilJobIsNotStale() {
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
+        addJobTask("job_id", "node_id", JobState.OPENED, tasksBuilder, true);
+        ClusterState.Builder cs = ClusterState.builder(clusterService.state())
+            .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+        when(clusterService.state()).thenReturn(cs.build());
+
+        Consumer<Exception> handler = mockConsumer();
+        DatafeedTask task = createDatafeedTask("datafeed_id", 0L, 60000L);
+        datafeedManager.run(task, handler);
+
+        // Verify datafeed has not started running yet as job is stale (i.e. even though opened it is part way through relocating)
+        verify(threadPool, never()).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
+
+        tasksBuilder = PersistentTasksCustomMetaData.builder();
+        addJobTask("job_id", "node_id", JobState.OPENED, tasksBuilder, true);
+        addJobTask("another_job", "node_id", JobState.OPENED, tasksBuilder);
+        ClusterState.Builder anotherJobCs = ClusterState.builder(clusterService.state())
+            .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+
+        capturedClusterStateListener.getValue().clusterChanged(new ClusterChangedEvent("_source", anotherJobCs.build(), cs.build()));
+
+        // Still no run
+        verify(threadPool, never()).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
+
+        tasksBuilder = PersistentTasksCustomMetaData.builder();
+        addJobTask("job_id", "node_id", JobState.OPENED, tasksBuilder);
+        ClusterState.Builder jobOpenedCs = ClusterState.builder(clusterService.state())
+            .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+
+        capturedClusterStateListener.getValue().clusterChanged(
+            new ClusterChangedEvent("_source", jobOpenedCs.build(), anotherJobCs.build()));
 
         // Now it should run as the job state chanded to OPENED
         verify(threadPool, times(1)).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
     }
 
     public void testDatafeedTaskStopsBecauseJobFailedWhileOpening() {
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENING, tasksBuilder);
         ClusterState.Builder cs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
-                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
         when(clusterService.state()).thenReturn(cs.build());
 
         Consumer<Exception> handler = mockConsumer();
@@ -305,11 +378,10 @@ public class DatafeedManagerTests extends ESTestCase {
         // Verify datafeed has not started running yet as job is still opening
         verify(threadPool, never()).executor(MachineLearning.DATAFEED_THREAD_POOL_NAME);
 
-        tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        tasksBuilder = PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.FAILED, tasksBuilder);
         ClusterState.Builder updatedCs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
-                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
 
         capturedClusterStateListener.getValue().clusterChanged(new ClusterChangedEvent("_source", updatedCs.build(), cs.build()));
 
@@ -319,11 +391,10 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     public void testDatafeedGetsStoppedWhileWaitingForJobToOpen() {
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENING, tasksBuilder);
         ClusterState.Builder cs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
-                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
         when(clusterService.state()).thenReturn(cs.build());
 
         Consumer<Exception> handler = mockConsumer();
@@ -337,11 +408,10 @@ public class DatafeedManagerTests extends ESTestCase {
         datafeedManager.stopDatafeed(task, "test", StopDatafeedAction.DEFAULT_TIMEOUT);
 
         // Update job state to opened
-        tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        tasksBuilder = PersistentTasksCustomMetaData.builder();
         addJobTask("job_id", "node_id", JobState.OPENED, tasksBuilder);
         ClusterState.Builder updatedCs = ClusterState.builder(clusterService.state())
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, clusterService.state().getMetaData()
-                        .custom(MLMetadataField.TYPE)).putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
+                .metaData(new MetaData.Builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()));
 
         capturedClusterStateListener.getValue().clusterChanged(new ClusterChangedEvent("_source", cs.build(), updatedCs.build()));
 
@@ -352,7 +422,6 @@ public class DatafeedManagerTests extends ESTestCase {
     public static DatafeedConfig.Builder createDatafeedConfig(String datafeedId, String jobId) {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, jobId);
         datafeedConfig.setIndices(Collections.singletonList("myIndex"));
-        datafeedConfig.setTypes(Collections.singletonList("myType"));
         return datafeedConfig;
     }
 
@@ -378,7 +447,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(mock(PersistentTask.class));
             return null;
-        }).when(task).updatePersistentStatus(any(), any());
+        }).when(task).updatePersistentTaskState(any(), any());
         return task;
     }
 
@@ -394,7 +463,7 @@ public class DatafeedManagerTests extends ESTestCase {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
             listener.onResponse(mock(PersistentTask.class));
             return null;
-        }).when(task).updatePersistentStatus(any(), any());
+        }).when(task).updatePersistentTaskState(any(), any());
         return task;
     }
 }

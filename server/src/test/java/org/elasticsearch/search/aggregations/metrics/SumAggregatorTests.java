@@ -39,9 +39,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -56,14 +54,20 @@ public class SumAggregatorTests extends AggregatorTestCase {
     public void testNoDocs() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
-        }, count -> assertEquals(0L, count.getValue(), 0d));
+        }, count -> {
+            assertEquals(0L, count.getValue(), 0d);
+            assertFalse(AggregationInspectionHelper.hasValue(count));
+        });
     }
 
     public void testNoMatchingField() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
-        }, count -> assertEquals(0L, count.getValue(), 0d));
+        }, count -> {
+            assertEquals(0L, count.getValue(), 0d);
+            assertFalse(AggregationInspectionHelper.hasValue(count));
+        });
     }
 
     public void testNumericDocValues() throws IOException {
@@ -84,7 +88,10 @@ public class SumAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 2)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 2)));
-        }, count -> assertEquals(24L, count.getValue(), 0d));
+        }, count -> {
+            assertEquals(24L, count.getValue(), 0d);
+            assertTrue(AggregationInspectionHelper.hasValue(count));
+        });
     }
 
     public void testSortedNumericDocValues() throws IOException {
@@ -94,7 +101,10 @@ public class SumAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new SortedNumericDocValuesField(FIELD_NAME, 3),
                 new SortedNumericDocValuesField(FIELD_NAME, 4)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
-        }, count -> assertEquals(15L, count.getValue(), 0d));
+        }, count -> {
+            assertEquals(15L, count.getValue(), 0d);
+            assertTrue(AggregationInspectionHelper.hasValue(count));
+        });
     }
 
     public void testQueryFiltering() throws IOException {
@@ -104,14 +114,20 @@ public class SumAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new StringField("match", "yes", Field.Store.NO), new NumericDocValuesField(FIELD_NAME, 3)));
             iw.addDocument(Arrays.asList(new StringField("match", "no", Field.Store.NO), new NumericDocValuesField(FIELD_NAME, 4)));
             iw.addDocument(Arrays.asList(new StringField("match", "yes", Field.Store.NO), new NumericDocValuesField(FIELD_NAME, 5)));
-        }, count -> assertEquals(9L, count.getValue(), 0d));
+        }, count -> {
+            assertEquals(9L, count.getValue(), 0d);
+            assertTrue(AggregationInspectionHelper.hasValue(count));
+        });
     }
 
     public void testStringField() throws IOException {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
             testCase(new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1"))));
-            }, count -> assertEquals(0L, count.getValue(), 0d));
+            }, count -> {
+                assertEquals(0L, count.getValue(), 0d);
+                assertFalse(AggregationInspectionHelper.hasValue(count));
+            });
         });
         assertEquals("unexpected docvalues type SORTED for field 'field' (expected one of [SORTED_NUMERIC, NUMERIC]). " +
             "Re-index with correct docvalues type.", e.getMessage());
@@ -162,13 +178,13 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
-                          Consumer<Sum> verify) throws IOException {
+                          Consumer<InternalSum> verify) throws IOException {
         testCase(query, indexer, verify, NumberFieldMapper.NumberType.LONG);
     }
 
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
-                          Consumer<Sum> verify,
+                          Consumer<InternalSum> verify,
                           NumberFieldMapper.NumberType fieldNumberType) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -190,7 +206,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();
 
-                verify.accept((Sum) aggregator.buildAggregation(0L));
+                verify.accept((InternalSum) aggregator.buildAggregation(0L));
             }
         }
     }

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
@@ -64,7 +65,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     public static void initDefaultSettings() {
         if (SECURITY_DEFAULT_SETTINGS == null) {
             SECURITY_DEFAULT_SETTINGS =
-                    new SecuritySettingsSource(1, randomBoolean(), createTempDir(), ESIntegTestCase.Scope.SUITE);
+                    new SecuritySettingsSource(randomBoolean(), createTempDir(), ESIntegTestCase.Scope.SUITE);
         }
     }
 
@@ -97,25 +98,6 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
             IOUtils.closeWhileHandlingException(restClient);
             restClient = null;
         }
-
-        // Wait for the network threads to finish otherwise there is the possibility that one of
-        // the threads lingers and trips the thread leak detector
-        try {
-            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (IllegalStateException e) {
-            if (e.getMessage().equals("thread was not started") == false) {
-                throw e;
-            }
-            // ignore since the thread was never started
-        }
-
-        try {
-            ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     @Rule
@@ -126,6 +108,35 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
             if (customSecuritySettingsSource == null) {
                 customSecuritySettingsSource =
                         new CustomSecuritySettingsSource(transportSSLEnabled(), createTempDir(), ESIntegTestCase.Scope.SUITE);
+            }
+        }
+    };
+
+    /**
+     * A JUnit class level rule that runs after the AfterClass method in {@link ESIntegTestCase},
+     * which stops the cluster. After the cluster is stopped, there are a few netty threads that
+     * can linger, so we wait for them to finish otherwise these lingering threads can intermittently
+     * trigger the thread leak detector
+     */
+    @ClassRule
+    public static final ExternalResource STOP_NETTY_RESOURCE = new ExternalResource() {
+        @Override
+        protected void after() {
+            try {
+                GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IllegalStateException e) {
+                if (e.getMessage().equals("thread was not started") == false) {
+                    throw e;
+                }
+                // ignore since the thread was never started
+            }
+
+            try {
+                ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
     };
@@ -224,7 +235,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     private class CustomSecuritySettingsSource extends SecuritySettingsSource {
 
         private CustomSecuritySettingsSource(boolean sslEnabled, Path configDir, ESIntegTestCase.Scope scope) {
-            super(1, sslEnabled, configDir, scope);
+            super(sslEnabled, configDir, scope);
         }
 
         @Override
@@ -254,14 +265,14 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     @Override
-    public Client client() {
+    public Client wrapClient(final Client client) {
         Map<String, String> headers = Collections.singletonMap("Authorization",
-                basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
+            basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
         // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
         // are all using a node client
-        return super.client().filterWithHeader(headers);
+        return client.filterWithHeader(headers);
     }
 
     protected boolean isTransportSSLEnabled() {

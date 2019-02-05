@@ -19,14 +19,16 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -38,6 +40,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+
 /**
  * Execution context passed across the REST tests.
  * Holds the REST client used to communicate with elasticsearch.
@@ -46,7 +50,7 @@ import java.util.Map;
  */
 public class ClientYamlTestExecutionContext {
 
-    private static final Logger logger = Loggers.getLogger(ClientYamlTestExecutionContext.class);
+    private static final Logger logger = LogManager.getLogger(ClientYamlTestExecutionContext.class);
 
     private static final XContentType[] STREAMING_CONTENT_TYPES = new XContentType[]{XContentType.JSON, XContentType.SMILE};
 
@@ -68,6 +72,15 @@ public class ClientYamlTestExecutionContext {
      */
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
                                     Map<String, String> headers) throws IOException {
+        return callApi(apiName, params, bodies, headers, NodeSelector.ANY);
+    }
+
+    /**
+     * Calls an elasticsearch api with the parameters and request body provided as arguments.
+     * Saves the obtained response in the execution context.
+     */
+    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
+                                    Map<String, String> headers, NodeSelector nodeSelector) throws IOException {
         //makes a copy of the parameters before modifying them for this specific request
         Map<String, String> requestParams = new HashMap<>(params);
         requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
@@ -85,9 +98,17 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
+        // Although include_type_name defaults to false, there is a large number of typed index creations
+        // in REST tests that need to be manually converted to typeless calls. As a temporary measure, we
+        // specify include_type_name=true in indices.create calls, unless the parameter has been set otherwise.
+        // This workaround will be removed once we convert all index creations to be typeless.
+        if (apiName.equals("indices.create") && requestParams.containsKey(INCLUDE_TYPE_NAME_PARAMETER) == false) {
+            requestParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        }
+
         HttpEntity entity = createEntity(bodies, requestHeaders);
         try {
-            response = callApiInternal(apiName, requestParams, entity, requestHeaders);
+            response = callApiInternal(apiName, requestParams, entity, requestHeaders, nodeSelector);
             return response;
         } catch(ClientYamlTestResponseException e) {
             response = e.getRestTestResponse();
@@ -153,9 +174,9 @@ public class ClientYamlTestExecutionContext {
     }
 
     // pkg-private for testing
-    ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
-                                                   HttpEntity entity, Map<String, String> headers) throws IOException  {
-        return clientYamlTestClient.callApi(apiName, params, entity, headers);
+    ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params, HttpEntity entity,
+            Map<String, String> headers, NodeSelector nodeSelector) throws IOException  {
+        return clientYamlTestClient.callApi(apiName, params, entity, headers, nodeSelector);
     }
 
     /**
@@ -183,6 +204,10 @@ public class ClientYamlTestExecutionContext {
      */
     public Version esVersion() {
         return clientYamlTestClient.getEsVersion();
+    }
+
+    public Version masterVersion() {
+        return clientYamlTestClient.getMasterVersion();
     }
 
 }

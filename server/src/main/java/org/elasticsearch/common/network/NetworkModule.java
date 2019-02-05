@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.tasks.RawTaskStatus;
@@ -71,8 +72,6 @@ public final class NetworkModule {
             Property.NodeScope);
     public static final Setting<String> HTTP_DEFAULT_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_DEFAULT_KEY, Property.NodeScope);
     public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_KEY, Property.NodeScope);
-    public static final Setting<Boolean> HTTP_ENABLED = Setting.boolSetting("http.enabled", true,
-        Property.NodeScope, Property.Deprecated);
     public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString(TRANSPORT_TYPE_KEY, Property.NodeScope);
 
     private final Settings settings;
@@ -96,6 +95,8 @@ public final class NetworkModule {
             new NamedWriteableRegistry.Entry(Task.Status.class, ReplicationTask.Status.NAME, ReplicationTask.Status::new));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(Task.Status.class, ResyncTask.Status.NAME, ResyncTask.Status::new));
     }
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
@@ -117,14 +118,14 @@ public final class NetworkModule {
         this.settings = settings;
         this.transportClient = transportClient;
         for (NetworkPlugin plugin : plugins) {
-            if (transportClient == false && HTTP_ENABLED.get(settings)) {
-                Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(settings, threadPool, bigArrays,
-                    circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, dispatcher);
+            Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(settings, threadPool, bigArrays,
+                pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher);
+            if (transportClient == false) {
                 for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
                     registerHttpTransport(entry.getKey(), entry.getValue());
                 }
             }
-            Map<String, Supplier<Transport>> transportFactory = plugin.getTransports(settings, threadPool, bigArrays, pageCacheRecycler,
+            Map<String, Supplier<Transport>> transportFactory = plugin.getTransports(settings, threadPool, pageCacheRecycler,
                 circuitBreakerService, namedWriteableRegistry, networkService);
             for (Map.Entry<String, Supplier<Transport>> entry : transportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());
@@ -195,10 +196,6 @@ public final class NetworkModule {
             throw new IllegalStateException("Unsupported http.type [" + name + "]");
         }
         return factory;
-    }
-
-    public boolean isHttpEnabled() {
-        return transportClient == false && HTTP_ENABLED.get(settings);
     }
 
     public Supplier<Transport> getTransportSupplier() {

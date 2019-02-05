@@ -227,6 +227,12 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get(CONTENT_TYPE.toLowerCase()).toString(), containsString("text/plain"));
     }
 
+    // See (https://issues.apache.org/jira/browse/COMPRESS-432) for information
+    // about the issue that causes a zip file to hang in Tika versions prior to 1.18.
+    public void testZipFileDoesNotHang() {
+        expectThrows(Exception.class, () -> parseDocument("bad_tika.zip", processor));
+    }
+
     public void testParseAsBytesArray() throws Exception {
         String path = "/org/elasticsearch/ingest/attachment/test/sample-files/text-in-english.txt";
         byte[] bytes;

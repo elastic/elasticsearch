@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -15,8 +17,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -31,21 +35,33 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestChangePasswordAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestChangePasswordAction.class));
     private final SecurityContext securityContext;
+    private final Hasher passwordHasher;
 
     public RestChangePasswordAction(Settings settings, RestController controller, SecurityContext securityContext,
                                     XPackLicenseState licenseState) {
         super(settings, licenseState);
         this.securityContext = securityContext;
-        controller.registerHandler(POST, "/_xpack/security/user/{username}/_password", this);
-        controller.registerHandler(PUT, "/_xpack/security/user/{username}/_password", this);
-        controller.registerHandler(POST, "/_xpack/security/user/_password", this);
-        controller.registerHandler(PUT, "/_xpack/security/user/_password", this);
+        passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, "/_security/user/{username}/_password", this,
+            POST, "/_xpack/security/user/{username}/_password", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            PUT, "/_security/user/{username}/_password", this,
+            PUT, "/_xpack/security/user/{username}/_password", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            POST, "/_security/user/_password", this,
+            POST, "/_xpack/security/user/_password", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            PUT, "/_security/user/_password", this,
+            PUT, "/_xpack/security/user/_password", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_change_password_action";
+        return "security_change_password_action";
     }
 
     @Override
@@ -61,7 +77,7 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
         final String refresh = request.param("refresh");
         return channel ->
                 new SecurityClient(client)
-                        .prepareChangePassword(username, request.requiredContent(), request.getXContentType())
+                    .prepareChangePassword(username, request.requiredContent(), request.getXContentType(), passwordHasher)
                         .setRefreshPolicy(refresh)
                         .execute(new RestBuilderListener<ChangePasswordResponse>(channel) {
                             @Override

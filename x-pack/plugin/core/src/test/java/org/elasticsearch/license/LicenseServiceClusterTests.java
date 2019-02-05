@@ -6,7 +6,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -34,12 +33,16 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         return nodeSettingsBuilder(nodeOrdinal).build();
     }
 
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
     private Settings.Builder nodeSettingsBuilder(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("node.data", true)
-                .put("resource.reload.interval.high", "500ms") // for license mode file watcher
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true);
+                .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
     }
 
     @Override
@@ -147,6 +150,28 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         ensureYellow();
         logger.info("--> await node for disabled");
         assertLicenseActive(false);
+    }
+
+    public void testClusterRestartWithOldSignature() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM. We can't generate old licenses since PBEWithSHA1AndDESede is not available", inFipsJvm());
+        wipeAllLicenses();
+        internalCluster().startNode();
+        ensureGreen();
+        assertLicenseActive(true);
+        putLicense(TestUtils.generateSignedLicenseOldSignature());
+        LicensingClient licensingClient = new LicensingClient(client());
+        assertThat(licensingClient.prepareGetLicense().get().license().version(), equalTo(License.VERSION_START_DATE));
+        logger.info("--> restart node");
+        internalCluster().fullRestart(); // restart so that license is updated
+        ensureYellow();
+        logger.info("--> await node for enabled");
+        assertLicenseActive(true);
+        licensingClient = new LicensingClient(client());
+        assertThat(licensingClient.prepareGetLicense().get().license().version(), equalTo(License.VERSION_CURRENT)); //license updated
+        internalCluster().fullRestart(); // restart once more and verify updated license is active
+        ensureYellow();
+        logger.info("--> await node for enabled");
+        assertLicenseActive(true);
     }
 
     private void assertOperationMode(License.OperationMode operationMode) throws InterruptedException {

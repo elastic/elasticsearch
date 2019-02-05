@@ -12,38 +12,28 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 
 import java.io.IOException;
-import java.util.EnumMap;
-import java.util.Map;
 import java.util.Objects;
 
 public class ModelPlotConfig implements ToXContentObject, Writeable {
 
-    private static final ParseField TYPE_FIELD = new ParseField("model_plot_config");
-    private static final ParseField ENABLED_FIELD = new ParseField("enabled");
+    public static final ParseField TYPE_FIELD = new ParseField("model_plot_config");
+    public static final ParseField ENABLED_FIELD = new ParseField("enabled");
     public static final ParseField TERMS_FIELD = new ParseField("terms");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    public static final ConstructingObjectParser<ModelPlotConfig, Void> METADATA_PARSER =
-            new ConstructingObjectParser<>(TYPE_FIELD.getPreferredName(), true,
-                    a -> new ModelPlotConfig((boolean) a[0], (String) a[1]));
-    public static final ConstructingObjectParser<ModelPlotConfig, Void> CONFIG_PARSER =
-            new ConstructingObjectParser<>(TYPE_FIELD.getPreferredName(), false,
-                    a -> new ModelPlotConfig((boolean) a[0], (String) a[1]));
-    public static final Map<MlParserType, ConstructingObjectParser<ModelPlotConfig, Void>> PARSERS =
-            new EnumMap<>(MlParserType.class);
+    public static final ConstructingObjectParser<ModelPlotConfig, Void> LENIENT_PARSER = createParser(true);
+    public static final ConstructingObjectParser<ModelPlotConfig, Void> STRICT_PARSER = createParser(false);
 
-    static {
-        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
-        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
-        for (MlParserType parserType : MlParserType.values()) {
-            ConstructingObjectParser<ModelPlotConfig, Void> parser = PARSERS.get(parserType);
-            assert parser != null;
-            parser.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
-            parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TERMS_FIELD);
-        }
+    private static ConstructingObjectParser<ModelPlotConfig, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<ModelPlotConfig, Void> parser = new ConstructingObjectParser<>(TYPE_FIELD.getPreferredName(),
+            ignoreUnknownFields, a -> new ModelPlotConfig((boolean) a[0], (String) a[1]));
+
+        parser.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TERMS_FIELD);
+
+        return parser;
     }
 
     private final boolean enabled;
@@ -51,10 +41,6 @@ public class ModelPlotConfig implements ToXContentObject, Writeable {
 
     public ModelPlotConfig() {
         this(true, null);
-    }
-
-    public ModelPlotConfig(boolean enabled) {
-        this(false, null);
     }
 
     public ModelPlotConfig(boolean enabled, String terms) {

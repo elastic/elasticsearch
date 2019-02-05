@@ -19,21 +19,18 @@
 
 package org.elasticsearch.indices.mapping;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,12 +53,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WR
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.not;
 
 public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
@@ -81,7 +74,6 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         int recCount = randomIntBetween(200, 600);
-        int numberOfTypes = randomIntBetween(1, 5);
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type";
@@ -94,7 +86,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         SearchResponse response = client().prepareSearch("test").setSize(0).execute().actionGet();
-        assertThat(response.getHits().getTotalHits(), equalTo((long) recCount));
+        assertThat(response.getHits().getTotalHits().value, equalTo((long) recCount));
 
         logger.info("checking all the fields are in the mappings");
 
@@ -115,7 +107,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
                 .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
                 .execute().actionGet();
 
@@ -135,7 +127,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("_doc")
                 .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
                 .execute().actionGet();
 
@@ -192,75 +184,12 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
                 .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
                 .execute().actionGet();
 
         //no changes, we return
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testUpdateDefaultMappingSettings() throws Exception {
-        logger.info("Creating index with _default_ mappings");
-        client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0).build())
-                .addMapping(MapperService.DEFAULT_MAPPING,
-                        JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .field("date_detection", false)
-                        .endObject().endObject()
-                        ).get();
-
-        GetMappingsResponse getResponse = client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
-        Map<String, Object> defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
-        assertThat(defaultMapping, hasKey("date_detection"));
-
-
-        logger.info("Emptying _default_ mappings");
-        // now remove it
-        PutMappingResponse putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
-                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .endObject().endObject()
-        ).get();
-        assertThat(putResponse.isAcknowledged(), equalTo(true));
-        logger.info("Done Emptying _default_ mappings");
-
-        getResponse = client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
-        defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
-        assertThat(defaultMapping, not(hasKey("date_detection")));
-
-        // now test you can change stuff that are normally unchangeable
-        logger.info("Creating _default_ mappings with an analyzed field");
-        putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
-                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .startObject("properties").startObject("f").field("type", "text").field("index", true).endObject().endObject()
-                        .endObject().endObject()
-        ).get();
-        assertThat(putResponse.isAcknowledged(), equalTo(true));
-
-
-        logger.info("Changing _default_ mappings field from analyzed to non-analyzed");
-        putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
-                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .startObject("properties").startObject("f").field("type", "keyword").endObject().endObject()
-                        .endObject().endObject()
-        ).get();
-        assertThat(putResponse.isAcknowledged(), equalTo(true));
-        logger.info("Done changing _default_ mappings field from analyzed to non-analyzed");
-
-        getResponse = client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
-        defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
-        Map<String, Object> fieldSettings = (Map<String, Object>) ((Map) defaultMapping.get("properties")).get("f");
-        assertThat(fieldSettings, hasEntry("type", "keyword"));
-
-        // but we still validate the _default_ type
-        logger.info("Confirming _default_ mappings validation");
-        assertThrows(client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
-                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .startObject("properties").startObject("f").field("type", "DOESNT_EXIST").endObject().endObject()
-                        .endObject().endObject()
-        ), MapperParsingException.class);
-
     }
 
     public void testUpdateMappingConcurrently() throws Throwable {
@@ -291,7 +220,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         String typeName = "type";
                         String fieldName = Thread.currentThread().getName() + "_" + i;
 
-                        PutMappingResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
+                        AcknowledgedResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
                                 JsonXContent.contentBuilder().startObject().startObject(typeName)
                                         .startObject("properties").startObject(fieldName).field("type", "text").endObject().endObject()
                                         .endObject().endObject()
@@ -301,7 +230,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
                         ImmutableOpenMap<String, MappingMetaData> mappings = getMappingResponse.getMappings().get(indexName);
                         assertThat(mappings.containsKey(typeName), equalTo(true));
-                        assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(), Matchers.hasItem(fieldName));
+                        assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(),
+                            Matchers.hasItem(fieldName));
                     }
                 } catch (Exception e) {
                     threadException.set(e);

@@ -1,0 +1,58 @@
+--
+:api: put-user
+:request: PutUserRequest
+:response: PutUserResponse
+--
+
+[id="{upid}-{api}"]
+=== Put User API
+
+[id="{upid}-{api}-request"]
+==== Put User Request Request
+
+The +{request}+ class is used to create or update a user in the Native Realm.
+There are 3 different factory methods for creating a request.
+
+===== Create or Update User with a Password
+
+If you wish to create a new user (or update an existing user) and directly specifying the user's new password, use the
+`withPassword` method as shown below:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-password-request]
+--------------------------------------------------
+
+===== Create or Update User with a Hashed Password
+
+If you wish to create a new user (or update an existing user) and perform password hashing on the client,
+then use the `withPasswordHash` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-hash-request]
+
+--------------------------------------------------
+===== Update a User without changing their password
+
+If you wish to update an existing user, and do not wish to change the user's password,
+then use the `updateUserProperties` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-update-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Put User Response
+
+The returned `PutUserResponse` contains a single field, `created`. This field
+serves as an indication if a user was created or if an existing entry was updated.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SecurityDocumentationIT.java[put-user-response]
+--------------------------------------------------
+<1> `created` is a boolean indicating whether the user was created or updated

@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -44,21 +46,21 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     public void testOrientationPersistence() throws Exception {
         String idxName = "orientation";
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("orientation", "left")
-                .endObject().endObject()
-                .endObject().endObject());
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("orientation", "left")
+            .endObject().endObject()
+            .endObject().endObject());
 
         // create index
         assertAcked(prepareCreate(idxName).addMapping("shape", mapping, XContentType.JSON));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
-                .startObject("properties").startObject("location")
-                .field("type", "geo_shape")
-                .field("orientation", "right")
-                .endObject().endObject()
-                .endObject().endObject());
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field("orientation", "right")
+            .endObject().endObject()
+            .endObject().endObject());
 
         assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping, XContentType.JSON));
         ensureGreen(idxName, idxName+"2");
@@ -118,7 +120,125 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         indexRandom(true, client().prepareIndex("test", "geometry", "0").setSource("shape",
             polygonGeoJson));
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+    }
+
+    /**
+     * Test that the indexed shape routing can be provided if it is required
+     */
+    public void testIndexShapeRouting() throws Exception {
+        String mapping = "{\n" +
+            "    \"_routing\": {\n" +
+            "      \"required\": true\n" +
+            "    },\n" +
+            "    \"properties\": {\n" +
+            "      \"shape\": {\n" +
+            "        \"type\": \"geo_shape\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }";
+
+
+        // create index
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping, XContentType.JSON).get());
+        ensureGreen();
+
+        String source = "{\n" +
+            "    \"shape\" : {\n" +
+            "        \"type\" : \"bbox\",\n" +
+            "        \"coordinates\" : [[-45.0, 45.0], [45.0, -45.0]]\n" +
+            "    }\n" +
+            "}";
+
+        indexRandom(true, client().prepareIndex("test", "doc", "0").setSource(source, XContentType.JSON).setRouting("ABC"));
+
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(
+            geoShapeQuery("shape", "0", "doc").indexedShapeIndex("test").indexedShapeRouting("ABC")
+        ).get();
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+    }
+
+    public void testIndexPolygonDateLine() throws Exception {
+        String mappingVector = "{\n" +
+            "    \"properties\": {\n" +
+            "      \"shape\": {\n" +
+            "        \"type\": \"geo_shape\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }";
+
+        String mappingQuad = "{\n" +
+            "    \"properties\": {\n" +
+            "      \"shape\": {\n" +
+            "        \"type\": \"geo_shape\",\n" +
+            "        \"tree\": \"quadtree\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }";
+
+
+        // create index
+        assertAcked(client().admin().indices().prepareCreate("vector").addMapping("doc", mappingVector, XContentType.JSON).get());
+        ensureGreen();
+
+        assertAcked(client().admin().indices().prepareCreate("quad").addMapping("doc", mappingQuad, XContentType.JSON).get());
+        ensureGreen();
+
+        String source = "{\n" +
+            "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\""+
+            "}";
+
+        indexRandom(true, client().prepareIndex("quad", "doc", "0").setSource(source, XContentType.JSON));
+        indexRandom(true, client().prepareIndex("vector", "doc", "0").setSource(source, XContentType.JSON));
+
+        SearchResponse searchResponse = client().prepareSearch("quad").setQuery(
+            geoShapeQuery("shape", new PointBuilder(-179.75, 1))
+        ).get();
+
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+
+        searchResponse = client().prepareSearch("quad").setQuery(
+            geoShapeQuery("shape", new PointBuilder(90, 1))
+        ).get();
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+
+        searchResponse = client().prepareSearch("quad").setQuery(
+            geoShapeQuery("shape", new PointBuilder(-180, 1))
+        ).get();
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        searchResponse = client().prepareSearch("quad").setQuery(
+            geoShapeQuery("shape", new PointBuilder(180, 1))
+        ).get();
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+
+        searchResponse = client().prepareSearch("vector").setQuery(
+            geoShapeQuery("shape", new PointBuilder(90, 1))
+        ).get();
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+
+        searchResponse = client().prepareSearch("vector").setQuery(
+            geoShapeQuery("shape", new PointBuilder(-179.75, 1))
+        ).get();
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+
+        searchResponse = client().prepareSearch("vector").setQuery(
+            geoShapeQuery("shape", new PointBuilder(-180, 1))
+        ).get();
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+
+        searchResponse = client().prepareSearch("vector").setQuery(
+            geoShapeQuery("shape", new PointBuilder(180, 1))
+        ).get();
+
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 
     private String findNodeName(String index) {

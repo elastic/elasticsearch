@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilterTests;
@@ -14,8 +15,7 @@ import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import java.util.ArrayList;
 import java.util.List;
 
-public class UpdateProcessActionRequestTests extends AbstractStreamableTestCase<UpdateProcessAction.Request> {
-
+public class UpdateProcessActionRequestTests extends AbstractWireSerializingTestCase<UpdateProcessAction.Request> {
 
     @Override
     protected UpdateProcessAction.Request createTestInstance() {
@@ -39,7 +39,7 @@ public class UpdateProcessActionRequestTests extends AbstractStreamableTestCase<
     }
 
     @Override
-    protected UpdateProcessAction.Request createBlankInstance() {
-        return new UpdateProcessAction.Request();
+    protected Writeable.Reader<UpdateProcessAction.Request> instanceReader() {
+        return UpdateProcessAction.Request::new;
     }
 }

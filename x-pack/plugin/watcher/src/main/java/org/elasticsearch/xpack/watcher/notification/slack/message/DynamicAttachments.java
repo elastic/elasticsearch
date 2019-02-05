@@ -9,7 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
 import java.io.IOException;

@@ -28,9 +28,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,10 +39,11 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     private final SnapshotsService snapshotsService;
 
     @Inject
-    public TransportCreateSnapshotAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportCreateSnapshotAction(TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,CreateSnapshotRequest::new, indexNameExpressionResolver);
+        super(CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              CreateSnapshotRequest::new, indexNameExpressionResolver);
         this.snapshotsService = snapshotsService;
     }
 
@@ -66,51 +64,19 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
         if (clusterBlockException != null) {
             return clusterBlockException;
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void masterOperation(final CreateSnapshotRequest request, ClusterState state, final ActionListener<CreateSnapshotResponse> listener) {
-        SnapshotsService.SnapshotRequest snapshotRequest =
-                new SnapshotsService.SnapshotRequest(request.repository(), request.snapshot(), "create_snapshot [" + request.snapshot() + "]")
-                        .indices(request.indices())
-                        .indicesOptions(request.indicesOptions())
-                        .partial(request.partial())
-                        .settings(request.settings())
-                        .includeGlobalState(request.includeGlobalState())
-                        .masterNodeTimeout(request.masterNodeTimeout());
-        snapshotsService.createSnapshot(snapshotRequest, new SnapshotsService.CreateSnapshotListener() {
-            @Override
-            public void onResponse() {
-                if (request.waitForCompletion()) {
-                    snapshotsService.addListener(new SnapshotsService.SnapshotCompletionListener() {
-                        @Override
-                        public void onSnapshotCompletion(Snapshot snapshot, SnapshotInfo snapshotInfo) {
-                            if (snapshot.getRepository().equals(request.repository()) &&
-                                    snapshot.getSnapshotId().getName().equals(request.snapshot())) {
-                                listener.onResponse(new CreateSnapshotResponse(snapshotInfo));
-                                snapshotsService.removeListener(this);
-                            }
-                        }
-
-                        @Override
-                        public void onSnapshotFailure(Snapshot snapshot, Exception e) {
-                            if (snapshot.getRepository().equals(request.repository()) &&
-                                    snapshot.getSnapshotId().getName().equals(request.snapshot())) {
-                                listener.onFailure(e);
-                                snapshotsService.removeListener(this);
-                            }
-                        }
-                    });
-                } else {
-                    listener.onResponse(new CreateSnapshotResponse());
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+    protected void masterOperation(final CreateSnapshotRequest request, ClusterState state,
+        final ActionListener<CreateSnapshotResponse> listener) {
+        if (request.waitForCompletion()) {
+            snapshotsService.executeSnapshot(request,
+                ActionListener.wrap(snapshotInfo-> listener.onResponse(new CreateSnapshotResponse(snapshotInfo)), listener::onFailure));
+        } else {
+            snapshotsService.createSnapshot(request,
+                ActionListener.wrap(snapshot -> listener.onResponse(new CreateSnapshotResponse()), listener::onFailure));
+        }
     }
 }

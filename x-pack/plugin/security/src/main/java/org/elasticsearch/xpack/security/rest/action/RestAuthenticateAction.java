@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security.rest.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,17 +31,21 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestAuthenticateAction extends SecurityBaseRestHandler {
 
     private final SecurityContext securityContext;
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestAuthenticateAction.class));
 
     public RestAuthenticateAction(Settings settings, RestController controller, SecurityContext securityContext,
                                   XPackLicenseState licenseState) {
         super(settings, licenseState);
         this.securityContext = securityContext;
-        controller.registerHandler(GET, "/_xpack/security/_authenticate", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/_authenticate", this,
+            GET, "/_xpack/security/_authenticate", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_authenticate_action";
+        return "security_authenticate_action";
     }
 
     @Override
@@ -54,7 +60,7 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
                 new RestBuilderListener<AuthenticateResponse>(channel) {
             @Override
             public RestResponse buildResponse(AuthenticateResponse authenticateResponse, XContentBuilder builder) throws Exception {
-                authenticateResponse.user().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                authenticateResponse.authentication().toXContent(builder, ToXContent.EMPTY_PARAMS);
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });

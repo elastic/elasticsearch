@@ -1,5 +1,5 @@
 [[api-conventions]]
-= API Conventions
+= API conventions
 
 [partintro]
 --
@@ -84,6 +84,9 @@ Where:
 `date_math_expr`:: is a dynamic date math expression that computes the date dynamically
 `date_format`:: is the optional format in which the computed date should be rendered. Defaults to `YYYY.MM.dd`.
 `time_zone`:: is the optional time zone . Defaults to `utc`.
+
+Date math expressions are resolved locale-independent. Consequently, it is not possible to use any other
+calendars than the Gregorian calendar.
 
 You must enclose date math index name expressions within angle brackets, and
 all special characters should be URI encoded. For example:
@@ -300,11 +303,7 @@ Responds:
     "indices": {
       "twitter": {
         "shards": {
-          "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "1": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "2": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "3": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "4": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
+          "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
         }
       }
     }

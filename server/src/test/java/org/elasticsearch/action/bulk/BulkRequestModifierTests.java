@@ -19,12 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -33,6 +27,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -114,7 +114,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         });
 
         List<BulkItemResponse> originalResponses = new ArrayList<>();
-        for (DocWriteRequest actionRequest : bulkRequest.requests()) {
+        for (DocWriteRequest<?> actionRequest : bulkRequest.requests()) {
             IndexRequest indexRequest = (IndexRequest) actionRequest;
             IndexResponse indexResponse = new IndexResponse(new ShardId("index", "_na_", 0), indexRequest.type(),
                                                                indexRequest.id(), 1, 17, 1, true);

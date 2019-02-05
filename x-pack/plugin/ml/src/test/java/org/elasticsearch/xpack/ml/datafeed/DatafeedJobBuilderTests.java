@@ -19,7 +19,9 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 
@@ -32,6 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -41,8 +44,10 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
     private Client client;
     private Auditor auditor;
-    private JobProvider jobProvider;
     private Consumer<Exception> taskHandler;
+    private JobResultsProvider jobResultsProvider;
+    private JobConfigProvider jobConfigProvider;
+    private DatafeedConfigProvider datafeedConfigProvider;
 
     private DatafeedJobBuilder datafeedJobBuilder;
 
@@ -54,24 +59,27 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.settings()).thenReturn(Settings.EMPTY);
         auditor = mock(Auditor.class);
-        jobProvider = mock(JobProvider.class);
         taskHandler = mock(Consumer.class);
-        datafeedJobBuilder = new DatafeedJobBuilder(client, jobProvider, auditor, System::currentTimeMillis);
+        datafeedJobBuilder = new DatafeedJobBuilder(client, Settings.EMPTY, xContentRegistry(), auditor, System::currentTimeMillis);
 
+        jobResultsProvider = mock(JobResultsProvider.class);
         Mockito.doAnswer(invocationOnMock -> {
             String jobId = (String) invocationOnMock.getArguments()[0];
             @SuppressWarnings("unchecked")
             Consumer<DataCounts> handler = (Consumer<DataCounts>) invocationOnMock.getArguments()[1];
             handler.accept(new DataCounts(jobId));
             return null;
-        }).when(jobProvider).dataCounts(any(), any(), any());
+        }).when(jobResultsProvider).dataCounts(any(), any(), any());
 
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("rawtypes")
-            Consumer consumer = (Consumer) invocationOnMock.getArguments()[3];
+            @SuppressWarnings("unchecked")
+            Consumer<ResourceNotFoundException> consumer = (Consumer<ResourceNotFoundException>) invocationOnMock.getArguments()[3];
             consumer.accept(new ResourceNotFoundException("dummy"));
             return null;
-        }).when(jobProvider).bucketsViaInternalClient(any(), any(), any(), any());
+        }).when(jobResultsProvider).bucketsViaInternalClient(any(), any(), any(), any());
+
+        jobConfigProvider = mock(JobConfigProvider.class);
+        datafeedConfigProvider = mock(DatafeedConfigProvider.class);
     }
 
     public void testBuild_GivenScrollDatafeedAndNewJob() throws Exception {
@@ -79,7 +87,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig datafeed = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo").build();
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = DatafeedManagerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
@@ -91,7 +100,10 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 }, e -> fail()
         );
 
-        datafeedJobBuilder.build(jobBuilder.build(new Date()), datafeed, datafeedJobHandler);
+        givenJob(jobBuilder);
+        givenDatafeed(datafeed);
+
+        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigProvider, datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -101,7 +113,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig datafeed = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo").build();
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = DatafeedManagerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
 
         givenLatestTimes(7_200_000L, 3_600_000L);
 
@@ -115,7 +128,10 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 }, e -> fail()
         );
 
-        datafeedJobBuilder.build(jobBuilder.build(new Date()), datafeed, datafeedJobHandler);
+        givenJob(jobBuilder);
+        givenDatafeed(datafeed);
+
+        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigProvider, datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -125,7 +141,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig datafeed = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo").build();
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = DatafeedManagerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
 
         givenLatestTimes(3_800_000L, 3_600_000L);
 
@@ -139,7 +156,10 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 }, e -> fail()
         );
 
-        datafeedJobBuilder.build(jobBuilder.build(new Date()), datafeed, datafeedJobHandler);
+        givenJob(jobBuilder);
+        givenDatafeed(datafeed);
+
+        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigProvider, datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -149,19 +169,43 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
         jobBuilder.setDataDescription(dataDescription);
-        DatafeedConfig datafeed = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo").build();
+        jobBuilder.setCreateTime(new Date());
+        DatafeedConfig.Builder datafeed = DatafeedManagerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
 
         Exception error = new RuntimeException("error");
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("rawtypes")
-            Consumer consumer = (Consumer) invocationOnMock.getArguments()[3];
+            @SuppressWarnings("unchecked")
+            Consumer<Exception> consumer = (Consumer<Exception>) invocationOnMock.getArguments()[3];
             consumer.accept(error);
             return null;
-        }).when(jobProvider).bucketsViaInternalClient(any(), any(), any(), any());
+        }).when(jobResultsProvider).bucketsViaInternalClient(any(), any(), any(), any());
 
-        datafeedJobBuilder.build(jobBuilder.build(new Date()), datafeed, ActionListener.wrap(datafeedJob -> fail(), taskHandler));
+
+        givenJob(jobBuilder);
+        givenDatafeed(datafeed);
+
+        datafeedJobBuilder.build("datafeed1", jobResultsProvider, jobConfigProvider, datafeedConfigProvider,
+                ActionListener.wrap(datafeedJob -> fail(), taskHandler));
 
         verify(taskHandler).accept(error);
+    }
+
+    private void givenJob(Job.Builder job) {
+        Mockito.doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Job.Builder> handler = (ActionListener<Job.Builder>) invocationOnMock.getArguments()[1];
+            handler.onResponse(job);
+            return null;
+        }).when(jobConfigProvider).getJob(eq(job.getId()), any());
+    }
+
+    private void givenDatafeed(DatafeedConfig.Builder datafeed) {
+        Mockito.doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<DatafeedConfig.Builder> handler = (ActionListener<DatafeedConfig.Builder>) invocationOnMock.getArguments()[1];
+            handler.onResponse(datafeed);
+            return null;
+        }).when(datafeedConfigProvider).getDatafeedConfig(eq(datafeed.getId()), any());
     }
 
     private void givenLatestTimes(long latestRecordTimestamp, long latestBucketTimestamp) {
@@ -173,16 +217,16 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             dataCounts.setLatestRecordTimeStamp(new Date(latestRecordTimestamp));
             handler.accept(dataCounts);
             return null;
-        }).when(jobProvider).dataCounts(any(), any(), any());
+        }).when(jobResultsProvider).dataCounts(any(), any(), any());
 
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("rawtypes")
-            Consumer consumer = (Consumer) invocationOnMock.getArguments()[2];
+            @SuppressWarnings("unchecked")
+            Consumer<QueryPage<Bucket>> consumer = (Consumer<QueryPage<Bucket>>) invocationOnMock.getArguments()[2];
             Bucket bucket = mock(Bucket.class);
             when(bucket.getTimestamp()).thenReturn(new Date(latestBucketTimestamp));
-            QueryPage<Bucket> bucketQueryPage = new QueryPage(Collections.singletonList(bucket), 1, Bucket.RESULTS_FIELD);
+            QueryPage<Bucket> bucketQueryPage = new QueryPage<Bucket>(Collections.singletonList(bucket), 1, Bucket.RESULTS_FIELD);
             consumer.accept(bucketQueryPage);
             return null;
-        }).when(jobProvider).bucketsViaInternalClient(any(), any(), any(), any());
+        }).when(jobResultsProvider).bucketsViaInternalClient(any(), any(), any(), any());
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -31,8 +32,9 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
@@ -47,10 +49,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     private final IndicesService indicesService;
 
     @Inject
-    public TransportIndicesStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                       TransportService transportService, IndicesService indicesService,
+    public TransportIndicesStatsAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(IndicesStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 IndicesStatsRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
@@ -79,8 +80,11 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected IndicesStatsResponse newResponse(IndicesStatsRequest request, int totalShards, int successfulShards, int failedShards, List<ShardStats> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
-        return new IndicesStatsResponse(responses.toArray(new ShardStats[responses.size()]), totalShards, successfulShards, failedShards, shardFailures);
+    protected IndicesStatsResponse newResponse(IndicesStatsRequest request, int totalShards, int successfulShards, int failedShards,
+                                               List<ShardStats> responses, List<DefaultShardOperationFailedException> shardFailures,
+                                               ClusterState clusterState) {
+        return new IndicesStatsResponse(responses.toArray(new ShardStats[responses.size()]), totalShards, successfulShards, failedShards,
+            shardFailures);
     }
 
     @Override
@@ -99,65 +103,18 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             throw new ShardNotFoundException(indexShard.shardId());
         }
 
-        CommonStatsFlags flags = new CommonStatsFlags().clear();
-
-        if (request.docs()) {
-            flags.set(CommonStatsFlags.Flag.Docs);
+        CommonStats commonStats = new CommonStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
+        CommitStats commitStats;
+        SeqNoStats seqNoStats;
+        try {
+            commitStats = indexShard.commitStats();
+            seqNoStats = indexShard.seqNoStats();
+        } catch (AlreadyClosedException e) {
+            // shard is closed - no stats is fine
+            commitStats = null;
+            seqNoStats = null;
         }
-        if (request.store()) {
-            flags.set(CommonStatsFlags.Flag.Store);
-        }
-        if (request.indexing()) {
-            flags.set(CommonStatsFlags.Flag.Indexing);
-            flags.types(request.types());
-        }
-        if (request.get()) {
-            flags.set(CommonStatsFlags.Flag.Get);
-        }
-        if (request.search()) {
-            flags.set(CommonStatsFlags.Flag.Search);
-            flags.groups(request.groups());
-        }
-        if (request.merge()) {
-            flags.set(CommonStatsFlags.Flag.Merge);
-        }
-        if (request.refresh()) {
-            flags.set(CommonStatsFlags.Flag.Refresh);
-        }
-        if (request.flush()) {
-            flags.set(CommonStatsFlags.Flag.Flush);
-        }
-        if (request.warmer()) {
-            flags.set(CommonStatsFlags.Flag.Warmer);
-        }
-        if (request.queryCache()) {
-            flags.set(CommonStatsFlags.Flag.QueryCache);
-        }
-        if (request.fieldData()) {
-            flags.set(CommonStatsFlags.Flag.FieldData);
-            flags.fieldDataFields(request.fieldDataFields());
-        }
-        if (request.segments()) {
-            flags.set(CommonStatsFlags.Flag.Segments);
-            flags.includeSegmentFileSizes(request.includeSegmentFileSizes());
-        }
-        if (request.completion()) {
-            flags.set(CommonStatsFlags.Flag.Completion);
-            flags.completionDataFields(request.completionFields());
-        }
-        if (request.translog()) {
-            flags.set(CommonStatsFlags.Flag.Translog);
-        }
-        if (request.requestCache()) {
-            flags.set(CommonStatsFlags.Flag.RequestCache);
-        }
-        if (request.recovery()) {
-            flags.set(CommonStatsFlags.Flag.Recovery);
-        }
-
-        return new ShardStats(
-            indexShard.routingEntry(),
-            indexShard.shardPath(),
-            new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags), indexShard.commitStats(), indexShard.seqNoStats());
+        return new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), commonStats,
+            commitStats, seqNoStats);
     }
 }

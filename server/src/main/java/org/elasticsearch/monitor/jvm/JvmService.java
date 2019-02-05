@@ -19,13 +19,16 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.common.component.AbstractComponent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
-public class JvmService extends AbstractComponent {
+public class JvmService {
+
+    private static final Logger logger = LogManager.getLogger(JvmService.class);
 
     private final JvmInfo jvmInfo;
 
@@ -38,7 +41,6 @@ public class JvmService extends AbstractComponent {
             Property.NodeScope);
 
     public JvmService(Settings settings) {
-        super(settings);
         this.jvmInfo = JvmInfo.jvmInfo();
         this.jvmStats = JvmStats.jvmStats();
 

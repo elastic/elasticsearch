@@ -11,41 +11,41 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
-import org.elasticsearch.search.aggregations.metrics.min.Min;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
-import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsAggregator;
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsCollector;
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsProcessor;
 import org.elasticsearch.xpack.ml.job.persistence.overallbuckets.OverallBucketsProvider;
+import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -56,38 +56,44 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     private static final String EARLIEST_TIME = "earliest_time";
     private static final String LATEST_TIME = "latest_time";
 
+    private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
     private final JobManager jobManager;
 
     @Inject
-    public TransportGetOverallBucketsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+    public TransportGetOverallBucketsAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
                                             ClusterService clusterService, JobManager jobManager, Client client) {
-        super(settings, GetOverallBucketsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetOverallBucketsAction.Request::new);
+        super(GetOverallBucketsAction.NAME, transportService, actionFilters,
+            (Supplier<GetOverallBucketsAction.Request>) GetOverallBucketsAction.Request::new);
+        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
         this.jobManager = jobManager;
     }
 
     @Override
-    protected void doExecute(GetOverallBucketsAction.Request request, ActionListener<GetOverallBucketsAction.Response> listener) {
-        QueryPage<Job> jobsPage = jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), clusterService.state());
-        if (jobsPage.count() == 0) {
-            listener.onResponse(new GetOverallBucketsAction.Response());
-            return;
-        }
+    protected void doExecute(Task task, GetOverallBucketsAction.Request request,
+                             ActionListener<GetOverallBucketsAction.Response> listener) {
+        jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
+                jobPage -> {
+                    if (jobPage.count() == 0) {
+                        listener.onResponse(new GetOverallBucketsAction.Response());
+                        return;
+                    }
 
-        // As computing and potentially aggregating overall buckets might take a while,
-        // we run in a different thread to avoid blocking the network thread.
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            try {
-                getOverallBuckets(request, jobsPage.results(), listener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+                    // As computing and potentially aggregating overall buckets might take a while,
+                    // we run in a different thread to avoid blocking the network thread.
+                    threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                        try {
+                            getOverallBuckets(request, jobPage.results(), listener);
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                },
+                listener::onFailure
+        ));
     }
 
     private void getOverallBuckets(GetOverallBucketsAction.Request request, List<Job> jobs,
@@ -136,7 +142,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
         searchRequest.source().aggregation(AggregationBuilders.max(LATEST_TIME).field(Result.TIMESTAMP.getPreferredName()));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
-                    long totalHits = searchResponse.getHits().getTotalHits();
+                    long totalHits = searchResponse.getHits().getTotalHits().value;
                     if (totalHits > 0) {
                         Aggregations aggregations = searchResponse.getAggregations();
                         Min min = aggregations.get(EARLIEST_TIME);
@@ -255,6 +261,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
                 .start(startTime)
                 .end(endTime)
                 .build();
+        searchSourceBuilder.trackTotalHits(true);
 
         SearchRequest searchRequest = new SearchRequest(indices);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));

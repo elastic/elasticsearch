@@ -1,8 +1,3 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
- */
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
@@ -85,13 +80,6 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitSysCatalogs(SqlBaseParser.SysCatalogsContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
   @Override public T visitSysTables(SqlBaseParser.SysTablesContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -113,13 +101,6 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitSysTableTypes(SqlBaseParser.SysTableTypesContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
   @Override public T visitQuery(SqlBaseParser.QueryContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -128,6 +109,13 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitQueryNoWith(SqlBaseParser.QueryNoWithContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitLimitClause(SqlBaseParser.LimitClauseContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -316,6 +304,13 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitPredicated(SqlBaseParser.PredicatedContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -330,7 +325,21 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitLikePattern(SqlBaseParser.LikePatternContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitPattern(SqlBaseParser.PatternContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitPatternEscape(SqlBaseParser.PatternEscapeContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -379,6 +388,13 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitConstantDefault(SqlBaseParser.ConstantDefaultContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -393,7 +409,7 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitFunctionCall(SqlBaseParser.FunctionCallContext ctx) { return visitChildren(ctx); }
+  @Override public T visitFunction(SqlBaseParser.FunctionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -401,13 +417,6 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitSubqueryExpression(SqlBaseParser.SubqueryExpressionContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitColumnReference(SqlBaseParser.ColumnReferenceContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -428,7 +437,77 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitCastExpression(SqlBaseParser.CastExpressionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitCastTemplate(SqlBaseParser.CastTemplateContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitExtractExpression(SqlBaseParser.ExtractExpressionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitExtractTemplate(SqlBaseParser.ExtractTemplateContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitFunctionExpression(SqlBaseParser.FunctionExpressionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitFunctionTemplate(SqlBaseParser.FunctionTemplateContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitFunctionName(SqlBaseParser.FunctionNameContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitNullLiteral(SqlBaseParser.NullLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitIntervalLiteral(SqlBaseParser.IntervalLiteralContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -463,6 +542,34 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitDateEscapedLiteral(SqlBaseParser.DateEscapedLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitTimeEscapedLiteral(SqlBaseParser.TimeEscapedLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitTimestampEscapedLiteral(SqlBaseParser.TimestampEscapedLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitGuidEscapedLiteral(SqlBaseParser.GuidEscapedLiteralContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitComparisonOperator(SqlBaseParser.ComparisonOperatorContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -471,6 +578,20 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitBooleanValue(SqlBaseParser.BooleanValueContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitInterval(SqlBaseParser.IntervalContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitIntervalField(SqlBaseParser.IntervalFieldContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

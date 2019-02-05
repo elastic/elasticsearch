@@ -1,0 +1,324 @@
+[[mapper-annotated-text]]
+=== Mapper Annotated Text Plugin
+
+experimental[]
+
+The mapper-annotated-text plugin provides the ability to index text that is a
+combination of free-text and special markup that is typically used to identify
+items of interest such as people or organisations (see NER or Named Entity Recognition
+tools). 
+
+
+The elasticsearch markup allows one or more additional tokens to be injected, unchanged, into the token
+stream at the same position as the underlying text it annotates.
+
+:plugin_name: mapper-annotated-text
+include::install_remove.asciidoc[]
+
+[[mapper-annotated-text-usage]]
+==== Using the `annotated-text` field
+
+The `annotated-text` tokenizes text content as per the more common `text` field (see 
+"limitations" below) but also injects any marked-up annotation tokens directly into
+the search index:
+
+[source,js]
+--------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "my_field": {
+        "type": "annotated_text"
+      }
+    }
+  }
+}
+--------------------------
+// CONSOLE
+
+Such a mapping would allow marked-up text eg wikipedia articles to be indexed as both text
+and structured tokens. The annotations use a markdown-like syntax using URL encoding of
+one or more values separated by the `&` symbol.
+
+
+We can use the "_analyze" api to test how an example annotation would be stored as tokens
+in the search index:
+
+
+[source,js]
+--------------------------
+GET my_index/_analyze
+{
+  "field": "my_field", 
+  "text":"Investors in [Apple](Apple+Inc.) rejoiced."
+}
+--------------------------
+// NOTCONSOLE
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "tokens": [
+    {
+      "token": "investors",
+      "start_offset": 0,
+      "end_offset": 9,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "in",
+      "start_offset": 10,
+      "end_offset": 12,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "Apple Inc.", <1> 
+      "start_offset": 13,
+      "end_offset": 18,
+      "type": "annotation",
+      "position": 2
+    },
+    {
+      "token": "apple",
+      "start_offset": 13,
+      "end_offset": 18,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "rejoiced",
+      "start_offset": 19,
+      "end_offset": 27,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> Note the whole annotation token `Apple Inc.` is placed, unchanged as a single token in
+the token stream and at the same position (position 2) as the text token (`apple`) it annotates.
+
+
+We can now perform searches for annotations using regular `term` queries that don't tokenize
+the provided search values. Annotations are a more precise way of matching as can be seen 
+in this example where a search for `Beck` will not match `Jeff Beck` :
+
+[source,js]
+--------------------------
+# Example documents
+PUT my_index/_doc/1
+{
+  "my_field": "[Beck](Beck) announced a new tour"<2>
+}
+
+PUT my_index/_doc/2
+{
+  "my_field": "[Jeff Beck](Jeff+Beck&Guitarist) plays a strat"<1>
+}
+
+# Example search
+GET my_index/_search
+{
+  "query": {
+    "term": {
+        "my_field": "Beck" <3>
+    }
+  }
+}
+--------------------------
+// CONSOLE
+
+<1> As well as tokenising the plain text into single words e.g. `beck`, here we 
+inject the single token value `Beck` at the same position as `beck` in the token stream.
+<2> Note annotations can inject multiple tokens at the same position - here we inject both
+the very specific value `Jeff Beck` and the broader term `Guitarist`. This enables
+broader positional queries e.g. finding mentions of a `Guitarist` near to `strat`.
+<3> A benefit of searching with these carefully defined annotation tokens is that a query for 
+`Beck` will not match document 2 that contains the tokens `jeff`, `beck` and `Jeff Beck`
+
+WARNING: Any use of `=` signs in annotation values eg `[Prince](person=Prince)` will 
+cause the document to be rejected with a parse failure. In future we hope to have a use for
+the equals signs so wil actively reject documents that contain this today.
+
+
+[[mapper-annotated-text-tips]]
+==== Data modelling tips
+===== Use structured and unstructured fields
+
+Annotations are normally a way of weaving structured information into unstructured text for
+higher-precision search.
+
+`Entity resolution` is a form of document enrichment undertaken by specialist software or people 
+where references to entities in a document are disambiguated by attaching a canonical ID.
+The ID is used to resolve any number of aliases or distinguish between people with the
+same name. The hyperlinks connecting Wikipedia's articles are a good example of resolved 
+entity IDs woven into text. 
+
+These IDs can be embedded as annotations in an annotated_text field but it often makes 
+sense to include them in dedicated structured fields to support discovery via aggregations:
+
+[source,js]
+--------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "my_unstructured_text_field": {
+        "type": "annotated_text"
+      },
+      "my_structured_people_field": {
+        "type": "text",
+        "fields": {
+          "keyword" : {
+            "type": "keyword"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------
+// CONSOLE
+
+Applications would then typically provide content and discover it as follows:
+
+[source,js]
+--------------------------
+# Example documents
+PUT my_index/_doc/1
+{
+  "my_unstructured_text_field": "[Shay](%40kimchy) created elasticsearch",
+  "my_twitter_handles": ["@kimchy"] <1>
+}
+
+GET my_index/_search
+{
+  "query": {
+    "query_string": {
+        "query": "elasticsearch OR logstash OR kibana",<2>
+        "default_field": "my_unstructured_text_field"
+    }
+  },
+  "aggregations": {
+  	"top_people" :{
+  	    "significant_terms" : { <3>
+	       "field" : "my_twitter_handles.keyword"
+  	    }
+  	}
+  }
+}
+--------------------------
+// CONSOLE
+
+<1> Note the `my_twitter_handles` contains a list of the annotation values
+also used in the unstructured text. (Note the annotated_text syntax requires escaping). 
+By repeating the annotation values in a structured field this application has ensured that 
+the tokens discovered in the structured field can be used for search and highlighting 
+in the unstructured field.  
+<2> In this example we search for documents that talk about components of the elastic stack
+<3> We use the `my_twitter_handles` field here to discover people who are significantly
+associated with the elastic stack.
+
+===== Avoiding over-matching annotations
+By design, the regular text tokens and the annotation tokens co-exist in the same indexed 
+field but in rare cases this can lead to some over-matching.
+
+The value of an annotation often denotes a _named entity_ (a person, place or company).
+The tokens for these named entities are inserted untokenized, and differ from typical text 
+tokens because they are normally:
+
+* Mixed case e.g. `Madonna`
+* Multiple words e.g. `Jeff Beck`
+* Can have punctuation or numbers e.g. `Apple Inc.` or `@kimchy`
+
+This means, for the most part, a search for a named entity in the annotated text field will
+not have any false positives e.g. when selecting `Apple Inc.` from an aggregation result 
+you can drill down to highlight uses in the text without "over matching" on any text tokens 
+like the word `apple` in this context:
+
+    the apple was very juicy
+    
+However, a problem arises if your named entity happens to be a single term and lower-case e.g. the 
+company `elastic`. In this case, a search on the annotated text field for the token `elastic`
+may match a text document such as this:
+
+    he fired an elastic band
+
+To avoid such false matches users should consider prefixing annotation values to ensure 
+they don't name clash with text tokens e.g.
+
+    [elastic](Company_elastic) released version 7.0 of the elastic stack today
+
+
+
+
+[[mapper-annotated-text-highlighter]]
+==== Using the `annotated` highlighter
+
+The `annotated-text` plugin includes a custom highlighter designed to mark up search hits
+in a way which is respectful of the original markup:
+
+[source,js]
+--------------------------
+# Example documents
+PUT my_index/_doc/1
+{
+  "my_field": "The cat sat on the [mat](sku3578)"
+}
+
+GET my_index/_search
+{
+  "query": {
+    "query_string": {
+        "query": "cats" 
+    }
+  },
+  "highlight": {
+    "fields": {
+      "my_field": {
+        "type": "annotated", <1>
+        "require_field_match": false
+      }
+    }
+  }
+}
+--------------------------
+// CONSOLE
+<1> The `annotated` highlighter type is designed for use with annotated_text fields
+
+The annotated highlighter is based on the `unified` highlighter and supports the same
+settings but does not use the `pre_tags` or `post_tags` parameters. Rather than using
+html-like markup such as `<em>cat</em>` the annotated highlighter uses the same 
+markdown-like syntax used for annotations and injects a key=value annotation where `_hit_term`
+is the  key and the matched search term is the value e.g. 
+
+    The [cat](_hit_term=cat) sat on the [mat](sku3578)
+
+The annotated highlighter tries to be respectful of any existing markup in the original 
+text:
+
+* If the search term matches exactly the location of an existing annotation then the 
+`_hit_term` key is merged into the url-like syntax used in the `(...)` part of the
+existing annotation. 
+* However, if the search term overlaps the span of an existing annotation it would break
+the markup formatting so the original annotation is removed in favour of a new annotation
+with just the search hit information in the results. 
+* Any non-overlapping annotations in the original text are preserved in highlighter
+selections
+
+
+[[mapper-annotated-text-limitations]]
+==== Limitations
+
+The annotated_text field type supports the same mapping settings as the `text` field type
+but with the following exceptions:
+
+* No support for `fielddata` or `fielddata_frequency_filter`
+* No support for `index_prefixes` or `index_phrases` indexing

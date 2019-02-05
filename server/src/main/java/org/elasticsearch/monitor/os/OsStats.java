@@ -52,11 +52,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         this.cpu = new Cpu(in);
         this.mem = new Mem(in);
         this.swap = new Swap(in);
-        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-            this.cgroup = in.readOptionalWriteable(Cgroup::new);
-        } else {
-            this.cgroup = null;
-        }
+        this.cgroup = in.readOptionalWriteable(Cgroup::new);
     }
 
     @Override
@@ -65,9 +61,7 @@ public class OsStats implements Writeable, ToXContentFragment {
         cpu.writeTo(out);
         mem.writeTo(out);
         swap.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-            out.writeOptionalWriteable(cgroup);
-        }
+        out.writeOptionalWriteable(cgroup);
     }
 
     public long getTimestamp() {

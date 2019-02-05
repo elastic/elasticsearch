@@ -19,7 +19,6 @@
 
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.standalone-test'
@@ -53,9 +52,6 @@ for (Version version : bwcVersions.indexCompatible) {
     // some tests rely on the translog not being flushed
     setting 'indices.memory.shard_inactive_time', '20m'
 
-    // debug logging for testRecovery
-    setting 'logger.level', 'DEBUG'
-
     if (version.onOrAfter('5.3.0')) {
       setting 'http.content_type.required', 'true'
     }
@@ -74,9 +70,6 @@ for (Version version : bwcVersions.indexCompatible) {
 
     // some tests rely on the translog not being flushed
     setting 'indices.memory.shard_inactive_time', '20m'
-
-    // debug logging for testRecovery
-    setting 'logger.level', 'DEBUG'
 
     numNodes = 2
     dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
@@ -99,12 +92,12 @@ for (Version version : bwcVersions.indexCompatible) {
   }
 }
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.snapshotsIndexCompatible) {
+    for (final def version : bwcVersions.unreleasedIndexCompatible) {
       dependsOn "v${version}#bwcTest"
     }
   }

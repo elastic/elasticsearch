@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -55,7 +56,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
     public void init() throws Exception {
         settings = Settings.builder().put("path.home", createTempDir()).build();
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         realms = mock(Realms.class);
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
@@ -77,7 +77,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(true));
 
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
+        when(licenseState.isSecurityDisabledByTrialLicense()).thenReturn(true);
         featureSet = new SecurityFeatureSet(settings, licenseState, realms,
                 rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(false));
@@ -90,7 +90,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(this.settings);
 
         boolean enabled = randomBoolean();
-        when(licenseState.isSecurityEnabled()).thenReturn(enabled);
+        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), enabled);
 
         final boolean httpSSLEnabled = randomBoolean();
         settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
@@ -98,12 +98,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
         settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
         final boolean auditingEnabled = randomBoolean();
         settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
-        final String[] auditOutputs = randomFrom(
-                new String[] { "logfile" },
-                new String[] { "index" },
-                new String[] { "logfile", "index" }
-        );
-        settings.putList(Security.AUDIT_OUTPUTS_SETTING.getKey(), auditOutputs);
         final boolean httpIpFilterEnabled = randomBoolean();
         final boolean transportIPFilterEnabled = randomBoolean();
         when(ipFilter.usageStats())
@@ -146,7 +140,11 @@ public class SecurityFeatureSetTests extends ESTestCase {
             realmUsage.put("key2", Arrays.asList(i));
             realmUsage.put("key3", Arrays.asList(i % 2 == 0));
         }
-        when(realms.usageStats()).thenReturn(realmsUsageStats);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Map<String, Object>> listener = (ActionListener) invocationOnMock.getArguments()[0];
+            listener.onResponse(realmsUsageStats);
+            return Void.TYPE;
+        }).when(realms).usageStats(any(ActionListener.class));
 
         final boolean anonymousEnabled = randomBoolean();
         if (anonymousEnabled) {
@@ -189,7 +187,11 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
                 // auditing
                 assertThat(source.getValue("audit.enabled"), is(auditingEnabled));
-                assertThat(source.getValue("audit.outputs"), contains(auditOutputs));
+                if (auditingEnabled) {
+                    assertThat(source.getValue("audit.outputs"), contains(LoggingAuditTrail.NAME));
+                } else {
+                    assertThat(source.getValue("audit.outputs"), is(nullValue()));
+                }
 
                 // ip filter
                 assertThat(source.getValue("ipfilter.http.enabled"), is(httpIpFilterEnabled));

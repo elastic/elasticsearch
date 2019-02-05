@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -59,7 +60,6 @@ public class SecurityRestFilterTests extends ESTestCase {
         channel = mock(RestChannel.class);
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         restHandler = mock(RestHandler.class);
         filter = new SecurityRestFilter(licenseState,
                 new ThreadContext(Settings.EMPTY), authcService, restHandler, false);
@@ -67,6 +67,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
     public void testProcess() throws Exception {
         RestRequest request = mock(RestRequest.class);
+        when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
         Authentication authentication = mock(Authentication.class);
         doAnswer((i) -> {
             ActionListener callback =

@@ -38,7 +38,6 @@ import org.elasticsearch.index.search.SimpleQueryStringQueryParser.Settings;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -50,14 +49,14 @@ import java.util.Objects;
  * won't throw exceptions for any weird string syntax. It supports
  * the following:
  * <ul>
- * <li>'{@code +}' specifies {@code AND} operation: <tt>token1+token2</tt>
- * <li>'{@code |}' specifies {@code OR} operation: <tt>token1|token2</tt>
- * <li>'{@code -}' negates a single token: <tt>-token0</tt>
- * <li>'{@code "}' creates phrases of terms: <tt>"term1 term2 ..."</tt>
- * <li>'{@code *}' at the end of terms specifies prefix query: <tt>term*</tt>
- * <li>'{@code (}' and '{@code)}' specifies precedence: <tt>token1 + (token2 | token3)</tt>
- * <li>'{@code ~}N' at the end of terms specifies fuzzy query: <tt>term~1</tt>
- * <li>'{@code ~}N' at the end of phrases specifies near/slop query: <tt>"term1 term2"~5</tt>
+ * <li>'{@code +}' specifies {@code AND} operation: {@code token1+token2}
+ * <li>'{@code |}' specifies {@code OR} operation: {@code token1|token2}
+ * <li>'{@code -}' negates a single token: {@code -token0}
+ * <li>'{@code "}' creates phrases of terms: {@code "term1 term2 ..."}
+ * <li>'{@code *}' at the end of terms specifies prefix query: {@code term*}
+ * <li>'{@code (}' and '{@code)}' specifies precedence: {@code token1 + (token2 | token3)}
+ * <li>'{@code ~}N' at the end of terms specifies fuzzy query: {@code term~1}
+ * <li>'{@code ~}N' at the end of phrases specifies near/slop query: {@code "term1 term2"~5}
  * </ul>
  * <p>
  * See: {@link SimpleQueryStringQueryParser} for more information.
@@ -168,27 +167,11 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         flags = in.readInt();
         analyzer = in.readOptionalString();
         defaultOperator = Operator.readFromStream(in);
-        if (in.getVersion().before(Version.V_5_1_1)) {
-            in.readBoolean(); // lowercase_expanded_terms
-        }
         settings.lenient(in.readBoolean());
-        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-            this.lenientSet = in.readBoolean();
-        }
+        this.lenientSet = in.readBoolean();
         settings.analyzeWildcard(in.readBoolean());
-        if (in.getVersion().before(Version.V_5_1_1)) {
-            in.readString(); // locale
-        }
         minimumShouldMatch = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-            settings.quoteFieldSuffix(in.readOptionalString());
-            if (in.getVersion().before(Version.V_6_0_0_beta2)) {
-                Boolean useAllFields = in.readOptionalBoolean();
-                if (useAllFields != null && useAllFields) {
-                    useAllFields(true);
-                }
-            }
-        }
+        settings.quoteFieldSuffix(in.readOptionalString());
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             settings.autoGenerateSynonymsPhraseQuery(in.readBoolean());
             settings.fuzzyPrefixLength(in.readVInt());
@@ -208,28 +191,11 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeInt(flags);
         out.writeOptionalString(analyzer);
         defaultOperator.writeTo(out);
-        if (out.getVersion().before(Version.V_5_1_1)) {
-            out.writeBoolean(true); // lowercase_expanded_terms
-        }
         out.writeBoolean(settings.lenient());
-        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-            out.writeBoolean(lenientSet);
-        }
+        out.writeBoolean(lenientSet);
         out.writeBoolean(settings.analyzeWildcard());
-        if (out.getVersion().before(Version.V_5_1_1)) {
-            out.writeString(Locale.ROOT.toLanguageTag()); // locale
-        }
         out.writeOptionalString(minimumShouldMatch);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-            out.writeOptionalString(settings.quoteFieldSuffix());
-            if (out.getVersion().before(Version.V_6_0_0_beta2)) {
-                if (useAllFields()) {
-                    out.writeOptionalBoolean(true);
-                } else {
-                    out.writeOptionalBoolean(null);
-                }
-            }
-        }
+        out.writeOptionalString(settings.quoteFieldSuffix());
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(settings.autoGenerateSynonymsPhraseQuery());
             out.writeVInt(settings.fuzzyPrefixLength());
@@ -282,22 +248,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Returns the analyzer to use for the query. */
     public String analyzer() {
         return this.analyzer;
-    }
-
-    @Deprecated
-    public Boolean useAllFields() {
-        return fieldsAndWeights.size() == 1 && fieldsAndWeights.keySet().stream().anyMatch(Regex::isMatchAllPattern);
-    }
-
-    /**
-     * This setting is deprecated, set {@link #field(String)} to "*" instead.
-     */
-    @Deprecated
-    public SimpleQueryStringBuilder useAllFields(Boolean useAllFields) {
-        if (useAllFields != null && useAllFields) {
-            this.fieldsAndWeights = Collections.singletonMap("*", 1.0f);
-        }
-        return this;
     }
 
     /**
@@ -405,7 +355,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     /**
      * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Defaults to <tt>true</tt>.
+     * Defaults to {@code true}.
      */
     public boolean autoGenerateSynonymsPhraseQuery() {
         return settings.autoGenerateSynonymsPhraseQuery();

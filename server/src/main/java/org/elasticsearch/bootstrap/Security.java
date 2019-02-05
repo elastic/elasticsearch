@@ -22,7 +22,6 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -30,6 +29,7 @@ import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.SocketPermission;
@@ -369,7 +369,7 @@ final class Security {
      * @param settings        the {@link Settings} instance to read the transport settings from
      */
     private static void addSocketPermissionForTransport(final Permissions policy, final Settings settings) {
-        final String transportRange = TcpTransport.PORT.get(settings);
+        final String transportRange = TransportSettings.PORT.get(settings);
         addSocketPermissionForPortRange(policy, transportRange);
     }
 

@@ -5,31 +5,32 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
-import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -37,44 +38,43 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class TransportPutFilterAction extends HandledTransportAction<PutFilterAction.Request, PutFilterAction.Response> {
 
     private final Client client;
-    private final JobManager jobManager;
 
     @Inject
-    public TransportPutFilterAction(Settings settings, ThreadPool threadPool,
-                                    TransportService transportService, ActionFilters actionFilters,
-                                    IndexNameExpressionResolver indexNameExpressionResolver,
-                                    Client client, JobManager jobManager) {
-        super(settings, PutFilterAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, PutFilterAction.Request::new);
+    public TransportPutFilterAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(PutFilterAction.NAME, transportService, actionFilters, (Supplier<PutFilterAction.Request>) PutFilterAction.Request::new);
         this.client = client;
-        this.jobManager = jobManager;
     }
 
     @Override
-    protected void doExecute(PutFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
+    protected void doExecute(Task task, PutFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
         MlFilter filter = request.getFilter();
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
+        indexRequest.opType(DocWriteRequest.OpType.CREATE);
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
             indexRequest.source(filter.toXContent(builder, params));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
         }
-        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-        bulkRequestBuilder.add(indexRequest);
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(),
-                new ActionListener<BulkResponse>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest,
+                new ActionListener<IndexResponse>() {
                     @Override
-                    public void onResponse(BulkResponse indexResponse) {
-                        jobManager.updateProcessOnFilterChanged(filter);
-                        listener.onResponse(new PutFilterAction.Response());
+                    public void onResponse(IndexResponse indexResponse) {
+                        listener.onResponse(new PutFilterAction.Response(filter));
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        listener.onFailure(ExceptionsHelper.serverError("Error putting filter with id [" + filter.getId() + "]", e));
+                        Exception reportedException;
+                        if (e instanceof VersionConflictEngineException) {
+                            reportedException = new ResourceAlreadyExistsException("A filter with id [" + filter.getId()
+                                    + "] already exists");
+                        } else {
+                            reportedException = ExceptionsHelper.serverError("Error putting filter with id [" + filter.getId() + "]", e);
+                        }
+                        listener.onFailure(reportedException);
                     }
                 });
     }

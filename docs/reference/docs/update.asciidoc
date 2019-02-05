@@ -47,7 +47,7 @@ POST test/_doc/1/_update
 // TEST[continued]
 
 We can add a tag to the list of tags (note, if the tag exists, it
-will still add it, since its a list):
+will still add it, since it's a list):
 
 [source,js]
 --------------------------------------------------
@@ -55,6 +55,28 @@ POST test/_doc/1/_update
 {
     "script" : {
         "source": "ctx._source.tags.add(params.tag)",
+        "lang": "painless",
+        "params" : {
+            "tag" : "blue"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+We can remove a tag from the list of tags. Note that the Painless function to
+`remove` a tag takes as its parameter the array index of the element you wish
+to remove, so you need a bit more logic to locate it while avoiding a runtime
+error. Note that if the tag was present more than once in the list, this will
+remove only one occurrence of it:
+
+[source,js]
+--------------------------------------------------
+POST test/_doc/1/_update
+{
+    "script" : {
+        "source": "if (ctx._source.tags.contains(params.tag)) { ctx._source.tags.remove(ctx._source.tags.indexOf(params.tag)) }",
         "lang": "painless",
         "params" : {
             "tag" : "blue"
@@ -172,7 +194,7 @@ the request was ignored.
    "_index": "test",
    "_type": "_doc",
    "_id": "1",
-   "_version": 6,
+   "_version": 7,
    "result": "noop"
 }
 --------------------------------------------------

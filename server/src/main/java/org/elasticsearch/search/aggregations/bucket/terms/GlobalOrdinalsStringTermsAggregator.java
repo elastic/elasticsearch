@@ -71,7 +71,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected final long valueCount;
     protected final GlobalOrdLookupFunction lookupGlobalOrd;
 
-    private final LongHash bucketOrds;
+    protected final LongHash bucketOrds;
 
     public interface GlobalOrdLookupFunction {
         BytesRef apply(long ord) throws IOException;
@@ -105,10 +105,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     boolean remapGlobalOrds() {
         return bucketOrds != null;
-    }
-
-    protected final long getBucketOrd(long globalOrd) {
-        return bucketOrds == null ? globalOrd : bucketOrds.find(globalOrd);
     }
 
     private void collectGlobalOrd(int doc, long globalOrd, LeafBucketCollector sub) throws IOException {
@@ -188,17 +184,28 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         long otherDocCount = 0;
         BucketPriorityQueue<OrdBucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
         OrdBucket spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
-        for (long globalTermOrd = 0; globalTermOrd < valueCount; ++globalTermOrd) {
-            if (includeExclude != null && !acceptedGlobalOrdinals.get(globalTermOrd)) {
+        final boolean needsFullScan = bucketOrds == null || bucketCountThresholds.getMinDocCount() == 0;
+        final long maxId = needsFullScan ? valueCount : bucketOrds.size();
+        for (long ord = 0; ord < maxId; ord++) {
+            final long globalOrd;
+            final long bucketOrd;
+            if (needsFullScan) {
+                bucketOrd = bucketOrds == null ? ord : bucketOrds.find(ord);
+                globalOrd = ord;
+            } else {
+                assert bucketOrds != null;
+                bucketOrd = ord;
+                globalOrd = bucketOrds.get(ord);
+            }
+            if (includeExclude != null && !acceptedGlobalOrdinals.get(globalOrd)) {
                 continue;
             }
-            final long bucketOrd = getBucketOrd(globalTermOrd);
             final int bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
             if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
                 continue;
             }
             otherDocCount += bucketDocCount;
-            spare.globalOrd = globalTermOrd;
+            spare.globalOrd = globalOrd;
             spare.bucketOrd = bucketOrd;
             spare.docCount = bucketDocCount;
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
@@ -378,7 +385,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
                 final long ord = i - 1; // remember we do +1 when counting
                 final long globalOrd = mapping.applyAsLong(ord);
-                long bucketOrd = getBucketOrd(globalOrd);
+                long bucketOrd = bucketOrds == null ? globalOrd : bucketOrds.find(globalOrd);
                 incrementBucketDocCount(bucketOrd, inc);
             }
         }

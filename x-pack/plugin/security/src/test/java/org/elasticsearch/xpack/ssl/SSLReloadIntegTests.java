@@ -5,48 +5,27 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x509.Extension;
-import org.bouncycastle.asn1.x509.Time;
-import org.bouncycastle.cert.X509CertificateHolder;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
-import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
-import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
-import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.network.InetAddressHelper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.core.ssl.CertUtils;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
-import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.SocketException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.KeyPair;
-import java.security.KeyStore;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
-import java.util.Locale;
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.containsString;
@@ -57,34 +36,52 @@ import static org.hamcrest.Matchers.is;
  */
 public class SSLReloadIntegTests extends SecurityIntegTestCase {
 
-    private Path nodeStorePath;
+    private Path nodeKeyPath;
+    private Path nodeCertPath;
+    private Path clientCertPath;
+    private Path updateableCertPath;
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        if (nodeStorePath == null) {
-            Path origPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
-            Path tempDir = createTempDir();
-            nodeStorePath = tempDir.resolve("testnode.jks");
-            try {
-                Files.copy(origPath, nodeStorePath);
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to copy keystore");
+        // Nodes start trusting testnode.crt and testclient.crt
+        Path origKeyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
+        Path origCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        Path origClientCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt");
+        Path tempDir = createTempDir();
+        try {
+            if (nodeKeyPath == null) {
+                nodeKeyPath = tempDir.resolve("testnode.pem");
+                Files.copy(origKeyPath, nodeKeyPath);
             }
+            if (nodeCertPath == null) {
+                nodeCertPath = tempDir.resolve("testnode.crt");
+                Files.copy(origCertPath, nodeCertPath);
+            }
+            if (clientCertPath == null) {
+                clientCertPath = tempDir.resolve("testclient.crt");
+                Files.copy(origClientCertPath, clientCertPath);
+            }
+            // Placeholder trusted certificate that will be updated later on
+            if (updateableCertPath == null) {
+                updateableCertPath = tempDir.resolve("updateable.crt");
+                Files.copy(origCertPath, updateableCertPath);
+            }
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to copy key or certificate", e);
         }
+
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(settings.filter((s) -> s.startsWith("xpack.ssl.") == false));
+                .put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false));
+        builder.put("path.home", createTempDir())
+            .put("xpack.security.transport.ssl.key", nodeKeyPath)
+            .put("xpack.security.transport.ssl.key_passphrase", "testnode")
+            .put("xpack.security.transport.ssl.certificate", nodeCertPath)
+            .putList("xpack.security.transport.ssl.certificate_authorities",
+                Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(), updateableCertPath.toString()))
+            .put("resource.reload.interval.high", "1s");
 
-
-        SecuritySettingsSource.addSSLSettingsForStore(builder,
-            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
-        builder.put("resource.reload.interval.high", "1s")
-                .put("xpack.ssl.keystore.path", nodeStorePath);
-
-        if (builder.get("xpack.ssl.truststore.path") != null) {
-            builder.put("xpack.ssl.truststore.path", nodeStorePath);
-        }
-
+        builder.put("xpack.security.transport.ssl.enabled", true);
         return builder.build();
     }
 
@@ -94,53 +91,40 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     }
 
     public void testThatSSLConfigurationReloadsOnModification() throws Exception {
-        KeyPair keyPair = CertUtils.generateKeyPair(randomFrom(1024, 2048));
-        X509Certificate certificate = getCertificate(keyPair);
-        KeyStore keyStore = KeyStore.getInstance("jks");
-        keyStore.load(null, null);
-        keyStore.setKeyEntry("key", keyPair.getPrivate(), SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(),
-                new Certificate[] { certificate });
-        Path keystorePath = createTempDir().resolve("newcert.jks");
-        try (OutputStream out = Files.newOutputStream(keystorePath)) {
-            keyStore.store(out, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray());
-        }
+        Path keyPath = createTempDir().resolve("testnode_updated.pem");
+        Path certPath = createTempDir().resolve("testnode_updated.crt");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.pem"), keyPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"), certPath);
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", SecuritySettingsSourceField.TEST_PASSWORD);
-        secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.ssl.keystore.path", keystorePath)
-                .put("xpack.ssl.truststore.path", nodeStorePath)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("path.home", createTempDir())
+            .put("xpack.security.transport.ssl.key", keyPath)
+            .put("xpack.security.transport.ssl.certificate", certPath)
+            .putList("xpack.security.transport.ssl.certificate_authorities",
+                Arrays.asList(nodeCertPath.toString(), clientCertPath.toString(), updateableCertPath.toString()))
+            .setSecureSettings(secureSettings)
+            .build();
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
-        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(settings);
+        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster()
-                .getInstance(Transport.class, node).boundAddress().publishAddress();
+            .getInstance(Transport.class, node).boundAddress().publishAddress();
+        // Fails as our nodes do not trust testnode_updated.crt
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
             assertThat(socket.isConnected(), is(true));
             socket.startHandshake();
             fail("handshake should not have been successful!");
-        } catch (SSLHandshakeException | SocketException expected) {
+        } catch (SSLException | SocketException expected) {
             logger.trace("expected exception", expected);
         }
-
-        KeyStore nodeStore = KeyStore.getInstance("jks");
-        try (InputStream in = Files.newInputStream(nodeStorePath)) {
-            nodeStore.load(in, "testnode".toCharArray());
-        }
-        nodeStore.setCertificateEntry("newcert", certificate);
-        Path path = nodeStorePath.getParent().resolve("updated.jks");
-        try (OutputStream out = Files.newOutputStream(path)) {
-            nodeStore.store(out, "testnode".toCharArray());
-        }
+        // Copy testnode_updated.crt to the placeholder updateable.crt so that the nodes will start trusting it now
         try {
-            Files.move(path, nodeStorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(certPath, updateableCertPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {
-            Files.move(path, nodeStorePath, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(certPath, updateableCertPath, StandardCopyOption.REPLACE_EXISTING);
         }
-
         CountDownLatch latch = new CountDownLatch(1);
         assertBusy(() -> {
             try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
@@ -161,24 +145,5 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             }
         });
         latch.await();
-    }
-
-    private X509Certificate getCertificate(KeyPair keyPair) throws Exception {
-        final DateTime notBefore = new DateTime(DateTimeZone.UTC);
-        final DateTime notAfter = notBefore.plusYears(1);
-        X500Name subject = new X500Name("CN=random cert");
-        JcaX509v3CertificateBuilder builder =
-                new JcaX509v3CertificateBuilder(subject, CertUtils.getSerial(),
-                        new Time(notBefore.toDate(), Locale.ROOT), new Time(notAfter.toDate(), Locale.ROOT), subject, keyPair.getPublic());
-
-        JcaX509ExtensionUtils extUtils = new JcaX509ExtensionUtils();
-        builder.addExtension(Extension.subjectKeyIdentifier, false, extUtils.createSubjectKeyIdentifier(keyPair.getPublic()));
-        builder.addExtension(Extension.authorityKeyIdentifier, false, extUtils.createAuthorityKeyIdentifier(keyPair.getPublic()));
-        builder.addExtension(Extension.subjectAlternativeName, false,
-                CertUtils.getSubjectAlternativeNames(true, Sets.newHashSet(InetAddressHelper.getAllAddresses())));
-
-        ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA").build(keyPair.getPrivate());
-        X509CertificateHolder certificateHolder = builder.build(signer);
-        return new JcaX509CertificateConverter().getCertificate(certificateHolder);
     }
 }

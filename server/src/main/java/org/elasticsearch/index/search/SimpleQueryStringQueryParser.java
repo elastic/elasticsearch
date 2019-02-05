@@ -359,7 +359,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
         /**
          * Whether phrase queries should be automatically generated for multi terms synonyms.
-         * Defaults to <tt>true</tt>.
+         * Defaults to {@code true}.
          */
         public boolean autoGenerateSynonymsPhraseQuery() {
             return autoGenerateSynonymsPhraseQuery;

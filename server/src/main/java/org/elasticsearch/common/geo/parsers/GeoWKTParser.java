@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.common.geo.parsers;
 
-import org.locationtech.jts.geom.Coordinate;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
-
-import java.io.StringReader;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
@@ -36,10 +34,12 @@ import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.BaseGeoShapeFieldMapper;
+import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 import java.io.StreamTokenizer;
+import java.io.StringReader;
 import java.util.List;
 
 /**
@@ -63,7 +63,7 @@ public class GeoWKTParser {
     // no instance
     private GeoWKTParser() {}
 
-    public static ShapeBuilder parse(XContentParser parser, final GeoShapeFieldMapper shapeMapper)
+    public static ShapeBuilder parse(XContentParser parser, final BaseGeoShapeFieldMapper shapeMapper)
             throws IOException, ElasticsearchParseException {
         return parseExpectedType(parser, null, shapeMapper);
     }
@@ -75,11 +75,12 @@ public class GeoWKTParser {
 
     /** throws an exception if the parsed geometry type does not match the expected shape type */
     public static ShapeBuilder parseExpectedType(XContentParser parser, final GeoShapeType shapeType,
-                                                 final GeoShapeFieldMapper shapeMapper)
+                                                 final BaseGeoShapeFieldMapper shapeMapper)
             throws IOException, ElasticsearchParseException {
-        StringReader reader = new StringReader(parser.text());
-        try {
-            boolean ignoreZValue = (shapeMapper != null && shapeMapper.ignoreZValue().value() == true);
+        try (StringReader reader = new StringReader(parser.text())) {
+            Explicit<Boolean> ignoreZValue = (shapeMapper == null) ? BaseGeoShapeFieldMapper.Defaults.IGNORE_Z_VALUE :
+                shapeMapper.ignoreZValue();
+            Explicit<Boolean> coerce = (shapeMapper == null) ? BaseGeoShapeFieldMapper.Defaults.COERCE : shapeMapper.coerce();
             // setup the tokenizer; configured to read words w/o numbers
             StreamTokenizer tokenizer = new StreamTokenizer(reader);
             tokenizer.resetSyntax();
@@ -92,16 +93,15 @@ public class GeoWKTParser {
             tokenizer.wordChars('.', '.');
             tokenizer.whitespaceChars(0, ' ');
             tokenizer.commentChar('#');
-            ShapeBuilder builder = parseGeometry(tokenizer, shapeType, ignoreZValue);
+            ShapeBuilder builder = parseGeometry(tokenizer, shapeType, ignoreZValue.value(), coerce.value());
             checkEOF(tokenizer);
             return builder;
-        } finally {
-            reader.close();
         }
     }
 
     /** parse geometry from the stream tokenizer */
-    private static ShapeBuilder parseGeometry(StreamTokenizer stream, GeoShapeType shapeType, final boolean ignoreZValue)
+    private static ShapeBuilder parseGeometry(StreamTokenizer stream, GeoShapeType shapeType, final boolean ignoreZValue,
+                                              final boolean coerce)
             throws IOException, ElasticsearchParseException {
         final GeoShapeType type = GeoShapeType.forName(nextWord(stream));
         if (shapeType != null && shapeType != GeoShapeType.GEOMETRYCOLLECTION) {
@@ -111,21 +111,21 @@ public class GeoWKTParser {
         }
         switch (type) {
             case POINT:
-                return parsePoint(stream, ignoreZValue);
+                return parsePoint(stream, ignoreZValue, coerce);
             case MULTIPOINT:
-                return parseMultiPoint(stream, ignoreZValue);
+                return parseMultiPoint(stream, ignoreZValue, coerce);
             case LINESTRING:
-                return parseLine(stream, ignoreZValue);
+                return parseLine(stream, ignoreZValue, coerce);
             case MULTILINESTRING:
-                return parseMultiLine(stream, ignoreZValue);
+                return parseMultiLine(stream, ignoreZValue, coerce);
             case POLYGON:
-                return parsePolygon(stream, ignoreZValue);
+                return parsePolygon(stream, ignoreZValue, coerce);
             case MULTIPOLYGON:
-                return parseMultiPolygon(stream, ignoreZValue);
+                return parseMultiPolygon(stream, ignoreZValue, coerce);
             case ENVELOPE:
                 return parseBBox(stream);
             case GEOMETRYCOLLECTION:
-                return parseGeometryCollection(stream, ignoreZValue);
+                return parseGeometryCollection(stream, ignoreZValue, coerce);
             default:
                 throw new IllegalArgumentException("Unknown geometry type: " + type);
         }
@@ -146,7 +146,7 @@ public class GeoWKTParser {
         return new EnvelopeBuilder(new Coordinate(minLon, maxLat), new Coordinate(maxLon, minLat));
     }
 
-    private static PointBuilder parsePoint(StreamTokenizer stream, final boolean ignoreZValue)
+    private static PointBuilder parsePoint(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
             throws IOException, ElasticsearchParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;
@@ -159,12 +159,12 @@ public class GeoWKTParser {
         return pt;
     }
 
-    private static List<Coordinate> parseCoordinateList(StreamTokenizer stream, final boolean ignoreZValue)
+    private static List<Coordinate> parseCoordinateList(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
             throws IOException, ElasticsearchParseException {
         CoordinatesBuilder coordinates = new CoordinatesBuilder();
         boolean isOpenParen = false;
         if (isNumberNext(stream) || (isOpenParen = nextWord(stream).equals(LPAREN))) {
-            coordinates.coordinate(parseCoordinate(stream, ignoreZValue));
+            coordinates.coordinate(parseCoordinate(stream, ignoreZValue, coerce));
         }
 
         if (isOpenParen && nextCloser(stream).equals(RPAREN) == false) {
@@ -174,7 +174,7 @@ public class GeoWKTParser {
         while (nextCloserOrComma(stream).equals(COMMA)) {
             isOpenParen = false;
             if (isNumberNext(stream) || (isOpenParen = nextWord(stream).equals(LPAREN))) {
-                coordinates.coordinate(parseCoordinate(stream, ignoreZValue));
+                coordinates.coordinate(parseCoordinate(stream, ignoreZValue, coerce));
             }
             if (isOpenParen && nextCloser(stream).equals(RPAREN) == false) {
                 throw new ElasticsearchParseException("expected: " + RPAREN + " but found: " + tokenString(stream), stream.lineno());
@@ -183,7 +183,7 @@ public class GeoWKTParser {
         return coordinates.build();
     }
 
-    private static Coordinate parseCoordinate(StreamTokenizer stream, final boolean ignoreZValue)
+    private static Coordinate parseCoordinate(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
             throws IOException, ElasticsearchParseException {
         final double lon = nextNumber(stream);
         final double lat = nextNumber(stream);
@@ -194,71 +194,99 @@ public class GeoWKTParser {
         return z == null ? new Coordinate(lon, lat) : new Coordinate(lon, lat, z);
     }
 
-    private static MultiPointBuilder parseMultiPoint(StreamTokenizer stream, final boolean ignoreZValue)
+    private static MultiPointBuilder parseMultiPoint(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
             throws IOException, ElasticsearchParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return null;
         }
-        return new MultiPointBuilder(parseCoordinateList(stream, ignoreZValue));
+        return new MultiPointBuilder(parseCoordinateList(stream, ignoreZValue, coerce));
     }
 
-    private static LineStringBuilder parseLine(StreamTokenizer stream, final boolean ignoreZValue)
+    private static LineStringBuilder parseLine(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
             throws IOException, ElasticsearchParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return null;
         }
-        return new LineStringBuilder(parseCoordinateList(stream, ignoreZValue));
+        return new LineStringBuilder(parseCoordinateList(stream, ignoreZValue, coerce));
     }
 
-    private static MultiLineStringBuilder parseMultiLine(StreamTokenizer stream, final boolean ignoreZValue)
+    // A LinearRing is closed LineString with 4 or more positions. The first and last positions
+    // are equivalent (they represent equivalent points).
+    private static LineStringBuilder parseLinearRing(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
+            throws IOException, ElasticsearchParseException {
+        String token = nextEmptyOrOpen(stream);
+        if (token.equals(EMPTY)) {
+            return null;
+        }
+        List<Coordinate> coordinates = parseCoordinateList(stream, ignoreZValue, coerce);
+        int coordinatesNeeded = coerce ? 3 : 4;
+        if (coordinates.size() >= coordinatesNeeded) {
+            if (!coordinates.get(0).equals(coordinates.get(coordinates.size() - 1))) {
+                if (coerce == true) {
+                    coordinates.add(coordinates.get(0));
+                } else {
+                    throw new ElasticsearchParseException("invalid LinearRing found (coordinates are not closed)");
+                }
+            }
+        }
+        if (coordinates.size() < 4) {
+            throw new ElasticsearchParseException("invalid number of points in LinearRing (found [{}] - must be >= 4)",
+                coordinates.size());
+        }
+        return new LineStringBuilder(coordinates);
+    }
+
+    private static MultiLineStringBuilder parseMultiLine(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
             throws IOException, ElasticsearchParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
             return null;
         }
         MultiLineStringBuilder builder = new MultiLineStringBuilder();
-        builder.linestring(parseLine(stream, ignoreZValue));
+        builder.linestring(parseLine(stream, ignoreZValue, coerce));
         while (nextCloserOrComma(stream).equals(COMMA)) {
-            builder.linestring(parseLine(stream, ignoreZValue));
+            builder.linestring(parseLine(stream, ignoreZValue, coerce));
         }
         return builder;
     }
 
-    private static PolygonBuilder parsePolygon(StreamTokenizer stream, final boolean ignoreZValue)
+    private static PolygonBuilder parsePolygon(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
             throws IOException, ElasticsearchParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;
         }
-        PolygonBuilder builder = new PolygonBuilder(parseLine(stream, ignoreZValue), ShapeBuilder.Orientation.RIGHT);
+        PolygonBuilder builder = new PolygonBuilder(parseLinearRing(stream, ignoreZValue, coerce),
+            BaseGeoShapeFieldMapper.Defaults.ORIENTATION.value());
         while (nextCloserOrComma(stream).equals(COMMA)) {
-            builder.hole(parseLine(stream, ignoreZValue));
+            builder.hole(parseLinearRing(stream, ignoreZValue, coerce));
         }
         return builder;
     }
 
-    private static MultiPolygonBuilder parseMultiPolygon(StreamTokenizer stream, final boolean ignoreZValue)
+    private static MultiPolygonBuilder parseMultiPolygon(StreamTokenizer stream, final boolean ignoreZValue, final boolean coerce)
             throws IOException, ElasticsearchParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;
         }
-        MultiPolygonBuilder builder = new MultiPolygonBuilder().polygon(parsePolygon(stream, ignoreZValue));
+        MultiPolygonBuilder builder = new MultiPolygonBuilder().polygon(parsePolygon(stream, ignoreZValue, coerce));
         while (nextCloserOrComma(stream).equals(COMMA)) {
-            builder.polygon(parsePolygon(stream, ignoreZValue));
+            builder.polygon(parsePolygon(stream, ignoreZValue, coerce));
         }
         return builder;
     }
 
-    private static GeometryCollectionBuilder parseGeometryCollection(StreamTokenizer stream, final boolean ignoreZValue)
+    private static GeometryCollectionBuilder parseGeometryCollection(StreamTokenizer stream, final boolean ignoreZValue,
+                                                                     final boolean coerce)
             throws IOException, ElasticsearchParseException {
         if (nextEmptyOrOpen(stream).equals(EMPTY)) {
             return null;
         }
         GeometryCollectionBuilder builder = new GeometryCollectionBuilder().shape(
-            parseGeometry(stream, GeoShapeType.GEOMETRYCOLLECTION, ignoreZValue));
+            parseGeometry(stream, GeoShapeType.GEOMETRYCOLLECTION, ignoreZValue, coerce));
         while (nextCloserOrComma(stream).equals(COMMA)) {
-            builder.shape(parseGeometry(stream, null, ignoreZValue));
+            builder.shape(parseGeometry(stream, null, ignoreZValue, coerce));
         }
         return builder;
     }

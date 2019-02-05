@@ -56,7 +56,7 @@ And type:
 
 [source,js]
 --------------------------------------------------
-GET /test/type/_mget
+GET /test/_doc/_mget
 {
     "docs" : [
         {
@@ -75,7 +75,7 @@ request:
 
 [source,js]
 --------------------------------------------------
-GET /test/type/_mget
+GET /test/_doc/_mget
 {
     "ids" : ["1", "2"]
 }
@@ -89,7 +89,7 @@ GET /test/type/_mget
 By default, the `_source` field will be returned for every document (if stored).
 Similar to the <<get-source-filtering,get>> API, you can retrieve only parts of
 the `_source` (or not at all) by using the `_source` parameter. You can also use
-the url parameters `_source`,`_source_include` & `_source_exclude` to specify defaults,
+the url parameters `_source`,`_source_includes` & `_source_excludes` to specify defaults,
 which will be used when there are no per-document instructions.
 
 For example:
@@ -160,7 +160,7 @@ as a default to be applied to all documents.
 
 [source,js]
 --------------------------------------------------
-GET /test/type/_mget?stored_fields=field1,field2
+GET /test/_doc/_mget?stored_fields=field1,field2
 {
     "docs" : [
         {
@@ -204,8 +204,8 @@ GET /_mget?routing=key1
 --------------------------------------------------
 // CONSOLE
 
-In this example, document `test/type/2` will be fetch from shard corresponding to routing key `key1` but
-document `test/type/1` will be fetch from shard corresponding to routing key `key2`.
+In this example, document `test/_doc/2` will be fetch from shard corresponding to routing key `key1` but
+document `test/_doc/1` will be fetch from shard corresponding to routing key `key2`.
 
 [float]
 [[mget-security]]

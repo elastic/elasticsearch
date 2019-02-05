@@ -3,8 +3,8 @@
     "documentation": "",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/rollup/data/{id}",
-      "paths": [ "/_xpack/rollup/data/{id}", "/_xpack/rollup/data/" ],
+      "path": "/_rollup/data/{id}",
+      "paths": [ "/_rollup/data/{id}", "/_rollup/data/" ],
       "parts": {
         "id": {
           "type": "string",

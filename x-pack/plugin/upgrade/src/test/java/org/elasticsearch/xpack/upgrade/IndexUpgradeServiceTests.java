@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -27,7 +27,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class IndexUpgradeServiceTests extends ESTestCase {
 
-    private IndexUpgradeCheck upgradeBarCheck = new IndexUpgradeCheck("upgrade_bar", Settings.EMPTY,
+    private IndexUpgradeCheck upgradeBarCheck = new IndexUpgradeCheck("upgrade_bar",
             (Function<IndexMetaData, UpgradeActionRequired>) indexMetaData -> {
                 if ("bar".equals(indexMetaData.getSettings().get("test.setting"))) {
                     return UpgradeActionRequired.UPGRADE;
@@ -36,7 +36,7 @@ public class IndexUpgradeServiceTests extends ESTestCase {
                 }
             }, null, null, null, null);
 
-    private IndexUpgradeCheck reindexFooCheck = new IndexUpgradeCheck("reindex_foo", Settings.EMPTY,
+    private IndexUpgradeCheck reindexFooCheck = new IndexUpgradeCheck("reindex_foo",
             (Function<IndexMetaData, UpgradeActionRequired>) indexMetaData -> {
                 if ("foo".equals(indexMetaData.getSettings().get("test.setting"))) {
                     return UpgradeActionRequired.REINDEX;
@@ -45,10 +45,10 @@ public class IndexUpgradeServiceTests extends ESTestCase {
                 }
             }, null, null, null, null);
 
-    private IndexUpgradeCheck everythingIsFineCheck = new IndexUpgradeCheck("everything_is_fine", Settings.EMPTY,
+    private IndexUpgradeCheck everythingIsFineCheck = new IndexUpgradeCheck("everything_is_fine",
             indexMetaData -> UpgradeActionRequired.UP_TO_DATE, null, null, null, null);
 
-    private IndexUpgradeCheck unreachableCheck = new IndexUpgradeCheck("unreachable", Settings.EMPTY,
+    private IndexUpgradeCheck unreachableCheck = new IndexUpgradeCheck("unreachable",
             (Function<IndexMetaData, UpgradeActionRequired>) indexMetaData -> {
                 fail("Unreachable check is called");
                 return null;
@@ -57,14 +57,14 @@ public class IndexUpgradeServiceTests extends ESTestCase {
     public void testIndexUpgradeServiceMultipleCheck() throws Exception {
         IndexUpgradeService service;
         if (randomBoolean()) {
-            service = new IndexUpgradeService(Settings.EMPTY, Arrays.asList(
+            service = new IndexUpgradeService(Arrays.asList(
                     upgradeBarCheck,
                     reindexFooCheck,
                     everythingIsFineCheck,
                     unreachableCheck // This one should never be called
             ));
         } else {
-            service = new IndexUpgradeService(Settings.EMPTY, Arrays.asList(
+            service = new IndexUpgradeService(Arrays.asList(
                     reindexFooCheck,
                     upgradeBarCheck,
                     everythingIsFineCheck,
@@ -93,7 +93,7 @@ public class IndexUpgradeServiceTests extends ESTestCase {
 
 
     public void testNoMatchingChecks() throws Exception {
-        IndexUpgradeService service = new IndexUpgradeService(Settings.EMPTY, Arrays.asList(
+        IndexUpgradeService service = new IndexUpgradeService(Arrays.asList(
                 upgradeBarCheck,
                 reindexFooCheck
         ));
@@ -113,7 +113,7 @@ public class IndexUpgradeServiceTests extends ESTestCase {
     }
 
     public void testEarlierChecksWin() throws Exception {
-        IndexUpgradeService service = new IndexUpgradeService(Settings.EMPTY, Arrays.asList(
+        IndexUpgradeService service = new IndexUpgradeService(Arrays.asList(
                 everythingIsFineCheck,
                 upgradeBarCheck,
                 reindexFooCheck
@@ -132,7 +132,7 @@ public class IndexUpgradeServiceTests extends ESTestCase {
     }
 
     public void testGenericTest() throws Exception {
-        IndexUpgradeService service = new IndexUpgradeService(Settings.EMPTY, Arrays.asList(
+        IndexUpgradeService service = new IndexUpgradeService(Arrays.asList(
                 upgradeBarCheck,
                 reindexFooCheck
         ));
@@ -166,7 +166,7 @@ public class IndexUpgradeServiceTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_CREATION_DATE, 1)
                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)
+                .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_6_0_0)
                 .put(indexSettings)
                 .build();
         IndexMetaData.Builder builder = IndexMetaData.builder(name).settings(build);

@@ -42,8 +42,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -54,8 +56,8 @@ import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.After;
 import org.junit.Before;
 
@@ -64,8 +66,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -179,8 +183,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
                                           ThreadPool threadPool, Logger logger, Map<String, MockNode> nodes) throws Exception {
         final Settings settings = Settings.builder()
                 .put("name", name)
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "").put(
-                     TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "").put(
+                     TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .put(basSettings)
                 .build();
 
@@ -266,7 +270,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 new DiscoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockPublishAction(
-                settings,
                 transportService,
                 namedWriteableRegistry,
                 listener,
@@ -486,7 +489,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder()
             .addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
 
-        ClusterState unserializableClusterState = new ClusterState(clusterState.version(), clusterState.stateUUID(), clusterState) {
+        ClusterState unserializableClusterState = new ClusterState(clusterState.version(), clusterState.stateUUID(),
+                                                                   clusterState) {
             @Override
             public Diff<ClusterState> diff(ClusterState previousState) {
                 return new Diff<ClusterState>() {
@@ -506,7 +510,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         try {
             publishStateAndWait(nodeA.action, unserializableClusterState, previousClusterState);
             fail("cluster state published despite of diff errors");
-        } catch (Discovery.FailedToCommitClusterStateException e) {
+        } catch (FailedToCommitClusterStateException e) {
             assertThat(e.getCause(), notNullValue());
             assertThat(e.getCause().getMessage(), containsString("failed to serialize"));
         }
@@ -534,7 +538,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         try {
             publishState(master.action, clusterState, previousState, masterNodes + randomIntBetween(1, 5));
             fail("cluster state publishing didn't fail despite of not having enough nodes");
-        } catch (Discovery.FailedToCommitClusterStateException expected) {
+        } catch (FailedToCommitClusterStateException expected) {
             logger.debug("failed to publish as expected", expected);
         }
     }
@@ -614,7 +618,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             if (expectingToCommit == false) {
                 fail("cluster state publishing didn't fail despite of not have enough nodes");
             }
-        } catch (Discovery.FailedToCommitClusterStateException exception) {
+        } catch (FailedToCommitClusterStateException exception) {
             logger.debug("failed to publish as expected", exception);
             if (expectingToCommit) {
                 throw exception;
@@ -692,7 +696,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             try {
                 publishState(master.action, state, master.clusterState, 2).await(1, TimeUnit.HOURS);
                 success = true;
-            } catch (Discovery.FailedToCommitClusterStateException OK) {
+            } catch (FailedToCommitClusterStateException OK) {
                 success = false;
             }
             logger.debug("--> publishing [{}], verifying...", success ? "succeeded" : "failed");
@@ -814,38 +818,38 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
     public static class AssertingAckListener implements Discovery.AckListener {
         private final List<Tuple<DiscoveryNode, Throwable>> errors = new CopyOnWriteArrayList<>();
-        private final AtomicBoolean timeoutOccurred = new AtomicBoolean();
+        private final Set<DiscoveryNode> successfulAcks = Collections.synchronizedSet(new HashSet<>());
         private final CountDownLatch countDown;
+        private final CountDownLatch commitCountDown;
 
         public AssertingAckListener(int nodeCount) {
             countDown = new CountDownLatch(nodeCount);
+            commitCountDown = new CountDownLatch(1);
+        }
+
+        @Override
+        public void onCommit(TimeValue commitTime) {
+            commitCountDown.countDown();
         }
 
         @Override
         public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
             if (e != null) {
                 errors.add(new Tuple<>(node, e));
+            } else {
+                successfulAcks.add(node);
             }
             countDown.countDown();
         }
 
-        @Override
-        public void onTimeout() {
-            timeoutOccurred.set(true);
-            // Fast forward the counter - no reason to wait here
-            long currentCount = countDown.getCount();
-            for (long i = 0; i < currentCount; i++) {
-                countDown.countDown();
-            }
-        }
-
-        public void await(long timeout, TimeUnit unit) throws InterruptedException {
+        public Set<DiscoveryNode> await(long timeout, TimeUnit unit) throws InterruptedException {
             assertThat(awaitErrors(timeout, unit), emptyIterable());
+            assertTrue(commitCountDown.await(timeout, unit));
+            return new HashSet<>(successfulAcks);
         }
 
         public List<Tuple<DiscoveryNode, Throwable>> awaitErrors(long timeout, TimeUnit unit) throws InterruptedException {
             countDown.await(timeout, unit);
-            assertFalse(timeoutOccurred.get());
             return errors;
         }
 
@@ -876,9 +880,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
         AtomicBoolean timeoutOnCommit = new AtomicBoolean();
         AtomicBoolean errorOnCommit = new AtomicBoolean();
 
-        public MockPublishAction(Settings settings, TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
+        public MockPublishAction(TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
                                  IncomingClusterStateListener listener, DiscoverySettings discoverySettings) {
-            super(settings, transportService, namedWriteableRegistry, listener, discoverySettings);
+            super(transportService, namedWriteableRegistry, listener, discoverySettings);
         }
 
         @Override
@@ -921,12 +925,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         @Override
         public void sendResponse(TransportResponse response) throws IOException {
-            this.response.set(response);
-            assertThat(error.get(), nullValue());
-        }
-
-        @Override
-        public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
             this.response.set(response);
             assertThat(error.get(), nullValue());
         }

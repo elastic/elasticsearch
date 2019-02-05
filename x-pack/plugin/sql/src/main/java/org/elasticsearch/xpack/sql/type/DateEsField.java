@@ -21,15 +21,8 @@ public class DateEsField extends EsField {
     private final List<String> formats;
 
     public DateEsField(String name, Map<String, EsField> properties, boolean hasDocValues, String... formats) {
-        super(name, DataType.DATE, properties, hasDocValues);
+        super(name, DataType.DATETIME, properties, hasDocValues);
         this.formats = CollectionUtils.isEmpty(formats) ? DEFAULT_FORMAT : Arrays.asList(formats);
-    }
-
-    @Override
-    public int getPrecision() {
-        // same as Long
-        // TODO: based this on format string
-        return 19;
     }
 
     public List<String> getFormats() {

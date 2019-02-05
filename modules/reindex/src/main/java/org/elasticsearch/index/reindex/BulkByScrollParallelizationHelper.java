@@ -61,7 +61,7 @@ class BulkByScrollParallelizationHelper {
     static <Request extends AbstractBulkByScrollRequest<Request>> void startSlicedAction(
             Request request,
             BulkByScrollTask task,
-            Action<Request, BulkByScrollResponse, ?> action,
+            Action<BulkByScrollResponse> action,
             ActionListener<BulkByScrollResponse> listener,
             Client client,
             DiscoveryNode node,
@@ -85,7 +85,7 @@ class BulkByScrollParallelizationHelper {
     private static <Request extends AbstractBulkByScrollRequest<Request>> void sliceConditionally(
             Request request,
             BulkByScrollTask task,
-            Action<Request, BulkByScrollResponse, ?> action,
+            Action<BulkByScrollResponse> action,
             ActionListener<BulkByScrollResponse> listener,
             Client client,
             DiscoveryNode node,
@@ -118,7 +118,7 @@ class BulkByScrollParallelizationHelper {
 
     private static <Request extends AbstractBulkByScrollRequest<Request>> void sendSubRequests(
             Client client,
-            Action<Request, BulkByScrollResponse, ?> action,
+            Action<BulkByScrollResponse> action,
             String localNodeId,
             BulkByScrollTask task,
             Request request,
@@ -154,19 +154,9 @@ class BulkByScrollParallelizationHelper {
                 }
                 slicedSource = request.source().copyWithNewSlice(sliceBuilder);
             }
-            slices[slice] = new SearchRequest()
-                    .source(slicedSource)
-                    .searchType(request.searchType())
-                    .indices(request.indices())
-                    .types(request.types())
-                    .routing(request.routing())
-                    .preference(request.preference())
-                    .requestCache(request.requestCache())
-                    .scroll(request.scroll())
-                    .indicesOptions(request.indicesOptions());
-            if (request.allowPartialSearchResults() != null) {
-                slices[slice].allowPartialSearchResults(request.allowPartialSearchResults());
-            }
+            SearchRequest searchRequest = new SearchRequest(request);
+            searchRequest.source(slicedSource);
+            slices[slice] = searchRequest;
         }
         return slices;
     }

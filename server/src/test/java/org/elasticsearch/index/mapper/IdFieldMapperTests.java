@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,7 +34,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -48,10 +46,11 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
 
         try {
-            docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+            docMapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().field("_id", "1").endObject()), XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
@@ -63,7 +62,8 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
         Settings indexSettings = Settings.EMPTY;
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(SourceToParse.source("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
+        ParsedDocument document = mapper.parse(new SourceToParse("index", "type", "id",
+            new BytesArray("{}"), XContentType.JSON));
         IndexableField[] fields = document.rootDoc().getFields(IdFieldMapper.NAME);
         assertEquals(1, fields.length);
         assertEquals(IndexOptions.DOCS, fields[0].fieldType().indexOptions());

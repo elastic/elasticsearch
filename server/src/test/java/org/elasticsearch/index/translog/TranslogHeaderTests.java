@@ -83,7 +83,7 @@ public class TranslogHeaderTests extends ESTestCase {
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
             final TranslogHeader inHeader = TranslogHeader.read(translogUUID, translogFile, channel);
             assertThat(inHeader.getTranslogUUID(), equalTo(translogUUID));
-            assertThat(inHeader.getPrimaryTerm(), equalTo(TranslogHeader.UNKNOWN_PRIMARY_TERM));
+            assertThat(inHeader.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
             assertThat(inHeader.sizeInBytes(), equalTo((int)channel.position()));
         }
         expectThrows(TranslogCorruptedException.class, () -> {
@@ -118,7 +118,8 @@ public class TranslogHeaderTests extends ESTestCase {
         assertThat("test file [" + translogFile + "] should exist", Files.exists(translogFile), equalTo(true));
         final E error = expectThrows(expectedErrorType, () -> {
             final Checkpoint checkpoint = new Checkpoint(Files.size(translogFile), 1, 1,
-                SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED, 1);
+                SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED,
+                SequenceNumbers.NO_OPS_PERFORMED, 1, SequenceNumbers.NO_OPS_PERFORMED);
             try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
                 TranslogReader.open(channel, translogFile, checkpoint, null);
             }

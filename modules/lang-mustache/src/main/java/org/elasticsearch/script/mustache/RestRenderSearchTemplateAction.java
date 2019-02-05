@@ -52,7 +52,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
         // Creates the render template request
         SearchTemplateRequest renderRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            renderRequest = RestSearchTemplateAction.parse(parser);
+            renderRequest = SearchTemplateRequest.fromXContent(parser);
         }
         renderRequest.setSimulate(true);
 

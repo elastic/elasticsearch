@@ -14,6 +14,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             test_suggestion:

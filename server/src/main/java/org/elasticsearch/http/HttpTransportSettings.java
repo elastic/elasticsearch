@@ -49,8 +49,6 @@ public final class HttpTransportSettings {
         new Setting<>("http.cors.allow-headers", "X-Requested-With,Content-Type,Content-Length", (value) -> value, Property.NodeScope);
     public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS =
         Setting.boolSetting("http.cors.allow-credentials", false, Property.NodeScope);
-    public static final Setting<Boolean> SETTING_PIPELINING =
-        Setting.boolSetting("http.pipelining", true, Property.NodeScope);
     public static final Setting<Integer> SETTING_PIPELINING_MAX_EVENTS =
         Setting.intSetting("http.pipelining.max_events", 10000, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_COMPRESSION =
@@ -107,8 +105,13 @@ public final class HttpTransportSettings {
     public static final Setting<TimeValue> SETTING_HTTP_READ_TIMEOUT =
         Setting.timeSetting("http.read_timeout", new TimeValue(0), new TimeValue(0), Property.NodeScope);
 
-    public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =
+    // Tcp socket settings
+
+    // TODO: Deprecate in 7.0
+    public static final Setting<Boolean> OLD_SETTING_HTTP_TCP_NO_DELAY =
         boolSetting("http.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);
+    public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =
+        boolSetting("http.tcp.no_delay", OLD_SETTING_HTTP_TCP_NO_DELAY, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_KEEP_ALIVE =
         boolSetting("http.tcp.keep_alive", NetworkService.TCP_KEEP_ALIVE, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_REUSE_ADDRESS =

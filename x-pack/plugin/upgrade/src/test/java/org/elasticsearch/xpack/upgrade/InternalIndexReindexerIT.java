@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.upgrade;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -85,7 +84,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
         assertThat(response.getCreated(), equalTo(2L));
 
         SearchResponse searchResponse = client().prepareSearch("test-123").get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             assertThat(hit.getId(), startsWith("bar-"));
@@ -207,7 +206,7 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
         DiscoveryNode node = discoveryNodes.get(nodeId);
         DiscoveryNode newNode = new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), node.getHostName(),
                 node.getHostAddress(), node.getAddress(), node.getAttributes(), node.getRoles(),
-                randomVersionBetween(random(), Version.V_5_0_0, Version.V_5_4_0));
+                randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0));
 
         return ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(discoveryNodes).remove(node).add(newNode)).build();
 

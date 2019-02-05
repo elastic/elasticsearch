@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -28,8 +27,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, GetRollupCapsAction.Response,
-        GetRollupCapsAction.RequestBuilder> {
+public class GetRollupCapsAction extends Action<GetRollupCapsAction.Response> {
 
     public static final GetRollupCapsAction INSTANCE = new GetRollupCapsAction();
     public static final String NAME = "cluster:monitor/xpack/rollup/get/caps";
@@ -38,11 +36,6 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, Get
 
     private GetRollupCapsAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, INSTANCE);
     }
 
     @Override
@@ -108,7 +101,7 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, Get
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 
         protected RequestBuilder(ElasticsearchClient client, GetRollupCapsAction action) {
             super(client, action, new Request());
@@ -124,11 +117,11 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, Get
         }
 
         public Response(Map<String, RollableIndexCaps> jobs) {
-            this.jobs = Objects.requireNonNull(jobs);
+            this.jobs = Collections.unmodifiableMap(Objects.requireNonNull(jobs));
         }
 
         Response(StreamInput in) throws IOException {
-            jobs = in.readMap(StreamInput::readString, RollableIndexCaps::new);
+            jobs = Collections.unmodifiableMap(in.readMap(StreamInput::readString, RollableIndexCaps::new));
         }
 
         public Map<String, RollableIndexCaps> getJobs() {
@@ -144,8 +137,10 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, Get
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            for (Map.Entry<String, RollableIndexCaps> entry : jobs.entrySet()) {
-               entry.getValue().toXContent(builder, params);
+            {
+                for (Map.Entry<String, RollableIndexCaps> entry : jobs.entrySet()) {
+                    entry.getValue().toXContent(builder, params);
+                }
             }
             builder.endObject();
             return builder;

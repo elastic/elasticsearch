@@ -7,7 +7,6 @@
   - match: { my_remote_cluster.num_nodes_connected: 1}
   - match: { my_remote_cluster.max_connections_per_cluster: 1}
   - match: { my_remote_cluster.initial_connect_timeout: "30s" }
-  - is_true: my_remote_cluster.http_addresses.0
 
 ---
 "Add transient remote cluster based on the preset cluster and check remote info":
@@ -15,21 +14,22 @@
       cluster.get_settings:
         include_defaults: true
 
-  - set: { defaults.search.remote.my_remote_cluster.seeds.0: remote_ip }
+  - set: { defaults.cluster.remote.my_remote_cluster.seeds.0: remote_ip }
 
   - do:
       cluster.put_settings:
         flat_settings: true
         body:
           transient:
-            search.remote.test_remote_cluster.seeds: $remote_ip
+            cluster.remote.test_remote_cluster.seeds: $remote_ip
 
-  - match: {transient: {search.remote.test_remote_cluster.seeds: $remote_ip}}
+  - match: {transient: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
 
   # we do another search here since this will enforce the connection to be established
   # otherwise the cluster might not have been connected yet.
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_remote_cluster:test_index
 
   - match: { _shards.total: 3 }
@@ -38,9 +38,6 @@
 
   - do:
       cluster.remote_info: {}
-  - set: { my_remote_cluster.http_addresses.0: remote_http }
-  - match: { test_remote_cluster.http_addresses.0: $remote_http }
-
   - match: { test_remote_cluster.connected: true }
   - match: { my_remote_cluster.connected: true }
 
@@ -60,7 +57,7 @@
       cluster.put_settings:
         body:
           transient:
-            search.remote.test_remote_cluster.seeds: null
+            cluster.remote.test_remote_cluster.seeds: null
 
 ---
 "skip_unavailable is returned as part of _remote/info response":
@@ -72,16 +69,16 @@
       cluster.get_settings:
         include_defaults: true
 
-  - set: { defaults.search.remote.my_remote_cluster.seeds.0: remote_ip }
+  - set: { defaults.cluster.remote.my_remote_cluster.seeds.0: remote_ip }
 
   - do:
       cluster.put_settings:
         flat_settings: true
         body:
           transient:
-            search.remote.remote1.seeds: $remote_ip
+            cluster.remote.remote1.seeds: $remote_ip
 
-  - match: {transient: {search.remote.remote1.seeds: $remote_ip}}
+  - match: {transient: {cluster.remote.remote1.seeds: $remote_ip}}
 
   - do:
       cluster.remote_info: {}
@@ -91,9 +88,9 @@
       cluster.put_settings:
         body:
           transient:
-            search.remote.remote1.skip_unavailable: true
+            cluster.remote.remote1.skip_unavailable: true
 
-  - is_true: transient.search.remote.remote1.skip_unavailable
+  - is_true: transient.cluster.remote.remote1.skip_unavailable
 
   - do:
       cluster.remote_info: {}
@@ -104,9 +101,9 @@
       cluster.put_settings:
         body:
           transient:
-            search.remote.remote1.skip_unavailable: false
+            cluster.remote.remote1.skip_unavailable: false
 
-  - is_false: transient.search.remote.remote1.skip_unavailable
+  - is_false: transient.cluster.remote.remote1.skip_unavailable
 
   - do:
       cluster.remote_info: {}
@@ -117,7 +114,7 @@
       cluster.put_settings:
         body:
           transient:
-            search.remote.remote1.skip_unavailable: null
+            cluster.remote.remote1.skip_unavailable: null
 
   - match: {transient: {}}
 
@@ -130,6 +127,5 @@
       cluster.put_settings:
         body:
           transient:
-            search.remote.remote1.seeds: null
-            search.remote.remote1.skip_unavailable: null
-
+            cluster.remote.remote1.seeds: null
+            cluster.remote.remote1.skip_unavailable: null

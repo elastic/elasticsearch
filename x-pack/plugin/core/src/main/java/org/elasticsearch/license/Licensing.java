@@ -29,7 +29,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.core.XPackPlugin.transportClientMode;
 
 public class Licensing implements ActionPlugin {
 

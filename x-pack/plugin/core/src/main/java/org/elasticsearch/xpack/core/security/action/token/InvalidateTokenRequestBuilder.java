@@ -12,7 +12,7 @@ import org.elasticsearch.client.ElasticsearchClient;
  * Request builder that is used to populate a {@link InvalidateTokenRequest}
  */
 public final class InvalidateTokenRequestBuilder
-        extends ActionRequestBuilder<InvalidateTokenRequest, InvalidateTokenResponse, InvalidateTokenRequestBuilder> {
+        extends ActionRequestBuilder<InvalidateTokenRequest, InvalidateTokenResponse> {
 
     public InvalidateTokenRequestBuilder(ElasticsearchClient client) {
         super(client, InvalidateTokenAction.INSTANCE, new InvalidateTokenRequest());
@@ -32,6 +32,22 @@ public final class InvalidateTokenRequestBuilder
      */
     public InvalidateTokenRequestBuilder setType(InvalidateTokenRequest.Type type) {
         request.setTokenType(type);
+        return this;
+    }
+
+    /**
+     * Sets the name of the realm for which all tokens should be invalidated
+     */
+    public InvalidateTokenRequestBuilder setRealmName(String realmName) {
+        request.setRealmName(realmName);
+        return this;
+    }
+
+    /**
+     * Sets the username for which all tokens should be invalidated
+     */
+    public InvalidateTokenRequestBuilder setUserName(String username) {
+        request.setUserName(username);
         return this;
     }
 }

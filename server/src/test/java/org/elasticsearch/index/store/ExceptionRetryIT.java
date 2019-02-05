@@ -38,8 +38,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -95,18 +93,14 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         for (NodeStats dataNode : nodeStats.getNodes()) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class,
                 dataNode.getNode().getName()));
-            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
-                new MockTransportService.DelegateTransport(mockTransportService.original()) {
-                @Override
-                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                           TransportRequestOptions options) throws IOException {
-                    super.sendRequest(connection, requestId, action, request, options);
+            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
+                (connection, requestId, action, request, options) -> {
+                    connection.sendRequest(requestId, action, request, options);
                     if (action.equals(TransportShardBulkAction.ACTION_NAME) && exceptionThrown.compareAndSet(false, true)) {
                         logger.debug("Throw ConnectTransportException");
                         throw new ConnectTransportException(connection.getNode(), action);
                     }
-                }
-            });
+                });
         }
 
         BulkRequestBuilder bulkBuilder = client.prepareBulk();
@@ -136,7 +130,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
                 if (!found_duplicate_already) {
                     SearchResponse dupIdResponse = client().prepareSearch("index").setQuery(termQuery("_id",
                         searchResponse.getHits().getHits()[i].getId())).setExplain(true).get();
-                    assertThat(dupIdResponse.getHits().getTotalHits(), greaterThan(1L));
+                    assertThat(dupIdResponse.getHits().getTotalHits().value, greaterThan(1L));
                     logger.info("found a duplicate id:");
                     for (SearchHit hit : dupIdResponse.getHits()) {
                         logger.info("Doc {} was found on shard {}", hit.getId(), hit.getShard().getShardId());

@@ -22,14 +22,14 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
-import org.joda.time.DateTimeZone;
+
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 public final class ValuesSourceParserHelper {
-    static final ParseField TIME_ZONE = new ParseField("time_zone");
 
     private ValuesSourceParserHelper() {} // utility class, no instantiation
 
@@ -63,10 +63,10 @@ public final class ValuesSourceParserHelper {
 
 
         objectParser.declareField(ValuesSourceAggregationBuilder::field, XContentParser::text,
-                new ParseField("field"), ObjectParser.ValueType.STRING);
+            ParseField.CommonFields.FIELD, ObjectParser.ValueType.STRING);
 
         objectParser.declareField(ValuesSourceAggregationBuilder::missing, XContentParser::objectText,
-                new ParseField("missing"), ObjectParser.ValueType.VALUE);
+            ParseField.CommonFields.MISSING, ObjectParser.ValueType.VALUE);
 
         objectParser.declareField(ValuesSourceAggregationBuilder::valueType, p -> {
             ValueType valueType = ValueType.resolveForScript(p.text());
@@ -77,11 +77,11 @@ public final class ValuesSourceParserHelper {
                                 + targetValueType + "]");
             }
             return valueType;
-        }, new ParseField("value_type", "valueType"), ObjectParser.ValueType.STRING);
+        }, ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
 
         if (formattable) {
             objectParser.declareField(ValuesSourceAggregationBuilder::format, XContentParser::text,
-                    new ParseField("format"), ObjectParser.ValueType.STRING);
+                ParseField.CommonFields.FORMAT, ObjectParser.ValueType.STRING);
         }
 
         if (scriptable) {
@@ -93,11 +93,11 @@ public final class ValuesSourceParserHelper {
         if (timezoneAware) {
             objectParser.declareField(ValuesSourceAggregationBuilder::timeZone, p -> {
                 if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return DateTimeZone.forID(p.text());
+                    return ZoneId.of(p.text());
                 } else {
-                    return DateTimeZone.forOffsetHours(p.intValue());
+                    return ZoneOffset.ofHours(p.intValue());
                 }
-            }, TIME_ZONE, ObjectParser.ValueType.LONG);
+            }, ParseField.CommonFields.TIME_ZONE, ObjectParser.ValueType.LONG);
         }
     }
 

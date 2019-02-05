@@ -20,16 +20,14 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.RequestLine;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
-import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -49,17 +47,14 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyMapOf;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyVararg;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -79,39 +74,46 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
             final RestClient restClient = mock(RestClient.class);
             restHighLevelClient = new CustomRestClient(restClient);
 
-            doAnswer(mock -> mockPerformRequest((Header) mock.getArguments()[4]))
+            doAnswer(inv -> mockPerformRequest((Request) inv.getArguments()[0]))
                     .when(restClient)
-                    .performRequest(eq(HttpGet.METHOD_NAME), eq(ENDPOINT), anyMapOf(String.class, String.class), anyObject(), anyVararg());
+                    .performRequest(any(Request.class));
 
-            doAnswer(mock -> mockPerformRequestAsync((Header) mock.getArguments()[5], (ResponseListener) mock.getArguments()[4]))
+            doAnswer(inv -> mockPerformRequestAsync(
+                        ((Request) inv.getArguments()[0]),
+                        (ResponseListener) inv.getArguments()[1]))
                     .when(restClient)
-                    .performRequestAsync(eq(HttpGet.METHOD_NAME), eq(ENDPOINT), anyMapOf(String.class, String.class),
-                            any(HttpEntity.class), any(ResponseListener.class), anyVararg());
+                    .performRequestAsync(any(Request.class), any(ResponseListener.class));
         }
     }
 
     public void testCustomEndpoint() throws IOException {
         final MainRequest request = new MainRequest();
-        final Header header = new BasicHeader("node_name", randomAlphaOfLengthBetween(1, 10));
+        String nodeName = randomAlphaOfLengthBetween(1, 10);
 
-        MainResponse response = restHighLevelClient.custom(request, header);
-        assertEquals(header.getValue(), response.getNodeName());
+        MainResponse response = restHighLevelClient.custom(request, optionsForNodeName(nodeName));
+        assertEquals(nodeName, response.getNodeName());
 
-        response = restHighLevelClient.customAndParse(request, header);
-        assertEquals(header.getValue(), response.getNodeName());
+        response = restHighLevelClient.customAndParse(request, optionsForNodeName(nodeName));
+        assertEquals(nodeName, response.getNodeName());
     }
 
     public void testCustomEndpointAsync() throws Exception {
         final MainRequest request = new MainRequest();
-        final Header header = new BasicHeader("node_name", randomAlphaOfLengthBetween(1, 10));
+        String nodeName = randomAlphaOfLengthBetween(1, 10);
 
         PlainActionFuture<MainResponse> future = PlainActionFuture.newFuture();
-        restHighLevelClient.customAsync(request, future, header);
-        assertEquals(header.getValue(), future.get().getNodeName());
+        restHighLevelClient.customAsync(request, optionsForNodeName(nodeName), future);
+        assertEquals(nodeName, future.get().getNodeName());
 
         future = PlainActionFuture.newFuture();
-        restHighLevelClient.customAndParseAsync(request, future, header);
-        assertEquals(header.getValue(), future.get().getNodeName());
+        restHighLevelClient.customAndParseAsync(request, optionsForNodeName(nodeName), future);
+        assertEquals(nodeName, future.get().getNodeName());
+    }
+
+    private static RequestOptions optionsForNodeName(String nodeName) {
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+        options.addHeader("node_name", nodeName);
+        return options.build();
     }
 
     /**
@@ -119,28 +121,32 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
      * so that they can be used by subclasses to implement custom logic.
      */
     @SuppressForbidden(reason = "We're forced to uses Class#getDeclaredMethods() here because this test checks protected methods")
-    public void testMethodsVisibility() throws ClassNotFoundException {
-        final String[] methodNames = new String[]{"performRequest",
-                                                  "performRequestAsync",
-                                                  "performRequestAndParseEntity",
-                                                  "performRequestAsyncAndParseEntity",
+    public void testMethodsVisibility() {
+        final String[] methodNames = new String[]{"convertExistsResponse",
                                                   "parseEntity",
-                                                  "parseResponseException"};
+                                                  "parseResponseException",
+                                                  "performRequest",
+                                                  "performRequestAndParseEntity",
+                                                  "performRequestAndParseOptionalEntity",
+                                                  "performRequestAsync",
+                                                  "performRequestAsyncAndParseEntity",
+                                                  "performRequestAsyncAndParseOptionalEntity"
+                                                  };
 
-        final List<String> protectedMethods =  Arrays.stream(RestHighLevelClient.class.getDeclaredMethods())
+        final Set<String> protectedMethods =  Arrays.stream(RestHighLevelClient.class.getDeclaredMethods())
                                                      .filter(method -> Modifier.isProtected(method.getModifiers()))
                                                      .map(Method::getName)
-                                                     .collect(Collectors.toList());
+                                                     .collect(Collectors.toCollection(TreeSet::new));
 
-        assertThat(protectedMethods, containsInAnyOrder(methodNames));
+        assertThat(protectedMethods, contains(methodNames));
     }
 
     /**
-     * Mocks the asynchronous request execution by calling the {@link #mockPerformRequest(Header)} method.
+     * Mocks the asynchronous request execution by calling the {@link #mockPerformRequest(Request)} method.
      */
-    private Void mockPerformRequestAsync(Header httpHeader, ResponseListener responseListener) {
+    private Void mockPerformRequestAsync(Request request, ResponseListener responseListener) {
         try {
-            responseListener.onSuccess(mockPerformRequest(httpHeader));
+            responseListener.onSuccess(mockPerformRequest(request));
         } catch (IOException e) {
             responseListener.onFailure(e);
         }
@@ -150,7 +156,9 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
     /**
      * Mocks the synchronous request execution like if it was executed by Elasticsearch.
      */
-    private Response mockPerformRequest(Header httpHeader) throws IOException {
+    private Response mockPerformRequest(Request request) throws IOException {
+        assertThat(request.getOptions().getHeaders(), hasSize(1));
+        Header httpHeader = request.getOptions().getHeaders().get(0);
         final Response mockResponse = mock(Response.class);
         when(mockResponse.getHost()).thenReturn(new HttpHost("localhost", 9200));
 
@@ -159,7 +167,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
 
         MainResponse response = new MainResponse(httpHeader.getValue(), Version.CURRENT, ClusterName.DEFAULT, "_na", Build.CURRENT);
         BytesRef bytesRef = XContentHelper.toXContent(response, XContentType.JSON, false).toBytesRef();
-        when(mockResponse.getEntity()).thenReturn(new ByteArrayEntity(bytesRef.bytes, ContentType.APPLICATION_JSON));
+        when(mockResponse.getEntity()).thenReturn(new NByteArrayEntity(bytesRef.bytes, ContentType.APPLICATION_JSON));
 
         RequestLine requestLine = new BasicRequestLine(HttpGet.METHOD_NAME, ENDPOINT, protocol);
         when(mockResponse.getRequestLine()).thenReturn(requestLine);
@@ -176,24 +184,24 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
             super(restClient, RestClient::close, Collections.emptyList());
         }
 
-        MainResponse custom(MainRequest mainRequest, Header... headers) throws IOException {
-            return performRequest(mainRequest, this::toRequest, this::toResponse, emptySet(), headers);
+        MainResponse custom(MainRequest mainRequest, RequestOptions options) throws IOException {
+            return performRequest(mainRequest, this::toRequest, options, this::toResponse, emptySet());
         }
 
-        MainResponse customAndParse(MainRequest mainRequest, Header... headers) throws IOException {
-            return performRequestAndParseEntity(mainRequest, this::toRequest, MainResponse::fromXContent, emptySet(), headers);
+        MainResponse customAndParse(MainRequest mainRequest, RequestOptions options) throws IOException {
+            return performRequestAndParseEntity(mainRequest, this::toRequest, options, MainResponse::fromXContent, emptySet());
         }
 
-        void customAsync(MainRequest mainRequest, ActionListener<MainResponse> listener, Header... headers) {
-            performRequestAsync(mainRequest, this::toRequest, this::toResponse, listener, emptySet(), headers);
+        void customAsync(MainRequest mainRequest, RequestOptions options, ActionListener<MainResponse> listener) {
+            performRequestAsync(mainRequest, this::toRequest, options, this::toResponse, listener, emptySet());
         }
 
-        void customAndParseAsync(MainRequest mainRequest, ActionListener<MainResponse> listener, Header... headers) {
-            performRequestAsyncAndParseEntity(mainRequest, this::toRequest, MainResponse::fromXContent, listener, emptySet(), headers);
+        void customAndParseAsync(MainRequest mainRequest, RequestOptions options, ActionListener<MainResponse> listener) {
+            performRequestAsyncAndParseEntity(mainRequest, this::toRequest, options, MainResponse::fromXContent, listener, emptySet());
         }
 
         Request toRequest(MainRequest mainRequest) throws IOException {
-            return new Request(HttpGet.METHOD_NAME, ENDPOINT, emptyMap(), null);
+            return new Request(HttpGet.METHOD_NAME, ENDPOINT);
         }
 
         MainResponse toResponse(Response response) throws IOException {

@@ -59,7 +59,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         ScriptService  scriptService = mock(ScriptService.class);
         when(mapperService.documentMapper()).thenReturn(null);
-        when(mapperService.simpleMatchToIndexNames(anyString()))
+        when(mapperService.simpleMatchToFullName(anyString()))
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -86,8 +86,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         });
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-        SecurityIndexSearcherWrapper wrapper = new SecurityIndexSearcherWrapper(indexSettings, s -> queryShardContext,
+        SecurityIndexSearcherWrapper wrapper = new SecurityIndexSearcherWrapper(s -> queryShardContext,
                 bitsetFilterCache, threadContext, licenseState, scriptService) {
 
             @Override
@@ -143,7 +142,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         for (int i = 0; i < numValues; i++) {
             ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
             doReturn(new TermQueryBuilder("field", values[i])).when(queryShardContext).parseInnerQueryBuilder(any(XContentParser.class));
-            when(queryShardContext.toFilter(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
+            when(queryShardContext.toQuery(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
             DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
             IndexSearcher indexSearcher = wrapper.wrap(new IndexSearcher(wrappedDirectoryReader));
 

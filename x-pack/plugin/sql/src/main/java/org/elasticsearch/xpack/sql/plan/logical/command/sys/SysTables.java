@@ -6,18 +6,20 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexInfo;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
@@ -30,20 +32,26 @@ import static org.elasticsearch.xpack.sql.util.StringUtils.SQL_WILDCARD;
 
 public class SysTables extends Command {
 
+    private final String index;
     private final LikePattern pattern;
     private final LikePattern clusterPattern;
     private final EnumSet<IndexType> types;
+    // flag indicating whether tables are reported as `TABLE` or `BASE TABLE`
+    private final boolean legacyTableTypes;
 
-    public SysTables(Location location, LikePattern clusterPattern, LikePattern pattern, EnumSet<IndexType> types) {
-        super(location);
+    public SysTables(Source source, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types,
+            boolean legacyTableTypes) {
+        super(source);
         this.clusterPattern = clusterPattern;
+        this.index = index;
         this.pattern = pattern;
         this.types = types;
+        this.legacyTableTypes = legacyTableTypes;
     }
 
     @Override
     protected NodeInfo<SysTables> info() {
-        return NodeInfo.create(this, SysTables::new, clusterPattern, pattern, types);
+        return NodeInfo.create(this, SysTables::new, clusterPattern, index, pattern, types, legacyTableTypes);
     }
 
     @Override
@@ -70,7 +78,7 @@ public class SysTables extends Command {
         // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqltables-function?view=ssdt-18vs2017#comments
 
         if (clusterPattern != null && clusterPattern.pattern().equals(SQL_WILDCARD)) {
-            if (pattern != null && pattern.pattern().isEmpty() && CollectionUtils.isEmpty(types)) {
+            if ((pattern == null || pattern.pattern().isEmpty()) && CollectionUtils.isEmpty(types)) {
                 Object[] enumeration = new Object[10];
                 // send only the cluster, everything else null
                 enumeration[0] = cluster;
@@ -80,8 +88,9 @@ public class SysTables extends Command {
         }
         
         // if no types were specified (the parser takes care of the % case)
-        if (CollectionUtils.isEmpty(types)) {
-            if (clusterPattern != null && clusterPattern.pattern().isEmpty()) {
+        if (IndexType.VALID.equals(types)) {
+            if ((clusterPattern == null || clusterPattern.pattern().isEmpty())
+                    && (pattern == null || pattern.pattern().isEmpty())) {
                 List<List<?>> values = new ArrayList<>();
                 // send only the types, everything else null
                 for (IndexType type : IndexType.VALID) {
@@ -89,6 +98,8 @@ public class SysTables extends Command {
                     enumeration[3] = type.toSql();
                     values.add(asList(enumeration));
                 }
+
+                values.sort(Comparator.comparing(l -> l.get(3).toString()));
                 listener.onResponse(Rows.of(output(), values));
                 return;
             }
@@ -103,15 +114,18 @@ public class SysTables extends Command {
             return;
         }
 
-        String index = pattern != null ? pattern.asIndexNameWildcard() : "*";
+        String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
-        session.indexResolver().resolveNames(index, regex, types, ActionListener.wrap(result -> listener.onResponse(
+        session.indexResolver().resolveNames(idx, regex, types, ActionListener.wrap(result -> listener.onResponse(
                 Rows.of(output(), result.stream()
+                 // sort by type (which might be legacy), then by name
+                 .sorted(Comparator.<IndexInfo, String> comparing(i -> legacyName(i.type()))
+                           .thenComparing(Comparator.comparing(i -> i.name())))
                  .map(t -> asList(cluster,
                          EMPTY,
                          t.name(),
-                         t.type().toSql(),
+                         legacyName(t.type()),
                          EMPTY,
                          null,
                          null,
@@ -122,9 +136,13 @@ public class SysTables extends Command {
         , listener::onFailure));
     }
 
+    private String legacyName(IndexType indexType) {
+        return legacyTableTypes && indexType == IndexType.INDEX ? "TABLE" : indexType.toSql();
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(clusterPattern, pattern, types);
+        return Objects.hash(clusterPattern, index, pattern, types);
     }
 
     @Override
@@ -139,6 +157,7 @@ public class SysTables extends Command {
 
         SysTables other = (SysTables) obj;
         return Objects.equals(clusterPattern, other.clusterPattern)
+                && Objects.equals(index, other.index)
                 && Objects.equals(pattern, other.pattern)
                 && Objects.equals(types, other.types);
     }

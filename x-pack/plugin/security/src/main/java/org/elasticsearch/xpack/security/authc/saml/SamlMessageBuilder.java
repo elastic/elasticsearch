@@ -11,9 +11,9 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.Loggers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.opensaml.saml.saml2.core.Issuer;
@@ -32,7 +32,7 @@ public abstract class SamlMessageBuilder {
     protected final EntityDescriptor identityProvider;
 
     public SamlMessageBuilder(EntityDescriptor identityProvider, SpConfiguration serviceProvider, Clock clock) {
-        this.logger = Loggers.getLogger(getClass());
+        this.logger = LogManager.getLogger(getClass());
         this.identityProvider = identityProvider;
         this.serviceProvider = serviceProvider;
         this.clock = clock;

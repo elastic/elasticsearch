@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -174,7 +173,6 @@ public class MonitoringServiceTests extends ESTestCase {
         private final CountDownLatch latch;
 
         BlockingExporter(CountDownLatch latch) {
-            super();
             this.latch = latch;
         }
 

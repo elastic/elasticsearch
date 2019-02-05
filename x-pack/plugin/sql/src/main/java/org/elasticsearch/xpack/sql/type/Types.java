@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -43,7 +42,7 @@ public abstract class Types {
     private static DataType getType(Map<String, Object> content) {
         if (content.containsKey("type")) {
             try {
-                return DataType.fromEsType(content.get("type").toString());
+                return DataType.fromTypeName(content.get("type").toString());
             } catch (IllegalArgumentException ex) {
                 return DataType.UNSUPPORTED;
             }
@@ -87,7 +86,7 @@ public abstract class Types {
                     boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
                     field = new KeywordEsField(name, properties, docValues, length, normalized);
                     break;
-                case DATE:
+                case DATETIME:
                     Object fmt = content.get("format");
                     if (fmt != null) {
                         field = new DateEsField(name, properties, docValues, Strings.delimitedListToStringArray(fmt.toString(), "||"));

@@ -16,11 +16,13 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -76,7 +78,11 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean enabled() {
-        return licenseState != null && licenseState.isSecurityEnabled();
+        if (licenseState != null) {
+            return XPackSettings.SECURITY_ENABLED.get(settings) &&
+                licenseState.isSecurityDisabledByTrialLicense() == false;
+        }
+        return false;
     }
 
     @Override
@@ -86,7 +92,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        Map<String, Object> realmsUsage = buildRealmsUsage(realms);
         Map<String, Object> sslUsage = sslUsage(settings);
         Map<String, Object> auditUsage = auditUsage(settings);
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
@@ -94,10 +99,11 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
         final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
         final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
-        final CountDown countDown = new CountDown(2);
+        final AtomicReference<Map<String, Object>> realmsUsageRef = new AtomicReference<>();
+        final CountDown countDown = new CountDown(3);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
-                listener.onResponse(new SecurityFeatureSetUsage(available(), enabled(), realmsUsage,
+                listener.onResponse(new SecurityFeatureSetUsage(available(), enabled(), realmsUsageRef.get(),
                         rolesUsageRef.get(), roleMappingUsageRef.get(),
                         sslUsage, auditUsage, ipFilterUsage, anonymousUsage));
             }
@@ -116,6 +122,12 @@ public class SecurityFeatureSet implements XPackFeatureSet {
                     doCountDown.run();
                 }, listener::onFailure);
 
+        final ActionListener<Map<String, Object>> realmsUsageListener =
+            ActionListener.wrap(realmsUsage -> {
+                realmsUsageRef.set(realmsUsage);
+                doCountDown.run();
+            }, listener::onFailure);
+
         if (rolesStore == null) {
             rolesStoreUsageListener.onResponse(Collections.emptyMap());
         } else {
@@ -126,13 +138,11 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         } else {
             roleMappingStore.usageStats(roleMappingStoreUsageListener);
         }
-    }
-
-    static Map<String, Object> buildRealmsUsage(Realms realms) {
         if (realms == null) {
-            return Collections.emptyMap();
+            realmsUsageListener.onResponse(Collections.emptyMap());
+        } else {
+            realms.usageStats(realmsUsageListener);
         }
-        return realms.usageStats();
     }
 
     static Map<String, Object> sslUsage(Settings settings) {
@@ -145,7 +155,10 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     static Map<String, Object> auditUsage(Settings settings) {
         Map<String, Object> map = new HashMap<>(2);
         map.put("enabled", XPackSettings.AUDIT_ENABLED.get(settings));
-        map.put("outputs", Security.AUDIT_OUTPUTS_SETTING.get(settings));
+        if (XPackSettings.AUDIT_ENABLED.get(settings)) {
+            // the only available output type is "logfile", but the optputs=<list> is to keep compatibility with previous reporting format
+            map.put("outputs", Arrays.asList(LoggingAuditTrail.NAME));
+        }
         return map;
     }
 

@@ -8,8 +8,12 @@ package org.elasticsearch.xpack.watcher.common.http;
 import org.apache.http.Header;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
+import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.NameValuePair;
+import org.apache.http.ProtocolException;
 import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.Credentials;
+import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.AuthCache;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
@@ -17,6 +21,7 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.methods.HttpRequestWrapper;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIUtils;
 import org.apache.http.client.utils.URLEncodedUtils;
@@ -29,10 +34,20 @@ import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultRedirectStrategy;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.protocol.HttpContext;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,12 +55,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.watcher.common.http.auth.ApplicableHttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
 import javax.net.ssl.HostnameVerifier;
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -55,36 +71,94 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
-public class HttpClient extends AbstractComponent {
+public class HttpClient implements Closeable {
 
     private static final String SETTINGS_SSL_PREFIX = "xpack.http.ssl.";
+    // picking a reasonable high value here to allow for setups with lots of watch executions or many http inputs/actions
+    // this is also used as the value per route, if you are connecting to the same endpoint a lot, which is likely, when
+    // you are querying a remote Elasticsearch cluster
+    private static final int MAX_CONNECTIONS = 500;
+    private static final Logger logger = LogManager.getLogger(HttpClient.class);
 
-    private final HttpAuthRegistry httpAuthRegistry;
+    private final AtomicReference<CharacterRunAutomaton> whitelistAutomaton = new AtomicReference<>();
     private final CloseableHttpClient client;
     private final HttpProxy settingsProxy;
     private final TimeValue defaultConnectionTimeout;
     private final TimeValue defaultReadTimeout;
     private final ByteSizeValue maxResponseSize;
+    private final CryptoService cryptoService;
+    private final SSLService sslService;
 
-    public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry, SSLService sslService) {
-        super(settings);
-        this.httpAuthRegistry = httpAuthRegistry;
+    public HttpClient(Settings settings, SSLService sslService, CryptoService cryptoService, ClusterService clusterService) {
         this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
         this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
         this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
-        this.settingsProxy = getProxyFromSettings();
+        this.settingsProxy = getProxyFromSettings(settings);
+        this.cryptoService = cryptoService;
+        this.sslService = sslService;
 
+        setWhitelistAutomaton(HttpSettings.HOSTS_WHITELIST.get(settings));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(HttpSettings.HOSTS_WHITELIST, this::setWhitelistAutomaton);
+        this.client = createHttpClient();
+    }
+
+    private CloseableHttpClient createHttpClient() {
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
         // ssl setup
-        Settings sslSettings = settings.getByPrefix(SETTINGS_SSL_PREFIX);
-        boolean isHostnameVerificationEnabled = sslService.getVerificationMode(sslSettings, Settings.EMPTY).isHostnameVerificationEnabled();
+        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(SETTINGS_SSL_PREFIX);
+        boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
         HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
-        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslSettings), verifier);
+        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         clientBuilder.setSSLSocketFactory(factory);
 
-        client = clientBuilder.build();
+        clientBuilder.evictExpiredConnections();
+        clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
+        clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
+        clientBuilder.setRedirectStrategy(new DefaultRedirectStrategy() {
+            @Override
+            public boolean isRedirected(org.apache.http.HttpRequest request, org.apache.http.HttpResponse response,
+                                        HttpContext context) throws ProtocolException {
+                boolean isRedirected = super.isRedirected(request, response, context);
+                if (isRedirected) {
+                    String host = response.getHeaders("Location")[0].getValue();
+                    if (isWhitelisted(host) == false) {
+                        throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
+                            HttpSettings.HOSTS_WHITELIST.getKey() + "], will not redirect");
+                    }
+                }
+
+                return isRedirected;
+            }
+        });
+
+        clientBuilder.addInterceptorFirst((HttpRequestInterceptor) (request, context) -> {
+            if (request instanceof HttpRequestWrapper == false) {
+                throw new ElasticsearchException("unable to check request [{}/{}] for white listing", request,
+                    request.getClass().getName());
+            }
+
+            HttpRequestWrapper wrapper = ((HttpRequestWrapper) request);
+            final String host;
+            if (wrapper.getTarget() != null) {
+                host = wrapper.getTarget().toURI();
+            } else {
+                host = wrapper.getOriginal().getRequestLine().getUri();
+            }
+
+            if (isWhitelisted(host) == false) {
+                throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
+                    HttpSettings.HOSTS_WHITELIST.getKey() + "], will not connect");
+            }
+        });
+
+        return clientBuilder.build();
+    }
+
+    private void setWhitelistAutomaton(List<String> whiteListedHosts) {
+        whitelistAutomaton.set(createAutomaton(whiteListedHosts));
     }
 
     public HttpResponse execute(HttpRequest request) throws IOException {
@@ -129,9 +203,10 @@ public class HttpClient extends AbstractComponent {
         HttpClientContext localContext = HttpClientContext.create();
         // auth
         if (request.auth() != null) {
-            ApplicableHttpAuth applicableAuth = httpAuthRegistry.createApplicable(request.auth);
             CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            applicableAuth.apply(credentialsProvider, new AuthScope(request.host, request.port));
+            Credentials credentials = new UsernamePasswordCredentials(request.auth().username,
+                new String(request.auth().password.text(cryptoService)));
+            credentialsProvider.setCredentials(new AuthScope(request.host, request.port), credentials);
             localContext.setCredentialsProvider(credentialsProvider);
 
             // preemptive auth, no need to wait for a 401 first
@@ -212,11 +287,11 @@ public class HttpClient extends AbstractComponent {
     }
 
     /**
-     * Creates a HTTP proxy from the system wide settings
+     * Creates an HTTP proxy from the system wide settings
      *
-     * @return A http proxy instance, if no settings are configured this will be a HttpProxy.NO_PROXY instance
+     * @return An HTTP proxy instance, if no settings are configured this will be an HttpProxy.NO_PROXY instance
      */
-    private HttpProxy getProxyFromSettings() {
+    private HttpProxy getProxyFromSettings(Settings settings) {
         String proxyHost = HttpSettings.PROXY_HOST.get(settings);
         Scheme proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings) ?
                 Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings)) : Scheme.HTTP;
@@ -251,6 +326,11 @@ public class HttpClient extends AbstractComponent {
         }
     }
 
+    @Override
+    public void close() throws IOException {
+        client.close();
+    }
+
     /**
      * Helper class to have all HTTP methods except HEAD allow for an body, including GET
      */
@@ -267,6 +347,24 @@ public class HttpClient extends AbstractComponent {
         public String getMethod() {
             return methodName;
         }
+
     }
 
+    private boolean isWhitelisted(String host) {
+        return whitelistAutomaton.get().run(host);
+    }
+
+    private static final CharacterRunAutomaton MATCH_ALL_AUTOMATON = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton("*"));
+    // visible for testing
+    static CharacterRunAutomaton createAutomaton(List<String> whiteListedHosts) {
+        if (whiteListedHosts.isEmpty()) {
+            // the default is to accept everything, this should change in the next major version, being 8.0
+            // we could emit depreciation warning here, if the whitelist is empty
+            return MATCH_ALL_AUTOMATON;
+        }
+
+        Automaton whiteListAutomaton = Regex.simpleMatchToAutomaton(whiteListedHosts.toArray(Strings.EMPTY_ARRAY));
+        whiteListAutomaton = MinimizationOperations.minimize(whiteListAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        return new CharacterRunAutomaton(whiteListAutomaton);
+    }
 }

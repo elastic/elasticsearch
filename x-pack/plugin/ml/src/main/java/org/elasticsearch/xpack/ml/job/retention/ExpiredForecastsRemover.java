@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -27,16 +28,18 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.joda.time.DateTime;
-import org.joda.time.chrono.ISOChronology;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -45,19 +48,25 @@ import java.util.Objects;
  * Removes up to {@link #MAX_FORECASTS} forecasts (stats + forecasts docs) that have expired.
  * A forecast is deleted if its expiration timestamp is earlier
  * than the start of the current day (local time-zone).
+ *
+ * This is expected to be used by actions requiring admin rights. Thus,
+ * it is also expected that the provided client will be a client with the
+ * ML origin so that permissions to manage ML indices are met.
  */
 public class ExpiredForecastsRemover implements MlDataRemover {
 
-    private static final Logger LOGGER = Loggers.getLogger(ExpiredForecastsRemover.class);
+    private static final Logger LOGGER = LogManager.getLogger(ExpiredForecastsRemover.class);
     private static final int MAX_FORECASTS = 10000;
     private static final String RESULTS_INDEX_PATTERN =  AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*";
 
     private final Client client;
+    private final ThreadPool threadPool;
     private final long cutoffEpochMs;
 
-    public ExpiredForecastsRemover(Client client) {
+    public ExpiredForecastsRemover(Client client, ThreadPool threadPool) {
         this.client = Objects.requireNonNull(client);
-        this.cutoffEpochMs = DateTime.now(ISOChronology.getInstance()).getMillis();
+        this.threadPool = Objects.requireNonNull(threadPool);
+        this.cutoffEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
     }
 
     @Override
@@ -72,10 +81,12 @@ public class ExpiredForecastsRemover implements MlDataRemover {
                 .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
                 .filter(QueryBuilders.existsQuery(ForecastRequestStats.EXPIRY_TIME.getPreferredName())));
         source.size(MAX_FORECASTS);
+        source.trackTotalHits(true);
 
         SearchRequest searchRequest = new SearchRequest(RESULTS_INDEX_PATTERN);
         searchRequest.source(source);
-        client.execute(SearchAction.INSTANCE, searchRequest, forecastStatsHandler);
+        client.execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
+                MachineLearning.UTILITY_THREAD_POOL_NAME, forecastStatsHandler, false));
     }
 
     private void deleteForecasts(SearchResponse searchResponse, ActionListener<Boolean> listener) {
@@ -113,7 +124,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         List<ForecastRequestStats> forecastsToDelete = new ArrayList<>();
 
         SearchHits hits = searchResponse.getHits();
-        if (hits.getTotalHits() > MAX_FORECASTS) {
+        if (hits.getTotalHits().value > MAX_FORECASTS) {
             LOGGER.info("More than [{}] forecasts were found. This run will only delete [{}] of them", MAX_FORECASTS, MAX_FORECASTS);
         }
 
@@ -131,13 +142,10 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     }
 
     private DeleteByQueryRequest buildDeleteByQuery(List<ForecastRequestStats> forecastsToDelete) {
-        SearchRequest searchRequest = new SearchRequest();
-        // We need to create the DeleteByQueryRequest before we modify the SearchRequest
-        // because the constructor of the former wipes the latter
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
+        DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(5);
 
-        searchRequest.indices(RESULTS_INDEX_PATTERN);
+        request.indices(RESULTS_INDEX_PATTERN);
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().minimumShouldMatch(1);
         boolQuery.must(QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
                 ForecastRequestStats.RESULT_TYPE_VALUE, Forecast.RESULT_TYPE_VALUE));
@@ -147,7 +155,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
                     .must(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastToDelete.getForecastId())));
         }
         QueryBuilder query = QueryBuilders.boolQuery().filter(boolQuery);
-        searchRequest.source(new SearchSourceBuilder().query(query));
+        request.setQuery(query);
         return request;
     }
 }

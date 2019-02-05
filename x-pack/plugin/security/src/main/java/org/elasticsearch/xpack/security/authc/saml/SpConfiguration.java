@@ -20,10 +20,12 @@ public class SpConfiguration {
     private final String ascUrl;
     private final String logoutUrl;
     private final SigningConfiguration signingConfiguration;
+    private final List<String> reqAuthnCtxClassRef;
     private final List<X509Credential> encryptionCredentials;
 
     public SpConfiguration(final String entityId, final String ascUrl, final String logoutUrl,
-                    final SigningConfiguration signingConfiguration, @Nullable final List<X509Credential> encryptionCredential) {
+                           final SigningConfiguration signingConfiguration, @Nullable final List<X509Credential> encryptionCredential,
+                           final List<String> authnCtxClassRef) {
         this.entityId = entityId;
         this.ascUrl = ascUrl;
         this.logoutUrl = logoutUrl;
@@ -33,6 +35,7 @@ public class SpConfiguration {
         } else {
             this.encryptionCredentials = Collections.<X509Credential>emptyList();
         }
+        this.reqAuthnCtxClassRef = authnCtxClassRef;
     }
 
     /**
@@ -56,5 +59,9 @@ public class SpConfiguration {
 
     SigningConfiguration getSigningConfiguration() {
         return signingConfiguration;
+    }
+
+    List<String> getReqAuthnCtxClassRef() {
+        return reqAuthnCtxClassRef;
     }
 }

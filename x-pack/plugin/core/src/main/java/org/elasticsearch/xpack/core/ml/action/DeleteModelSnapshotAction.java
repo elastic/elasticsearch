@@ -19,8 +19,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 
-public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.Request,
-        DeleteModelSnapshotAction.Response, DeleteModelSnapshotAction.RequestBuilder> {
+public class DeleteModelSnapshotAction extends Action<AcknowledgedResponse> {
 
     public static final DeleteModelSnapshotAction INSTANCE = new DeleteModelSnapshotAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/delete";
@@ -30,13 +29,8 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
     }
 
     @Override
-    public DeleteModelSnapshotAction.RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
-    }
-
-    @Override
-    public DeleteModelSnapshotAction.Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends ActionRequest {
@@ -80,29 +74,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        public Response() {}
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            readAcknowledged(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            writeAcknowledged(out);
-        }
-
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
 
         public RequestBuilder(ElasticsearchClient client, DeleteModelSnapshotAction action) {
             super(client, action, new Request());

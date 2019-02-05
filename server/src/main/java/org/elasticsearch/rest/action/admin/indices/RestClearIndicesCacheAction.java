@@ -31,7 +31,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestClearIndicesCacheAction extends BaseRestHandler {
@@ -40,9 +39,6 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(POST, "/_cache/clear", this);
         controller.registerHandler(POST, "/{index}/_cache/clear", this);
-
-        controller.registerHandler(GET, "/_cache/clear", this);
-        controller.registerHandler(GET, "/{index}/_cache/clear", this);
     }
 
     @Override

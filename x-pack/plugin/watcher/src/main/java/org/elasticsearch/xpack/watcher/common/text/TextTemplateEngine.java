@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.common.text;
 
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -17,12 +15,11 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TextTemplateEngine extends AbstractComponent {
+public class TextTemplateEngine {
 
     private final ScriptService service;
 
-    public TextTemplateEngine(Settings settings, ScriptService service) {
-        super(settings);
+    public TextTemplateEngine(ScriptService service) {
         this.service = service;
     }
 
@@ -34,6 +31,10 @@ public class TextTemplateEngine extends AbstractComponent {
         String template = textTemplate.getTemplate();
         String mediaType = compileParams(detectContentType(template));
         template = trimContentType(textTemplate);
+
+        if (textTemplate.isUsingMustache() == false) {
+            return template;
+        }
 
         Map<String, Object> mergedModel = new HashMap<>();
         if (textTemplate.getParams() != null) {

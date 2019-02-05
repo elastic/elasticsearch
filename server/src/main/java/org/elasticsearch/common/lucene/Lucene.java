@@ -27,8 +27,16 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FilterCodecReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -36,25 +44,36 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
@@ -71,23 +90,27 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongConsumer;
 
 public class Lucene {
     public static final String LATEST_DOC_VALUES_FORMAT = "Lucene70";
     public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
-    public static final String LATEST_CODEC = "Lucene70";
+    public static final String LATEST_CODEC = "Lucene80";
 
     static {
         Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
@@ -96,12 +119,17 @@ public class Lucene {
         assert annotation == null : "DocValuesFormat " + LATEST_DOC_VALUES_FORMAT + " is deprecated" ;
     }
 
+    public static final String SOFT_DELETES_FIELD = "__soft_deletes";
+
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
-    public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(0, EMPTY_SCORE_DOCS, 0.0f);
+    public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), EMPTY_SCORE_DOCS);
+
+    private Lucene() {
+    }
 
     public static Version parseVersion(@Nullable String version, Version defaultVersion, Logger logger) {
         if (version == null) {
@@ -140,7 +168,7 @@ public class Lucene {
     public static int getNumDocs(SegmentInfos info) {
         int numDocs = 0;
         for (SegmentCommitInfo si : info) {
-            numDocs += si.info.maxDoc() - si.getDelCount();
+            numDocs += si.info.maxDoc() - si.getDelCount() - si.getSoftDelCount();
         }
         return numDocs;
     }
@@ -176,7 +204,7 @@ public class Lucene {
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             int foundSegmentFiles = 0;
             for (final String file : directory.listAll()) {
-                /**
+                /*
                  * we could also use a deletion policy here but in the case of snapshot and restore
                  * sometimes we restore an index and override files that were referenced by a "future"
                  * commit. If such a commit is opened by the IW it would likely throw a corrupted index exception
@@ -195,15 +223,23 @@ public class Lucene {
                 throw new IllegalStateException("no commit found in the directory");
             }
         }
-        final CommitPoint cp = new CommitPoint(si, directory);
+        final IndexCommit cp = getIndexCommit(si, directory);
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setIndexCommit(cp)
                 .setCommitOnClose(false)
                 .setMergePolicy(NoMergePolicy.INSTANCE)
                 .setOpenMode(IndexWriterConfig.OpenMode.APPEND))) {
-            // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
+            // do nothing and close this will kick off IndexFileDeleter which will remove all pending files
         }
         return si;
+    }
+
+    /**
+     * Returns an index commit for the given {@link SegmentInfos} in the given directory.
+     */
+    public static IndexCommit getIndexCommit(SegmentInfos si, Directory directory) throws IOException {
+        return new CommitPoint(si, directory);
     }
 
     /**
@@ -220,6 +256,7 @@ public class Lucene {
             }
         }
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
                 .setCommitOnClose(false) // no commits
                 .setOpenMode(IndexWriterConfig.OpenMode.CREATE))) // force creation - don't append...
@@ -245,7 +282,7 @@ public class Lucene {
      * Check whether there is one or more documents matching the provided query.
      */
     public static boolean exists(IndexSearcher searcher, Query query) throws IOException {
-        final Weight weight = searcher.createNormalizedWeight(query, false);
+        final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
         // the scorer API should be more efficient at stopping after the first
         // match than the bulk scorer API
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
@@ -264,40 +301,41 @@ public class Lucene {
         return false;
     }
 
-    public static TopDocs readTopDocs(StreamInput in) throws IOException {
+    public static TotalHits readTotalHits(StreamInput in) throws IOException {
+        long totalHits = in.readVLong();
+        TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
+            totalHitsRelation = in.readEnum(TotalHits.Relation.class);
+        }
+        return new TotalHits(totalHits, totalHitsRelation);
+    }
+
+    public static TopDocsAndMaxScore readTopDocs(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
-            long totalHits = in.readVLong();
+            TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
 
             ScoreDoc[] scoreDocs = new ScoreDoc[in.readVInt()];
             for (int i = 0; i < scoreDocs.length; i++) {
                 scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
             }
-            return new TopDocs(totalHits, scoreDocs, maxScore);
+            return new TopDocsAndMaxScore(new TopDocs(totalHits, scoreDocs), maxScore);
         } else if (type == 1) {
-            long totalHits = in.readVLong();
+            TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
-
-            SortField[] fields = new SortField[in.readVInt()];
-            for (int i = 0; i < fields.length; i++) {
-                fields[i] = readSortField(in);
-            }
-
+            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
             FieldDoc[] fieldDocs = new FieldDoc[in.readVInt()];
             for (int i = 0; i < fieldDocs.length; i++) {
                 fieldDocs[i] = readFieldDoc(in);
             }
-            return new TopFieldDocs(totalHits, fieldDocs, fields, maxScore);
+            return new TopDocsAndMaxScore(new TopFieldDocs(totalHits, fieldDocs, fields), maxScore);
         } else if (type == 2) {
-            long totalHits = in.readVLong();
+            TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
 
             String field = in.readString();
-            SortField[] fields = new SortField[in.readVInt()];
-            for (int i = 0; i < fields.length; i++) {
-               fields[i] = readSortField(in);
-            }
+            SortField[] fields = in.readArray(Lucene::readSortField, SortField[]::new);
             int size = in.readVInt();
             Object[] collapseValues = new Object[size];
             FieldDoc[] fieldDocs = new FieldDoc[size];
@@ -305,7 +343,7 @@ public class Lucene {
                 fieldDocs[i] = readFieldDoc(in);
                 collapseValues[i] = readSortValue(in);
             }
-            return new CollapseTopFieldDocs(field, totalHits, fieldDocs, fields, collapseValues, maxScore);
+            return new TopDocsAndMaxScore(new CollapseTopFieldDocs(field, totalHits, fieldDocs, fields, collapseValues), maxScore);
         } else {
             throw new IllegalStateException("Unknown type " + type);
         }
@@ -342,7 +380,7 @@ public class Lucene {
         return new FieldDoc(in.readVInt(), in.readFloat(), cFields);
     }
 
-    private static Comparable readSortValue(StreamInput in) throws IOException {
+    public static Comparable readSortValue(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
             return null;
@@ -375,50 +413,52 @@ public class Lucene {
 
     private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
 
-    public static void writeTopDocs(StreamOutput out, TopDocs topDocs) throws IOException {
-        if (topDocs instanceof CollapseTopFieldDocs) {
-            out.writeByte((byte) 2);
-            CollapseTopFieldDocs collapseDocs = (CollapseTopFieldDocs) topDocs;
+    public static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
+        out.writeVLong(totalHits.value);
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
+            out.writeEnum(totalHits.relation);
+        } else if (totalHits.value > 0 && totalHits.relation != TotalHits.Relation.EQUAL_TO) {
+            throw new IllegalArgumentException("Cannot serialize approximate total hit counts to nodes that are on a version < 7.0.0");
+        }
+    }
 
-            out.writeVLong(topDocs.totalHits);
-            out.writeFloat(topDocs.getMaxScore());
+    public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
+        if (topDocs.topDocs instanceof CollapseTopFieldDocs) {
+            out.writeByte((byte) 2);
+            CollapseTopFieldDocs collapseDocs = (CollapseTopFieldDocs) topDocs.topDocs;
+
+            writeTotalHits(out, topDocs.topDocs.totalHits);
+            out.writeFloat(topDocs.maxScore);
 
             out.writeString(collapseDocs.field);
+            out.writeArray(Lucene::writeSortField, collapseDocs.fields);
 
-            out.writeVInt(collapseDocs.fields.length);
-            for (SortField sortField : collapseDocs.fields) {
-               writeSortField(out, sortField);
-            }
-
-            out.writeVInt(topDocs.scoreDocs.length);
-            for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+            out.writeVInt(topDocs.topDocs.scoreDocs.length);
+            for (int i = 0; i < topDocs.topDocs.scoreDocs.length; i++) {
                 ScoreDoc doc = collapseDocs.scoreDocs[i];
                 writeFieldDoc(out, (FieldDoc) doc);
                 writeSortValue(out, collapseDocs.collapseValues[i]);
             }
-        } else if (topDocs instanceof TopFieldDocs) {
+        } else if (topDocs.topDocs instanceof TopFieldDocs) {
             out.writeByte((byte) 1);
-            TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs;
+            TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs.topDocs;
 
-            out.writeVLong(topDocs.totalHits);
-            out.writeFloat(topDocs.getMaxScore());
+            writeTotalHits(out, topDocs.topDocs.totalHits);
+            out.writeFloat(topDocs.maxScore);
 
-            out.writeVInt(topFieldDocs.fields.length);
-            for (SortField sortField : topFieldDocs.fields) {
-              writeSortField(out, sortField);
-            }
+            out.writeArray(Lucene::writeSortField, topFieldDocs.fields);
 
-            out.writeVInt(topDocs.scoreDocs.length);
+            out.writeVInt(topDocs.topDocs.scoreDocs.length);
             for (ScoreDoc doc : topFieldDocs.scoreDocs) {
                 writeFieldDoc(out, (FieldDoc) doc);
             }
         } else {
             out.writeByte((byte) 0);
-            out.writeVLong(topDocs.totalHits);
-            out.writeFloat(topDocs.getMaxScore());
+            writeTotalHits(out, topDocs.topDocs.totalHits);
+            out.writeFloat(topDocs.maxScore);
 
-            out.writeVInt(topDocs.scoreDocs.length);
-            for (ScoreDoc doc : topDocs.scoreDocs) {
+            out.writeVInt(topDocs.topDocs.scoreDocs.length);
+            for (ScoreDoc doc : topDocs.topDocs.scoreDocs) {
                 writeScoreDoc(out, doc);
             }
         }
@@ -449,8 +489,7 @@ public class Lucene {
         }
     }
 
-
-    private static void writeSortValue(StreamOutput out, Object field) throws IOException {
+    public static void writeSortValue(StreamOutput out, Object field) throws IOException {
         if (field == null) {
             out.writeByte((byte) 0);
         } else {
@@ -562,7 +601,8 @@ public class Lucene {
             out.writeString(sortField.getField());
         }
         if (sortField.getComparatorSource() != null) {
-            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource();
+            IndexFieldData.XFieldComparatorSource comparatorSource =
+                    (IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource();
             writeSortType(out, comparatorSource.reducedType());
             writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
         } else {
@@ -570,6 +610,24 @@ public class Lucene {
             writeMissingValue(out, sortField.getMissingValue());
         }
         out.writeBoolean(sortField.getReverse());
+    }
+
+    private static Number readExplanationValue(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
+            final int numberType = in.readByte();
+            switch (numberType) {
+            case 0:
+                return in.readFloat();
+            case 1:
+                return in.readDouble();
+            case 2:
+                return in.readZLong();
+            default:
+                throw new IOException("Unexpected number type: " + numberType);
+            }
+        } else {
+            return in.readFloat();
+        }
     }
 
     public static Explanation readExplanation(StreamInput in) throws IOException {
@@ -580,9 +638,26 @@ public class Lucene {
             subExplanations[i] = readExplanation(in);
         }
         if (match) {
-            return Explanation.match(in.readFloat(), description, subExplanations);
+            return Explanation.match(readExplanationValue(in), description, subExplanations);
         } else {
             return Explanation.noMatch(description, subExplanations);
+        }
+    }
+
+    private static void writeExplanationValue(StreamOutput out, Number value) throws IOException {
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
+            if (value instanceof Float) {
+                out.writeByte((byte) 0);
+                out.writeFloat(value.floatValue());
+            } else if (value instanceof Double) {
+                out.writeByte((byte) 1);
+                out.writeDouble(value.doubleValue());
+            } else {
+                out.writeByte((byte) 2);
+                out.writeZLong(value.longValue());
+            }
+        } else {
+            out.writeFloat(value.floatValue());
         }
     }
 
@@ -595,15 +670,11 @@ public class Lucene {
             writeExplanation(out, subExp);
         }
         if (explanation.isMatch()) {
-            out.writeFloat(explanation.getValue());
+            writeExplanationValue(out, explanation.getValue());
         }
     }
 
-    private Lucene() {
-
-    }
-
-    public static final boolean indexExists(final Directory directory) throws IOException {
+    public static boolean indexExists(final Directory directory) throws IOException {
         return DirectoryReader.indexExists(directory);
     }
 
@@ -613,7 +684,7 @@ public class Lucene {
      *
      * Will retry the directory every second for at least {@code timeLimitMillis}
      */
-    public static final boolean waitForIndex(final Directory directory, final long timeLimitMillis)
+    public static boolean waitForIndex(final Directory directory, final long timeLimitMillis)
             throws IOException {
         final long DELAY = 1000;
         long waited = 0;
@@ -637,9 +708,9 @@ public class Lucene {
     }
 
     /**
-     * Returns <tt>true</tt> iff the given exception or
+     * Returns {@code true} iff the given exception or
      * one of it's causes is an instance of {@link CorruptIndexException},
-     * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise <tt>false</tt>.
+     * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise {@code false}.
      */
     public static boolean isCorruptionException(Throwable t) {
         return ExceptionsHelper.unwrapCorruption(t) != null;
@@ -662,6 +733,9 @@ public class Lucene {
         } else if (reader instanceof FilterLeafReader) {
             final FilterLeafReader fReader = (FilterLeafReader) reader;
             return segmentReader(FilterLeafReader.unwrap(fReader));
+        } else if (reader instanceof FilterCodecReader) {
+            final FilterCodecReader fReader = (FilterCodecReader) reader;
+            return segmentReader(FilterCodecReader.unwrap(fReader));
         }
         // hard fail - we can't get a SegmentReader
         throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
@@ -679,27 +753,6 @@ public class Lucene {
             }
             return defaultValue;
         }
-    }
-
-    /**
-     * Return a Scorer that throws an ElasticsearchIllegalStateException
-     * on all operations with the given message.
-     */
-    public static Scorer illegalScorer(final String message) {
-        return new Scorer(null) {
-            @Override
-            public float score() throws IOException {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public int docID() {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public DocIdSetIterator iterator() {
-                throw new IllegalStateException(message);
-            }
-        };
     }
 
     private static final class CommitPoint extends IndexCommit {
@@ -828,5 +881,223 @@ public class Lucene {
                 return maxDoc;
             }
         };
+    }
+
+    /**
+     * Whether a query sorted by {@code searchSort} can be early-terminated if the index is sorted by {@code indexSort}.
+     */
+    public static boolean canEarlyTerminate(Sort searchSort, Sort indexSort) {
+        final SortField[] fields1 = searchSort.getSort();
+        final SortField[] fields2 = indexSort.getSort();
+        // early termination is possible if fields1 is a prefix of fields2
+        if (fields1.length > fields2.length) {
+            return false;
+        }
+        return Arrays.asList(fields1).equals(Arrays.asList(fields2).subList(0, fields1.length));
+    }
+
+    /**
+     * Wraps a directory reader to make all documents live except those were rolled back
+     * or hard-deleted due to non-aborting exceptions during indexing.
+     * The wrapped reader can be used to query all documents.
+     *
+     * @param in the input directory reader
+     * @return the wrapped reader
+     */
+    public static DirectoryReader wrapAllDocsLive(DirectoryReader in) throws IOException {
+        return new DirectoryReaderWithAllLiveDocs(in);
+    }
+
+    private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
+        static final class LeafReaderWithLiveDocs extends FilterLeafReader {
+            final Bits liveDocs;
+            final int numDocs;
+            LeafReaderWithLiveDocs(LeafReader in, Bits liveDocs, int  numDocs) {
+                super(in);
+                this.liveDocs = liveDocs;
+                this.numDocs = numDocs;
+            }
+            @Override
+            public Bits getLiveDocs() {
+                return liveDocs;
+            }
+            @Override
+            public int numDocs() {
+                return numDocs;
+            }
+            @Override
+            public CacheHelper getCoreCacheHelper() {
+                return in.getCoreCacheHelper();
+            }
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return null; // Modifying liveDocs
+            }
+        }
+
+        DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader leaf) {
+                    final SegmentReader segmentReader = segmentReader(leaf);
+                    final Bits hardLiveDocs = segmentReader.getHardLiveDocs();
+                    if (hardLiveDocs == null) {
+                        return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
+                    }
+                    // Once soft-deletes is enabled, we no longer hard-update or hard-delete documents directly.
+                    // Two scenarios that we have hard-deletes: (1) from old segments where soft-deletes was disabled,
+                    // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
+                    // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
+                    final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
+                    assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
+                    return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+                }
+            });
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return wrapAllDocsLive(in);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return null; // Modifying liveDocs
+        }
+    }
+
+    private static int popCount(Bits bits) {
+        assert bits != null;
+        int onBits = 0;
+        for (int i = 0; i < bits.length(); i++) {
+            if (bits.get(i)) {
+                onBits++;
+            }
+        }
+        return onBits;
+    }
+
+    /**
+     * Returns a numeric docvalues which can be used to soft-delete documents.
+     */
+    public static NumericDocValuesField newSoftDeletesField() {
+        return new NumericDocValuesField(SOFT_DELETES_FIELD, 1);
+    }
+
+    /**
+     * Returns an empty leaf reader with the given max docs. The reader will be fully deleted.
+     */
+    public static LeafReader emptyReader(final int maxDoc) {
+        return new LeafReader() {
+            final Bits liveDocs = new Bits.MatchNoBits(maxDoc);
+
+            public Terms terms(String field) {
+                return null;
+            }
+
+            public NumericDocValues getNumericDocValues(String field) {
+                return null;
+            }
+
+            public BinaryDocValues getBinaryDocValues(String field) {
+                return null;
+            }
+
+            public SortedDocValues getSortedDocValues(String field) {
+                return null;
+            }
+
+            public SortedNumericDocValues getSortedNumericDocValues(String field) {
+                return null;
+            }
+
+            public SortedSetDocValues getSortedSetDocValues(String field) {
+                return null;
+            }
+
+            public NumericDocValues getNormValues(String field) {
+                return null;
+            }
+
+            public FieldInfos getFieldInfos() {
+                return new FieldInfos(new FieldInfo[0]);
+            }
+
+            public Bits getLiveDocs() {
+                return this.liveDocs;
+            }
+
+            public PointValues getPointValues(String fieldName) {
+                return null;
+            }
+
+            public void checkIntegrity() {
+            }
+
+            public Fields getTermVectors(int docID) {
+                return null;
+            }
+
+            public int numDocs() {
+                return 0;
+            }
+
+            public int maxDoc() {
+                return maxDoc;
+            }
+
+            public void document(int docID, StoredFieldVisitor visitor) {
+            }
+
+            protected void doClose() {
+            }
+
+            public LeafMetaData getMetaData() {
+                return new LeafMetaData(Version.LATEST.major, Version.LATEST, null);
+            }
+
+            public CacheHelper getCoreCacheHelper() {
+                return null;
+            }
+
+            public CacheHelper getReaderCacheHelper() {
+                return null;
+            }
+        };
+    }
+
+    /**
+     * Scans sequence numbers (i.e., {@link SeqNoFieldMapper#NAME}) between {@code fromSeqNo}(inclusive) and {@code toSeqNo}(inclusive)
+     * in the provided directory reader. This method invokes the callback {@code onNewSeqNo} whenever a sequence number value is found.
+     *
+     * @param directoryReader the directory reader to scan
+     * @param fromSeqNo       the lower bound of a range of seq_no to scan (inclusive)
+     * @param toSeqNo         the upper bound of a range of seq_no to scan (inclusive)
+     * @param onNewSeqNo      the callback to be called whenever a new valid sequence number is found
+     */
+    public static void scanSeqNosInReader(DirectoryReader directoryReader, long fromSeqNo, long toSeqNo,
+                                          LongConsumer onNewSeqNo) throws IOException {
+        final DirectoryReader reader = Lucene.wrapAllDocsLive(directoryReader);
+        final IndexSearcher searcher = new IndexSearcher(reader);
+        searcher.setQueryCache(null);
+        final Query query = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo);
+        final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        for (LeafReaderContext leaf : reader.leaves()) {
+            final Scorer scorer = weight.scorer(leaf);
+            if (scorer == null) {
+                continue;
+            }
+            final DocIdSetIterator docIdSetIterator = scorer.iterator();
+            final NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            int docId;
+            while ((docId = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                if (seqNoDocValues == null || seqNoDocValues.advanceExact(docId) == false) {
+                    throw new IllegalStateException("seq_no doc_values not found for doc_id=" + docId);
+                }
+                final long seqNo = seqNoDocValues.longValue();
+                assert fromSeqNo <= seqNo && seqNo <= toSeqNo : "from_seq_no=" + fromSeqNo + " seq_no=" + seqNo + " to_seq_no=" + toSeqNo;
+                onNewSeqNo.accept(seqNo);
+            }
+        }
     }
 }

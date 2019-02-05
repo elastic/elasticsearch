@@ -5,24 +5,25 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
-public class InvalidLicenseEnforcer extends AbstractComponent {
+public class InvalidLicenseEnforcer {
+
+    private static final Logger logger = LogManager.getLogger(InvalidLicenseEnforcer.class);
 
     private final ThreadPool threadPool;
     private final XPackLicenseState licenseState;
     private final DatafeedManager datafeedManager;
     private final AutodetectProcessManager autodetectProcessManager;
 
-    InvalidLicenseEnforcer(Settings settings, XPackLicenseState licenseState, ThreadPool threadPool,
+    InvalidLicenseEnforcer(XPackLicenseState licenseState, ThreadPool threadPool,
                            DatafeedManager datafeedManager, AutodetectProcessManager autodetectProcessManager) {
-        super(settings);
         this.threadPool = threadPool;
         this.licenseState = licenseState;
         this.datafeedManager = datafeedManager;

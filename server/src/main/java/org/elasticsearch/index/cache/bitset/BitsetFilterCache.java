@@ -26,6 +26,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -70,7 +71,8 @@ import java.util.concurrent.Executor;
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.query.QueryCache} should be used instead.
  */
-public final class BitsetFilterCache extends AbstractIndexComponent implements IndexReader.ClosedListener, RemovalListener<IndexReader.CacheKey, Cache<Query, BitsetFilterCache.Value>>, Closeable {
+public final class BitsetFilterCache extends AbstractIndexComponent
+        implements IndexReader.ClosedListener, RemovalListener<IndexReader.CacheKey, Cache<Query, BitsetFilterCache.Value>>, Closeable {
 
     public static final Setting<Boolean> INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING =
         Setting.boolSetting("index.load_fixed_bitset_filters_eagerly", true, Property.IndexScope);
@@ -134,7 +136,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements I
             final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
             final IndexSearcher searcher = new IndexSearcher(topLevelContext);
             searcher.setQueryCache(null);
-            final Weight weight = searcher.createNormalizedWeight(query, false);
+            final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer s = weight.scorer(context);
             final BitSet bitSet;
             if (s == null) {
@@ -260,10 +262,12 @@ public final class BitsetFilterCache extends AbstractIndexComponent implements I
                             final long start = System.nanoTime();
                             getAndLoadIfNotPresent(filterToWarm, ctx);
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed bitset for [{}], took [{}]", filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
+                                indexShard.warmerService().logger().trace("warmed bitset for [{}], took [{}]",
+                                    filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
                             }
                         } catch (Exception e) {
-                            indexShard.warmerService().logger().warn(() -> new ParameterizedMessage("failed to load bitset for [{}]", filterToWarm), e);
+                            indexShard.warmerService().logger().warn(() -> new ParameterizedMessage("failed to load " +
+                                "bitset for [{}]", filterToWarm), e);
                         } finally {
                             latch.countDown();
                         }

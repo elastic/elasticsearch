@@ -1,3 +1,5 @@
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -16,9 +18,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
@@ -53,32 +52,35 @@ dependencies {
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
-forbiddenApisMain {
+tasks.withType(CheckForbiddenApis) {
   //client does not depend on server, so only jdk and http signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
-                    PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
+  replaceSignatureFiles ('jdk-signatures', 'http-signatures')
+}
+
+forbiddenPatterns {
+  exclude '**/*.der'
 }
 
 forbiddenApisTest {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
-  //client does not depend on server, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
-                    PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in elasticsearch-core
+// TODO: Not anymore. Now in :libs:core
 jarHell.enabled=false
 
-namingConventions {
-  testClass = 'org.elasticsearch.client.RestClientTestCase'
-  //we don't have integration tests
-  skipIntegTestInDisguise = true
+testingConventions {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'org.elasticsearch.client.RestClientTestCase'
+    }
+  }
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   //commons-logging optional dependencies
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
@@ -90,4 +92,4 @@ thirdPartyAudit.excludes = [
   //commons-logging provided dependencies
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener'
-]
+)

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.geo.parsers;
 
-import org.locationtech.jts.geom.Coordinate;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -26,9 +25,12 @@ import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.common.xcontent.XContentSubParser;
+import org.elasticsearch.index.mapper.BaseGeoShapeFieldMapper;
+import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,70 +42,77 @@ import java.util.List;
  * complies with geojson specification: https://tools.ietf.org/html/rfc7946
  */
 abstract class GeoJsonParser {
-    protected static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper shapeMapper)
+    protected static ShapeBuilder parse(XContentParser parser, BaseGeoShapeFieldMapper shapeMapper)
         throws IOException {
         GeoShapeType shapeType = null;
         DistanceUnit.Distance radius = null;
         CoordinateNode coordinateNode = null;
         GeometryCollectionBuilder geometryCollections = null;
 
-        ShapeBuilder.Orientation requestedOrientation =
-            (shapeMapper == null) ? ShapeBuilder.Orientation.RIGHT : shapeMapper.fieldType().orientation();
-        Explicit<Boolean> coerce = (shapeMapper == null) ? GeoShapeFieldMapper.Defaults.COERCE : shapeMapper.coerce();
-        Explicit<Boolean> ignoreZValue = (shapeMapper == null) ? GeoShapeFieldMapper.Defaults.IGNORE_Z_VALUE : shapeMapper.ignoreZValue();
+        Orientation orientation = (shapeMapper == null)
+            ? BaseGeoShapeFieldMapper.Defaults.ORIENTATION.value()
+            : shapeMapper.orientation();
+        Explicit<Boolean> coerce = (shapeMapper == null)
+            ? BaseGeoShapeFieldMapper.Defaults.COERCE
+            : shapeMapper.coerce();
+        Explicit<Boolean> ignoreZValue = (shapeMapper == null)
+            ? BaseGeoShapeFieldMapper.Defaults.IGNORE_Z_VALUE
+            : shapeMapper.ignoreZValue();
 
         String malformedException = null;
 
         XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                String fieldName = parser.currentName();
+        try (XContentParser subParser = new XContentSubParser(parser)) {
+            while ((token = subParser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    String fieldName = subParser.currentName();
 
-                if (ShapeParser.FIELD_TYPE.match(fieldName, parser.getDeprecationHandler())) {
-                    parser.nextToken();
-                    final GeoShapeType type = GeoShapeType.forName(parser.text());
-                    if (shapeType != null && shapeType.equals(type) == false) {
-                        malformedException = ShapeParser.FIELD_TYPE + " already parsed as ["
-                            + shapeType + "] cannot redefine as [" + type + "]";
+                    if (ShapeParser.FIELD_TYPE.match(fieldName, subParser.getDeprecationHandler())) {
+                        subParser.nextToken();
+                        final GeoShapeType type = GeoShapeType.forName(subParser.text());
+                        if (shapeType != null && shapeType.equals(type) == false) {
+                            malformedException = ShapeParser.FIELD_TYPE + " already parsed as ["
+                                + shapeType + "] cannot redefine as [" + type + "]";
+                        } else {
+                            shapeType = type;
+                        }
+                    } else if (ShapeParser.FIELD_COORDINATES.match(fieldName, subParser.getDeprecationHandler())) {
+                        subParser.nextToken();
+                        CoordinateNode tempNode = parseCoordinates(subParser, ignoreZValue.value());
+                        if (coordinateNode != null && tempNode.numDimensions() != coordinateNode.numDimensions()) {
+                            throw new ElasticsearchParseException("Exception parsing coordinates: " +
+                                "number of dimensions do not match");
+                        }
+                        coordinateNode = tempNode;
+                    } else if (ShapeParser.FIELD_GEOMETRIES.match(fieldName, subParser.getDeprecationHandler())) {
+                        if (shapeType == null) {
+                            shapeType = GeoShapeType.GEOMETRYCOLLECTION;
+                        } else if (shapeType.equals(GeoShapeType.GEOMETRYCOLLECTION) == false) {
+                            malformedException = "cannot have [" + ShapeParser.FIELD_GEOMETRIES + "] with type set to ["
+                                + shapeType + "]";
+                        }
+                        subParser.nextToken();
+                        geometryCollections = parseGeometries(subParser, shapeMapper);
+                    } else if (CircleBuilder.FIELD_RADIUS.match(fieldName, subParser.getDeprecationHandler())) {
+                        if (shapeType == null) {
+                            shapeType = GeoShapeType.CIRCLE;
+                        } else if (shapeType != null && shapeType.equals(GeoShapeType.CIRCLE) == false) {
+                            malformedException = "cannot have [" + CircleBuilder.FIELD_RADIUS + "] with type set to ["
+                                + shapeType + "]";
+                        }
+                        subParser.nextToken();
+                        radius = DistanceUnit.Distance.parseDistance(subParser.text());
+                    } else if (ShapeParser.FIELD_ORIENTATION.match(fieldName, subParser.getDeprecationHandler())) {
+                        if (shapeType != null
+                            && (shapeType.equals(GeoShapeType.POLYGON) || shapeType.equals(GeoShapeType.MULTIPOLYGON)) == false) {
+                            malformedException = "cannot have [" + ShapeParser.FIELD_ORIENTATION + "] with type set to [" + shapeType + "]";
+                        }
+                        subParser.nextToken();
+                        orientation = ShapeBuilder.Orientation.fromString(subParser.text());
                     } else {
-                        shapeType = type;
+                        subParser.nextToken();
+                        subParser.skipChildren();
                     }
-                } else if (ShapeParser.FIELD_COORDINATES.match(fieldName, parser.getDeprecationHandler())) {
-                    parser.nextToken();
-                    CoordinateNode tempNode = parseCoordinates(parser, ignoreZValue.value());
-                    if (coordinateNode != null && tempNode.numDimensions() != coordinateNode.numDimensions()) {
-                        throw new ElasticsearchParseException("Exception parsing coordinates: " +
-                            "number of dimensions do not match");
-                    }
-                    coordinateNode = tempNode;
-                } else if (ShapeParser.FIELD_GEOMETRIES.match(fieldName, parser.getDeprecationHandler())) {
-                    if (shapeType == null) {
-                        shapeType = GeoShapeType.GEOMETRYCOLLECTION;
-                    } else if (shapeType.equals(GeoShapeType.GEOMETRYCOLLECTION) == false) {
-                        malformedException = "cannot have [" + ShapeParser.FIELD_GEOMETRIES + "] with type set to ["
-                            + shapeType + "]";
-                    }
-                    parser.nextToken();
-                    geometryCollections = parseGeometries(parser, shapeMapper);
-                } else if (CircleBuilder.FIELD_RADIUS.match(fieldName, parser.getDeprecationHandler())) {
-                    if (shapeType == null) {
-                        shapeType = GeoShapeType.CIRCLE;
-                    } else if (shapeType != null && shapeType.equals(GeoShapeType.CIRCLE) == false) {
-                        malformedException = "cannot have [" + CircleBuilder.FIELD_RADIUS + "] with type set to ["
-                            + shapeType + "]";
-                    }
-                    parser.nextToken();
-                    radius = DistanceUnit.Distance.parseDistance(parser.text());
-                } else if (ShapeParser.FIELD_ORIENTATION.match(fieldName, parser.getDeprecationHandler())) {
-                    if (shapeType != null
-                        && (shapeType.equals(GeoShapeType.POLYGON) || shapeType.equals(GeoShapeType.MULTIPOLYGON)) == false) {
-                        malformedException = "cannot have [" + ShapeParser.FIELD_ORIENTATION + "] with type set to [" + shapeType + "]";
-                    }
-                    parser.nextToken();
-                    requestedOrientation = ShapeBuilder.Orientation.fromString(parser.text());
-                } else {
-                    parser.nextToken();
-                    parser.skipChildren();
                 }
             }
         }
@@ -121,15 +130,11 @@ abstract class GeoJsonParser {
                 CircleBuilder.TYPE);
         }
 
-        if (shapeType == null) {
-            throw new ElasticsearchParseException("shape type [{}] not included", shapeType);
-        }
-
         if (shapeType.equals(GeoShapeType.GEOMETRYCOLLECTION)) {
             return geometryCollections;
         }
 
-        return shapeType.getBuilder(coordinateNode, radius, requestedOrientation, coerce.value());
+        return shapeType.getBuilder(coordinateNode, radius, orientation, coerce.value());
     }
 
     /**
@@ -144,6 +149,12 @@ abstract class GeoJsonParser {
      *             XContentParser
      */
     private static CoordinateNode parseCoordinates(XContentParser parser, boolean ignoreZValue) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            parser.skipChildren();
+            parser.nextToken();
+            throw new ElasticsearchParseException("coordinates cannot be specified as objects");
+        }
+
         XContentParser.Token token = parser.nextToken();
         // Base cases
         if (token != XContentParser.Token.START_ARRAY &&
@@ -168,8 +179,13 @@ abstract class GeoJsonParser {
     }
 
     private static Coordinate parseCoordinate(XContentParser parser, boolean ignoreZValue) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
+            throw new ElasticsearchParseException("geo coordinates must be numbers");
+        }
         double lon = parser.doubleValue();
-        parser.nextToken();
+        if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
+            throw new ElasticsearchParseException("geo coordinates must be numbers");
+        }
         double lat = parser.doubleValue();
         XContentParser.Token token = parser.nextToken();
         // alt (for storing purposes only - future use includes 3d shapes)
@@ -192,7 +208,7 @@ abstract class GeoJsonParser {
      * @return Geometry[] geometries of the GeometryCollection
      * @throws IOException Thrown if an error occurs while reading from the XContentParser
      */
-    static GeometryCollectionBuilder parseGeometries(XContentParser parser, GeoShapeFieldMapper mapper) throws
+    static GeometryCollectionBuilder parseGeometries(XContentParser parser, BaseGeoShapeFieldMapper mapper) throws
         IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException("geometries must be an array of geojson objects");

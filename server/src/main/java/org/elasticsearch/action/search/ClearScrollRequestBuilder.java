@@ -24,7 +24,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 import java.util.List;
 
-public class ClearScrollRequestBuilder extends ActionRequestBuilder<ClearScrollRequest, ClearScrollResponse, ClearScrollRequestBuilder> {
+public class ClearScrollRequestBuilder extends ActionRequestBuilder<ClearScrollRequest, ClearScrollResponse> {
 
     public ClearScrollRequestBuilder(ElasticsearchClient client, ClearScrollAction action) {
         super(client, action, new ClearScrollRequest());

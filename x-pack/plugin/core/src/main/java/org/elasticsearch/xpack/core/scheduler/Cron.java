@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.scheduler;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.joda.time.DateTimeZone;
@@ -29,8 +28,7 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
 
 
 /**
- *
- * THIS CLASS IS A COPY OF
+ * THIS CLASS IS A FORK OF
  * <a href="https://fisheye.terracotta.org/browse/Quartz/trunk/quartz-core/src/main/java/org/quartz/CronExpression.java?r=2426">
  *     {@code CronExpression}</a>
  * FROM THE <a href="http://quartz-scheduler.org/">QUARTZ</a> PROJECT
@@ -44,63 +42,63 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
  * Cron expressions are comprised of 6 required fields and one optional field
  * separated by white space. The fields respectively are described as follows:
  *
- * <table cellspacing="8">
+ * <table style="border-collapse: separate; border-spacing: 8px;">
  * <caption>Fields in cron expressions</caption>
  * <tr>
- * <th align="left">Field Name</th>
- * <th align="left">&nbsp;</th>
- * <th align="left">Allowed Values</th>
- * <th align="left">&nbsp;</th>
- * <th align="left">Allowed Special Characters</th>
+ * <th>Field Name</th>
+ * <th>&nbsp;</th>
+ * <th>Allowed Values</th>
+ * <th>&nbsp;</th>
+ * <th>Allowed Special Characters</th>
  * </tr>
  * <tr>
- * <td align="left"><code>Seconds</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>0-59</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>, - * /</code></td>
+ * <td><code>Seconds</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>0-59</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>, - * /</code></td>
  * </tr>
  * <tr>
- * <td align="left"><code>Minutes</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>0-59</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>, - * /</code></td>
+ * <td><code>Minutes</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>0-59</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>, - * /</code></td>
  * </tr>
  * <tr>
- * <td align="left"><code>Hours</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>0-23</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>, - * /</code></td>
+ * <td><code>Hours</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>0-23</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>, - * /</code></td>
  * </tr>
  * <tr>
- * <td align="left"><code>Day-of-month</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>1-31</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>, - * ? / L W</code></td>
+ * <td><code>Day-of-month</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>1-31</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>, - * ? / L W</code></td>
  * </tr>
  * <tr>
- * <td align="left"><code>Month</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>0-11 or JAN-DEC</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>, - * /</code></td>
+ * <td><code>Month</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>0-11 or JAN-DEC</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>, - * /</code></td>
  * </tr>
  * <tr>
- * <td align="left"><code>Day-of-Week</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>1-7 or SUN-SAT</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>, - * ? / L #</code></td>
+ * <td><code>Day-of-Week</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>1-7 or SUN-SAT</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>, - * ? / L #</code></td>
  * </tr>
  * <tr>
- * <td align="left"><code>Year (Optional)</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>empty, 1970-2199</code></td>
- * <td align="left">&nbsp;</td>
- * <td align="left"><code>, - * /</code></td>
+ * <td><code>Year (Optional)</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>empty, 1970-2199</code></td>
+ * <td>&nbsp;</td>
+ * <td><code>, - * /</code></td>
  * </tr>
  * </table>
  * <P>
@@ -256,7 +254,6 @@ public class Cron implements ToXContentFragment {
     private transient boolean lastdayOfMonth = false;
     private transient boolean nearestWeekday = false;
     private transient int lastdayOffset = 0;
-    private transient boolean expressionParsed = false;
 
     public static final int MAX_YEAR = Calendar.getInstance(UTC, Locale.ROOT).get(Calendar.YEAR) + 100;
 
@@ -804,7 +801,6 @@ public class Cron implements ToXContentFragment {
     ////////////////////////////////////////////////////////////////////////////
 
     private void buildExpression(String expression) {
-        expressionParsed = true;
 
         try {
 
@@ -1216,35 +1212,9 @@ public class Cron implements ToXContentFragment {
         return buf.toString();
     }
 
-    private static String expressionSetSummary(java.util.ArrayList<Integer> list) {
-
-        if (list.contains(NO_SPEC)) {
-            return "?";
-        }
-        if (list.contains(ALL_SPEC)) {
-            return "*";
-        }
-
-        StringBuilder buf = new StringBuilder();
-
-        Iterator<Integer> itr = list.iterator();
-        boolean first = true;
-        while (itr.hasNext()) {
-            Integer iVal = itr.next();
-            String val = iVal.toString();
-            if (!first) {
-                buf.append(",");
-            }
-            buf.append(val);
-            first = false;
-        }
-
-        return buf.toString();
-    }
-
     private static int skipWhiteSpace(int i, String s) {
         for (; i < s.length() && (s.charAt(i) == ' ' || s.charAt(i) == '\t'); i++) {
-            ;
+            // intentionally empty
         }
 
         return i;
@@ -1252,7 +1222,7 @@ public class Cron implements ToXContentFragment {
 
     private static int findNextWhiteSpace(int i, String s) {
         for (; i < s.length() && (s.charAt(i) != ' ' || s.charAt(i) != '\t'); i++) {
-            ;
+            // intentionally empty
         }
 
         return i;
@@ -1354,14 +1324,28 @@ public class Cron implements ToXContentFragment {
         int max = -1;
         if (stopAt < startAt) {
             switch (type) {
-                case       SECOND : max = 60; break;
-                case       MINUTE : max = 60; break;
-                case         HOUR : max = 24; break;
-                case        MONTH : max = 12; break;
-                case  DAY_OF_WEEK : max = 7;  break;
-                case DAY_OF_MONTH : max = 31; break;
-                case         YEAR : throw new IllegalArgumentException("Start year must be less than stop year");
-                default           : throw new IllegalArgumentException("Unexpected type encountered");
+                case SECOND:
+                    max = 60;
+                    break;
+                case MINUTE:
+                    max = 60;
+                    break;
+                case HOUR:
+                    max = 24;
+                    break;
+                case MONTH:
+                    max = 12;
+                    break;
+                case DAY_OF_WEEK:
+                    max = 7;
+                    break;
+                case DAY_OF_MONTH:
+                    max = 31;
+                    break;
+                case YEAR:
+                    throw new IllegalArgumentException("Start year must be less than stop year");
+                default:
+                    throw new IllegalArgumentException("Unexpected type encountered");
             }
             stopAt += max;
         }

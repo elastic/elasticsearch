@@ -4,7 +4,7 @@
   "settings" : {
     "number_of_shards" : 1,
     "number_of_replicas" : 0,
-    "auto_expand_replicas" : "0-all",
+    "auto_expand_replicas" : "0-1",
     "index.priority": 1000,
     "index.format": 6,
     "analysis" : {
@@ -88,6 +88,44 @@
             },
             "query" : {
               "type" : "keyword"
+            },
+            "allow_restricted_indices" : {
+              "type" : "boolean"
+            }
+          }
+        },
+        "applications": {
+          "type": "object",
+          "properties": {
+            "application": {
+              "type": "keyword"
+            },
+            "privileges": {
+              "type": "keyword"
+            },
+            "resources": {
+              "type": "keyword"
+            }
+          }
+        },
+        "application" : {
+          "type" : "keyword"
+        },
+        "global": {
+          "type": "object",
+          "properties": {
+            "application": {
+              "type": "object",
+              "properties": {
+                "manage": {
+                  "type": "object",
+                  "properties": {
+                    "applications": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
             }
           }
         },
@@ -101,6 +139,9 @@
           "type" : "keyword"
         },
         "type" : {
+          "type" : "keyword"
+        },
+        "actions" : {
           "type" : "keyword"
         },
         "expiration_time" : {

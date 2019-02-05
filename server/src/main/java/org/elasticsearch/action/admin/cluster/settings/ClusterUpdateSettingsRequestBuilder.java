@@ -29,7 +29,8 @@ import java.util.Map;
 /**
  * Builder for a cluster update settings request
  */
-public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
+public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<ClusterUpdateSettingsRequest,
+        ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
 
     public ClusterUpdateSettingsRequestBuilder(ElasticsearchClient client, ClusterUpdateSettingsAction action) {
         super(client, action, new ClusterUpdateSettingsRequest());
@@ -62,7 +63,7 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
     /**
      * Sets the transient settings to be updated. They will not survive a full cluster restart
      */
-    public ClusterUpdateSettingsRequestBuilder setTransientSettings(Map settings) {
+    public ClusterUpdateSettingsRequestBuilder setTransientSettings(Map<String, ?> settings) {
         request.transientSettings(settings);
         return this;
     }
@@ -94,7 +95,7 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
     /**
      * Sets the persistent settings to be updated. They will get applied cross restarts
      */
-    public ClusterUpdateSettingsRequestBuilder setPersistentSettings(Map settings) {
+    public ClusterUpdateSettingsRequestBuilder setPersistentSettings(Map<String, ?> settings) {
         request.persistentSettings(settings);
         return this;
     }

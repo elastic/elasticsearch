@@ -40,7 +40,7 @@ public abstract class AbstractRestChannel implements RestChannel {
     private static final Predicate<String> EXCLUDE_FILTER = INCLUDE_FILTER.negate();
 
     protected final RestRequest request;
-    protected final boolean detailedErrorsEnabled;
+    private final boolean detailedErrorsEnabled;
     private final String format;
     private final String filterPath;
     private final boolean pretty;

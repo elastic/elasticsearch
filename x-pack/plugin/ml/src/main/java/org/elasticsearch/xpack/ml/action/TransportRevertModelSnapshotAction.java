@@ -17,18 +17,21 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobDataDeleter;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.Date;
 import java.util.function.Consumer;
@@ -38,20 +41,22 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
 
     private final Client client;
     private final JobManager jobManager;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final JobDataCountsPersister jobDataCountsPersister;
+    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     @Inject
     public TransportRevertModelSnapshotAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                              JobManager jobManager, JobProvider jobProvider,
+                                              JobManager jobManager, JobResultsProvider jobResultsProvider,
                                               ClusterService clusterService, Client client, JobDataCountsPersister jobDataCountsPersister) {
-        super(settings, RevertModelSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(RevertModelSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, RevertModelSnapshotAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.jobDataCountsPersister = jobDataCountsPersister;
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
     }
 
     @Override
@@ -66,27 +71,50 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
 
     @Override
     protected void masterOperation(RevertModelSnapshotAction.Request request, ClusterState state,
-                                   ActionListener<RevertModelSnapshotAction.Response> listener) throws Exception {
+                                   ActionListener<RevertModelSnapshotAction.Response> listener) {
+        if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), state)) {
+            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("revert model snapshot", request.getJobId()));
+            return;
+        }
+
         logger.debug("Received request to revert to snapshot id '{}' for job '{}', deleting intervening results: {}",
                 request.getSnapshotId(), request.getJobId(), request.getDeleteInterveningResults());
 
-        Job job = JobManager.getJobOrThrowIfUnknown(request.getJobId(), clusterService.state());
-        JobState jobState = jobManager.getJobState(job.getId());
-        if (jobState.equals(JobState.CLOSED) == false) {
-            throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
-        }
 
-        getModelSnapshot(request, jobProvider, modelSnapshot -> {
-            ActionListener<RevertModelSnapshotAction.Response> wrappedListener = listener;
-            if (request.getDeleteInterveningResults()) {
-                wrappedListener = wrapDeleteOldDataListener(wrappedListener, modelSnapshot, request.getJobId());
-                wrappedListener = wrapRevertDataCountsListener(wrappedListener, modelSnapshot, request.getJobId());
-            }
-            jobManager.revertSnapshot(request, wrappedListener, modelSnapshot);
-        }, listener::onFailure);
+        // 3. Revert the state
+        ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
+            exists -> {
+                PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                JobState jobState = MlTasks.getJobState(request.getJobId(), tasks);
+
+                if (jobState.equals(JobState.CLOSED) == false) {
+                    throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
+                }
+
+                getModelSnapshot(request, jobResultsProvider, modelSnapshot -> {
+                    ActionListener<RevertModelSnapshotAction.Response> wrappedListener = listener;
+                    if (request.getDeleteInterveningResults()) {
+                        wrappedListener = wrapDeleteOldDataListener(wrappedListener, modelSnapshot, request.getJobId());
+                        wrappedListener = wrapRevertDataCountsListener(wrappedListener, modelSnapshot, request.getJobId());
+                    }
+                    jobManager.revertSnapshot(request, wrappedListener, modelSnapshot);
+                }, listener::onFailure);
+            },
+            listener::onFailure
+        );
+
+
+        // 2. Verify the job exists
+        ActionListener<Boolean> createStateIndexListener = ActionListener.wrap(
+            r -> jobManager.jobExists(request.getJobId(), jobExistsListener),
+            listener::onFailure
+        );
+
+        // 1. Verify/Create the state index and its alias exists
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, createStateIndexListener);
     }
 
-    private void getModelSnapshot(RevertModelSnapshotAction.Request request, JobProvider provider, Consumer<ModelSnapshot> handler,
+    private void getModelSnapshot(RevertModelSnapshotAction.Request request, JobResultsProvider provider, Consumer<ModelSnapshot> handler,
                                   Consumer<Exception> errorHandler) {
         logger.info("Reverting to snapshot '" + request.getSnapshotId() + "'");
 
@@ -134,7 +162,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
 
 
         return ActionListener.wrap(response -> {
-            jobProvider.dataCounts(jobId, counts -> {
+            jobResultsProvider.dataCounts(jobId, counts -> {
                 counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
                 jobDataCountsPersister.persistDataCounts(jobId, counts, new ActionListener<Boolean>() {
                     @Override

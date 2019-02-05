@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.security.action.rolemapping;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
@@ -24,19 +22,14 @@ public class TransportPutRoleMappingAction
     private final NativeRoleMappingStore roleMappingStore;
 
     @Inject
-    public TransportPutRoleMappingAction(Settings settings, ThreadPool threadPool,
-                                         ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver,
-                                         TransportService transportService,
+    public TransportPutRoleMappingAction(ActionFilters actionFilters, TransportService transportService,
                                          NativeRoleMappingStore roleMappingStore) {
-        super(settings, PutRoleMappingAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, PutRoleMappingRequest::new);
+        super(PutRoleMappingAction.NAME, transportService, actionFilters, PutRoleMappingRequest::new);
         this.roleMappingStore = roleMappingStore;
     }
 
     @Override
-    protected void doExecute(final PutRoleMappingRequest request,
-                             final ActionListener<PutRoleMappingResponse> listener) {
+    protected void doExecute(Task task, final PutRoleMappingRequest request, final ActionListener<PutRoleMappingResponse> listener) {
         roleMappingStore.putRoleMapping(request, ActionListener.wrap(
                 created -> listener.onResponse(new PutRoleMappingResponse(created)),
                 listener::onFailure

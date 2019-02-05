@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.ml.job.process.NativeController;
-import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
-import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.process.NativeController;
+import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;
@@ -23,36 +23,45 @@ import java.util.concurrent.ExecutorService;
 
 public class NativeNormalizerProcessFactory implements NormalizerProcessFactory {
 
-    private static final Logger LOGGER = Loggers.getLogger(NativeNormalizerProcessFactory.class);
+    private static final Logger LOGGER = LogManager.getLogger(NativeNormalizerProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
     private static final Duration PROCESS_STARTUP_TIMEOUT = Duration.ofSeconds(10);
 
     private final Environment env;
-    private final Settings settings;
     private final NativeController nativeController;
 
-    public NativeNormalizerProcessFactory(Environment env, Settings settings, NativeController nativeController) {
+    public NativeNormalizerProcessFactory(Environment env, NativeController nativeController) {
         this.env = Objects.requireNonNull(env);
-        this.settings = Objects.requireNonNull(settings);
         this.nativeController = Objects.requireNonNull(nativeController);
     }
 
     @Override
     public NormalizerProcess createNormalizerProcess(String jobId, String quantilesState, Integer bucketSpan,
-                                                     boolean perPartitionNormalization, ExecutorService executorService) {
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, ProcessCtrl.NORMALIZE, jobId,
+                                                     ExecutorService executorService) {
+        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, NormalizerBuilder.NORMALIZE, jobId,
                 true, false, true, true, false, false);
-        createNativeProcess(jobId, quantilesState, processPipes, bucketSpan, perPartitionNormalization);
+        createNativeProcess(jobId, quantilesState, processPipes, bucketSpan);
 
-        return new NativeNormalizerProcess(jobId, settings, processPipes.getLogStream().get(),
-                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), executorService);
-    }
-
-    private void createNativeProcess(String jobId, String quantilesState, ProcessPipes processPipes, Integer bucketSpan,
-                                     boolean perPartitionNormalization) {
+        NativeNormalizerProcess normalizerProcess = new NativeNormalizerProcess(jobId, processPipes.getLogStream().get(),
+                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get());
 
         try {
-            List<String> command = ProcessCtrl.buildNormalizerCommand(env, jobId, quantilesState, bucketSpan, perPartitionNormalization);
+            normalizerProcess.start(executorService);
+            return normalizerProcess;
+        } catch (EsRejectedExecutionException e) {
+            try {
+                IOUtils.close(normalizerProcess);
+            } catch (IOException ioe) {
+                LOGGER.error("Can't close normalizer", ioe);
+            }
+            throw e;
+        }
+    }
+
+    private void createNativeProcess(String jobId, String quantilesState, ProcessPipes processPipes, Integer bucketSpan) {
+
+        try {
+            List<String> command = new NormalizerBuilder(env, jobId, quantilesState, bucketSpan).build();
             processPipes.addArgs(command);
             nativeController.startProcess(command);
             processPipes.connectStreams(PROCESS_STARTUP_TIMEOUT);

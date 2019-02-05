@@ -20,66 +20,85 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * A specialized queue implementation for composite buckets
+ * A specialized {@link PriorityQueue} implementation for composite buckets.
  */
-final class CompositeValuesCollectorQueue implements Releasable {
+final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> implements Releasable {
+    private class Slot {
+        int value;
+
+        Slot(int initial) {
+            this.value = initial;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Slot slot = (Slot) o;
+            return CompositeValuesCollectorQueue.this.equals(value, slot.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return CompositeValuesCollectorQueue.this.hashCode(value);
+        }
+    }
+
     // the slot for the current candidate
     private static final int CANDIDATE_SLOT = Integer.MAX_VALUE;
 
+    private final BigArrays bigArrays;
     private final int maxSize;
-    private final TreeMap<Integer, Integer> keys;
+    private final Map<Slot, Integer> map;
     private final SingleDimensionValuesSource<?>[] arrays;
-    private final int[] docCounts;
-    private boolean afterValueSet = false;
+    private IntArray docCounts;
+    private boolean afterKeyIsSet = false;
 
     /**
      * Constructs a composite queue with the specified size and sources.
      *
      * @param sources The list of {@link CompositeValuesSourceConfig} to build the composite buckets.
      * @param size The number of composite buckets to keep.
+     * @param afterKey composite key
      */
-    CompositeValuesCollectorQueue(SingleDimensionValuesSource<?>[] sources, int size) {
+    CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size, CompositeKey afterKey) {
+        super(size);
+        this.bigArrays = bigArrays;
         this.maxSize = size;
         this.arrays = sources;
-        this.docCounts = new int[size];
-        this.keys = new TreeMap<>(this::compare);
+        this.map = new HashMap<>(size);
+        if (afterKey != null) {
+            assert afterKey.size() == sources.length;
+            afterKeyIsSet = true;
+            for (int i = 0; i < afterKey.size(); i++) {
+                sources[i].setAfter(afterKey.get(i));
+            }
+        }
+        this.docCounts = bigArrays.newIntArray(1, false);
     }
 
-    void clear() {
-        keys.clear();
-        Arrays.fill(docCounts, 0);
-        afterValueSet = false;
-    }
-
-    /**
-     * The current size of the queue.
-     */
-    int size() {
-        return keys.size();
+    @Override
+    protected boolean lessThan(Integer a, Integer b) {
+        return compare(a, b) > 0;
     }
 
     /**
      * Whether the queue is full or not.
      */
     boolean isFull() {
-        return keys.size() == maxSize;
-    }
-
-    /**
-     * Returns a sorted {@link Set} view of the slots contained in this queue.
-     */
-    Set<Integer> getSortedSlot() {
-        return keys.keySet();
+        return size() >= maxSize;
     }
 
     /**
@@ -87,27 +106,27 @@ final class CompositeValuesCollectorQueue implements Releasable {
      * the slot if the candidate is already in the queue or null if the candidate is not present.
      */
     Integer compareCurrent() {
-        return keys.get(CANDIDATE_SLOT);
+        return map.get(new Slot(CANDIDATE_SLOT));
     }
 
     /**
      * Returns the lowest value (exclusive) of the leading source.
      */
-    Comparable<?> getLowerValueLeadSource() {
-        return afterValueSet ? arrays[0].getAfter() : null;
+    Comparable getLowerValueLeadSource() {
+        return afterKeyIsSet ? arrays[0].getAfter() : null;
     }
 
     /**
      * Returns the upper value (inclusive) of the leading source.
      */
-    Comparable<?> getUpperValueLeadSource() throws IOException {
-        return size() >= maxSize ? arrays[0].toComparable(keys.lastKey()) : null;
+    Comparable getUpperValueLeadSource() throws IOException {
+        return size() >= maxSize ? arrays[0].toComparable(top()) : null;
     }
     /**
      * Returns the document count in <code>slot</code>.
      */
     int getDocCount(int slot) {
-        return docCounts[slot];
+        return docCounts.get(slot);
     }
 
     /**
@@ -117,16 +136,22 @@ final class CompositeValuesCollectorQueue implements Releasable {
         for (int i = 0; i < arrays.length; i++) {
             arrays[i].copyCurrent(slot);
         }
-        docCounts[slot] = 1;
+        docCounts = bigArrays.grow(docCounts, slot+1);
+        docCounts.set(slot, 1);
     }
 
     /**
-     * Compares the values in <code>slot1</code> with <code>slot2</code>.
+     * Compares the values in <code>slot1</code> with the values in <code>slot2</code>.
      */
     int compare(int slot1, int slot2) {
+        assert slot2 != CANDIDATE_SLOT;
         for (int i = 0; i < arrays.length; i++) {
-            int cmp = (slot1 == CANDIDATE_SLOT) ? arrays[i].compareCurrent(slot2) :
-                arrays[i].compare(slot1, slot2);
+            final int cmp;
+            if (slot1 == CANDIDATE_SLOT) {
+                cmp = arrays[i].compareCurrent(slot2);
+            } else {
+                cmp = arrays[i].compare(slot1, slot2);
+            }
             if (cmp != 0) {
                 return cmp;
             }
@@ -135,14 +160,33 @@ final class CompositeValuesCollectorQueue implements Releasable {
     }
 
     /**
-     * Sets the after values for this comparator.
+     * Returns true if the values in <code>slot1</code> are equals to the value in <code>slot2</code>.
      */
-    void setAfter(Comparable<?>[] values) {
-        assert values.length == arrays.length;
-        afterValueSet = true;
+    boolean equals(int slot1, int slot2) {
+        assert slot2 != CANDIDATE_SLOT;
         for (int i = 0; i < arrays.length; i++) {
-            arrays[i].setAfter(values[i]);
+            final int cmp;
+            if (slot1 == CANDIDATE_SLOT) {
+                cmp = arrays[i].compareCurrent(slot2);
+            } else {
+                cmp = arrays[i].compare(slot1, slot2);
+            }
+            if (cmp != 0) {
+                return false;
+            }
         }
+        return true;
+    }
+
+    /**
+     * Returns a hash code value for the values in <code>slot</code>.
+     */
+    int hashCode(int slot) {
+        int result = 1;
+        for (int i = 0; i < arrays.length; i++) {
+            result = 31 * result + (slot == CANDIDATE_SLOT ? arrays[i].hashCodeCurrent() : arrays[i].hashCode(slot));
+        }
+        return result;
     }
 
     /**
@@ -163,7 +207,7 @@ final class CompositeValuesCollectorQueue implements Releasable {
      */
     CompositeKey toCompositeKey(int slot) throws IOException {
         assert slot < maxSize;
-        Comparable<?>[] values = new Comparable<?>[arrays.length];
+        Comparable[] values = new Comparable[arrays.length];
         for (int i = 0; i < values.length; i++) {
             values[i] = arrays[i].toComparable(slot);
         }
@@ -183,7 +227,7 @@ final class CompositeValuesCollectorQueue implements Releasable {
      * for each document.
      * The provided collector <code>in</code> is called on each composite bucket.
      */
-    LeafBucketCollector getLeafCollector(Comparable<?> forceLeadSourceValue,
+    LeafBucketCollector getLeafCollector(Comparable forceLeadSourceValue,
                                          LeafReaderContext context, LeafBucketCollector in) throws IOException {
         int last = arrays.length - 1;
         LeafBucketCollector collector = in;
@@ -207,41 +251,40 @@ final class CompositeValuesCollectorQueue implements Releasable {
         Integer topSlot = compareCurrent();
         if (topSlot != null) {
             // this key is already in the top N, skip it
-            docCounts[topSlot] += 1;
+            docCounts.increment(topSlot, 1);
             return topSlot;
         }
-        if (afterValueSet && compareCurrentWithAfter() <= 0) {
+        if (afterKeyIsSet && compareCurrentWithAfter() <= 0) {
             // this key is greater than the top value collected in the previous round, skip it
             return -1;
         }
-        if (keys.size() >= maxSize) {
-            // the tree map is full, check if the candidate key should be kept
-            if (compare(CANDIDATE_SLOT, keys.lastKey()) > 0) {
-                // the candidate key is not competitive, skip it
-                return -1;
-            }
+        if (size() >= maxSize
+                // the tree map is full, check if the candidate key should be kept
+                && compare(CANDIDATE_SLOT, top()) > 0) {
+            // the candidate key is not competitive, skip it
+            return -1;
         }
 
         // the candidate key is competitive
         final int newSlot;
-        if (keys.size() >= maxSize) {
-            // the tree map is full, we replace the last key with this candidate
-            int slot = keys.pollLastEntry().getKey();
+        if (size() >= maxSize) {
+            // the queue is full, we replace the last key with this candidate
+            int slot = pop();
+            map.remove(new Slot(slot));
             // and we recycle the deleted slot
             newSlot = slot;
         } else {
-            newSlot = keys.size();
-            assert newSlot < maxSize;
+            newSlot = size();
         }
         // move the candidate key to its new slot
         copyCurrent(newSlot);
-        keys.put(newSlot, newSlot);
+        map.put(new Slot(newSlot), newSlot);
+        add(newSlot);
         return newSlot;
     }
 
-
     @Override
     public void close() {
-        Releasables.close(arrays);
+        Releasables.close(docCounts);
     }
 }

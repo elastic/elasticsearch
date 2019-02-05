@@ -20,7 +20,6 @@
 package org.elasticsearch.action.termvectors;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -29,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,17 +36,18 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportShardMultiTermsVectorAction extends TransportSingleShardAction<MultiTermVectorsShardRequest, MultiTermVectorsShardResponse> {
+public class TransportShardMultiTermsVectorAction extends
+        TransportSingleShardAction<MultiTermVectorsShardRequest, MultiTermVectorsShardResponse> {
 
     private final IndicesService indicesService;
 
     private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
 
     @Inject
-    public TransportShardMultiTermsVectorAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportShardMultiTermsVectorAction(ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 MultiTermVectorsShardRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
     }
@@ -84,17 +83,25 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
             try {
                 TermVectorsResponse termVectorsResponse = TermVectorsService.getTermVectors(indexShard, termVectorsRequest);
                 response.add(request.locations.get(i), termVectorsResponse);
-            } catch (Exception t) {
-                if (TransportActions.isShardNotAvailableException(t)) {
-                    throw (ElasticsearchException) t;
+            } catch (RuntimeException e) {
+                if (TransportActions.isShardNotAvailableException(e)) {
+                    throw e;
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]/[{}]", shardId, termVectorsRequest.type(), termVectorsRequest.id()), t);
+                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]/[{}]",
+                        shardId, termVectorsRequest.type(), termVectorsRequest.id()), e);
                     response.add(request.locations.get(i),
-                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), t));
+                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), e));
                 }
             }
         }
 
         return response;
+    }
+
+    @Override
+    protected String getExecutor(MultiTermVectorsShardRequest request, ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
+            shardId);
     }
 }

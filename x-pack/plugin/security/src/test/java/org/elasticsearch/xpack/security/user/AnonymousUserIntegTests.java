@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.security.user;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -23,10 +23,14 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
     private boolean authorizationExceptionsEnabled = randomBoolean();
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous")
                 .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), authorizationExceptionsEnabled)
                 .build();
@@ -43,7 +47,7 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
 
     public void testAnonymousViaHttp() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/_nodes");
+            getRestClient().performRequest(new Request("GET", "/_nodes"));
             fail("request should have failed");
         } catch(ResponseException e) {
             int statusCode = e.getResponse().getStatusLine().getStatusCode();

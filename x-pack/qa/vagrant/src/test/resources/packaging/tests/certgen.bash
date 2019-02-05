@@ -96,6 +96,7 @@ install_node_using_archive() {
     export_elasticsearch_paths
 
     install_archive
+    set_debug_logging
     verify_archive_installation
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_ARCHIVE_USER
@@ -123,6 +124,7 @@ install_node_using_package() {
     export_elasticsearch_paths
 
     install_package
+    set_debug_logging
     verify_package_installation
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_PACKAGE_USER
@@ -247,10 +249,14 @@ node.name: "node-master"
 node.master: true
 node.data: false
 discovery.zen.ping.unicast.hosts: ["127.0.0.1:9301"]
+cluster.initial_master_nodes: ["node-master"]
 
-xpack.ssl.key: $ESCONFIG/certs/node-master/node-master.key
-xpack.ssl.certificate: $ESCONFIG/certs/node-master/node-master.crt
-xpack.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
+xpack.security.transport.ssl.key: $ESCONFIG/certs/node-master/node-master.key
+xpack.security.transport.ssl.certificate: $ESCONFIG/certs/node-master/node-master.crt
+xpack.security.transport.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
+xpack.security.http.ssl.key: $ESCONFIG/certs/node-master/node-master.key
+xpack.security.http.ssl.certificate: $ESCONFIG/certs/node-master/node-master.crt
+xpack.security.http.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
 
 xpack.security.transport.ssl.enabled: true
 transport.tcp.port: 9300
@@ -331,9 +337,12 @@ node.master: false
 node.data: true
 discovery.zen.ping.unicast.hosts: ["127.0.0.1:9300"]
 
-xpack.ssl.key: $ESCONFIG/certs/node-data/node-data.key
-xpack.ssl.certificate: $ESCONFIG/certs/node-data/node-data.crt
-xpack.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
+xpack.security.transport.ssl.key: $ESCONFIG/certs/node-data/node-data.key
+xpack.security.transport.ssl.certificate: $ESCONFIG/certs/node-data/node-data.crt
+xpack.security.transport.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
+xpack.security.http.ssl.key: $ESCONFIG/certs/node-data/node-data.key
+xpack.security.http.ssl.certificate: $ESCONFIG/certs//node-data/node-data.crt
+xpack.security.http.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
 
 xpack.security.transport.ssl.enabled: true
 transport.tcp.port: 9301
@@ -359,7 +368,7 @@ DATA_SETTINGS
 	    echo "$output"
 	    false
     }
-    echo "$output" | grep "missing authentication token"
+    echo "$output" | grep "missing authentication credentials"
 }
 
 @test "[$GROUP] test node to node communication" {

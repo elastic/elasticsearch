@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -18,8 +20,6 @@ import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
@@ -56,7 +56,9 @@ import static org.joda.time.DateTimeZone.UTC;
  * the document should also be added to the local trigger service
  *
  */
-final class WatcherIndexingListener extends AbstractComponent implements IndexingOperationListener, ClusterStateListener {
+final class WatcherIndexingListener implements IndexingOperationListener, ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(WatcherIndexingListener.class);
 
     static final Configuration INACTIVE = new Configuration(null, Collections.emptyMap());
 
@@ -65,8 +67,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
     private final TriggerService triggerService;
     private volatile Configuration configuration = INACTIVE;
 
-    WatcherIndexingListener(Settings settings, WatchParser parser, Clock clock, TriggerService triggerService) {
-        super(settings);
+    WatcherIndexingListener(WatchParser parser, Clock clock, TriggerService triggerService) {
         this.parser = parser;
         this.clock = clock;
         this.triggerService = triggerService;
@@ -110,23 +111,13 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
                     return operation;
                 }
 
-                // the watch status is -1, in case a watch has been freshly stored and this save
-                // watch operation does not stem from an execution
-                // we dont need to update the trigger service, when the watch has been updated as
-                // part of an execution, so we can exit early
-                boolean isWatchExecutionOperation = watch.status().version() != -1;
-                if (isWatchExecutionOperation) {
-                    logger.debug("not updating trigger for watch [{}], watch has been updated as part of an execution", watch.id());
-                    return operation;
-                }
-
                 boolean shouldBeTriggered = shardAllocationConfiguration.shouldBeTriggered(watch.id());
                 if (shouldBeTriggered) {
                     if (watch.status().state().isActive()) {
-                        logger.debug("adding watch [{}] to trigger", watch.id());
+                        logger.debug("adding watch [{}] to trigger service", watch.id());
                         triggerService.add(watch);
                     } else {
-                        logger.debug("removing watch [{}] to trigger", watch.id());
+                        logger.debug("removing watch [{}] to trigger service", watch.id());
                         triggerService.remove(watch.id());
                     }
                 } else {
@@ -153,7 +144,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
      *
      * @param shardId   The shard id object of the document being processed
      * @param index     The index operation
-     * @param ex        The exception occured during indexing
+     * @param ex        The exception occurred during indexing
      */
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
@@ -203,7 +194,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
         // if there is no master node configured in the current state, this node should not try to trigger anything, but consider itself
         // inactive. the same applies, if there is a cluster block that does not allow writes
         if (Strings.isNullOrEmpty(event.state().nodes().getMasterNodeId()) ||
-                event.state().getBlocks().hasGlobalBlock(ClusterBlockLevel.WRITE)) {
+                event.state().getBlocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE)) {
             configuration = INACTIVE;
             return;
         }

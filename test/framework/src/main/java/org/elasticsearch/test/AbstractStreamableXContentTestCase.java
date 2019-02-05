@@ -21,10 +21,14 @@ package org.elasticsearch.test;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & Streamable> extends AbstractStreamableTestCase<T> {
 
@@ -33,15 +37,29 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      * both for equality and asserts equality on the two queries.
      */
     public final void testFromXContent() throws IOException {
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(),
-                getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-                this::assertEqualInstances, true);
+        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance)
+            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+            .supportsUnknownFields(supportsUnknownFields())
+            .shuffleFieldsExceptions(getShuffleFieldsExceptions())
+            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .assertToXContentEquivalence(true)
+            .test();
+    }
+
+    /**
+     * Creates a random instance to use in the xcontent tests.
+     * Override this method if the random instance that you build
+     * should be aware of the {@link XContentType} used in the test.
+     */
+    protected T createXContextTestInstance(XContentType xContentType) {
+        return createTestInstance();
     }
 
     /**
      * Parses to a new instance using the provided {@link XContentParser}
      */
-    protected abstract T doParseInstance(XContentParser parser) throws IOException;;
+    protected abstract T doParseInstance(XContentParser parser) throws IOException;
 
     /**
      * Indicates whether the parser supports unknown fields or not. In case it does, such behaviour will be tested by
@@ -63,5 +81,12 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      */
     protected String[] getShuffleFieldsExceptions() {
         return Strings.EMPTY_ARRAY;
+    }
+
+    /**
+     * Params that have to be provided when calling calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)}
+     */
+    protected ToXContent.Params getToXContentParams() {
+        return ToXContent.EMPTY_PARAMS;
     }
 }

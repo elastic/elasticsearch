@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -20,6 +23,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -27,11 +31,11 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -40,14 +44,17 @@ import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager.AutodetectWorkerExecutorService;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
@@ -60,6 +67,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -77,6 +86,7 @@ import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -100,11 +110,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private Environment environment;
     private AnalysisRegistry analysisRegistry;
     private JobManager jobManager;
-    private JobProvider jobProvider;
+    private JobResultsProvider jobResultsProvider;
     private JobResultsPersister jobResultsPersister;
     private JobDataCountsPersister jobDataCountsPersister;
     private NormalizerFactory normalizerFactory;
     private Auditor auditor;
+    private ClusterState clusterState;
 
     private DataCounts dataCounts = new DataCounts("foo");
     private ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("foo").build();
@@ -118,20 +129,33 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         environment = TestEnvironment.newEnvironment(settings);
         analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
         jobManager = mock(JobManager.class);
-        jobProvider = mock(JobProvider.class);
+        jobResultsProvider = mock(JobResultsProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
         when(jobResultsPersister.bulkPersisterBuilder(any())).thenReturn(mock(JobResultsPersister.Builder.class));
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
         normalizerFactory = mock(NormalizerFactory.class);
         auditor = mock(Auditor.class);
+        MetaData metaData = mock(MetaData.class);
+        SortedMap<String, AliasOrIndex> aliasOrIndexSortedMap = new TreeMap<>();
+        aliasOrIndexSortedMap.put(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), mock(AliasOrIndex.Alias.class));
+        when(metaData.getAliasAndIndexLookup()).thenReturn(aliasOrIndexSortedMap);
+        clusterState = mock(ClusterState.class);
+        when(clusterState.getMetaData()).thenReturn(metaData);
+        when(clusterState.metaData()).thenReturn(metaData);
 
-        when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
+            listener.onResponse(createJobDetails("foo"));
+            return null;
+        }).when(jobManager).getJob(eq("foo"), any());
+
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             Consumer<AutodetectParams> handler = (Consumer<AutodetectParams>) invocationOnMock.getArguments()[1];
             handler.accept(buildAutodetectParams());
             return null;
-        }).when(jobProvider).getAutodetectParams(any(), any(), any());
+        }).when(jobResultsProvider).getAutodetectParams(any(), any(), any());
     }
 
     public void testMaxOpenJobsSetting_givenDefault() {
@@ -146,24 +170,26 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals(7, maxOpenJobs);
     }
 
-    public void testMaxOpenJobsSetting_givenOldSettingOnly() {
-        Settings.Builder settings = Settings.builder();
-        settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 9);
-        int maxOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings.build());
-        assertEquals(9, maxOpenJobs);
-        assertWarnings("[max_running_jobs] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version.");
+    public void testOpenJob() {
+        Client client = mock(Client.class);
+        AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
+            listener.onResponse(createJobDetails("foo"));
+            return null;
+        }).when(jobManager).getJob(eq("foo"), any());
+        AutodetectProcessManager manager = createManager(communicator, client);
+
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        when(jobTask.getAllocationId()).thenReturn(1L);
+        manager.openJob(jobTask, clusterState, e -> {});
+        assertEquals(1, manager.numberOfOpenJobs());
+        assertTrue(manager.jobHasActiveAutodetectProcess(jobTask));
+        verify(jobTask).updatePersistentTaskState(eq(new JobTaskState(JobState.OPENED, 1L)), any());
     }
 
-    public void testMaxOpenJobsSetting_givenOldAndNewSettings() {
-        Settings.Builder settings = Settings.builder();
-        settings.put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), 7);
-        settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 9);
-        int maxOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings.build());
-        assertEquals(7, maxOpenJobs);
-        assertWarnings("[max_running_jobs] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version.");
-    }
 
     public void testOpenJob_withoutVersion() {
         Client client = mock(Client.class);
@@ -173,40 +199,33 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         Job job = jobBuilder.build();
         assertThat(job.getJobVersion(), is(nullValue()));
 
-        when(jobManager.getJobOrThrowIfUnknown(job.getId())).thenReturn(job);
-        AutodetectProcessManager manager = createManager(communicator, client);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
+            listener.onResponse(job);
+            return null;
+        }).when(jobManager).getJob(eq(job.getId()), any());
 
+        AutodetectProcessManager manager = createManager(communicator, client);
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn(job.getId());
-
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
-        manager.openJob(jobTask, errorHolder::set);
-
+        manager.openJob(jobTask, clusterState, errorHolder::set);
         Exception error = errorHolder.get();
         assertThat(error, is(notNullValue()));
         assertThat(error.getMessage(), equalTo("Cannot open job [no_version] because jobs created prior to version 5.5 are not supported"));
     }
 
-    public void testOpenJob() {
-        Client client = mock(Client.class);
-        AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
-        when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
-        AutodetectProcessManager manager = createManager(communicator, client);
-
-        JobTask jobTask = mock(JobTask.class);
-        when(jobTask.getJobId()).thenReturn("foo");
-        when(jobTask.getAllocationId()).thenReturn(1L);
-        manager.openJob(jobTask, e -> {});
-        assertEquals(1, manager.numberOfOpenJobs());
-        assertTrue(manager.jobHasActiveAutodetectProcess(jobTask));
-        verify(jobTask).updatePersistentStatus(eq(new JobTaskStatus(JobState.OPENED, 1L)), any());
-    }
-
+    @SuppressWarnings("unchecked")
     public void testOpenJob_exceedMaxNumJobs() {
-        when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
-        when(jobManager.getJobOrThrowIfUnknown("bar")).thenReturn(createJobDetails("bar"));
-        when(jobManager.getJobOrThrowIfUnknown("baz")).thenReturn(createJobDetails("baz"));
-        when(jobManager.getJobOrThrowIfUnknown("foobar")).thenReturn(createJobDetails("foobar"));
+        for (String jobId : new String [] {"foo", "bar", "baz", "foobar"}) {
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("unchecked")
+                ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
+                listener.onResponse(createJobDetails(jobId));
+                return null;
+            }).when(jobManager).getJob(eq(jobId), any());
+        }
 
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -214,7 +233,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         ThreadPool.Cancellable cancellable = mock(ThreadPool.Cancellable.class);
         when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(cancellable);
         ExecutorService executorService = mock(ExecutorService.class);
-        Future future = mock(Future.class);
+        Future<?> future = mock(Future.class);
         when(executorService.submit(any(Callable.class))).thenReturn(future);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
@@ -225,12 +244,11 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         settings.put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = spy(new AutodetectProcessManager(environment, settings.build(), client, threadPool,
-                jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
+                jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor));
         doReturn(executorService).when(manager).createAutodetectExecutorService(any());
 
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
             CheckedConsumer<Exception, IOException> consumer = (CheckedConsumer<Exception, IOException>) invocationOnMock.getArguments()[2];
             consumer.accept(null);
             return null;
@@ -238,22 +256,22 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("bar");
         when(jobTask.getAllocationId()).thenReturn(1L);
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("baz");
         when(jobTask.getAllocationId()).thenReturn(2L);
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         assertEquals(3, manager.numberOfOpenJobs());
 
         Exception[] holder = new Exception[1];
         jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foobar");
         when(jobTask.getAllocationId()).thenReturn(3L);
-        manager.openJob(jobTask, e -> holder[0] = e);
+        manager.openJob(jobTask, clusterState, e -> holder[0] = e);
         Exception e = holder[0];
         assertEquals("max running job capacity [3] reached", e.getMessage());
 
@@ -262,7 +280,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobTask.getJobId()).thenReturn("baz");
         manager.closeJob(jobTask, false, null);
         assertEquals(2, manager.numberOfOpenJobs());
-        manager.openJob(jobTask, e1 -> {});
+        manager.openJob(jobTask, clusterState, e1 -> {});
         assertEquals(3, manager.numberOfOpenJobs());
     }
 
@@ -274,7 +292,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
         DataLoadParams params = new DataLoadParams(TimeRange.builder().build(), Optional.empty());
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         manager.processData(jobTask, analysisRegistry, createInputStream(""), randomFrom(XContentType.values()),
                 params, (dataCounts1, e) -> {});
         assertEquals(1, manager.numberOfOpenJobs());
@@ -297,7 +315,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         Exception[] holder = new Exception[1];
         manager.processData(jobTask, analysisRegistry, inputStream, xContentType, params, (dataCounts1, e) -> holder[0] = e);
         assertNotNull(holder[0]);
@@ -310,7 +328,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         manager.processData(jobTask, analysisRegistry, createInputStream(""), randomFrom(XContentType.values()),
                 mock(DataLoadParams.class), (dataCounts1, e) -> {});
 
@@ -338,7 +356,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         manager.processData(jobTask, analysisRegistry, createInputStream(""), randomFrom(XContentType.values()),
                 mock(DataLoadParams.class), (dataCounts1, e) -> {});
 
@@ -386,7 +404,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         manager.processData(jobTask, analysisRegistry, createInputStream(""), randomFrom(XContentType.values()),
                 mock(DataLoadParams.class), (dataCounts1, e) -> {});
 
@@ -415,7 +433,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         InputStream inputStream = createInputStream("");
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         manager.processData(jobTask, analysisRegistry, inputStream, xContentType, params, (dataCounts1, e) -> {});
         verify(communicator).writeToJob(same(inputStream), same(analysisRegistry), same(xContentType), same(params), any());
     }
@@ -427,7 +445,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
         InputStream inputStream = createInputStream("");
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         manager.processData(jobTask, analysisRegistry, inputStream, randomFrom(XContentType.values()),
                 mock(DataLoadParams.class), (dataCounts1, e) -> {});
 
@@ -467,7 +485,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         // create a jobtask
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         manager.processData(jobTask, analysisRegistry, createInputStream(""), randomFrom(XContentType.values()), mock(DataLoadParams.class),
                 (dataCounts1, e) -> {
                 });
@@ -489,8 +507,15 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
         UpdateParams updateParams = UpdateParams.builder("foo").modelPlotConfig(modelConfig).detectorUpdates(detectorUpdates).build();
+
         manager.writeUpdateProcessMessage(jobTask, updateParams, e -> {});
-        verify(communicator).writeUpdateProcessMessage(same(updateParams), eq(null), any());
+
+        ArgumentCaptor<UpdateProcessMessage> captor = ArgumentCaptor.forClass(UpdateProcessMessage.class);
+        verify(communicator).writeUpdateProcessMessage(captor.capture(), any());
+
+        UpdateProcessMessage updateProcessMessage = captor.getValue();
+        assertThat(updateProcessMessage.getModelPlotConfig(), equalTo(modelConfig));
+        assertThat(updateProcessMessage.getDetectorUpdates(), equalTo(detectorUpdates));
     }
 
     public void testJobHasActiveAutodetectProcess() {
@@ -500,7 +525,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobTask.getJobId()).thenReturn("foo");
         assertFalse(manager.jobHasActiveAutodetectProcess(jobTask));
 
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         manager.processData(jobTask, analysisRegistry, createInputStream(""), randomFrom(XContentType.values()),
                 mock(DataLoadParams.class), (dataCounts1, e) -> {});
 
@@ -518,7 +543,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobTask.getJobId()).thenReturn("foo");
         assertFalse(manager.jobHasActiveAutodetectProcess(jobTask));
 
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         manager.processData(jobTask, analysisRegistry, createInputStream(""), randomFrom(XContentType.values()),
                 mock(DataLoadParams.class), (dataCounts1, e) -> {});
 
@@ -552,7 +577,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         InputStream inputStream = createInputStream("");
         DataCounts[] dataCounts = new DataCounts[1];
         manager.processData(jobTask, analysisRegistry, inputStream,
@@ -569,18 +594,25 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         doThrow(new EsRejectedExecutionException("")).when(executorService).submit(any(Runnable.class));
         when(threadPool.executor(anyString())).thenReturn(executorService);
         when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(mock(ThreadPool.Cancellable.class));
-        when(jobManager.getJobOrThrowIfUnknown("my_id")).thenReturn(createJobDetails("my_id"));
+        Job job = createJobDetails("my_id");
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
+            listener.onResponse(job);
+            return null;
+        }).when(jobManager).getJob(eq("my_id"), any());
+
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory =
                 (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         AutodetectProcessManager manager = new AutodetectProcessManager(environment, Settings.EMPTY,
-                client, threadPool, jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
+                client, threadPool, jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor);
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("my_id");
         expectThrows(EsRejectedExecutionException.class,
-                () -> manager.create(jobTask, buildAutodetectParams(), e -> {}));
+                () -> manager.create(jobTask, job, buildAutodetectParams(), e -> {}));
         verify(autodetectProcess, times(1)).close();
     }
 
@@ -590,7 +622,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.create(jobTask, buildAutodetectParams(), e -> {});
+        manager.create(jobTask, createJobDetails("foo"), buildAutodetectParams(), e -> {});
 
         String expectedNotification = "Loading model snapshot [N/A], job latest_record_timestamp [N/A]";
         verify(auditor).info("foo", expectedNotification);
@@ -606,7 +638,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.create(jobTask, buildAutodetectParams(), e -> {});
+        manager.create(jobTask, createJobDetails("foo"), buildAutodetectParams(), e -> {});
 
         String expectedNotification = "Loading model snapshot [snapshot-1] with " +
                 "latest_record_timestamp [1970-01-01T00:00:00.000Z], " +
@@ -625,7 +657,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.create(jobTask, buildAutodetectParams(), e -> {});
+        manager.create(jobTask, createJobDetails("foo"), buildAutodetectParams(), e -> {});
 
         String expectedNotification = "Loading model snapshot [N/A], " +
                 "job latest_record_timestamp [1970-01-01T00:00:00.000Z]";
@@ -635,6 +667,26 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verifyNoMoreInteractions(auditor);
     }
 
+    public void testAutodetectWorkerExecutorServiceDoesNotSwallowErrors() {
+        final ThreadPool threadPool = new TestThreadPool("testAutodetectWorkerExecutorServiceDoesNotSwallowErrors");
+        try {
+            final AutodetectWorkerExecutorService executor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
+            if (randomBoolean()) {
+                executor.submit(() -> {
+                    throw new Error("future error");
+                });
+            } else {
+                executor.execute(() -> {
+                    throw new Error("future error");
+                });
+            }
+            final Error e = expectThrows(Error.class, () -> executor.start());
+            assertThat(e.getMessage(), containsString("future error"));
+        } finally {
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
     private AutodetectProcessManager createNonSpyManager(String jobId) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -642,12 +694,18 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         ExecutorService executorService = mock(ExecutorService.class);
         when(threadPool.executor(anyString())).thenReturn(executorService);
         when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(mock(ThreadPool.Cancellable.class));
-        when(jobManager.getJobOrThrowIfUnknown(jobId)).thenReturn(createJobDetails(jobId));
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Job> listener = (ActionListener<Job>) invocationOnMock.getArguments()[1];
+            listener.onResponse(createJobDetails(jobId));
+            return null;
+        }).when(jobManager).getJob(eq(jobId), any());
+
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory =
                 (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         return new AutodetectProcessManager(environment, Settings.EMPTY, client, threadPool, jobManager,
-                jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
+                jobResultsProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, new NamedXContentRegistry(Collections.emptyList()), auditor);
     }
 
@@ -672,11 +730,11 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());
         AutodetectProcessFactory autodetectProcessFactory = mock(AutodetectProcessFactory.class);
         AutodetectProcessManager manager = new AutodetectProcessManager(environment, Settings.EMPTY,
-                client, threadPool, jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister,
+                client, threadPool, jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister,
                 autodetectProcessFactory, normalizerFactory,
                 new NamedXContentRegistry(Collections.emptyList()), auditor);
         manager = spy(manager);
-        doReturn(communicator).when(manager).create(any(), eq(buildAutodetectParams()), any());
+        doReturn(communicator).when(manager).create(any(), any(), eq(buildAutodetectParams()), any());
         return manager;
     }
 
@@ -684,7 +742,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessManager manager = createManager(communicator);
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn(jobId);
-        manager.openJob(jobTask, e -> {});
+        manager.openJob(jobTask, clusterState, e -> {});
         manager.processData(jobTask, analysisRegistry, createInputStream(""), randomFrom(XContentType.values()),
                 mock(DataLoadParams.class), (dataCounts, e) -> {});
         return manager;

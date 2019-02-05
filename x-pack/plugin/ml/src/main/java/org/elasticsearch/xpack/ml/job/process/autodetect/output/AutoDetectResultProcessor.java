@@ -5,13 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -30,7 +32,6 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.time.Duration;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -69,15 +69,13 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class AutoDetectResultProcessor {
 
-    private static final Logger LOGGER = Loggers.getLogger(AutoDetectResultProcessor.class);
+    private static final Logger LOGGER = LogManager.getLogger(AutoDetectResultProcessor.class);
 
     private final Client client;
     private final Auditor auditor;
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
-    private final JobProvider jobProvider;
-    private final boolean restoredSnapshot;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
     final Semaphore updateModelSnapshotSemaphore = new Semaphore(1);
@@ -90,26 +88,21 @@ public class AutoDetectResultProcessor {
      * New model size stats are read as the process is running
      */
     private volatile ModelSizeStats latestModelSizeStats;
-    private volatile long latestEstablishedModelMemory;
-    private volatile boolean haveNewLatestModelSizeStats;
 
-    public AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
-                                     JobProvider jobProvider, ModelSizeStats latestModelSizeStats, boolean restoredSnapshot) {
-        this(client, auditor, jobId, renormalizer, persister, jobProvider, latestModelSizeStats, restoredSnapshot, new FlushListener());
+    public AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+                                     JobResultsPersister persister, ModelSizeStats latestModelSizeStats) {
+        this(client, auditor, jobId, renormalizer, persister, latestModelSizeStats, new FlushListener());
     }
 
-    AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
-                              JobProvider jobProvider, ModelSizeStats latestModelSizeStats, boolean restoredSnapshot,
-                              FlushListener flushListener) {
+    AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+                              JobResultsPersister persister, ModelSizeStats latestModelSizeStats, FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
         this.renormalizer = Objects.requireNonNull(renormalizer);
         this.persister = Objects.requireNonNull(persister);
-        this.jobProvider = Objects.requireNonNull(jobProvider);
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
-        this.restoredSnapshot = restoredSnapshot;
     }
 
     public void process(AutodetectProcess process) {
@@ -119,25 +112,7 @@ public class AutoDetectResultProcessor {
         // to kill the results reader thread as autodetect will be blocked
         // trying to write its output.
         try {
-            bucketCount = 0;
-            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
-            while (iterator.hasNext()) {
-                try {
-                    AutodetectResult result = iterator.next();
-                    processResult(context, result);
-                    if (result.getBucket() != null) {
-                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
-                    }
-                } catch (Exception e) {
-                    if (processKilled) {
-                        throw e;
-                    }
-                    if (process.isProcessAliveAfterWaiting() == false) {
-                        throw e;
-                    }
-                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
-                }
-            }
+            readResults(process, context);
 
             try {
                 if (processKilled == false) {
@@ -146,8 +121,8 @@ public class AutoDetectResultProcessor {
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
-
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
+
         } catch (Exception e) {
             failed = true;
 
@@ -168,6 +143,32 @@ public class AutoDetectResultProcessor {
         } finally {
             flushListener.clear();
             completionLatch.countDown();
+        }
+    }
+
+    private void readResults(AutodetectProcess process, Context context) {
+        bucketCount = 0;
+        try {
+            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
+            while (iterator.hasNext()) {
+                try {
+                    AutodetectResult result = iterator.next();
+                    processResult(context, result);
+                    if (result.getBucket() != null) {
+                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
+                    }
+                } catch (Exception e) {
+                    if (processKilled) {
+                        throw e;
+                    }
+                    if (process.isProcessAliveAfterWaiting() == false) {
+                        throw e;
+                    }
+                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
+                }
+            }
+        } finally {
+            process.consumeAndCloseOutputStream();
         }
     }
 
@@ -195,16 +196,6 @@ public class AutoDetectResultProcessor {
             // results are also interim
             context.bulkResultsPersister.persistBucket(bucket).executeRequest();
             ++bucketCount;
-
-            // if we haven't previously set established model memory, consider trying again after
-            // a reasonable amount of time has elapsed since the last model size stats update
-            long minEstablishedTimespanMs = JobProvider.BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE * bucket.getBucketSpan() * 1000L;
-            if (haveNewLatestModelSizeStats && latestEstablishedModelMemory == 0
-                    && bucket.getTimestamp().getTime() > latestModelSizeStats.getTimestamp().getTime() + minEstablishedTimespanMs) {
-                persister.commitResultWrites(context.jobId);
-                updateEstablishedModelMemoryOnJob(bucket.getTimestamp(), latestModelSizeStats);
-                haveNewLatestModelSizeStats = false;
-            }
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && !records.isEmpty()) {
@@ -252,8 +243,10 @@ public class AutoDetectResultProcessor {
         ModelSnapshot modelSnapshot = result.getModelSnapshot();
         if (modelSnapshot != null) {
             // We need to refresh in order for the snapshot to be available when we try to update the job with it
-            persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
-            updateModelSnapshotOnJob(modelSnapshot);
+            IndexResponse indexResponse = persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
+            if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
+                updateModelSnapshotOnJob(modelSnapshot);
+            }
         }
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
@@ -293,16 +286,6 @@ public class AutoDetectResultProcessor {
         persister.persistModelSizeStats(modelSizeStats);
         notifyModelMemoryStatusChange(context, modelSizeStats);
         latestModelSizeStats = modelSizeStats;
-        haveNewLatestModelSizeStats = true;
-
-        // This is a crude way to NOT refresh the index and NOT attempt to update established model memory during the first 20 buckets
-        // because this is when the model size stats are likely to be least stable and lots of updates will be coming through, and
-        // we'll NEVER consider memory usage to be established during this period
-        if (restoredSnapshot || bucketCount >= JobProvider.BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE) {
-            // We need to make all results written up to and including these stats available for the established memory calculation
-            persister.commitResultWrites(context.jobId);
-            updateEstablishedModelMemoryOnJob(modelSizeStats.getTimestamp(), modelSizeStats);
-        }
     }
 
     private void notifyModelMemoryStatusChange(Context context, ModelSizeStats modelSizeStats) {
@@ -318,10 +301,7 @@ public class AutoDetectResultProcessor {
     }
 
     protected void updateModelSnapshotOnJob(ModelSnapshot modelSnapshot) {
-        JobUpdate update = new JobUpdate.Builder(jobId)
-                .setModelSnapshotId(modelSnapshot.getSnapshotId())
-                .setModelSnapshotMinVersion(modelSnapshot.getMinVersion())
-                .build();
+        JobUpdate update = new JobUpdate.Builder(jobId).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
         UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
 
         try {
@@ -351,29 +331,6 @@ public class AutoDetectResultProcessor {
         });
     }
 
-    private void updateEstablishedModelMemoryOnJob(Date latestBucketTimestamp, ModelSizeStats modelSizeStats) {
-        jobProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStats, establishedModelMemory -> {
-            JobUpdate update = new JobUpdate.Builder(jobId)
-                    .setEstablishedModelMemory(establishedModelMemory).build();
-            UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
-            updateRequest.setWaitForAck(false);
-
-            executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
-                @Override
-                public void onResponse(PutJobAction.Response response) {
-                    latestEstablishedModelMemory = establishedModelMemory;
-                    LOGGER.debug("[{}] Updated job with established model memory [{}]", jobId, establishedModelMemory);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    LOGGER.error("[" + jobId + "] Failed to update job with new established model memory [" + establishedModelMemory + "]",
-                            e);
-                }
-            });
-        }, e -> LOGGER.error("[" + jobId + "] Failed to calculate established model memory", e));
-    }
-
     public void awaitCompletion() throws TimeoutException {
         try {
             // Although the results won't take 30 minutes to finish, the pipe won't be closed
@@ -382,6 +339,7 @@ public class AutoDetectResultProcessor {
                     TimeUnit.MINUTES) == false) {
                 throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
             }
+
             // Input stream has been completely processed at this point.
             // Wait for any updateModelSnapshotOnJob calls to complete.
             updateModelSnapshotSemaphore.acquire();
@@ -406,7 +364,7 @@ public class AutoDetectResultProcessor {
      * @return The {@link FlushAcknowledgement} if the flush has completed or the parsing finished; {@code null} if the timeout expired
      */
     @Nullable
-    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) {
+    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) throws InterruptedException {
         return failed ? null : flushListener.waitForFlush(flushId, timeout);
     }
 

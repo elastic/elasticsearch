@@ -5,39 +5,50 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-class MlInitializationService extends AbstractComponent implements ClusterStateListener {
+class MlInitializationService implements LocalNodeMasterListener, ClusterStateListener {
 
+    private static final Logger logger = LogManager.getLogger(MlInitializationService.class);
+
+    private final Settings settings;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final Client client;
-
-    private final AtomicBoolean installMlMetadataCheck = new AtomicBoolean(false);
+    private final AtomicBoolean isIndexCreationInProgress = new AtomicBoolean(false);
 
     private volatile MlDailyMaintenanceService mlDailyMaintenanceService;
 
     MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client) {
-        super(settings);
+        this.settings = settings;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;
         clusterService.addListener(this);
+    }
+
+    @Override
+    public void onMaster() {
+        installDailyMaintenanceService();
+    }
+
+    @Override
+    public void offMaster() {
+        uninstallDailyMaintenanceService();
     }
 
     @Override
@@ -47,44 +58,26 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
             return;
         }
 
-        if (event.localNodeMaster()) {
-            MetaData metaData = event.state().metaData();
-            installMlMetadata(metaData);
-            installDailyMaintenanceService();
-        } else {
-            uninstallDailyMaintenanceService();
+        // The atomic flag prevents multiple simultaneous attempts to create the
+        // index if there is a flurry of cluster state updates in quick succession
+        if (event.localNodeMaster() && isIndexCreationInProgress.compareAndSet(false, true)) {
+            AnnotationIndex.createAnnotationsIndexIfNecessary(settings, client, event.state(), ActionListener.wrap(
+                r -> {
+                    isIndexCreationInProgress.set(false);
+                    if (r) {
+                        logger.info("Created ML annotations index and aliases");
+                    }
+                },
+                e -> {
+                    isIndexCreationInProgress.set(false);
+                    logger.error("Error creating ML annotations index or aliases", e);
+                }));
         }
     }
 
-    private void installMlMetadata(MetaData metaData) {
-        if (metaData.custom(MLMetadataField.TYPE) == null) {
-            if (installMlMetadataCheck.compareAndSet(false, true)) {
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(() ->
-                    clusterService.submitStateUpdateTask("install-ml-metadata", new ClusterStateUpdateTask() {
-                        @Override
-                        public ClusterState execute(ClusterState currentState) throws Exception {
-                            // If the metadata has been added already don't try to update
-                            if (currentState.metaData().custom(MLMetadataField.TYPE) != null) {
-                                return currentState;
-                            }
-                            ClusterState.Builder builder = new ClusterState.Builder(currentState);
-                            MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
-                            metadataBuilder.putCustom(MLMetadataField.TYPE, MlMetadata.EMPTY_METADATA);
-                            builder.metaData(metadataBuilder.build());
-                            return builder.build();
-                        }
-
-                        @Override
-                        public void onFailure(String source, Exception e) {
-                            installMlMetadataCheck.set(false);
-                            logger.error("unable to install ml metadata", e);
-                        }
-                    })
-                );
-            }
-        } else {
-            installMlMetadataCheck.set(false);
-        }
+    @Override
+    public String executorName() {
+        return ThreadPool.Names.GENERIC;
     }
 
     private void installDailyMaintenanceService() {

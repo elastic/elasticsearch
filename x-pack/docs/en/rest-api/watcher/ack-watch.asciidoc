@@ -1,8 +1,11 @@
 [role="xpack"]
 [[watcher-api-ack-watch]]
-=== Ack Watch API
+=== Ack watch API
+++++
+<titleabbrev>Ack watch</titleabbrev>
+++++
 
-{xpack-ref}/actions.html#actions-ack-throttle[Acknowledging a watch] enables you
+{stack-ov}/actions.html#actions-ack-throttle[Acknowledging a watch] enables you
 to manually throttle execution of the watch's actions. An action's
 _acknowledgement state_ is stored in the `status.actions.<id>.ack.state`
 structure.
@@ -14,9 +17,9 @@ execution.
 [float]
 ==== Request
 
-`PUT _xpack/watcher/watch/<watch_id>/_ack` +
+`PUT _watcher/watch/<watch_id>/_ack` +
 
-`PUT _xpack/watcher/watch/<watch_id>/_ack/<action_id>`
+`PUT _watcher/watch/<watch_id>/_ack/<action_id>`
 
 [float]
 ==== Path Parameters
@@ -42,7 +45,7 @@ To demonstrate let's create a new watch:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/my_watch
+PUT _watcher/watch/my_watch
 {
   "trigger": {
     "schedule": {
@@ -80,7 +83,7 @@ watch definition when you call the <<watcher-api-get-watch, Get Watch API>>:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/watcher/watch/my_watch
+GET _watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
 
@@ -117,12 +120,12 @@ check the status:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_execute
+POST _watcher/watch/my_watch/_execute
 {
   "record_execution" : true
 }
 
-GET _xpack/watcher/watch/my_watch
+GET _watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -172,8 +175,8 @@ Now we can acknowledge it:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/my_watch/_ack/test_index
-GET _xpack/watcher/watch/my_watch
+PUT _watcher/watch/my_watch/_ack/test_index
+GET _watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -226,7 +229,7 @@ comma-separated list of action ids:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_ack/action1,action2
+POST _watcher/watch/my_watch/_ack/action1,action2
 --------------------------------------------------
 // CONSOLE
 
@@ -235,9 +238,9 @@ parameter:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_ack
+POST _watcher/watch/my_watch/_ack
 --------------------------------------------------
-// TEST[s/^/POST _xpack\/watcher\/watch\/my_watch\/_execute\n{ "record_execution" : true }\n/]
+// TEST[s/^/POST _watcher\/watch\/my_watch\/_execute\n{ "record_execution" : true }\n/]
 // CONSOLE
 
 

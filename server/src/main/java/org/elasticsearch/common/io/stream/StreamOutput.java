@@ -30,6 +30,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -37,6 +39,7 @@ import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
@@ -52,15 +55,20 @@ import java.nio.file.FileSystemException;
 import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
@@ -97,6 +105,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     private Version version = Version.CURRENT;
+    private Set<String> features = Collections.emptySet();
 
     /**
      * The version of the node on the other side of this stream.
@@ -110,6 +119,27 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void setVersion(Version version) {
         this.version = version;
+    }
+
+    /**
+     * Test if the stream has the specified feature. Features are used when serializing {@link ClusterState.Custom} or
+     * {@link MetaData.Custom}; see also {@link ClusterState.FeatureAware}.
+     *
+     * @param feature the feature to test
+     * @return true if the stream has the specified feature
+     */
+    public boolean hasFeature(final String feature) {
+        return this.features.contains(feature);
+    }
+
+    /**
+     * Set the features on the stream. See {@link StreamOutput#hasFeature(String)}.
+     *
+     * @param features the features on the stream
+     */
+    public void setFeatures(final Set<String> features) {
+        assert this.features.isEmpty() : this.features;
+        this.features = Collections.unmodifiableSet(new HashSet<>(features));
     }
 
     public long position() throws IOException {
@@ -290,6 +320,18 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             writeString(str);
+        }
+    }
+
+    /**
+     * Writes an optional {@link Integer}.
+     */
+    public void writeOptionalInt(@Nullable Integer integer) throws IOException {
+        if (integer == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeInt(integer);
         }
     }
 
@@ -648,8 +690,16 @@ public abstract class StreamOutput extends OutputStream {
         writers.put(ZonedDateTime.class, (o, v) -> {
             o.writeByte((byte) 23);
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
-            zonedDateTime.getZone().getId();
             o.writeString(zonedDateTime.getZone().getId());
+            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
+        });
+        writers.put(JodaCompatibleZonedDateTime.class, (o, v) -> {
+            // write the joda compatibility datetime as joda datetime
+            o.writeByte((byte) 13);
+            final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;
+            String zoneId = zonedDateTime.getZonedDateTime().getZone().getId();
+            // joda does not understand "Z" for utc, so we must special case
+            o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
         WRITERS = Collections.unmodifiableMap(writers);
@@ -747,20 +797,34 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public <T extends Writeable> void writeArray(T[] array) throws IOException {
-        writeVInt(array.length);
-        for (T value: array) {
-            value.writeTo(this);
-        }
-    }
-
-    public <T extends Writeable> void writeOptionalArray(@Nullable T[] array) throws IOException {
+    /**
+     * Same as {@link #writeArray(Writer, Object[])} but the provided array may be null. An additional boolean value is
+     * serialized to indicate whether the array was null or not.
+     */
+    public <T> void writeOptionalArray(final Writer<T> writer, final @Nullable T[] array) throws IOException {
         if (array == null) {
             writeBoolean(false);
         } else {
             writeBoolean(true);
-            writeArray(array);
+            writeArray(writer, array);
         }
+    }
+
+    /**
+     * Writes the specified array of {@link Writeable}s. This method can be seen as
+     * writer version of {@link StreamInput#readArray(Writeable.Reader, IntFunction)}. The length of array encoded as a variable-length
+     * integer is first written to the stream, and then the elements of the array are written to the stream.
+     */
+    public <T extends Writeable> void writeArray(T[] array) throws IOException {
+        writeArray((out, value) -> value.writeTo(out), array);
+    }
+
+    /**
+     * Same as {@link #writeArray(Writeable[])} but the provided array may be null. An additional boolean value is
+     * serialized to indicate whether the array was null or not.
+     */
+    public <T extends Writeable> void writeOptionalArray(@Nullable T[] array) throws IOException {
+        writeOptionalArray((out, value) -> value.writeTo(out), array);
     }
 
     /**
@@ -937,6 +1001,13 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Write a {@linkplain ZoneId} to the stream.
+     */
+    public void writeZoneId(ZoneId timeZone) throws IOException {
+        writeString(timeZone.getId());
+    }
+
+    /**
      * Write an optional {@linkplain DateTimeZone} to the stream.
      */
     public void writeOptionalTimeZone(@Nullable DateTimeZone timeZone) throws IOException {
@@ -945,6 +1016,18 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             writeTimeZone(timeZone);
+        }
+    }
+
+    /**
+     * Write an optional {@linkplain ZoneId} to the stream.
+     */
+    public void writeOptionalZoneId(@Nullable ZoneId timeZone) throws IOException {
+        if (timeZone == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeZoneId(timeZone);
         }
     }
 
@@ -959,23 +1042,45 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes a collection to this stream. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readList(Writeable.Reader)}.
+     *
+     * @param collection the collection to write to this stream
+     * @throws IOException if an I/O exception occurs writing the collection
+     */
+    public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
+        writeCollection(collection, (o, v) -> v.writeTo(o));
+    }
+
+    /**
      * Writes a list of {@link Writeable} objects
      */
     public void writeList(List<? extends Writeable> list) throws IOException {
-        writeVInt(list.size());
-        for (Writeable obj: list) {
-            obj.writeTo(this);
+        writeCollection(list);
+    }
+
+    /**
+     * Writes a collection of objects via a {@link Writer}.
+     *
+     * @param collection the collection of objects
+     * @throws IOException if an I/O exception occurs writing the collection
+     */
+    public <T> void writeCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
+        writeVInt(collection.size());
+        for (final T val: collection) {
+            writer.write(this, val);
         }
     }
 
     /**
-     * Writes a list of strings
+     * Writes a collection of a strings. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readList(Writeable.Reader)}.
+     *
+     * @param collection the collection of strings
+     * @throws IOException if an I/O exception occurs writing the collection
      */
-    public void writeStringList(List<String> list) throws IOException {
-        writeVInt(list.size());
-        for (String string: list) {
-            this.writeString(string);
-        }
+    public void writeStringCollection(final Collection<String> collection) throws IOException {
+        writeCollection(collection, StreamOutput::writeString);
     }
 
     /**
@@ -993,6 +1098,16 @@ public abstract class StreamOutput extends OutputStream {
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
         writeVInt(enumValue.ordinal());
+    }
+
+    /**
+     * Writes an EnumSet with type E that by serialized it based on it's ordinal value
+     */
+    public <E extends Enum<E>> void writeEnumSet(EnumSet<E> enumSet) throws IOException {
+        writeVInt(enumSet.size());
+        for (E e : enumSet) {
+            writeEnum(e);
+        }
     }
 
     /**

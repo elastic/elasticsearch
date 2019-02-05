@@ -6,11 +6,16 @@
 package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.function.BiFunction;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 public abstract class Predicates {
 
@@ -22,7 +27,7 @@ public abstract class Predicates {
             list.addAll(splitAnd(and.right()));
             return list;
         }
-        return Collections.singletonList(exp);
+        return singletonList(exp);
     }
 
     public static List<Expression> splitOr(Expression exp) {
@@ -33,15 +38,51 @@ public abstract class Predicates {
             list.addAll(splitOr(or.right()));
             return list;
         }
-        return Collections.singletonList(exp);
+        return singletonList(exp);
     }
 
     public static Expression combineOr(List<Expression> exps) {
-        return exps.stream().reduce((l, r) -> new Or(l.location(), l, r)).orElse(null);
+        return combine(exps, (l, r) -> new Or(l.source(), l, r));
     }
 
     public static Expression combineAnd(List<Expression> exps) {
-        return exps.stream().reduce((l, r) -> new And(l.location(), l, r)).orElse(null);
+        return combine(exps, (l, r) -> new And(l.source(), l, r));
+    }
+
+    /**
+     * Build a binary 'pyramid' from the given list:
+     * <pre>
+     *       AND
+     *      /   \
+     *   AND     AND
+     *  /   \   /   \
+     * A     B C     D
+     * </pre>
+     * 
+     * using the given combiner.
+     * 
+     * While a bit longer, this method creates a balanced tree as oppose to a plain
+     * recursive approach which creates an unbalanced one (either to the left or right).
+     */
+    private static Expression combine(List<Expression> exps, BiFunction<Expression, Expression, Expression> combiner) {
+        if (exps.isEmpty()) {
+            return null;
+        }
+
+        // clone the list (to modify it)
+        List<Expression> result = new ArrayList<>(exps);
+
+        while (result.size() > 1) {
+            // combine (in place) expressions in pairs
+            // NB: this loop modifies the list (just like an array)
+            for (int i = 0; i < result.size() - 1; i++) {
+                Expression l = result.remove(i);
+                Expression r = result.remove(i);
+                result.add(i, combiner.apply(l, r));
+            }
+        }
+
+        return result.get(0);
     }
 
     public static List<Expression> inCommon(List<Expression> l, List<Expression> r) {
@@ -53,7 +94,7 @@ public abstract class Predicates {
                 }
             }
         }
-        return common.isEmpty() ? Collections.emptyList() : common;
+        return common.isEmpty() ? emptyList() : common;
     }
 
     public static List<Expression> subtract(List<Expression> from, List<Expression> r) {
@@ -65,7 +106,7 @@ public abstract class Predicates {
                 }
             }
         }
-        return diff.isEmpty() ? Collections.emptyList() : diff;
+        return diff.isEmpty() ? emptyList() : diff;
     }
 
 

@@ -9,13 +9,15 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -28,11 +30,8 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.BeforeClass;
 
@@ -40,13 +39,15 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.is;
 
 public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase {
     private static int randomClientPort;
@@ -63,33 +64,25 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settingsBuilder = Settings.builder();
+        Settings.Builder settingsBuilder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
-
-        Path store;
-        try {
-            store = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
-            assertThat(Files.exists(store), is(true));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-        settingsBuilder.put(super.nodeSettings(nodeOrdinal))
-                       .put("transport.profiles.client.xpack.security.ssl.truststore.path", store) // settings for client truststore
-                       .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
-                       .put("transport.profiles.client.xpack.security.type", "client")
-                       .put("transport.profiles.client.port", randomClientPortRange)
-                       // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
-                       .put("transport.profiles.client.bind_host", "localhost")
-                       .put("xpack.security.audit.enabled", false)
-                       .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-                       .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
+        addSSLSettingsForNodePEMFiles(settingsBuilder, "transport.profiles.client.xpack.security.", true);
+        Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        settingsBuilder.putList("transport.profiles.client.xpack.security.ssl.certificate_authorities",
+            Collections.singletonList(certPath.toString())) // settings for client truststore
+            .put("transport.profiles.client.xpack.security.type", "client")
+            .put("transport.profiles.client.port", randomClientPortRange)
+            // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
+            .put("transport.profiles.client.bind_host", "localhost")
+            .put("xpack.security.audit.enabled", false)
+            .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
         if (randomBoolean()) {
             settingsBuilder.put("transport.profiles.default.xpack.security.type", "node"); // this is default lets set it randomly
         }
 
         SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings ->
-            secureSettings.setString("transport.profiles.client.xpack.security.ssl.truststore.secure_password", "testnode"));
+            secureSettings.setString("transport.profiles.client.xpack.security.ssl.keystore.secure_password", "testnode"));
         return settingsBuilder.build();
     }
 
@@ -98,28 +91,35 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         Path xpackConf = home.resolve("config");
         Files.createDirectories(xpackConf);
 
-        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
+        Transport transport = internalCluster().getMasterNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
         String unicastHost = NetworkAddress.format(transportAddress.address());
 
         // test that starting up a node works
         Settings.Builder nodeSettings = Settings.builder()
-                .put("node.name", "my-test-node")
-                .put("network.host", "localhost")
-                .put("cluster.name", internalCluster().getClusterName())
-                .put("discovery.zen.ping.unicast.hosts", unicastHost)
-                .put("discovery.zen.minimum_master_nodes",
-                        internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
-                .put("xpack.security.enabled", true)
-                .put("xpack.security.audit.enabled", false)
-                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-                .put("path.home", home)
-                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put(Node.NODE_MASTER_SETTING.getKey(), false)
-                .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
-                //.put("xpack.ml.autodetect_process", false);
-        addSSLSettingsForStore(nodeSettings, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
-        try (Node node = new MockNode(nodeSettings.build(), Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class))) {
+            .put("node.name", "my-test-node")
+            .put("network.host", "localhost")
+            .put("cluster.name", internalCluster().getClusterName())
+            .put("discovery.zen.ping.unicast.hosts", unicastHost)
+            .put("discovery.zen.minimum_master_nodes",
+                    internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
+            .put("xpack.security.enabled", true)
+            .put("xpack.security.audit.enabled", false)
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+            .put("path.home", home)
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
+            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
+        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(
+            LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class);
+        addSSLSettingsForPEMFiles(
+            nodeSettings,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
+            "testnode",
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+        try (Node node = new MockNode(nodeSettings.build(), mockPlugins)) {
             node.start();
             ensureStableCluster(cluster().size() + 1);
         }
@@ -133,35 +133,41 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         writeFile(xpackConf, "users_roles", configUsersRoles());
         writeFile(xpackConf, "roles.yml", configRoles());
 
-        Transport transport = internalCluster().getDataNodeInstance(Transport.class);
+        Transport transport = internalCluster().getMasterNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.profileBoundAddresses().get("client").publishAddress();
         String unicastHost = NetworkAddress.format(transportAddress.address());
 
         // test that starting up a node works
         Settings.Builder nodeSettings = Settings.builder()
-                .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.file.order", 0)
-                .put("node.name", "my-test-node")
-                .put(SecurityField.USER_SETTING.getKey(), "test_user:" + SecuritySettingsSourceField.TEST_PASSWORD)
-                .put("cluster.name", internalCluster().getClusterName())
-                .put("discovery.zen.ping.unicast.hosts", unicastHost)
-                .put("discovery.zen.minimum_master_nodes",
-                        internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
-                .put("xpack.security.enabled", true)
-                .put("xpack.security.audit.enabled", false)
-                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put("discovery.initial_state_timeout", "0s")
-                .put("path.home", home)
-                .put(Node.NODE_MASTER_SETTING.getKey(), false)
-                .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
-                //.put("xpack.ml.autodetect_process", false);
-        addSSLSettingsForStore(nodeSettings, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
-        try (Node node = new MockNode(nodeSettings.build(), Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class))) {
+            .put("xpack.security.authc.realms.file.file.order", 0)
+            .put("node.name", "my-test-node")
+            .put(SecurityField.USER_SETTING.getKey(), "test_user:" + SecuritySettingsSourceField.TEST_PASSWORD)
+            .put("cluster.name", internalCluster().getClusterName())
+            .put("discovery.zen.ping.unicast.hosts", unicastHost)
+            .put("discovery.zen.minimum_master_nodes",
+                internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
+            .put("xpack.security.enabled", true)
+            .put("xpack.security.audit.enabled", false)
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+            .put("discovery.initial_state_timeout", "0s")
+            .put("path.home", home)
+            .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
+            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
+        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(
+            LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class);
+        addSSLSettingsForPEMFiles(
+            nodeSettings,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
+            "testnode",
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+            Collections.singletonList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+        try (Node node = new MockNode(nodeSettings.build(), mockPlugins)) {
             node.start();
             TransportService instance = node.injector().getInstance(TransportService.class);
             try (Transport.Connection connection = instance.openConnection(new DiscoveryNode("theNode", transportAddress, Version.CURRENT),
-                    ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null))) {
+                    ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG))) {
                 // handshake should be ok
                 final DiscoveryNode handshake = instance.handshake(connection, 10000);
                 assertEquals(transport.boundAddress().publishAddress(), handshake.getAddress());
@@ -171,8 +177,12 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                         TransportRequestOptions.EMPTY,
                         new TransportResponseHandler<TransportResponse>() {
                     @Override
-                    public TransportResponse newInstance() {
-                        fail("never get that far");
+                    public TransportResponse read(StreamInput in) {
+                        try {
+                            fail("never get that far");
+                        } finally {
+                            latch.countDown();
+                        }
                         return null;
                     }
 

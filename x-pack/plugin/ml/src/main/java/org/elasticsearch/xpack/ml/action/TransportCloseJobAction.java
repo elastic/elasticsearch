@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
@@ -15,178 +14,63 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
-import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJobAction.JobTask, CloseJobAction.Request,
         CloseJobAction.Response, CloseJobAction.Response> {
 
+    private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
     private final Auditor auditor;
     private final PersistentTasksService persistentTasksService;
+    private final JobConfigProvider jobConfigProvider;
+    private final DatafeedConfigProvider datafeedConfigProvider;
 
     @Inject
-    public TransportCloseJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   ClusterService clusterService, Client client,
-                                   Auditor auditor, PersistentTasksService persistentTasksService) {
+    public TransportCloseJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
+                                   ClusterService clusterService, Client client, Auditor auditor,
+                                   PersistentTasksService persistentTasksService, JobConfigProvider jobConfigProvider,
+                                   DatafeedConfigProvider datafeedConfigProvider) {
         // We fork in innerTaskOperation(...), so we can use ThreadPool.Names.SAME here:
-        super(settings, CloseJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, CloseJobAction.Request::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
+        super(CloseJobAction.NAME, clusterService, transportService, actionFilters,
+            CloseJobAction.Request::new, CloseJobAction.Response::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
+        this.threadPool = threadPool;
         this.client = client;
         this.clusterService = clusterService;
         this.auditor = auditor;
         this.persistentTasksService = persistentTasksService;
-    }
-
-    /**
-     * Resolve the requested jobs and add their IDs to one of the list arguments
-     * depending on job state.
-     *
-     * Opened jobs are added to {@code openJobIds} and closing jobs added to {@code closingJobIds}. Failed jobs are added
-     * to {@code openJobIds} if allowFailed is set otherwise an exception is thrown.
-     * @param request The close job request
-     * @param state Cluster state
-     * @param openJobIds Opened or failed jobs are added to this list
-     * @param closingJobIds Closing jobs are added to this list
-     */
-    static void resolveAndValidateJobId(CloseJobAction.Request request, ClusterState state, List<String> openJobIds,
-                                        List<String> closingJobIds) {
-        PersistentTasksCustomMetaData tasksMetaData = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        MlMetadata maybeNull = state.metaData().custom(MLMetadataField.TYPE);
-        final MlMetadata mlMetadata = (maybeNull == null) ? MlMetadata.EMPTY_METADATA : maybeNull;
-
-        List<String> failedJobs = new ArrayList<>();
-
-        Consumer<String> jobIdProcessor = id -> {
-            validateJobAndTaskState(id, mlMetadata, tasksMetaData);
-            Job job = mlMetadata.getJobs().get(id);
-            if (job.isDeleted()) {
-                return;
-            }
-            addJobAccordingToState(id, tasksMetaData, openJobIds, closingJobIds, failedJobs);
-        };
-
-        Set<String> expandedJobIds = mlMetadata.expandJobIds(request.getJobId(), request.allowNoJobs());
-        expandedJobIds.stream().forEach(jobIdProcessor::accept);
-        if (request.isForce() == false && failedJobs.size() > 0) {
-            if (expandedJobIds.size() == 1) {
-                throw ExceptionsHelper.conflictStatusException("cannot close job [{}] because it failed, use force close",
-                        expandedJobIds.iterator().next());
-            }
-            throw ExceptionsHelper.conflictStatusException("one or more jobs have state failed, use force close");
-        }
-
-        // allowFailed == true
-        openJobIds.addAll(failedJobs);
-    }
-
-    private static void addJobAccordingToState(String jobId, PersistentTasksCustomMetaData tasksMetaData,
-                                               List<String> openJobs, List<String> closingJobs, List<String> failedJobs) {
-
-        JobState jobState = MlMetadata.getJobState(jobId, tasksMetaData);
-        switch (jobState) {
-            case CLOSING:
-                closingJobs.add(jobId);
-                break;
-            case FAILED:
-                failedJobs.add(jobId);
-                break;
-            case OPENING:
-            case OPENED:
-                openJobs.add(jobId);
-                break;
-            default:
-                break;
-        }
-    }
-
-    static TransportCloseJobAction.WaitForCloseRequest buildWaitForCloseRequest(List<String> openJobIds, List<String> closingJobIds,
-                                                                                PersistentTasksCustomMetaData tasks, Auditor auditor) {
-        TransportCloseJobAction.WaitForCloseRequest waitForCloseRequest = new TransportCloseJobAction.WaitForCloseRequest();
-
-        for (String jobId : openJobIds) {
-            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
-            if (jobTask != null) {
-                auditor.info(jobId, Messages.JOB_AUDIT_CLOSING);
-                waitForCloseRequest.persistentTaskIds.add(jobTask.getId());
-                waitForCloseRequest.jobsToFinalize.add(jobId);
-            }
-        }
-        for (String jobId : closingJobIds) {
-            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
-            if (jobTask != null) {
-                waitForCloseRequest.persistentTaskIds.add(jobTask.getId());
-            }
-        }
-
-        return waitForCloseRequest;
-    }
-
-    /**
-     * Validate the close request. Throws an exception on any of these conditions:
-     * <ul>
-     *     <li>If the job does not exist</li>
-     *     <li>If the job has a data feed the feed must be closed first</li>
-     *     <li>If the job is opening</li>
-     * </ul>
-     *
-     * @param jobId Job Id
-     * @param mlMetadata ML MetaData
-     * @param tasks Persistent tasks
-     */
-    static void validateJobAndTaskState(String jobId, MlMetadata mlMetadata, PersistentTasksCustomMetaData tasks) {
-        Job job = mlMetadata.getJobs().get(jobId);
-        if (job == null) {
-            throw new ResourceNotFoundException("cannot close job, because job [" + jobId + "] does not exist");
-        }
-
-        Optional<DatafeedConfig> datafeed = mlMetadata.getDatafeedByJobId(jobId);
-        if (datafeed.isPresent()) {
-            DatafeedState datafeedState = MlMetadata.getDatafeedState(datafeed.get().getId(), tasks);
-            if (datafeedState != DatafeedState.STOPPED) {
-                throw ExceptionsHelper.conflictStatusException("cannot close job [{}], datafeed hasn't been stopped", jobId);
-            }
-        }
+        this.jobConfigProvider = jobConfigProvider;
+        this.datafeedConfigProvider = datafeedConfigProvider;
     }
 
     @Override
@@ -219,47 +103,171 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
              * result/failure
              */
 
-            List<String> openJobIds = new ArrayList<>();
-            List<String> closingJobIds = new ArrayList<>();
-            resolveAndValidateJobId(request, state, openJobIds, closingJobIds);
-            request.setOpenJobIds(openJobIds.toArray(new String[0]));
-            if (openJobIds.isEmpty() && closingJobIds.isEmpty()) {
-                listener.onResponse(new CloseJobAction.Response(true));
-                return;
-            }
+            PersistentTasksCustomMetaData tasksMetaData = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), true, ActionListener.wrap(
+                    expandedJobIds -> {
+                        validate(expandedJobIds, request.isForce(), tasksMetaData, ActionListener.wrap(
+                                response -> {
+                                    request.setOpenJobIds(response.openJobIds.toArray(new String[0]));
+                                    if (response.openJobIds.isEmpty() && response.closingJobIds.isEmpty()) {
+                                        listener.onResponse(new CloseJobAction.Response(true));
+                                        return;
+                                    }
 
-            if (request.isForce() == false) {
-                Set<String> executorNodes = new HashSet<>();
-                PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-                for (String resolvedJobId : request.getOpenJobIds()) {
-                    PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(resolvedJobId, tasks);
-                    if (jobTask == null || jobTask.isAssigned() == false) {
-                        String message = "Cannot close job [" + resolvedJobId + "] because the job does not have an assigned node." +
-                                " Use force close to close the job";
-                        listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-                        return;
-                    } else {
-                        executorNodes.add(jobTask.getExecutorNode());
-                    }
-                }
-                request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
-            }
+                                    if (request.isForce() == false) {
+                                        Set<String> executorNodes = new HashSet<>();
+                                        PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+                                        for (String resolvedJobId : request.getOpenJobIds()) {
+                                            PersistentTasksCustomMetaData.PersistentTask<?> jobTask =
+                                                    MlTasks.getJobTask(resolvedJobId, tasks);
 
-            if (request.isForce()) {
-                List<String> jobIdsToForceClose = new ArrayList<>(openJobIds);
-                jobIdsToForceClose.addAll(closingJobIds);
-                forceCloseJob(state, request, jobIdsToForceClose, listener);
-            } else {
-                normalCloseJob(state, task, request, openJobIds, closingJobIds, listener);
-            }
+                                            if (jobTask == null || jobTask.isAssigned() == false) {
+                                                String message = "Cannot close job [" + resolvedJobId + "] because the job does not have "
+                                                        + "an assigned node. Use force close to close the job";
+                                                listener.onFailure(ExceptionsHelper.conflictStatusException(message));
+                                                return;
+                                            } else {
+                                                executorNodes.add(jobTask.getExecutorNode());
+                                            }
+                                        }
+                                        request.setNodes(executorNodes.toArray(new String[executorNodes.size()]));
+                                    }
+
+                                    if (request.isForce()) {
+                                        List<String> jobIdsToForceClose = new ArrayList<>(response.openJobIds);
+                                        jobIdsToForceClose.addAll(response.closingJobIds);
+                                        forceCloseJob(state, request, jobIdsToForceClose, listener);
+                                    } else {
+                                        normalCloseJob(state, task, request, response.openJobIds, response.closingJobIds, listener);
+                                    }
+                                },
+                                listener::onFailure
+                        ));
+                    },
+                    listener::onFailure
+            ));
+
         }
     }
+
+    class OpenAndClosingIds {
+        OpenAndClosingIds() {
+            openJobIds = new ArrayList<>();
+            closingJobIds = new ArrayList<>();
+        }
+        List<String> openJobIds;
+        List<String> closingJobIds;
+    }
+
+    /**
+     * Separate the job Ids into open and closing job Ids and validate.
+     * If a job is failed it is will not be closed unless the force parameter
+     * in request is true.
+     * It is an error if the datafeed the job uses is not stopped
+     *
+     * @param expandedJobIds The job ids
+     * @param forceClose Force close the job(s)
+     * @param tasksMetaData Persistent tasks
+     * @param listener Resolved job Ids listener
+     */
+    void validate(Collection<String> expandedJobIds, boolean forceClose, PersistentTasksCustomMetaData tasksMetaData,
+                          ActionListener<OpenAndClosingIds> listener) {
+
+        checkDatafeedsHaveStopped(expandedJobIds, tasksMetaData, ActionListener.wrap(
+                response -> {
+                    OpenAndClosingIds ids = new OpenAndClosingIds();
+                    List<String> failedJobs = new ArrayList<>();
+
+                    for (String jobId : expandedJobIds) {
+                        addJobAccordingToState(jobId, tasksMetaData, ids.openJobIds, ids.closingJobIds, failedJobs);
+                    }
+
+                    if (forceClose == false && failedJobs.size() > 0) {
+                        if (expandedJobIds.size() == 1) {
+                            listener.onFailure(
+                                    ExceptionsHelper.conflictStatusException("cannot close job [{}] because it failed, use force close",
+                                            expandedJobIds.iterator().next()));
+                            return;
+                        }
+                        listener.onFailure(
+                                ExceptionsHelper.conflictStatusException("one or more jobs have state failed, use force close"));
+                        return;
+                    }
+
+                    // If there are failed jobs force close is true
+                    ids.openJobIds.addAll(failedJobs);
+                    listener.onResponse(ids);
+                },
+                listener::onFailure
+        ));
+    }
+
+    void checkDatafeedsHaveStopped(Collection<String> jobIds, PersistentTasksCustomMetaData tasksMetaData,
+                                           ActionListener<Boolean> listener) {
+        datafeedConfigProvider.findDatafeedsForJobIds(jobIds, ActionListener.wrap(
+                datafeedIds -> {
+                    for (String datafeedId : datafeedIds) {
+                        DatafeedState datafeedState = MlTasks.getDatafeedState(datafeedId, tasksMetaData);
+                        if (datafeedState != DatafeedState.STOPPED) {
+                            listener.onFailure(ExceptionsHelper.conflictStatusException(
+                                            "cannot close job datafeed [{}] hasn't been stopped", datafeedId));
+                            return;
+                        }
+                    }
+                    listener.onResponse(Boolean.TRUE);
+                },
+                listener::onFailure
+        ));
+    }
+
+    static void addJobAccordingToState(String jobId, PersistentTasksCustomMetaData tasksMetaData,
+                                               List<String> openJobs, List<String> closingJobs, List<String> failedJobs) {
+
+        JobState jobState = MlTasks.getJobState(jobId, tasksMetaData);
+        switch (jobState) {
+            case CLOSING:
+                closingJobs.add(jobId);
+                break;
+            case FAILED:
+                failedJobs.add(jobId);
+                break;
+            case OPENING:
+            case OPENED:
+                openJobs.add(jobId);
+                break;
+            default:
+                break;
+        }
+    }
+
+    static TransportCloseJobAction.WaitForCloseRequest buildWaitForCloseRequest(List<String> openJobIds, List<String> closingJobIds,
+                                                                                PersistentTasksCustomMetaData tasks, Auditor auditor) {
+        TransportCloseJobAction.WaitForCloseRequest waitForCloseRequest = new TransportCloseJobAction.WaitForCloseRequest();
+
+        for (String jobId : openJobIds) {
+            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+            if (jobTask != null) {
+                auditor.info(jobId, Messages.JOB_AUDIT_CLOSING);
+                waitForCloseRequest.persistentTaskIds.add(jobTask.getId());
+                waitForCloseRequest.jobsToFinalize.add(jobId);
+            }
+        }
+        for (String jobId : closingJobIds) {
+            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+            if (jobTask != null) {
+                waitForCloseRequest.persistentTaskIds.add(jobTask.getId());
+            }
+        }
+
+        return waitForCloseRequest;
+    }
+
 
     @Override
     protected void taskOperation(CloseJobAction.Request request, TransportOpenJobAction.JobTask jobTask,
                                  ActionListener<CloseJobAction.Response> listener) {
-        JobTaskStatus taskStatus = new JobTaskStatus(JobState.CLOSING, jobTask.getAllocationId());
-        jobTask.updatePersistentStatus(taskStatus, ActionListener.wrap(task -> {
+        JobTaskState taskState = new JobTaskState(JobState.CLOSING, jobTask.getAllocationId());
+        jobTask.updatePersistentTaskState(taskState, ActionListener.wrap(task -> {
             // we need to fork because we are now on a network threadpool and closeJob method may take a while to complete:
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                 @Override
@@ -300,11 +308,6 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         return new CloseJobAction.Response(tasks.stream().allMatch(CloseJobAction.Response::isClosed));
     }
 
-    @Override
-    protected CloseJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new CloseJobAction.Response(in);
-    }
-
     private void forceCloseJob(ClusterState currentState, CloseJobAction.Request request, List<String> jobIdsToForceClose,
                                ActionListener<CloseJobAction.Response> listener) {
         PersistentTasksCustomMetaData tasks = currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
@@ -314,10 +317,10 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         final AtomicArray<Exception> failures = new AtomicArray<>(numberOfJobs);
 
         for (String jobId : jobIdsToForceClose) {
-            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(jobId, tasks);
+            PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
-                persistentTasksService.cancelPersistentTask(jobTask.getId(),
+                persistentTasksService.sendRemoveRequest(jobTask.getId(),
                         new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                             @Override
                             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
@@ -402,7 +405,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     // so wait for that to happen here.
     void waitForJobClosed(CloseJobAction.Request request, WaitForCloseRequest waitForCloseRequest, CloseJobAction.Response response,
                           ActionListener<CloseJobAction.Response> listener) {
-        persistentTasksService.waitForPersistentTasksStatus(persistentTasksCustomMetaData -> {
+        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetaData -> {
             for (String persistentTaskId : waitForCloseRequest.persistentTaskIds) {
                 if (persistentTasksCustomMetaData.getTask(persistentTaskId) != null) {
                     return false;
@@ -412,10 +415,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         }, request.getCloseTimeout(), new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean result) {
-                FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(
-                        waitForCloseRequest.jobsToFinalize.toArray(new String[0]));
-                executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
-                        ActionListener.wrap(r -> listener.onResponse(response), listener::onFailure));
+                listener.onResponse(response);
             }
 
             @Override

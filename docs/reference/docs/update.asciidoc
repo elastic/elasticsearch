@@ -338,6 +338,8 @@ The update API uses the Elasticsearch's versioning support internally to make
 sure the document doesn't change during the update. You can use the `version`
 parameter to specify that the document should only be updated if its version
 matches the one specified.
+deprecated[6.7.0, Please use `if_seq_no` & `if_primary_term` instead. See <<optimistic-concurrency-control>> for more details.]
+
 
 [NOTE]
 .The update API does not support versioning other than internal

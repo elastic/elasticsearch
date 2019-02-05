@@ -7,10 +7,24 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 6.7.
 
+* <<breaking_67_indexing_changes>>
 * <<breaking_67_plugin_changes>>
 * <<breaking_67_settings_changes>>
 
 See also <<release-highlights>> and <<es-release-notes>>.
+
+[float]
+[[breaking_67_indexing_changes]]
+=== Indexing changes
+
+[float]
+==== Deprecated usage of `internal` versioning for optimistic concurrency control
+
+`internal` version may not uniquely identify a document's version if an indexed document
+wasn't fully replicated when a primary fails. As such it is unsafe to use for
+optimistic concurrency control, is deprecated and the option will no longer be available
+in Elasticsearch 7.0.0. Please use the `if_seq_no` and `if_primary_term` parameters instead.
+See <<optimistic-concurrency-control>> for more details.
 
 [float]
 [[breaking_67_plugin_changes]]

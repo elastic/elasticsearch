@@ -53,6 +53,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -90,7 +91,7 @@ public class CompositeRolesStore {
     private final NativeRolesStore nativeRolesStore;
     private final NativePrivilegeStore privilegeStore;
     private final XPackLicenseState licenseState;
-    private final BiConsumer<Set<RoleDescriptor>, ActionListener<Set<RoleDescriptor>>> preprocessRoleDescriptors;
+    private final Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer;
     private final Cache<Set<String>, Role> roleCache;
     private final Cache<String, Boolean> negativeLookupCache;
     private final ThreadContext threadContext;
@@ -102,13 +103,13 @@ public class CompositeRolesStore {
                                ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
                                List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders,
                                ThreadContext threadContext, XPackLicenseState licenseState,
-                               BiConsumer<Set<RoleDescriptor>, ActionListener<Set<RoleDescriptor>>> preprocessRoleDescriptors) {
+                               Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer) {
         this.fileRolesStore = fileRolesStore;
         fileRolesStore.addListener(this::invalidate);
         this.nativeRolesStore = nativeRolesStore;
         this.privilegeStore = privilegeStore;
         this.licenseState = licenseState;
-        this.preprocessRoleDescriptors = preprocessRoleDescriptors;
+        this.effectiveRoleDescriptorsConsumer = effectiveRoleDescriptorsConsumer;
         CacheBuilder<Set<String>, Role> builder = CacheBuilder.builder();
         final int cacheSize = CACHE_SIZE_SETTING.get(settings);
         if (cacheSize >= 0) {
@@ -155,35 +156,33 @@ public class CompositeRolesStore {
                                     .filter((rd) -> rd.isUsingDocumentOrFieldLevelSecurity() == false)
                                     .collect(Collectors.toSet());
                         }
-                        logger.trace(() -> new ParameterizedMessage("Preprocess role descriptors [{}] for names [{}]", effectiveDescriptors,
-                                roleNames));
-                        preprocessRoleDescriptors.accept(effectiveDescriptors, ActionListener.wrap(preprocessedEffectiveRoleDescriptors -> {
-                            logger.trace(() -> new ParameterizedMessage("Building role from descriptors [{}] for names [{}]",
-                                    preprocessedEffectiveRoleDescriptors, roleNames));
-                            buildRoleFromDescriptors(preprocessedEffectiveRoleDescriptors, fieldPermissionsCache, privilegeStore,
-                                    ActionListener.wrap(role -> {
-                                if (role != null && rolesRetrievalResult.isSuccess()) {
-                                    try (ReleasableLock ignored = readLock.acquire()) {
-                                        /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
-                                         * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
-                                         * stuff in an async fashion we need to make sure that if the cache got invalidated since we
-                                         * started the request we don't put a potential stale result in the cache, hence the
-                                         * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
-                                         * be on the safe side and don't cache potentially stale results
-                                         */
-                                        if (invalidationCounter == numInvalidation.get()) {
-                                            roleCache.computeIfAbsent(roleNames, (s) -> role);
-                                        }
-                                    }
-                                    for (String missingRole : rolesRetrievalResult.getMissingRoles()) {
-                                        negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
+                        logger.trace(() -> new ParameterizedMessage("Exposing effective role descriptors [{}] for role names [{}]",
+                                effectiveDescriptors, roleNames));
+                        effectiveRoleDescriptorsConsumer.accept(Collections.unmodifiableCollection(effectiveDescriptors));
+                        logger.trace(() -> new ParameterizedMessage("Building role from descriptors [{}] for role names [{}]",
+                                effectiveDescriptors, roleNames));
+                        buildRoleFromDescriptors(effectiveDescriptors, fieldPermissionsCache, privilegeStore, ActionListener.wrap(role -> {
+                            if (role != null && rolesRetrievalResult.isSuccess()) {
+                                try (ReleasableLock ignored = readLock.acquire()) {
+                                    /*
+                                     * this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold the
+                                     * write lock (fetching stats for instance - which is kinda overkill?) but since we fetching stuff in an
+                                     * async fashion we need to make sure that if the cache got invalidated since we started the request we
+                                     * don't put a potential stale result in the cache, hence the numInvalidation.get() comparison to the
+                                     * number of invalidation when we started. we just try to be on the safe side and don't cache
+                                     * potentially stale results
+                                     */
+                                    if (invalidationCounter == numInvalidation.get()) {
+                                        roleCache.computeIfAbsent(roleNames, (s) -> role);
                                     }
                                 }
-                                roleActionListener.onResponse(role);
-                            }, roleActionListener::onFailure));
+                                for (String missingRole : rolesRetrievalResult.getMissingRoles()) {
+                                    negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
+                                }
+                            }
+                            roleActionListener.onResponse(role);
                         }, roleActionListener::onFailure));
-                    },
-                    roleActionListener::onFailure));
+                    }, roleActionListener::onFailure));
         }
     }
 

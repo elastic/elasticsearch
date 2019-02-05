@@ -6,12 +6,10 @@
 
 package org.elasticsearch.xpack.security.authz.store;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -20,15 +18,16 @@ import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-public final class DeprecationRoleDescriptorPreprocessor implements BiConsumer<Set<RoleDescriptor>, ActionListener<Set<RoleDescriptor>>> {
+public final class DeprecationRoleDescriptorConsumer implements Consumer<Collection<RoleDescriptor>> {
 
     // package-private for testing
     static final String DEPRECATION_STANZA = "Role [{}] grants index privileges over the [{}] alias and not over the [{}] index."
@@ -40,8 +39,8 @@ public final class DeprecationRoleDescriptorPreprocessor implements BiConsumer<S
     private final ThreadPool threadPool;
     private final Set<String> cacheKeys;
 
-    public DeprecationRoleDescriptorPreprocessor(ClusterService clusterService, ThreadPool threadPool,
-                                                 DeprecationLogger deprecationLogger) {
+    public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool,
+                                             DeprecationLogger deprecationLogger) {
         this.deprecationLogger = deprecationLogger;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -54,20 +53,15 @@ public final class DeprecationRoleDescriptorPreprocessor implements BiConsumer<S
     }
 
     @Override
-    public void accept(Set<RoleDescriptor> effectiveRoleDescriptors, ActionListener<Set<RoleDescriptor>> roleBuilder) {
+    public void accept(Collection<RoleDescriptor> effectiveRoleDescriptors) {
         threadPool.generic().execute(() -> {
             final SortedMap<String, AliasOrIndex> aliasOrIndexMap = clusterService.state().metaData().getAliasAndIndexLookup();
-            // stash context as we do not want to propagate deprecation response headers
-            try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-                logDeprecatedPermission(effectiveRoleDescriptors, aliasOrIndexMap);
-            }
+            logDeprecatedPermission(effectiveRoleDescriptors, aliasOrIndexMap);
         });
-        // forward the effective untouched role descriptors to the builder
-        roleBuilder.onResponse(effectiveRoleDescriptors);
     }
 
-    // package-private for testing
-    void logDeprecatedPermission(Set<RoleDescriptor> effectiveRoleDescriptors, SortedMap<String, AliasOrIndex> aliasOrIndexMap) {
+    private void logDeprecatedPermission(Collection<RoleDescriptor> effectiveRoleDescriptors,
+                                         SortedMap<String, AliasOrIndex> aliasOrIndexMap) {
         // iterate on indices privileges of all effective role descriptors
         for (final RoleDescriptor roleDescriptor : effectiveRoleDescriptors) {
             for (final IndicesPrivileges indicesPrivilege : roleDescriptor.getIndicesPrivileges()) {
@@ -78,7 +72,7 @@ public final class DeprecationRoleDescriptorPreprocessor implements BiConsumer<S
                     if (aliasOrIndex.getValue().isAlias()) {
                         final String aliasName = aliasOrIndex.getKey();
                         final String cacheKey = buildCacheKey(aliasName, roleDescriptor.getName());
-                        // role-alias pair has been logged already today!
+                        // role-alias pair has already been logged today!
                         if (false == isCached(cacheKey)) {
                             if (namePatternPredicate == null) {
                                 namePatternPredicate = IndicesPermission.indexMatcher(Arrays.asList(indicesPrivilege.getIndices()));
@@ -101,19 +95,17 @@ public final class DeprecationRoleDescriptorPreprocessor implements BiConsumer<S
         }
     }
 
-    // package-private for testing
-    boolean isCached(String cacheKey) {
+    private boolean isCached(String cacheKey) {
         return cacheKeys.contains(cacheKey);
     }
 
-    // package-private for testing
-    boolean addToCache(String cacheKey) {
+    private boolean addToCache(String cacheKey) {
         return cacheKeys.add(cacheKey);
     }
 
     private String buildCacheKey(String aliasName, String roleName) {
-        final String todayAsString = ZonedDateTime.now(ZoneId.of("UTC")).getDayOfWeek().toString();
+        final String daysSinceEpoch = Long.toString(ZonedDateTime.now(ZoneId.of("UTC")).toEpochSecond() / 86400000L);
         final StringBuilder sb = new StringBuilder();
-        return sb.append(aliasName).append('-').append(roleName).append('-').append(todayAsString).toString();
+        return sb.append(aliasName).append('-').append(roleName).append('-').append(daysSinceEpoch).toString();
     }
 }

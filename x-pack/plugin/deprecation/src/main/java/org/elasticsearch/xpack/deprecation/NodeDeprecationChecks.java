@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
+import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 
 /**
@@ -28,6 +29,17 @@ public class NodeDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#remove-http-enabled",
                 "the HTTP Enabled setting has been removed");
+        }
+        return null;
+    }
+
+    static DeprecationIssue noMasterBlockRenamed(Settings nodeSettings, PluginsAndModules plugins) {
+        if (nodeSettings.hasValue(NO_MASTER_BLOCK_SETTING.getKey())) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Master block setting renamed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "_new_name_for_literal_no_maaster_block_literal_setting",
+                "The settings discovery.zen.no_master_block has been renamed to cluster.no_master_block");
         }
         return null;
     }

@@ -10,6 +10,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_SETTING;
+
 public class ClusterDeprecationChecks {
 
     static DeprecationIssue checkShardLimit(ClusterState state) {
@@ -25,6 +27,17 @@ public class ClusterDeprecationChecks {
                     "#_cluster_wide_shard_soft_limit",
                 "There are [" + currentOpenShards + "] open shards in this cluster, but the cluster is limited to [" +
                     shardsPerNode + "] per data node, for [" + maxShardsInCluster + "] maximum.");
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkNoMasterBlock(ClusterState state) {
+        if (state.metaData().settings().hasValue(NO_MASTER_BLOCK_SETTING.getKey())) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Master block setting renamed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "_new_name_for_literal_no_maaster_block_literal_setting",
+                "The settings discovery.zen.no_master_block has been renamed to cluster.no_master_block");
         }
         return null;
     }

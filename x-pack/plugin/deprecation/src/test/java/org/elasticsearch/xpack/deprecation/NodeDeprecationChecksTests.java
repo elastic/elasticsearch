@@ -29,6 +29,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
+import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.NODE_SETTINGS_CHECKS;
 
@@ -72,6 +73,16 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "#remove-http-enabled",
             "the HTTP Enabled setting has been removed");
         assertSettingsAndIssue("http.enabled", Boolean.toString(randomBoolean()), expected);
+    }
+
+    public void testNoMasterBlockRenamed() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "Master block setting renamed",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "_new_name_for_literal_no_maaster_block_literal_setting",
+            "The settings discovery.zen.no_master_block has been renamed to cluster.no_master_block");
+
+        assertSettingsAndIssue(NO_MASTER_BLOCK_SETTING.getKey(), randomFrom("all", "write"), expected);
     }
 
     public void testAuditLoggingPrefixSettingsCheck() {

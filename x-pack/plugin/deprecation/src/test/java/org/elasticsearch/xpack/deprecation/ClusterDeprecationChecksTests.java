@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 
 public class ClusterDeprecationChecksTests extends ESTestCase {
@@ -39,6 +40,24 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         final ClusterState goodClusterState = ClusterState.builder(new ClusterName(goodClusterName)).build();
         List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(goodClusterState));
         assertTrue(noIssues.isEmpty());
+    }
+
+    public void testCheckNoMasterBlock() {
+        MetaData metaData = MetaData.builder()
+            .persistentSettings(Settings.builder()
+                .put(NO_MASTER_BLOCK_SETTING.getKey(), randomFrom("all", "write"))
+                .build())
+            .build();
+        ClusterState state = ClusterState.builder(new ClusterName("test"))
+            .metaData(metaData)
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "Master block setting renamed",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "_new_name_for_literal_no_maaster_block_literal_setting",
+            "The settings discovery.zen.no_master_block has been renamed to cluster.no_master_block");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+        assertEquals(singletonList(expected), issues);
     }
 
     public void testCheckShardLimit() {

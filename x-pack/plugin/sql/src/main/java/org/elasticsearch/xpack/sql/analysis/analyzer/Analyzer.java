@@ -815,7 +815,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
             return condition.transformDown(u -> {
                 for (Alias alias : aliases) {
-                    if (alias.name().equals(u.name()) && Objects.equals(alias.qualifier(), u.qualifier())) {
+                    if (alias.name().equals(u.name()) || Objects.equals(alias.qualifiedName(), u.qualifiedName())) {
                         return alias;
                     }
                 }

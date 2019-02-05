@@ -49,7 +49,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
                             if (indexAccessControl != null) {
                                 final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                                final boolean dls = indexAccessControl.getQueries() != null;
+                                final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                                 if (fls || dls) {
                                     throw new ElasticsearchSecurityException("Alias requests are not allowed for users who have " +
                                         "field or document level security enabled on one of the indices", RestStatus.BAD_REQUEST);

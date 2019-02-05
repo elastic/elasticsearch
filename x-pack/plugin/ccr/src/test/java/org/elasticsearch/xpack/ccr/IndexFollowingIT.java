@@ -171,7 +171,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
 
             pauseFollow("index2");
-            followerClient().execute(ResumeFollowAction.INSTANCE, followRequest.getFollowRequest()).get();
+            followerClient().execute(ResumeFollowAction.INSTANCE, followRequest).get();
             final int secondBatchNumDocs = randomIntBetween(2, 64);
             logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
             indexer.continueIndexing(secondBatchNumDocs);
@@ -438,10 +438,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         atLeastDocsIndexed(leaderClient(), "index1", numDocsIndexed / 3);
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getFollowRequest().setMaxReadRequestOperationCount(maxOpsPerRead);
-        followRequest.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
-        followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
-        followRequest.getFollowRequest().setMaxWriteBufferCount(randomIntBetween(1024, 10240));
+        followRequest.getParameters().setMaxReadRequestOperationCount(maxOpsPerRead);
+        followRequest.getParameters().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
+        followRequest.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
+        followRequest.getParameters().setMaxWriteBufferCount(randomIntBetween(1024, 10240));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         availableDocs.release(numDocsIndexed * 2  + bulkSize);
         atLeastDocsIndexed(leaderClient(), "index1", numDocsIndexed);
@@ -536,7 +536,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getFollowRequest().setMaxReadRequestSize(new ByteSizeValue(1, ByteSizeUnit.BYTES));
+        followRequest.getParameters().setMaxReadRequestSize(new ByteSizeValue(1, ByteSizeUnit.BYTES));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
@@ -1008,7 +1008,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         forceMergeRequest.maxNumSegments(1);
         leaderClient().admin().indices().forceMerge(forceMergeRequest).actionGet();
 
-        followerClient().execute(ResumeFollowAction.INSTANCE, followRequest.getFollowRequest()).get();
+        followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow("index2")).get();
 
         assertBusy(() -> {
             List<ShardFollowNodeTaskStatus> statuses = getFollowTaskStatuses("index2");

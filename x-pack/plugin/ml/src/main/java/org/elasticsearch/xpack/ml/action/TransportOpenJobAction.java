@@ -89,7 +89,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
-    private final Client client;
     private final JobConfigProvider jobConfigProvider;
     private final MlMemoryTracker memoryTracker;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
@@ -98,13 +97,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     public TransportOpenJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                   XPackLicenseState licenseState, ClusterService clusterService,
                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver, Client client,
+                                  IndexNameExpressionResolver indexNameExpressionResolver,
                                   JobConfigProvider jobConfigProvider, MlMemoryTracker memoryTracker) {
         super(OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 OpenJobAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
-        this.client = client;
         this.jobConfigProvider = jobConfigProvider;
         this.memoryTracker = memoryTracker;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
@@ -136,32 +134,15 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                                                             int maxConcurrentJobAllocations,
                                                                             int maxMachineMemoryPercent,
                                                                             MlMemoryTracker memoryTracker,
+                                                                            boolean isMemoryTrackerRecentlyRefreshed,
                                                                             Logger logger) {
-        String resultsWriteAlias = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
-        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(resultsWriteAlias, clusterState);
-        if (unavailableIndices.size() != 0) {
-            String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
-                    String.join(",", unavailableIndices) + "]";
-            logger.debug(reason);
-            return new PersistentTasksCustomMetaData.Assignment(null, reason);
-        }
 
         // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
         // because of some weird OS problem) then fall back to the old mechanism of only considering numbers of assigned jobs
-        boolean allocateByMemory = true;
-
-        if (memoryTracker.isRecentlyRefreshed() == false) {
-
-            boolean scheduledRefresh = memoryTracker.asyncRefresh();
-            if (scheduledRefresh) {
-                String reason = "Not opening job [" + jobId + "] because job memory requirements are stale - refresh requested";
-                logger.debug(reason);
-                return new PersistentTasksCustomMetaData.Assignment(null, reason);
-            } else {
-                allocateByMemory = false;
-                logger.warn("Falling back to allocating job [{}] by job counts because a memory requirement refresh could not be scheduled",
-                    jobId);
-            }
+        boolean allocateByMemory = isMemoryTrackerRecentlyRefreshed;
+        if (isMemoryTrackerRecentlyRefreshed == false) {
+            logger.warn("Falling back to allocating job [{}] by job counts because a memory requirement refresh could not be scheduled",
+                jobId);
         }
 
         List<String> reasons = new LinkedList<>();
@@ -592,12 +573,33 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 return AWAITING_UPGRADE;
             }
 
-            PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(),
+            String jobId = params.getJobId();
+            String resultsWriteAlias = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
+            List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(resultsWriteAlias, clusterState);
+            if (unavailableIndices.size() != 0) {
+                String reason = "Not opening job [" + jobId + "], because not all primary shards are active for the following indices [" +
+                    String.join(",", unavailableIndices) + "]";
+                logger.debug(reason);
+                return new PersistentTasksCustomMetaData.Assignment(null, reason);
+            }
+
+            boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
+            if (isMemoryTrackerRecentlyRefreshed == false) {
+                boolean scheduledRefresh = memoryTracker.asyncRefresh();
+                if (scheduledRefresh) {
+                    String reason = "Not opening job [" + jobId + "] because job memory requirements are stale - refresh requested";
+                    logger.debug(reason);
+                    return new PersistentTasksCustomMetaData.Assignment(null, reason);
+                }
+            }
+
+            PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(jobId,
                 params.getJob(),
                 clusterState,
                 maxConcurrentJobAllocations,
                 maxMachineMemoryPercent,
                 memoryTracker,
+                isMemoryTrackerRecentlyRefreshed,
                 logger);
             if (assignment.getExecutorNode() == null) {
                 int numMlNodes = 0;

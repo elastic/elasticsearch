@@ -38,10 +38,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.client.indices.GetFieldMappingsRequest;
-import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -69,10 +65,14 @@ import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsResponse;
+import org.elasticsearch.client.indices.GetIndexRequest;
+import org.elasticsearch.client.indices.GetIndexResponse;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
+import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
-import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
 import org.elasticsearch.client.indices.IndexTemplateMetaData;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
@@ -82,7 +82,6 @@ import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -139,8 +138,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::indices-exists-request
-            GetIndexRequest request = new GetIndexRequest();
-            request.indices("twitter"); // <1>
+            GetIndexRequest request = new GetIndexRequest("twitter"); // <1>
             // end::indices-exists-request
 
             IndicesOptions indicesOptions = IndicesOptions.strictExpand();
@@ -167,8 +165,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
 
         {
-            GetIndexRequest request = new GetIndexRequest();
-            request.indices("twitter");
+            GetIndexRequest request = new GetIndexRequest("twitter");
 
             // tag::indices-exists-execute-listener
             ActionListener<Boolean> listener = new ActionListener<Boolean>() {
@@ -1230,7 +1227,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
 
         // tag::get-index-request
-        GetIndexRequest request = new GetIndexRequest().indices("index"); // <1>
+        GetIndexRequest request = new GetIndexRequest("index"); // <1>
         // end::get-index-request
 
         // tag::get-index-request-indicesOptions
@@ -1246,13 +1243,13 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-index-execute
 
         // tag::get-index-response
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = getIndexResponse.getMappings().get("index"); // <1>
-        Map<String, Object> indexTypeMappings = indexMappings.get("_doc").getSourceAsMap(); // <2>
+        MappingMetaData indexMappings = getIndexResponse.getMappings().get("index"); // <1>
+        Map<String, Object> indexTypeMappings = indexMappings.getSourceAsMap(); // <2>
         List<AliasMetaData> indexAliases = getIndexResponse.getAliases().get("index"); // <3>
         String numberOfShardsString = getIndexResponse.getSetting("index", "index.number_of_shards"); // <4>
         Settings indexSettings = getIndexResponse.getSettings().get("index"); // <5>
         Integer numberOfShards = indexSettings.getAsInt("index.number_of_shards", null); // <6>
-        TimeValue time = getIndexResponse.defaultSettings().get("index")
+        TimeValue time = getIndexResponse.getDefaultSettings().get("index")
             .getAsTime("index.refresh_interval", null); // <7>
         // end::get-index-response
 
@@ -2100,7 +2097,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "      \"type\": \"text\"\n" +
                     "    }\n" +
                     "  }\n" +
-                    "}", 
+                    "}",
                 XContentType.JSON);
             // end::put-template-request-mappings-json
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
@@ -2115,7 +2112,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     message.put("type", "text");
                     properties.put("message", message);
                 }
-                jsonMap.put("properties", properties);                
+                jsonMap.put("properties", properties);
             }
             request.mapping(jsonMap); // <1>
             //end::put-template-request-mappings-map

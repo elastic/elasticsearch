@@ -44,6 +44,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -101,9 +102,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.empty;
@@ -198,8 +198,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "2048/1m");
         // wait short time for other active shards before actually deleting, default 30s not needed in tests
         builder.put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
-        builder.putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
-        builder.putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file");
+        builder.putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes
+        builder.putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         builder.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
@@ -430,7 +430,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         PutFollowAction.Request request = new PutFollowAction.Request();
         request.setRemoteCluster("leader_cluster");
         request.setLeaderIndex(leaderIndex);
-        request.setFollowRequest(resumeFollow(followerIndex));
+        request.setFollowerIndex(followerIndex);
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
+        request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
         request.waitForActiveShards(waitForActiveShards);
         return request;
     }
@@ -438,8 +440,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     public static ResumeFollowAction.Request resumeFollow(String followerIndex) {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
         request.setFollowerIndex(followerIndex);
-        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
-        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(10));
+        request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
         return request;
     }
 
@@ -591,7 +593,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     long count = indexer.getClient().prepareSearch()
                         .setTrackTotalHits(true)
                         .setSize(0)
-                        .setQuery(matchAllQuery())
+                        .setQuery(QueryBuilders.matchAllQuery())
                         .get()
                         .getHits().getTotalHits().value;
 

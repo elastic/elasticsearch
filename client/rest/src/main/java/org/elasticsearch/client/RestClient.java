@@ -20,6 +20,7 @@ package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.ConnectionClosedException;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -38,6 +39,7 @@ import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
@@ -46,8 +48,11 @@ import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.client.DeadHostState.TimeSupplier;
 
+import javax.net.ssl.SSLHandshakeException;
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -189,7 +194,12 @@ public class RestClient implements Closeable {
      * of them does, in which case an {@link IOException} will be thrown.
      *
      * This method works by performing an asynchronous call and waiting
-     * for its result.
+     * for the result. If the asynchronous call throws an exception we wrap
+     * it and rethrow it so that the stack trace attached to the exception
+     * contains the call site. While we attempt to preserve the original
+     * exception this isn't always possible and likely haven't covered all of
+     * the cases. You can get the original exception from
+     * {@link Exception#getCause()}.
      *
      * @param request the request to perform
      * @return the response returned by Elasticsearch
@@ -212,44 +222,31 @@ public class RestClient implements Closeable {
         } catch(Exception e) {
             RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, e);
             onFailure(context.node);
-            Exception cause = unwrapExecutionException(e);
+            Exception cause = extractAndWrapCause(e);
             addSuppressedException(previousException, cause);
             if (nodeTuple.nodes.hasNext()) {
                 return performRequest(nodeTuple, request, cause);
             }
             if (cause instanceof IOException) {
-                throw (IOException)cause;
+                throw (IOException) cause;
             }
             if (cause instanceof RuntimeException) {
-                throw (RuntimeException)cause;
+                throw (RuntimeException) cause;
             }
-            throw new RuntimeException(cause);
+            throw new IllegalStateException("cause must be either RuntimeException or IOException", cause);
         }
-        ResponseOrException responseOrException = onResponse(request, context.node, httpResponse);
-        if (responseOrException.responseException == null) {
-            return responseOrException.response;
+        ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
+        if (responseOrResponseException.responseException == null) {
+            return responseOrResponseException.response;
         }
-        addSuppressedException(previousException, responseOrException.responseException);
+        addSuppressedException(previousException, responseOrResponseException.responseException);
         if (nodeTuple.nodes.hasNext()) {
-            return performRequest(nodeTuple, request, responseOrException.responseException);
-        } else {
-            throw responseOrException.responseException;
+            return performRequest(nodeTuple, request, responseOrResponseException.responseException);
         }
+        throw responseOrResponseException.responseException;
     }
 
-    private static Exception unwrapExecutionException(Exception e) {
-        if (e instanceof ExecutionException) {
-            ExecutionException executionException = (ExecutionException)e;
-            Throwable t = executionException.getCause() == null ? executionException : executionException.getCause();
-            if (t instanceof Error) {
-                throw (Error)t;
-            }
-            return (Exception)t;
-        }
-        return e;
-    }
-
-    private ResponseOrException onResponse(InternalRequest request, Node node, HttpResponse httpResponse) throws IOException {
+    private ResponseOrResponseException convertResponse(InternalRequest request, Node node, HttpResponse httpResponse) throws IOException {
         RequestLogger.logResponse(logger, request.httpRequest, node.getHost(), httpResponse);
         int statusCode = httpResponse.getStatusLine().getStatusCode();
         Response response = new Response(request.httpRequest.getRequestLine(), node.getHost(), httpResponse);
@@ -257,21 +254,18 @@ public class RestClient implements Closeable {
             onResponse(node);
             if (request.warningsHandler.warningsShouldFailRequest(response.getWarnings())) {
                 throw new WarningFailureException(response);
-            } else {
-                return new ResponseOrException(response);
             }
-        } else {
-            ResponseException responseException = new ResponseException(response);
-            if (isRetryStatus(statusCode)) {
-                //mark host dead and retry against next one
-                onFailure(node);
-                return new ResponseOrException(responseException);
-            } else {
-                //mark host alive and don't retry, as the error should be a request problem
-                onResponse(node);
-                throw responseException;
-            }
+            return new ResponseOrResponseException(response);
         }
+        ResponseException responseException = new ResponseException(response);
+        if (isRetryStatus(statusCode)) {
+            //mark host dead and retry against next one
+            onFailure(node);
+            return new ResponseOrResponseException(responseException);
+        }
+        //mark host alive and don't retry, as the error should be a request problem
+        onResponse(node);
+        throw responseException;
     }
 
     /**
@@ -308,15 +302,15 @@ public class RestClient implements Closeable {
             @Override
             public void completed(HttpResponse httpResponse) {
                 try {
-                    ResponseOrException responseOrException = onResponse(request, context.node, httpResponse);
-                    if (responseOrException.responseException == null) {
-                        listener.onSuccess(responseOrException.response);
+                    ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
+                    if (responseOrResponseException.responseException == null) {
+                        listener.onSuccess(responseOrResponseException.response);
                     } else {
                         if (nodeTuple.nodes.hasNext()) {
-                            listener.trackFailure(responseOrException.responseException);
+                            listener.trackFailure(responseOrResponseException.responseException);
                             performRequestAsync(nodeTuple, request, listener);
                         } else {
-                            listener.onDefinitiveFailure(responseOrException.responseException);
+                            listener.onDefinitiveFailure(responseOrResponseException.responseException);
                         }
                     }
                 } catch(Exception e) {
@@ -755,18 +749,65 @@ public class RestClient implements Closeable {
         return ignoreErrorCodes;
     }
 
-    private static class ResponseOrException {
+    private static class ResponseOrResponseException {
         private final Response response;
         private final ResponseException responseException;
 
-        ResponseOrException(Response response) {
+        ResponseOrResponseException(Response response) {
             this.response = Objects.requireNonNull(response);
             this.responseException = null;
         }
 
-        ResponseOrException(ResponseException responseException) {
+        ResponseOrResponseException(ResponseException responseException) {
             this.responseException = Objects.requireNonNull(responseException);
             this.response = null;
         }
+    }
+
+    /**
+     * Wrap whatever exception we received, copying the type where possible so the synchronous API looks as much as possible
+     * like the asynchronous API. We wrap the exception so that the caller's signature shows up in any exception we throw.
+     */
+    private static Exception extractAndWrapCause(Exception exception) {
+        if (exception instanceof ExecutionException) {
+            ExecutionException executionException = (ExecutionException)exception;
+            Throwable t = executionException.getCause() == null ? executionException : executionException.getCause();
+            if (t instanceof Error) {
+                throw (Error)t;
+            }
+            exception = (Exception)t;
+        }
+        if (exception instanceof ConnectTimeoutException) {
+            ConnectTimeoutException e = new ConnectTimeoutException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof SocketTimeoutException) {
+            SocketTimeoutException e = new SocketTimeoutException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof ConnectionClosedException) {
+            ConnectionClosedException e = new ConnectionClosedException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof SSLHandshakeException) {
+            SSLHandshakeException e = new SSLHandshakeException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof ConnectException) {
+            ConnectException e = new ConnectException(exception.getMessage());
+            e.initCause(exception);
+            return e;
+        }
+        if (exception instanceof IOException) {
+            return new IOException(exception.getMessage(), exception);
+        }
+        if (exception instanceof RuntimeException){
+            return new RuntimeException(exception.getMessage(), exception);
+        }
+        return new RuntimeException("error while performing request", exception);
     }
 }

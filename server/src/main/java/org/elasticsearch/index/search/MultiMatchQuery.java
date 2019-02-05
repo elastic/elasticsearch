@@ -180,8 +180,21 @@ public class MultiMatchQuery extends MatchQuery {
         }
 
         @Override
-        public Query newTermQuery(Term term) {
+        protected Query newTermQuery(Term term) {
             return blendTerm(context, term.bytes(), commonTermsCutoff, tieBreaker, lenient, blendedFields);
+        }
+
+        @Override
+        protected Query newPrefixQuery(Term term) {
+            List<Query> disjunctions = new ArrayList<>();
+            for (FieldAndBoost fieldType : blendedFields) {
+                Query query = fieldType.fieldType.prefixQuery(term.text(), null, context);
+                if (fieldType.boost != 1f) {
+                    query = new BoostQuery(query, fieldType.boost);
+                }
+                disjunctions.add(query);
+            }
+            return new DisjunctionMaxQuery(disjunctions, tieBreaker);
         }
 
         @Override

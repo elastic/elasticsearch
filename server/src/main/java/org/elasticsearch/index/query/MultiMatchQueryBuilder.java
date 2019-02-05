@@ -129,7 +129,12 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
          * Uses the best matching phrase-prefix field as main score and uses
          * a tie-breaker to adjust the score based on remaining field matches
          */
-        PHRASE_PREFIX(MatchQuery.Type.PHRASE_PREFIX, 0.0f, new ParseField("phrase_prefix"));
+        PHRASE_PREFIX(MatchQuery.Type.PHRASE_PREFIX, 0.0f, new ParseField("phrase_prefix")),
+
+        /**
+         * Uses the sum of the matching boolean fields to score the query
+         */
+        BOOLEAN_PREFIX(MatchQuery.Type.BOOLEAN_PREFIX, 1.0f, new ParseField("boolean_prefix"));
 
         private MatchQuery.Type matchQueryType;
         private final float tieBreaker;

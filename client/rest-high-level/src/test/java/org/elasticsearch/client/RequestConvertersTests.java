@@ -892,10 +892,15 @@ public class RequestConvertersTests extends ESTestCase {
                 docWriteRequest.routing(randomAlphaOfLength(10));
             }
             if (randomBoolean()) {
-                docWriteRequest.version(randomNonNegativeLong());
-            }
-            if (randomBoolean()) {
-                docWriteRequest.versionType(randomFrom(VersionType.values()));
+                if (randomBoolean()) {
+                    docWriteRequest.version(randomNonNegativeLong());
+                }
+                if (randomBoolean()) {
+                    docWriteRequest.versionType(randomFrom(VersionType.values()));
+                }
+            } else if (randomBoolean()) {
+                docWriteRequest.setIfSeqNo(randomNonNegativeLong());
+                docWriteRequest.setIfPrimaryTerm(randomLongBetween(1, 200));
             }
             bulkRequest.add(docWriteRequest);
         }
@@ -925,6 +930,8 @@ public class RequestConvertersTests extends ESTestCase {
             assertEquals(originalRequest.routing(), parsedRequest.routing());
             assertEquals(originalRequest.version(), parsedRequest.version());
             assertEquals(originalRequest.versionType(), parsedRequest.versionType());
+            assertEquals(originalRequest.ifSeqNo(), parsedRequest.ifSeqNo());
+            assertEquals(originalRequest.ifPrimaryTerm(), parsedRequest.ifPrimaryTerm());
 
             DocWriteRequest.OpType opType = originalRequest.opType();
             if (opType == DocWriteRequest.OpType.INDEX) {

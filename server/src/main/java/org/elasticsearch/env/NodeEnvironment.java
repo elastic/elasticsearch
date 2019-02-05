@@ -36,6 +36,7 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -59,6 +60,7 @@ import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -145,6 +147,7 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     private final Logger logger = LogManager.getLogger(NodeEnvironment.class);
+    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private final NodePath[] nodePaths;
     private final Path sharedDataPath;
     private final Lock[] locks;
@@ -311,6 +314,26 @@ public final class NodeEnvironment  implements Closeable {
 
             applySegmentInfosTrace(settings);
             assertCanWrite();
+
+            // backported from 7.0, but turned into warnings.
+            if (DiscoveryNode.isDataNode(settings) == false) {
+                if (DiscoveryNode.isMasterNode(settings) == false) {
+                    try {
+                        ensureNoIndexMetaData(nodePaths);
+                    } catch (IllegalStateException e) {
+                        deprecationLogger.deprecated(e.getMessage()
+                            + ", this should be cleaned up (will refuse to start in 7.0). Create a backup copy before removing.");
+                    }
+                }
+
+                try {
+                    ensureNoShardData(nodePaths);
+                } catch (IllegalStateException e) {
+                    deprecationLogger.deprecated(e.getMessage()
+                        + ", this should be cleaned up (will refuse to start in 7.0). Create a backup copy before removing.");
+                }
+            }
+
             success = true;
         } finally {
             if (success == false) {
@@ -1033,6 +1056,61 @@ public final class NodeEnvironment  implements Closeable {
                 }
             }
         }
+    }
+
+    // identical to 7.0 checks
+    private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
+        List<Path> shardDataPaths = collectIndexSubPaths(nodePaths, this::isShardPath);
+        if (shardDataPaths.isEmpty() == false) {
+            throw new IllegalStateException("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false, but has shard data: "
+                + shardDataPaths);
+        }
+    }
+
+    private void ensureNoIndexMetaData(final NodePath[] nodePaths) throws IOException {
+        List<Path> indexMetaDataPaths = collectIndexSubPaths(nodePaths, this::isIndexMetaDataPath);
+        if (indexMetaDataPaths.isEmpty() == false) {
+            throw new IllegalStateException("Node is started with "
+                + Node.NODE_DATA_SETTING.getKey()
+                + "=false and "
+                + Node.NODE_MASTER_SETTING.getKey()
+                + "=false, but has index metadata: "
+                + indexMetaDataPaths);
+        }
+    }
+
+    private List<Path> collectIndexSubPaths(NodePath[] nodePaths, Predicate<Path> subPathPredicate) throws IOException {
+        List<Path> indexSubPaths = new ArrayList<>();
+        for (NodePath nodePath : nodePaths) {
+            Path indicesPath = nodePath.indicesPath;
+            if (Files.isDirectory(indicesPath)) {
+                try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(indicesPath)) {
+                    for (Path indexPath : indexStream) {
+                        if (Files.isDirectory(indexPath)) {
+                            try (Stream<Path> shardStream = Files.list(indexPath)) {
+                                shardStream.filter(subPathPredicate)
+                                    .map(Path::toAbsolutePath)
+                                    .forEach(indexSubPaths::add);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return indexSubPaths;
+    }
+
+    private boolean isShardPath(Path path) {
+        return Files.isDirectory(path)
+            && path.getFileName().toString().chars().allMatch(Character::isDigit);
+    }
+
+    private boolean isIndexMetaDataPath(Path path) {
+        return Files.isDirectory(path)
+            && path.getFileName().toString().equals(MetaDataStateFormat.STATE_DIR_NAME);
     }
 
     /**

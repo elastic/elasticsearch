@@ -133,6 +133,7 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TLSLicenseBootstrapCheck;
+import org.elasticsearch.xpack.core.ssl.TLSv1DeprecationHandler;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
@@ -254,6 +255,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_PREFIX;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
@@ -511,17 +513,17 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(),
                 authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
 
-        final Set<RequestInterceptor> requestInterceptors;
+        Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
+            new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService));
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
-            requestInterceptors = Collections.unmodifiableSet(Sets.newHashSet(
-                    new SearchRequestInterceptor(threadPool, getLicenseState()),
-                    new UpdateRequestInterceptor(threadPool, getLicenseState()),
-                    new BulkShardRequestInterceptor(threadPool, getLicenseState()),
-                    new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
-                    new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)));
-        } else {
-            requestInterceptors = Collections.emptySet();
+            requestInterceptors.addAll(Arrays.asList(
+                new SearchRequestInterceptor(threadPool, getLicenseState()),
+                new UpdateRequestInterceptor(threadPool, getLicenseState()),
+                new BulkShardRequestInterceptor(threadPool, getLicenseState())
+            ));
         }
+        requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
         securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, getLicenseState(),
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
@@ -1031,7 +1033,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
         final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
         boolean extractClientCertificate = ssl && getSslService().isSSLClientAuthEnabled(httpSSLConfig);
-        return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), handler, extractClientCertificate);
+        final TLSv1DeprecationHandler tlsDeprecationHandler = ssl ?
+            new TLSv1DeprecationHandler(HTTP_SSL_PREFIX, settings, LOGGER) : TLSv1DeprecationHandler.disabled();
+        return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), handler, extractClientCertificate,
+            tlsDeprecationHandler);
     }
 
     @Override

@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -43,6 +44,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         Map<String, Object> info = new HashMap<>();
         info.put("defaults", defaults());
         info.put("limits", limits());
+        info.put(MlMetadata.UPGRADE_MODE.getPreferredName(), upgradeMode());
         listener.onResponse(new MlInfoAction.Response(info));
     }
 
@@ -51,6 +53,10 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         defaults.put("anomaly_detectors", anomalyDetectorsDefaults());
         defaults.put("datafeeds", datafeedsDefaults());
         return defaults;
+    }
+
+    private boolean upgradeMode() {
+        return MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode();
     }
 
     private Map<String, Object> anomalyDetectorsDefaults() {

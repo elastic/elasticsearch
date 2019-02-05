@@ -25,9 +25,8 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -50,6 +49,8 @@ import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -97,7 +98,8 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         PutFollowRequest putFollowRequest = new PutFollowRequest(
             "local", // <1>
             "leader", // <2>
-            "follower" // <3>
+            "follower", // <3>
+            ActiveShardCount.ONE // <4>
         );
         // end::ccr-put-follow-request
 
@@ -175,7 +177,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         String followIndex = "follower";
         // Follow index, so that it can be paused:
         {
-            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex);
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex, ActiveShardCount.ONE);
             PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
             assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
             assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
@@ -241,7 +243,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         String followIndex = "follower";
         // Follow index, so that it can be paused:
         {
-            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex);
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex, ActiveShardCount.ONE);
             PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
             assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
             assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
@@ -317,7 +319,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         String followIndex = "follower";
         // Follow index, pause and close, so that it can be unfollowed:
         {
-            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex);
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex, ActiveShardCount.ONE);
             PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
             assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
             assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
@@ -349,7 +351,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(followIndex);
             assertThat(client.indices().delete(deleteIndexRequest, RequestOptions.DEFAULT).isAcknowledged(), is(true));
 
-            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex);
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", followIndex, ActiveShardCount.ONE);
             PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
             assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
             assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
@@ -639,7 +641,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // Follow index, so that we can query for follow stats:
-            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", "follower");
+            PutFollowRequest putFollowRequest = new PutFollowRequest("local", "leader", "follower", ActiveShardCount.ONE);
             PutFollowResponse putFollowResponse = client.ccr().putFollow(putFollowRequest, RequestOptions.DEFAULT);
             assertThat(putFollowResponse.isFollowIndexCreated(), is(true));
             assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));

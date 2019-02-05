@@ -105,7 +105,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QB testQuery = createTestQueryBuilder();
         testQuery.boost(-0.5f);
         assertWarnings("setting a negative [boost] on a query" +
-            " is deprecated and will throw an error in the next version. You can use a value between 0 and 1 to deboost.");
+            " is deprecated and will throw an error in the next major version. You can use a value between 0 and 1 to deboost.");
     }
 
     /**

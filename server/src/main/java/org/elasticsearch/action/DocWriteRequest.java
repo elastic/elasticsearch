@@ -31,6 +31,10 @@ import org.elasticsearch.index.VersionType;
 import java.io.IOException;
 import java.util.Locale;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+
 /**
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
@@ -115,6 +119,39 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
      */
     T versionType(VersionType versionType);
+
+    /**
+     * only perform this request if the document was last modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    T setIfSeqNo(long seqNo);
+
+    /**
+     * only performs this request if the document was last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    T setIfPrimaryTerm(long term);
+
+    /**
+     * If set, only perform this request if the document was last modification was assigned this sequence number.
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+     long ifSeqNo();
+
+    /**
+     * If set, only perform this request if the document was last modification was assigned this primary term.
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    long ifPrimaryTerm();
 
     /**
      * Get the requested document operation type of the request
@@ -225,6 +262,31 @@ public interface DocWriteRequest<T> extends IndicesRequest {
                     " the `if_seq_no` and `if_primary_term` parameters instead. (request for index [{}], type [{}], id [{}])",
                 request.index(), request.type(), request.id());
         }
+    }
 
+    static ActionRequestValidationException validateSeqNoBasedCASParams(
+        DocWriteRequest request, ActionRequestValidationException validationException) {
+        if (request.versionType().validateVersionForWrites(request.version()) == false) {
+            validationException = addValidationError("illegal version value [" + request.version() + "] for version type ["
+                + request.versionType().name() + "]", validationException);
+        }
+        if (request.versionType() == VersionType.FORCE) {
+            validationException = addValidationError("version type [force] may no longer be used", validationException);
+        }
+
+        if (request.ifSeqNo() != UNASSIGNED_SEQ_NO && (
+            request.versionType() != VersionType.INTERNAL || request.version() != Versions.MATCH_ANY
+        )) {
+            validationException = addValidationError("compare and write operations can not use versioning", validationException);
+        }
+        if (request.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM && request.ifSeqNo() != UNASSIGNED_SEQ_NO) {
+            validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
+        }
+        if (request.ifPrimaryTerm() != UNASSIGNED_PRIMARY_TERM && request.ifSeqNo() == UNASSIGNED_SEQ_NO) {
+            validationException =
+                addValidationError("ifSeqNo is unassigned, but primary term is [" + request.ifPrimaryTerm() + "]", validationException);
+        }
+
+        return validationException;
     }
 }

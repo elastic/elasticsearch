@@ -15,7 +15,7 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
-
+import com.unboundid.util.ssl.SSLUtil;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -38,9 +38,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
@@ -75,18 +73,8 @@ public abstract class LdapTestCase extends ESTestCase {
             List<InMemoryListenerConfig> listeners = new ArrayList<>(2);
             listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap"));
             if (openLdapsPort()) {
-                final char[] ldapPassword = "ldap-password".toCharArray();
-                final KeyStore ks = CertParsingUtils.getKeyStoreFromPEM(
-                    getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-test-case.crt"),
-                    getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-test-case.key"),
-                    ldapPassword
-                );
-                X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(ks, ldapPassword, KeyManagerFactory.getDefaultAlgorithm());
-                final SSLContext context = SSLContext.getInstance("TLSv1.2");
-                context.init(new KeyManager[] { keyManager }, null, null);
-                SSLServerSocketFactory serverSocketFactory = context.getServerSocketFactory();
-                SSLSocketFactory clientSocketFactory = context.getSocketFactory();
-                listeners.add(InMemoryListenerConfig.createLDAPSConfig("ldaps", null, 0, serverSocketFactory, clientSocketFactory));
+                listeners.add(buildSslListener("ldaps", "TLSv1.2"));
+                listeners.add(buildSslListener("ldaps-tls1", "TLSv1"));
             }
             serverConfig.setListenerConfigs(listeners);
             InMemoryDirectoryServer ldapServer = new InMemoryDirectoryServer(serverConfig);
@@ -101,6 +89,20 @@ public abstract class LdapTestCase extends ESTestCase {
             });
             ldapServers[i] = ldapServer;
         }
+    }
+
+    private InMemoryListenerConfig buildSslListener(String listenerName, String sslProtocol) throws Exception {
+        final char[] ldapPassword = "ldap-password".toCharArray();
+        final KeyStore ks = CertParsingUtils.getKeyStoreFromPEM(
+            getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-test-case.crt"),
+            getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-test-case.key"),
+            ldapPassword
+        );
+        X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(ks, ldapPassword, KeyManagerFactory.getDefaultAlgorithm());
+        final SSLUtil sslUtil = new SSLUtil(keyManager, null);
+        final SSLServerSocketFactory serverSocketFactory = sslUtil.createSSLServerSocketFactory(sslProtocol);
+        final SSLSocketFactory clientSocketFactory = sslUtil.createSSLSocketFactory(sslProtocol);
+        return InMemoryListenerConfig.createLDAPSConfig(listenerName, null, 0, serverSocketFactory, clientSocketFactory);
     }
 
     protected boolean openLdapsPort() {

@@ -617,4 +617,61 @@ public class QueryTranslatorTests extends ESTestCase {
                         + "\"lang\":\"painless\",\"params\":{\"v0\":3,\"v1\":32,\"v2\":1,\"v3\":2,\"v4\":5,\"v5\":50000}},"
                         + "\"gap_policy\":\"skip\"}}}}}"));
     }
+
+    public void testTopHitsAggregationWithOneArg() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT FIRST(keyword) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("FIRST(keyword)", eqe.output().get(0).qualifiedName());
+            assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                        "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
+                        "\"sort\":[{\"keyword\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT LAST(keyword) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("LAST(keyword)", eqe.output().get(0).qualifiedName());
+            assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
+                    "\"sort\":[{\"keyword\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+        }
+    }
+
+    public void testTopHitsAggregationWithTwoArgs() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT FIRST(keyword, int) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("FIRST(keyword, int)", eqe.output().get(0).qualifiedName());
+            assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
+                    "\"sort\":[{\"int\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
+                    "{\"keyword\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT LAST(keyword, int) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("LAST(keyword, int)", eqe.output().get(0).qualifiedName());
+            assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
+                    "\"sort\":[{\"int\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
+                    "{\"keyword\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+        }
+    }
 }

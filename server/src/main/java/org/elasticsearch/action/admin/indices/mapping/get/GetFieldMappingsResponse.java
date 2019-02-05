@@ -49,7 +49,12 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-/** Response object for {@link GetFieldMappingsRequest} API */
+/**
+ * Response object for {@link GetFieldMappingsRequest} API
+ *
+ * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
+ * Any changes done to this class should go to that client class as well.
+ */
 public class GetFieldMappingsResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");

@@ -69,6 +69,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private String localClusterAlias;
     private long absoluteStartMillis;
+    private boolean finalReduce;
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -102,6 +103,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
+        this.finalReduce = true;
     }
 
     /**
@@ -123,6 +125,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         this.types = searchRequest.types;
         this.localClusterAlias = searchRequest.localClusterAlias;
         this.absoluteStartMillis = searchRequest.absoluteStartMillis;
+        this.finalReduce = searchRequest.finalReduce;
     }
 
     /**
@@ -147,16 +150,18 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     /**
      * Creates a new search request by providing the alias of the cluster where it will be executed, as well as the current time in
-     * milliseconds from the epoch time. Used when a {@link SearchRequest} is created and executed as part of a cross-cluster search
-     * request performing local reduction on each cluster. The coordinating CCS node provides the alias to prefix index names with in
-     * the returned search results, and the current time to be used on the remote clusters to ensure that the same value is used.
+     * milliseconds from the epoch time and whether the reduction should be final or not. Used when a {@link SearchRequest} is created
+     * and executed as part of a cross-cluster search request performing reduction on each remote cluster. The coordinating CCS node
+     * provides the alias to prefix index names with in the returned search results, the current time to be used on the remote clusters
+     * to ensure that the same value is used, and determines whether the reduction phase should be final or not.
      */
-    SearchRequest(String localClusterAlias, long absoluteStartMillis) {
+    SearchRequest(String localClusterAlias, long absoluteStartMillis, boolean finalReduce) {
         this.localClusterAlias = Objects.requireNonNull(localClusterAlias, "cluster alias must not be null");
         if (absoluteStartMillis < 0) {
             throw new IllegalArgumentException("absoluteStartMillis must not be negative but was [" + absoluteStartMillis + "]");
         }
         this.absoluteStartMillis = absoluteStartMillis;
+        this.finalReduce = finalReduce;
     }
 
     @Override
@@ -196,9 +201,16 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
+     * Returns whether the reduction phase that will be performed needs to be final or not.
+     */
+    boolean isFinalReduce() {
+        return finalReduce;
+    }
+
+    /**
      * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
      * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
-     * request. When created through {@link #SearchRequest(String, long)}, this method returns the provided current time, otherwise
+     * request. When created through {@link #SearchRequest(String, long, boolean)}, this method returns the provided current time, otherwise
      * it will return {@link System#currentTimeMillis()}.
      *
      */
@@ -518,12 +530,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             localClusterAlias = in.readOptionalString();
             if (localClusterAlias != null) {
                 absoluteStartMillis = in.readVLong();
+                finalReduce = in.readBoolean();
             } else {
                 absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
+                finalReduce = true;
             }
         } else {
             localClusterAlias = null;
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
+            finalReduce = true;
         }
     }
 
@@ -554,6 +569,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             out.writeOptionalString(localClusterAlias);
             if (localClusterAlias != null) {
                 out.writeVLong(absoluteStartMillis);
+                out.writeBoolean(finalReduce);
             }
         }
     }

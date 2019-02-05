@@ -75,6 +75,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
@@ -880,6 +881,24 @@ final class RequestConverters {
                 return putParam("wait_for_active_shards", currentActiveShardCount.toString().toLowerCase(Locale.ROOT));
             }
             return this;
+        }
+
+        Params withIfSeqNo(long ifSeqNo) {
+            if (ifSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                return putParam("if_seq_no", Long.toString(ifSeqNo));
+            }
+            return this;
+        }
+
+        Params withIfPrimaryTerm(long ifPrimaryTerm) {
+            if (ifPrimaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+                return putParam("if_primary_term", Long.toString(ifPrimaryTerm));
+            }
+            return this;
+        }
+
+        Params withWaitForActiveShards(ActiveShardCount activeShardCount) {
+            return withWaitForActiveShards(activeShardCount, ActiveShardCount.DEFAULT);
         }
 
         Params withIndicesOptions(IndicesOptions indicesOptions) {

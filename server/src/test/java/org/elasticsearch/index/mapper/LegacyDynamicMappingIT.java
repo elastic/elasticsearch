@@ -24,8 +24,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.io.IOException;
-
 import static org.elasticsearch.index.mapper.DynamicMappingIT.assertMappingsHaveField;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -36,25 +34,32 @@ public class LegacyDynamicMappingIT extends ESIntegTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37817")
-    public void testMappingsPropagatedToMasterNodeImmediatelyMultiType() throws IOException {
+    public void testMappingsPropagatedToMasterNodeImmediatelyMultiType() throws Exception {
         assertAcked(prepareCreate("index").setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
         // allows for multiple types
 
         // works when the type has been dynamically created
         client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
-        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
-        assertMappingsHaveField(mappings, "index", "type", "foo");
+        assertBusy(() -> {
+            GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
+            assertMappingsHaveField(mappings, "index", "type", "foo");
+        });
+
 
         // works if the type already existed
         client().prepareIndex("index", "type", "1").setSource("bar", "baz").get();
-        mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
-        assertMappingsHaveField(mappings, "index", "type", "bar");
+        assertBusy(() -> {
+            GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
+            assertMappingsHaveField(mappings, "index", "type", "bar");
+        });
 
         // works if we indexed an empty document
         client().prepareIndex("index", "type2", "1").setSource().get();
-        mappings = client().admin().indices().prepareGetMappings("index").setTypes("type2").get();
-        assertTrue(mappings.getMappings().get("index").toString(), mappings.getMappings().get("index").containsKey("type2"));
+        assertBusy(() -> {
+            GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type2").get();
+            assertNotNull(mappings.getMappings().get("index"));
+            assertTrue(mappings.getMappings().get("index").toString(), mappings.getMappings().get("index").containsKey("type2"));
+        });
     }
 
 }

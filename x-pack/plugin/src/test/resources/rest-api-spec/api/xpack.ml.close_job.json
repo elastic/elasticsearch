@@ -28,6 +28,10 @@
           "description": "Controls the time to wait until a job has closed. Default to 30 minutes"
         }
       }
+    },
+    "body": {
+      "description" : "The URL params optionally sent in the body",
+      "required": false
     }
   }
 }

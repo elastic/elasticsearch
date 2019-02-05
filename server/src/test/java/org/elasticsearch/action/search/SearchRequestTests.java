@@ -52,15 +52,15 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             return super.createSearchRequest();
         }
         //clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
-        SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong());
+        SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong(), randomBoolean());
         RandomSearchRequestGenerator.randomSearchRequest(searchRequest, this::createSearchSourceBuilder);
         return searchRequest;
     }
 
     public void testClusterAliasValidation() {
-        expectThrows(NullPointerException.class, () -> new SearchRequest(null, 0));
-        expectThrows(IllegalArgumentException.class, () -> new SearchRequest("", -1));
-        SearchRequest searchRequest = new SearchRequest("", 0);
+        expectThrows(NullPointerException.class, () -> new SearchRequest(null, 0, randomBoolean()));
+        expectThrows(IllegalArgumentException.class, () -> new SearchRequest("", -1, randomBoolean()));
+        SearchRequest searchRequest = new SearchRequest("", 0, randomBoolean());
         assertNull(searchRequest.validate());
     }
 
@@ -79,9 +79,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (version.before(Version.V_6_7_0)) {
             assertNull(deserializedRequest.getLocalClusterAlias());
             assertAbsoluteStartMillisIsCurrentTime(deserializedRequest);
+            assertTrue(deserializedRequest.isFinalReduce());
         } else {
             assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
             assertEquals(searchRequest.getOrCreateAbsoluteStartMillis(), deserializedRequest.getOrCreateAbsoluteStartMillis());
+            assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
         }
     }
 
@@ -94,6 +96,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertArrayEquals(new String[]{"index"}, searchRequest.indices());
             assertNull(searchRequest.getLocalClusterAlias());
             assertAbsoluteStartMillisIsCurrentTime(searchRequest);
+            assertTrue(searchRequest.isFinalReduce());
         }
     }
 

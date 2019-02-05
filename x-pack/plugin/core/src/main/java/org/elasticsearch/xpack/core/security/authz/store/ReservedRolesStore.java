@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -54,7 +55,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         null, null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .put("monitoring_user", new RoleDescriptor("monitoring_user",
-                        new String[] { "cluster:monitor/main" },
+                        new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info" },
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .indices(".monitoring-*").privileges("read", "read_cross_cluster").build()
@@ -171,6 +172,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("rollup_admin", new RoleDescriptor("rollup_admin", new String[] { "manage_rollup" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("snapshot_user", new RoleDescriptor("snapshot_user", new String[] { "create_snapshot", GetRepositoriesAction.NAME },
+                        new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("*")
+                                .privileges("view_index_metadata")
+                                .allowRestrictedIndices(true)
+                                .build() }, null, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .immutableMap();
     }
 

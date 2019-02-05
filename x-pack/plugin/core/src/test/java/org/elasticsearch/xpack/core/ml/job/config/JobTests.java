@@ -418,14 +418,14 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         Job.Builder builder = buildJobBuilder("foo");
         Job job = builder.build();
         assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT,
-                job.getResultsIndexName());
+                job.getInitialResultsIndexName());
     }
 
     public void testBuilder_setsIndexName() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsIndexName("carol");
         Job job = builder.build();
-        assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-carol", job.getResultsIndexName());
+        assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-carol", job.getInitialResultsIndexName());
     }
 
     public void testBuilder_withInvalidIndexNameThrows() {

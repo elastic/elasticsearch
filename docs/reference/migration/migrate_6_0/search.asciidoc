@@ -153,10 +153,10 @@ information.
 [float]
 ===== Negative scores are deprecated in Function Score Query
 
-Negative scores in the Function Score Query are deprecated. If a negative 
+Negative scores in the Function Score Query are deprecated. If a negative
 score is produced as a result of computation (e.g. in `script_score` or
 `field_value_factor` functions), a deprecation warning will be issued in
-this major version, and an error will be thrown in the next major version. 
+this major version, and an error will be thrown in the next major version.
 
 [float]
 ==== Fielddata on `_uid`
@@ -266,8 +266,8 @@ rewrite any prefix query on the field to a a single term query that matches the 
 [float]
 ==== Negative boosts are deprecated
 
-Setting a negative `boost` in a query is deprecated and will throw an error in the next version.
-To deboost a specific query you can use a `boost` comprise between 0 and 1.
+Setting a negative `boost` for a query or a field is deprecated and will throw an error in the next
+major version. To deboost a specific query or field you can use a `boost` comprise between 0 and 1.
 
 [float]
 ==== Limit the number of open scroll contexts

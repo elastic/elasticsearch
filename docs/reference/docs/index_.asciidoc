@@ -56,27 +56,55 @@ NOTE:   Replica shards may not all be started when an indexing operation success
 [[index-creation]]
 === Automatic Index Creation
 
-The index operation automatically creates an index if it has not been
-created before (check out the
-<<indices-create-index,create index API>> for manually
-creating an index), and also automatically creates a
-dynamic type mapping for the specific type if one has not yet been
-created (check out the <<indices-put-mapping,put mapping>>
-API for manually creating a type mapping).
+The index operation automatically creates an index if it does not already
+exist, and applies any <<indices-templates,index templates>> that are
+configured. The index operation also creates a dynamic type mapping for the
+specified type if one does not already exist. By default, new fields and
+objects will automatically be added to the mapping definition for the specified
+type if needed. Check out the <<mapping,mapping>> section for more information
+on mapping definitions, and the the <<indices-put-mapping,put mapping>> API for
+information about updating type mappings manually.
 
-The mapping itself is very flexible and is schema-free. New fields and
-objects will automatically be added to the mapping definition of the
-type specified. Check out the <<mapping,mapping>>
-section for more information on mapping definitions.
+Automatic index creation is controlled by the `action.auto_create_index`
+setting. This setting defaults to `true`, meaning that indices are always
+automatically created. Automatic index creation can be permitted only for
+indices matching certain patterns by changing the value of this setting to a
+comma-separated list of these patterns. It can also be explicitly permitted and
+forbidden by prefixing patterns in the list with a `+` or `-`.  Finally it can
+be completely disabled by changing this setting to `false`.
 
-Automatic index creation can be disabled by setting
-`action.auto_create_index` to `false` in the config file of all nodes.
-Automatic mapping creation can be disabled by setting
-`index.mapper.dynamic` to `false` per-index as an index setting.
+[source,js]
+--------------------------------------------------
+PUT _cluster/settings
+{
+    "persistent": {
+        "action.auto_create_index": "twitter,index10,-index1*,+ind*" <1>
+    }
+}
 
-Automatic index creation can include a pattern based white/black list,
-for example, set `action.auto_create_index` to `+aaa*,-bbb*,+ccc*,-*` (+
-meaning allowed, and - meaning disallowed).
+PUT _cluster/settings
+{
+    "persistent": {
+        "action.auto_create_index": "false" <2>
+    }
+}
+
+PUT _cluster/settings
+{
+    "persistent": {
+        "action.auto_create_index": "true" <3>
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> Permit only the auto-creation of indices called `twitter`, `index10`, no
+other index matching `index1*`, and any other index matching `ind*`. The
+patterns are matched in the order in which they are given.
+
+<2> Completely disable the auto-creation of indices.
+
+<3> Permit the auto-creation of indices with any name. This is the default.
 
 [float]
 [[operation-type]]
@@ -157,7 +185,7 @@ The result of the above index operation is:
 [[optimistic-concurrency-control-index]]
 === Optimistic concurrency control
 
-Index operations can be made optional and only be performed if the last
+Index operations can be made conditional and only be performed if the last
 modification to the document was assigned the sequence number and primary 
 term specified by the `if_seq_no` and `if_primary_term` parameters. If a
 mismatch is detected, the operation will result in a `VersionConflictException`
@@ -343,14 +371,6 @@ The above will succeed since the the supplied version of 2 is higher than
 the current document version of 1. If the document was already updated
 and its version was set to 2 or higher, the indexing command will fail
 and result in a conflict (409 http status code).
-
-WARNING: External versioning supports the value 0 as a valid version number.
-This allows the version to be in sync with an external versioning system
-where version numbers start from zero instead of one. It has the side effect
-that documents with version number equal to zero can neither be updated
-using the <<docs-update-by-query,Update-By-Query API>> nor be deleted
-using the <<docs-delete-by-query,Delete By Query API>> as long as their
-version number is equal to zero.
 
 A nice side effect is that there is no need to maintain strict ordering
 of async indexing operations executed as a result of changes to a source

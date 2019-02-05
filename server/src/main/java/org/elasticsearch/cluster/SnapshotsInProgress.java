@@ -117,7 +117,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             this(entry.snapshot, entry.includeGlobalState, entry.partial, state, entry.indices, entry.startTime,
-                entry.repositoryStateId, shards, null);
+                entry.repositoryStateId, shards, entry.failure);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, String failure) {

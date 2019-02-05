@@ -1175,10 +1175,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards;
 
                     final State state = snapshotEntry.state();
+                    final String failure;
                     if (state == State.INIT) {
                         // snapshot is still initializing, mark it as aborted
                         shards = snapshotEntry.shards();
                         assert shards.isEmpty();
+                        failure = "Snapshot was aborted during initialization";
                     } else if (state == State.STARTED) {
                         // snapshot is started - mark every non completed shard as aborted
                         final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
@@ -1190,7 +1192,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             shardsBuilder.put(shardEntry.key, status);
                         }
                         shards = shardsBuilder.build();
-
+                        failure = "Snapshot was aborted by deletion";
                     } else {
                         boolean hasUncompletedShards = false;
                         // Cleanup in case a node gone missing and snapshot wasn't updated for some reason
@@ -1212,8 +1214,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             logger.debug("trying to delete completed snapshot with no finalizing shards - can delete immediately");
                             shards = snapshotEntry.shards();
                         }
+                        failure = snapshotEntry.failure();
                     }
-                    SnapshotsInProgress.Entry newSnapshot = new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards);
+                    SnapshotsInProgress.Entry newSnapshot = new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure);
                     clusterStateBuilder.putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(newSnapshot));
                 }
                 return clusterStateBuilder.build();

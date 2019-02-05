@@ -632,9 +632,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
         Map<String, Object> getRollupJobResponse = entityAsMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
-        if (job != null) {
-            assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
-        }
+        assertNotNull(job);
+        assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
 
         // check that the rollup job is started using the Tasks API
         final Request taskRequest = new Request("GET", "_tasks");
@@ -680,9 +679,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
             Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
-            if (job != null) {
-                assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
-            }
+            assertNotNull(job);
+            assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
         }, 30L, TimeUnit.SECONDS);
     }
 

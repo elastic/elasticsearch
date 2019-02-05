@@ -40,7 +40,8 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         taskQueue = new DeterministicTaskQueue(settings, random());
         Set<Setting<?>> registeredSettings = Sets.newHashSet(CcrSettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
-            CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND, CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING);
+            CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND, CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING,
+            CcrSettings.RECOVERY_CHUNK_SIZE);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, registeredSettings);
         restoreSourceService = new CcrRestoreSourceService(taskQueue.getThreadPool(), new CcrSettings(Settings.EMPTY, clusterSettings));
     }

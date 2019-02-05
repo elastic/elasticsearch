@@ -1120,7 +1120,8 @@ public final class IndicesClient {
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
-     * @deprecated Prefer {@link #exists(GetIndexRequest, RequestOptions)}
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #exists(GetIndexRequest, RequestOptions, ActionListener)} should be used instead, which accepts a new request object.
      */
     @Deprecated
     public boolean exists(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, Header... headers) throws IOException {
@@ -1180,7 +1181,8 @@ public final class IndicesClient {
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
-     * @deprecated Prefer {@link #existsAsync(GetIndexRequest, RequestOptions, ActionListener)}
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #existsAsync(GetIndexRequest, RequestOptions, ActionListener)} should be used instead, which accepts a new request object.
      */
     @Deprecated
     public void existsAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, ActionListener<Boolean> listener,
@@ -1447,7 +1449,6 @@ public final class IndicesClient {
      */
     public AcknowledgedResponse putTemplate(PutIndexTemplateRequest putIndexTemplateRequest,
                                             RequestOptions options) throws IOException {
-
         return restHighLevelClient.performRequestAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putTemplate, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }

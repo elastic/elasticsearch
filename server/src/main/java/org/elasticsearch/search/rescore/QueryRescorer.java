@@ -24,6 +24,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ public final class QueryRescorer implements Rescorer {
     public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
 
         assert rescoreContext != null;
-        if (topDocs == null || topDocs.totalHits == 0 || topDocs.scoreDocs.length == 0) {
+        if (topDocs == null || topDocs.scoreDocs.length == 0) {
             return topDocs;
         }
 
@@ -52,7 +53,8 @@ public final class QueryRescorer implements Rescorer {
             @Override
             protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
                 if (secondPassMatches) {
-                    return rescore.scoreMode.combine(firstPassScore * rescore.queryWeight(), secondPassScore * rescore.rescoreQueryWeight());
+                    return rescore.scoreMode.combine(firstPassScore * rescore.queryWeight(),
+                            secondPassScore * rescore.rescoreQueryWeight());
                 }
                 // TODO: shouldn't this be up to the ScoreMode?  I.e., we should just invoke ScoreMode.combine, passing 0.0f for the
                 // secondary score?
@@ -87,7 +89,7 @@ public final class QueryRescorer implements Rescorer {
         Explanation prim;
         if (sourceExplanation.isMatch()) {
             prim = Explanation.match(
-                    sourceExplanation.getValue() * primaryWeight,
+                    sourceExplanation.getValue().floatValue() * primaryWeight,
                     "product of:", sourceExplanation, Explanation.match(primaryWeight, "primaryWeight"));
         } else {
             prim = Explanation.noMatch("First pass did not match", sourceExplanation);
@@ -99,12 +101,12 @@ public final class QueryRescorer implements Rescorer {
             if (rescoreExplain != null && rescoreExplain.isMatch()) {
                 float secondaryWeight = rescore.rescoreQueryWeight();
                 Explanation sec = Explanation.match(
-                    rescoreExplain.getValue() * secondaryWeight,
+                    rescoreExplain.getValue().floatValue() * secondaryWeight,
                     "product of:",
                     rescoreExplain, Explanation.match(secondaryWeight, "secondaryWeight"));
                 QueryRescoreMode scoreMode = rescore.scoreMode();
                 return Explanation.match(
-                    scoreMode.combine(prim.getValue(), sec.getValue()),
+                    scoreMode.combine(prim.getValue().floatValue(), sec.getValue().floatValue()),
                     scoreMode + " of:",
                     prim, sec);
             }
@@ -123,15 +125,14 @@ public final class QueryRescorer implements Rescorer {
     /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=
      *  topN. */
     private TopDocs topN(TopDocs in, int topN) {
-        if (in.totalHits < topN) {
-            assert in.scoreDocs.length == in.totalHits;
+        if (in.scoreDocs.length < topN) {
             return in;
         }
 
         ScoreDoc[] subset = new ScoreDoc[topN];
         System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
 
-        return new TopDocs(in.totalHits, subset, in.getMaxScore());
+        return new TopDocs(in.totalHits, subset);
     }
 
     /** Modifies incoming TopDocs (in) by replacing the top hits with resorted's hits, and then resorting all hits. */
@@ -151,8 +152,6 @@ public final class QueryRescorer implements Rescorer {
             // incoming first pass hits, instead of allowing recoring of just the top subset:
             Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
         }
-        // update the max score after the resort
-        in.setMaxScore(in.scoreDocs[0].score);
         return in;
     }
 
@@ -206,7 +205,8 @@ public final class QueryRescorer implements Rescorer {
 
     @Override
     public void extractTerms(IndexSearcher searcher, RescoreContext rescoreContext, Set<Term> termsSet) throws IOException {
-        searcher.createNormalizedWeight(((QueryRescoreContext) rescoreContext).query(), false).extractTerms(termsSet);
+        Query query = ((QueryRescoreContext) rescoreContext).query();
+        searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f).extractTerms(termsSet);
     }
 
 }

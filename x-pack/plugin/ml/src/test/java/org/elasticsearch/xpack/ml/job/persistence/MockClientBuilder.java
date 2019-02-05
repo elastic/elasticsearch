@@ -5,27 +5,24 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -33,29 +30,36 @@ import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -138,8 +142,8 @@ public class MockClientBuilder {
 
     @SuppressWarnings({ "unchecked" })
     public MockClientBuilder addIndicesDeleteResponse(String index, boolean exists, boolean exception,
-            ActionListener<DeleteJobAction.Response> actionListener) throws InterruptedException, ExecutionException, IOException {
-        DeleteIndexResponse response = DeleteIndexAction.INSTANCE.newResponse();
+            ActionListener<AcknowledgedResponse> actionListener) throws InterruptedException, ExecutionException, IOException {
+        AcknowledgedResponse response = DeleteIndexAction.INSTANCE.newResponse();
         StreamInput si = mock(StreamInput.class);
         // this looks complicated but Mockito can't mock the final method
         // DeleteIndexResponse.isAcknowledged() and the only way to create
@@ -153,7 +157,7 @@ public class MockClientBuilder {
             if (exception) {
                 actionListener.onFailure(new InterruptedException());
             } else {
-                actionListener.onResponse(new DeleteJobAction.Response(true));
+                actionListener.onResponse(new AcknowledgedResponse(true));
             }
             return null;
         }).when(indicesAdminClient).delete(any(DeleteIndexRequest.class), any(ActionListener.class));
@@ -165,6 +169,19 @@ public class MockClientBuilder {
         when(getRequestBuilder.get()).thenReturn(response);
         when(getRequestBuilder.setFetchSource(false)).thenReturn(getRequestBuilder);
         when(client.prepareGet(index, type, id)).thenReturn(getRequestBuilder);
+        return this;
+    }
+
+    public MockClientBuilder get(GetResponse response) {
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) {
+                ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
+                listener.onResponse(response);
+                return null;
+            }
+        }).when(client).get(any(), any());
+
         return this;
     }
 
@@ -254,6 +271,90 @@ public class MockClientBuilder {
         return this;
     }
 
+    public MockClientBuilder prepareSearches(String index, SearchRequestBuilder first, SearchRequestBuilder... searches) {
+        when(client.prepareSearch(eq(index))).thenReturn(first, searches);
+        return this;
+    }
+
+    /**
+     * Creates a {@link SearchResponse} with a {@link SearchHit} for each element of {@code docs}
+     * @param indexName Index being searched
+     * @param docs Returned in the SearchResponse
+     * @return this
+     */
+    @SuppressWarnings("unchecked")
+    public MockClientBuilder prepareSearch(String indexName, List<BytesReference> docs) {
+        SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
+        when(builder.setIndicesOptions(any())).thenReturn(builder);
+        when(builder.setQuery(any())).thenReturn(builder);
+        when(builder.setSource(any())).thenReturn(builder);
+        when(builder.setSize(anyInt())).thenReturn(builder);
+        SearchRequest request = new SearchRequest(indexName);
+        when(builder.request()).thenReturn(request);
+
+        when(client.prepareSearch(eq(indexName))).thenReturn(builder);
+
+        SearchHit hits [] = new SearchHit[docs.size()];
+        for (int i=0; i<docs.size(); i++) {
+            SearchHit hit = new SearchHit(10);
+            hit.sourceRef(docs.get(i));
+            hits[i] = hit;
+        }
+
+        SearchResponse response = mock(SearchResponse.class);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
+        when(response.getHits()).thenReturn(searchHits);
+
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) {
+                ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
+                listener.onResponse(response);
+                return null;
+            }
+        }).when(client).search(eq(request), any());
+
+        return this;
+    }
+
+    /*
+     * Mock a search that returns search hits with fields.
+     * The number of hits is the size of fields
+     */
+    @SuppressWarnings("unchecked")
+    public MockClientBuilder prepareSearchFields(String indexName, List<Map<String, DocumentField>> fields) {
+        SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
+        when(builder.setIndicesOptions(any())).thenReturn(builder);
+        when(builder.setQuery(any())).thenReturn(builder);
+        when(builder.setSource(any())).thenReturn(builder);
+        when(builder.setSize(anyInt())).thenReturn(builder);
+        SearchRequest request = new SearchRequest(indexName);
+        when(builder.request()).thenReturn(request);
+
+        when(client.prepareSearch(eq(indexName))).thenReturn(builder);
+
+        SearchHit hits [] = new SearchHit[fields.size()];
+        for (int i=0; i<hits.length; i++) {
+            SearchHit hit = new SearchHit(10, null, null, fields.get(i));
+            hits[i] = hit;
+        }
+
+        SearchResponse response = mock(SearchResponse.class);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
+        when(response.getHits()).thenReturn(searchHits);
+
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) {
+                ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
+                listener.onResponse(response);
+                return null;
+            }
+        }).when(client).search(eq(request), any());
+
+        return this;
+    }
+
     public MockClientBuilder prepareSearchAnySize(String index, String type, SearchResponse response, ArgumentCaptor<QueryBuilder> filter) {
         SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
         when(builder.setTypes(eq(type))).thenReturn(builder);
@@ -294,9 +395,9 @@ public class MockClientBuilder {
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                ActionListener<IndicesAliasesResponse> listener =
-                        (ActionListener<IndicesAliasesResponse>) invocationOnMock.getArguments()[0];
-                listener.onResponse(mock(IndicesAliasesResponse.class));
+                ActionListener<AcknowledgedResponse> listener =
+                        (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[0];
+                listener.onResponse(mock(AcknowledgedResponse.class));
                 return null;
             }
         }).when(aliasesRequestBuilder).execute(any());
@@ -310,9 +411,9 @@ public class MockClientBuilder {
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                ActionListener<IndicesAliasesResponse> listener =
-                        (ActionListener<IndicesAliasesResponse>) invocationOnMock.getArguments()[1];
-                listener.onResponse(mock(IndicesAliasesResponse.class));
+                ActionListener<AcknowledgedResponse> listener =
+                        (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
+                listener.onResponse(mock(AcknowledgedResponse.class));
                 return null;
             }
         }).when(indicesAdminClient).aliases(any(IndicesAliasesRequest.class), any(ActionListener.class));
@@ -337,15 +438,15 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder preparePutMapping(PutMappingResponse response, String type) {
+    public MockClientBuilder preparePutMapping(AcknowledgedResponse response, String type) {
         PutMappingRequestBuilder requestBuilder = mock(PutMappingRequestBuilder.class);
         when(requestBuilder.setType(eq(type))).thenReturn(requestBuilder);
         when(requestBuilder.setSource(any(XContentBuilder.class))).thenReturn(requestBuilder);
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                ActionListener<PutMappingResponse> listener =
-                        (ActionListener<PutMappingResponse>) invocationOnMock.getArguments()[0];
+                ActionListener<AcknowledgedResponse> listener =
+                        (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[0];
                 listener.onResponse(response);
                 return null;
             }
@@ -376,9 +477,9 @@ public class MockClientBuilder {
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                ActionListener<PutIndexTemplateResponse> listener =
-                        (ActionListener<PutIndexTemplateResponse>) invocationOnMock.getArguments()[1];
-                listener.onResponse(mock(PutIndexTemplateResponse.class));
+                ActionListener<AcknowledgedResponse> listener =
+                        (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
+                listener.onResponse(mock(AcknowledgedResponse.class));
                 return null;
             }
         }).when(indicesAdminClient).putTemplate(requestCaptor.capture(), any(ActionListener.class));

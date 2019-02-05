@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -31,7 +32,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,16 +44,18 @@ import java.util.Set;
 /**
  * Delete index action.
  */
-public class TransportDeleteIndexAction extends TransportMasterNodeAction<DeleteIndexRequest, DeleteIndexResponse> {
+public class TransportDeleteIndexAction extends TransportMasterNodeAction<DeleteIndexRequest, AcknowledgedResponse> {
 
     private final MetaDataDeleteIndexService deleteIndexService;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
-    public TransportDeleteIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, MetaDataDeleteIndexService deleteIndexService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
-        super(settings, DeleteIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteIndexRequest::new);
+    public TransportDeleteIndexAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                      MetaDataDeleteIndexService deleteIndexService, ActionFilters actionFilters,
+                                      IndexNameExpressionResolver indexNameExpressionResolver,
+                                      DestructiveOperations destructiveOperations) {
+        super(DeleteIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+            DeleteIndexRequest::new);
         this.deleteIndexService = deleteIndexService;
         this.destructiveOperations = destructiveOperations;
     }
@@ -64,12 +66,12 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
     }
 
     @Override
-    protected DeleteIndexResponse newResponse() {
-        return new DeleteIndexResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
-    protected void doExecute(Task task, DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
+    protected void doExecute(Task task, DeleteIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         super.doExecute(task, request, listener);
     }
@@ -80,10 +82,11 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
     }
 
     @Override
-    protected void masterOperation(final DeleteIndexRequest request, final ClusterState state, final ActionListener<DeleteIndexResponse> listener) {
+    protected void masterOperation(final DeleteIndexRequest request, final ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
         final Set<Index> concreteIndices = new HashSet<>(Arrays.asList(indexNameExpressionResolver.concreteIndices(state, request)));
         if (concreteIndices.isEmpty()) {
-            listener.onResponse(new DeleteIndexResponse(true));
+            listener.onResponse(new AcknowledgedResponse(true));
             return;
         }
 
@@ -95,7 +98,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new DeleteIndexResponse(response.isAcknowledged()));
+                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
             }
 
             @Override

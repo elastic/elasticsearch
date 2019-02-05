@@ -76,12 +76,13 @@ binding.
 
 There are five configuration steps to enable SAML authentication in {es}:
 
-. Enable SSL/TLS for HTTP
-. Enable the Token Service
-. Create one or more SAML realms
-. Configure role mappings
+. <<saml-enable-http,Enable SSL/TLS for HTTP>>
+. <<saml-enable-token,Enable the Token Service>>
+. <<saml-create-realm,Create one or more SAML realms>>
+. <<saml-role-mapping,Configure role mappings>>
 . Generate a SAML Metadata file for use by your Identity Provider _(optional)_
 
+[[saml-enable-http]]
 ==== Enable TLS for HTTP
 
 If your {es} cluster is operating in production mode, then you must
@@ -91,6 +92,7 @@ authentication.
 For more information, see
 {ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications].
 
+[[saml-enable-token]]
 ==== Enable the token service
 
 The {es} SAML implementation makes use of the {es} Token Service.  This service
@@ -118,8 +120,7 @@ configuration file. Each configuration value is explained below.
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authc.realms.saml1:
-  type: saml
+xpack.security.authc.realms.saml.saml1:
   order: 2
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
@@ -138,11 +139,10 @@ clients.
 
 The configuration values used in the example above are:
 
-xpack.security.authc.realms.saml::
-    This defines a new authentication realm named "saml1".
+xpack.security.authc.realms.saml.saml1::
+    This defines a new `saml` authentication realm named "saml1".
     See <<realms>> for more explanation of realms.
 
-type:: The `type` must be `saml`
 order::
     You should define a unique order on each realm in your authentication chain.
     It is recommended that the SAML realm be at the bottom of your authentication
@@ -151,7 +151,7 @@ order::
 idp.metadata.path::
     This is the path to the metadata file that you saved for your Identity Provider.
     The path that you enter here is relative to your `config/` directory.
-    {security} will automatically monitor this file for changes and will
+    {es} will automatically monitor this file for changes and will
     reload the configuration whenever it is updated.
 
 idp.entity_id::
@@ -207,14 +207,14 @@ Attributes in SAML are named using a URI such as
 more values associated with them.
 
 These attribute identifiers vary between IdPs, and most IdPs offer ways to
-customise the URIs and their associated value.
+customize the URIs and their associated value.
 
 {es} uses these attributes to infer information about the user who has
 logged in, and they can be used for role mapping (below).
 
 In order for these attributes to be useful, {es} and the IdP need to have a
 common value for the names of the attributes. This is done manually, by
-configuring the IdP and the {security} SAML realm to use the same URI name for
+configuring the IdP and the SAML realm to use the same URI name for
 each logical user attribute.
 
 The recommended steps for configuring these SAML attributes are as follows:
@@ -251,7 +251,7 @@ additional names that can be used:
     `NameID` elements are an optional, but frequently provided, field within a
     SAML Assertion that the IdP may use to identify the Subject of that
     Assertion. In some cases the `NameID` will relate to the user's login
-    identifier (username) wihin the IdP, but in many cases they will be
+    identifier (username) within the IdP, but in many cases they will be
     internally generated identifiers that have no obvious meaning outside
     of the IdP.
 
@@ -279,8 +279,7 @@ and the attribute with the friendlyName "roles" for the user's groups.
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authc.realms.saml1:
-  type: saml
+xpack.security.authc.realms.saml.saml1:
   order: 2
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
@@ -325,8 +324,7 @@ realm, as demonstrated in the realm configuration below:
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authc.realms.saml1:
-  type: saml
+xpack.security.authc.realms.saml.saml1:
   order: 2
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
@@ -355,6 +353,35 @@ domain starts with `staff.example.com`, and this would accept an email
 address such as `admin@staff.example.com.attacker.net`. It is important that
 you make sure your regular expressions are as precise as possible so that
 you do not inadvertently open an avenue for user impersonation attacks.
+
+[[req-authn-context]]
+==== Requesting specific authentication methods
+
+It is sometimes necessary for a SAML SP to be able to impose specific
+restrictions regarding the authentication that will take place at an IdP,
+in order to assess the level of confidence that it can place in
+the corresponding authentication response. The restrictions might have to do
+with the authentication method (password, client certificates, etc), the
+user identification method during registration, and other details. {es} implements
+https://docs.oasis-open.org/security/saml/v2.0/saml-authn-context-2.0-os.pdf[SAML 2.0 Authentication Context], which can be used for this purpose as defined in SAML 2.0 Core 
+Specification.
+
+In short, the SAML SP defines a set of Authentication Context Class Reference
+values, which describe the restrictions to be imposed on the IdP, and sends these
+in the Authentication Request. The IdP attempts to grant these restrictions. 
+If it cannot grant them, the authentication attempt fails. If the user is 
+successfully authenticated, the Authentication Statement of the SAML Response 
+contains an indication of the restrictions that were satisfied.
+
+You can define the Authentication Context Class Reference values by using the `req_authn_context_class_ref` option in the SAML realm configuration. See 
+{ref}/security-settings.html#ref-saml-settings[SAML realm settings]. 
+
+{es} supports only the `exact` comparison method for the Authentication Context. 
+When it receives the Authentication Response from the IdP, {es} examines the 
+value of the Authentication Context Class Reference that is part of the
+Authentication Statement of the SAML Assertion. If it matches one of the 
+requested values, the authentication is considered successful. Otherwise, the 
+authentication attempt fails.
 
 [[saml-logout]]
 ==== SAML logout
@@ -442,7 +469,7 @@ or separate keys used for each of those.
 
 The Elastic Stack uses X.509 certificates with RSA private keys for SAML
 cryptography. These keys can be generated using any standard SSL tool, including
-the `elasticsearch-certutil` tool that ships with X-Pack.
+the `elasticsearch-certutil` tool.
 
 Your IdP may require that the Elastic Stack have a cryptographic key for signing
 SAML messages, and that you provide the corresponding signing certificate within
@@ -491,7 +518,7 @@ Encryption certificates can be generated with the same process.
 
 ===== Configuring {es} for signing
 
-By default, {security} will sign _all_ outgoing SAML messages if a signing
+By default, {es} will sign _all_ outgoing SAML messages if a signing
 key has been configured.
 
 If you wish to use *PEM formatted* keys and certificates for signing, then
@@ -504,7 +531,7 @@ The path to the PEM formatted certificate file. e.g. `saml/saml-sign.crt`
 The path to the PEM formatted key file. e.g. `saml/saml-sign.key`
 
 `signing.secure_key_passphrase`::
-The passphrase for the key, if the file is encypted. This is a
+The passphrase for the key, if the file is encrypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 
@@ -518,7 +545,7 @@ The path to the PKCS#12 or JKS keystore. e.g. `saml/saml-sign.p12`
 The alias of the key within the keystore. e.g. `signing-key`
 
 `signing.keystore.secure_password`::
-The passphrase for the keystore, if the file is encypted. This is a
+The passphrase for the keystore, if the file is encrypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 
@@ -532,17 +559,17 @@ are: `AuthnRequest`, `LogoutRequest` and `LogoutResponse`.
 
 ===== Configuring {es} for encrypted messages
 
-{security} supports a single key for message decryption. If a key is
-configured, then {security} will attempt to use it to decrypt
+The {es} {security-features} support a single key for message decryption. If a
+key is configured, then {es} attempts to use it to decrypt
 `EncryptedAssertion` and `EncryptedAttribute` elements in Authentication
 responses, and `EncryptedID` elements in Logout requests.
 
-{security} will reject any SAML message that contains an `EncryptedAssertion`
+{es} rejects any SAML message that contains an `EncryptedAssertion`
 that cannot be decrypted.
 
 If an `Assertion` contains both encrypted and plain-text attributes, then
 failure to decrypt the encrypted attributes will not cause an automatic
-rejection. Rather, {security} will process the available plain-text attributes
+rejection. Rather, {es} processes the available plain-text attributes
 (and any `EncryptedAttributes` that could be decrypted).
 
 If you wish to use *PEM formatted* keys and certificates for SAML encryption,
@@ -555,7 +582,7 @@ The path to the PEM formatted certificate file. e.g. `saml/saml-crypt.crt`
 The path to the PEM formatted key file. e.g. `saml/saml-crypt.key`
 
 `encryption.secure_key_passphrase`::
-The passphrase for the key, if the file is encypted. This is a
+The passphrase for the key, if the file is encrypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 
@@ -569,10 +596,11 @@ The path to the PKCS#12 or JKS keystore. e.g. `saml/saml-crypt.p12`
 The alias of the key within the keystore. e.g. `encryption-key`
 
 `encryption.keystore.secure_password`::
-The passphrase for the keystore, if the file is encypted. This is a
+The passphrase for the keystore, if the file is encrypted. This is a
 {ref}/secure-settings.html[secure setting] that must be set with the
 `elasticsearch-keystore` tool.
 
+[[saml-sp-metadata]]
 === Generating SP metadata
 
 Some Identity Providers support importing a metadata file from the Service
@@ -592,16 +620,20 @@ When a user authenticates using SAML, they are identified to the Elastic Stack,
 but this does not automatically grant them access to perform any actions or
 access any data.
 
-Your SAML users cannot do anything until they are mapped to X-Pack Security
-roles. This mapping is performed through the
-{ref}/security-api-role-mapping.html[role-mapping API]
+Your SAML users cannot do anything until they are assigned roles. This can be done
+through either the
+{ref}/security-api-put-role-mapping.html[add role mapping API], or with
+<<authorization_realms, authorization realms>>.
+
+NOTE: You cannot use {stack-ov}/mapping-roles.html#mapping-roles-file[role mapping files]
+to grant roles to users authenticating via SAML.
 
 This is an example of a simple role mapping that grants the `kibana_user` role
 to any user who authenticates against the `saml1` realm:
 
 [source,js]
 --------------------------------------------------
-PUT /_xpack/security/role_mapping/saml-kibana
+PUT /_security/role_mapping/saml-kibana
 {
   "roles": [ "kibana_user" ],
   "enabled": true,
@@ -626,7 +658,7 @@ mapping are derived from the SAML attributes as follows:
 - `metadata`: See <<saml-user-metadata>>
 
 For more information, see <<mapping-roles>> and
-{ref}/security-api-role-mapping.html[Role Mapping APIs]. 
+{ref}/security-api.html#security-role-mapping-apis[role mapping APIs]. 
 
 If your IdP has the ability to provide groups or roles to Service Providers,
 then you should map this SAML attribute to the `attributes.groups` setting in
@@ -638,7 +670,7 @@ via the `saml1` realm with the `finance-team` group.
 
 [source,js]
 --------------------------------------------------
-PUT /_xpack/security/role_mapping/saml-finance
+PUT /_security/role_mapping/saml-finance
 {
   "roles": [ "finance_data" ],
   "enabled": true,
@@ -650,6 +682,18 @@ PUT /_xpack/security/role_mapping/saml-finance
 --------------------------------------------------
 // CONSOLE
 // TEST
+
+If your users also exist in a repository that can be directly accessed by {es}
+(such as an LDAP directory) then you can use
+<<authorization_realms, authorization realms>> instead of role mappings.
+
+In this case, you perform the following steps:
+1. In your SAML realm, assigned a SAML attribute to act as the lookup userid,
+   by configuring the `attributes.principal` setting.
+2. Create a new realm that can lookup users from your local repository (e.g. an
+   `ldap` realm)
+3. In your SAML realm, set `authorization_realms` to the name of the realm you
+   created in step 2.
 
 [[saml-user-metadata]]
 === User metadata
@@ -687,7 +731,7 @@ the certificates that {es} has been configured to use.
 
 SAML authentication in {kib} is also subject to the
 `xpack.security.sessionTimeout` setting that is described in the {kib} security
-documentation, and you may wish to adjst this timeout to meet your local needs.
+documentation, and you may wish to adjust this timeout to meet your local needs.
 
 The two additional settings that are required for SAML support are shown below:
 
@@ -740,6 +784,7 @@ for `http` or `443` for `https`).
 These values must be aligned with the URLs used in the {es} configuration for
 `sp.acs` and `sp.logout`.
 
+[[saml-kibana-basic]]
 ==== Supporting SAML and basic authentication in {kib}
 
 The SAML support in {kib} is designed on the expectation that it will be the
@@ -785,8 +830,7 @@ use the same internal IdP, and another which uses a different IdP.
 
 [source, yaml]
 ------------------------------------------------------------
-xpack.security.authc.realms.saml_finance:
-  type: saml
+xpack.security.authc.realms.saml.saml_finance:
   order: 2
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
@@ -795,8 +839,7 @@ xpack.security.authc.realms.saml_finance:
   sp.logout: "https://kibana.finance.example.com/logout"
   attributes.principal: "urn:oid:0.9.2342.19200300.100.1.1"
   attributes.groups: "urn:oid:1.3.6.1.4.1.5923.1.5.1."
-xpack.security.authc.realms.saml_sales:
-  type: saml
+xpack.security.authc.realms.saml.saml_sales:
   order: 3
   idp.metadata.path: saml/idp-metadata.xml
   idp.entity_id: "https://sso.example.com/"
@@ -805,8 +848,7 @@ xpack.security.authc.realms.saml_sales:
   sp.logout: "https://kibana.sales.example.com/logout"
   attributes.principal: "urn:oid:0.9.2342.19200300.100.1.1"
   attributes.groups: "urn:oid:1.3.6.1.4.1.5923.1.5.1."
-xpack.security.authc.realms.saml_eng:
-  type: saml
+xpack.security.authc.realms.saml.saml_eng:
   order: 4
   idp.metadata.path: saml/idp-external.xml
   idp.entity_id: "https://engineering.sso.example.net/"
@@ -819,3 +861,15 @@ xpack.security.authc.realms.saml_eng:
 It is possible to have one or more {kib} instances that use SAML, while other
 instances use basic authentication against another realm type (e.g.
 <<native-realm, Native>> or <<ldap-realm, LDAP>>).
+
+=== Troubleshooting SAML Realm Configuration
+
+The SAML 2.0 specification offers a lot of options and flexibility for the implementers
+of the standard which in turn adds to the complexity and the number of configuration options
+that are available both at the Service Provider (Elastic Stack) and at the Identity Provider.
+Additionally, different security domains have different security requirements that need
+specific configuration to be satisfied.
+A conscious effort has been made to mask this complexity with sane defaults and the detailed
+documentation above but in case you encounter issues while configuring a SAML realm, you can
+look through our {stack-ov}/trb-security-saml.html[SAML troubleshooting documentation] that has
+suggestions and resolutions for common issues.

@@ -209,7 +209,8 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(ackResponse.getStatus().actionStatus("_id").ackStatus().state(), is(ActionStatus.AckStatus.State.ACKED));
 
         refresh("actions");
-        long countAfterAck = client().prepareSearch("actions").setTypes("action").setQuery(matchAllQuery()).get().getHits().getTotalHits();
+        long countAfterAck = client().prepareSearch("actions").setTypes("action").setQuery(matchAllQuery()).get()
+            .getHits().getTotalHits().value;
         assertThat(countAfterAck, greaterThanOrEqualTo(1L));
 
         restartWatcherRandomly();

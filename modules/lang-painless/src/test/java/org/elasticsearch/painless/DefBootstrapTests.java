@@ -134,7 +134,7 @@ public class DefBootstrapTests extends ESTestCase {
         final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
             Integer.toString((int)handle.invokeExact(new Object()));
         });
-        assertEquals("Unable to find dynamic method [size] with [0] arguments for class [java.lang.Object].", iae.getMessage());
+        assertEquals("dynamic method [java.lang.Object, size/0] not found", iae.getMessage());
         assertTrue("Does not fail inside ClassValue.computeValue()", Arrays.stream(iae.getStackTrace()).anyMatch(e -> {
             return e.getMethodName().equals("computeValue") &&
                    e.getClassName().startsWith("org.elasticsearch.painless.DefBootstrap$PIC$");

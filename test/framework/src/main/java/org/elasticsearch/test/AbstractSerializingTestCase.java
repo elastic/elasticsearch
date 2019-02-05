@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.Strings;
@@ -23,9 +24,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeable> extends AbstractWireSerializingTestCase<T> {
 
@@ -34,15 +39,29 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * both for equality and asserts equality on the two instances.
      */
     public final void testFromXContent() throws IOException {
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(),
-                getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-                this::assertEqualInstances, true, getToXContentParams());
+        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance)
+            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+            .supportsUnknownFields(supportsUnknownFields())
+            .shuffleFieldsExceptions(getShuffleFieldsExceptions())
+            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .assertToXContentEquivalence(assertToXContentEquivalence())
+            .test();
     }
 
     /**
      * Parses to a new instance using the provided {@link XContentParser}
      */
     protected abstract T doParseInstance(XContentParser parser) throws IOException;
+
+    /**
+     * Creates a random instance to use in the xcontent tests.
+     * Override this method if the random instance that you build
+     * should be aware of the {@link XContentType} used in the test.
+     */
+    protected T createXContextTestInstance(XContentType xContentType) {
+        return createTestInstance();
+    }
 
     /**
      * Indicates whether the parser supports unknown fields or not. In case it does, such behaviour will be tested by
@@ -71,5 +90,22 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      */
     protected ToXContent.Params getToXContentParams() {
         return ToXContent.EMPTY_PARAMS;
+    }
+
+    /**
+     * Whether or not to assert equivalence of the {@link org.elasticsearch.common.xcontent.XContent} of the test instance and the instance
+     * parsed from the {@link org.elasticsearch.common.xcontent.XContent} of the test instance.
+     *
+     * @return true if equivalence should be asserted, otherwise false
+     */
+    protected boolean assertToXContentEquivalence() {
+        return true;
+    }
+
+    /**
+     * @return a random date between 1970 and ca 2065
+     */
+    protected Date randomDate() {
+        return new Date(randomLongBetween(0, 3000000000000L));
     }
 }

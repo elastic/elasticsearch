@@ -91,10 +91,10 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setModelSnapshotMinVersion(Version.CURRENT);
         }
         if (useInternalParser && randomBoolean()) {
-            update.setEstablishedModelMemory(randomNonNegativeLong());
-        }
-        if (useInternalParser && randomBoolean()) {
             update.setJobVersion(randomFrom(Version.CURRENT, Version.V_6_2_0, Version.V_6_1_0));
+        }
+        if (useInternalParser) {
+            update.setClearFinishTime(randomBoolean());
         }
 
         return update.build();
@@ -273,6 +273,8 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         update = new JobUpdate.Builder("foo").setModelPlotConfig(new ModelPlotConfig(true, "ff")).build();
         assertTrue(update.isAutodetectProcessUpdate());
         update = new JobUpdate.Builder("foo").setDetectorUpdates(Collections.singletonList(mock(JobUpdate.DetectorUpdate.class))).build();
+        assertTrue(update.isAutodetectProcessUpdate());
+        update = new JobUpdate.Builder("foo").setGroups(Arrays.asList("bar")).build();
         assertTrue(update.isAutodetectProcessUpdate());
     }
 

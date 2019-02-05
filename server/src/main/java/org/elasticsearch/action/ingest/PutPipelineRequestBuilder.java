@@ -20,19 +20,15 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 
-public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineRequest, WritePipelineResponse> {
+public class PutPipelineRequestBuilder extends ActionRequestBuilder<PutPipelineRequest, AcknowledgedResponse> {
 
     public PutPipelineRequestBuilder(ElasticsearchClient client, PutPipelineAction action) {
         super(client, action, new PutPipelineRequest());
-    }
-
-    @Deprecated
-    public PutPipelineRequestBuilder(ElasticsearchClient client, PutPipelineAction action, String id, BytesReference source) {
-        super(client, action, new PutPipelineRequest(id, source));
     }
 
     public PutPipelineRequestBuilder(ElasticsearchClient client, PutPipelineAction action, String id, BytesReference source,

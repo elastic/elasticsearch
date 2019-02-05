@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: foo
@@ -37,7 +39,7 @@ setup:
           }
 
 ---
-"Test start non-existant job":
+"Test start nonexistent job":
 
   - do:
       catch: /Task for Rollup Job \[does_not_exist\] not found/

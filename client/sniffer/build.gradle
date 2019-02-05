@@ -16,9 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
@@ -55,7 +52,7 @@ dependencies {
 
 forbiddenApisMain {
   //client does not depend on server, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 forbiddenApisTest {
@@ -63,7 +60,7 @@ forbiddenApisTest {
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
   //client does not depend on server, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 dependencyLicenses {
@@ -75,11 +72,15 @@ dependencyLicenses {
 // TODO: Not anymore. Now in :libs:core
 jarHell.enabled=false
 
-namingConventions {
-  testClass = 'org.elasticsearch.client.RestClientTestCase'
-  //we don't have integration tests
-  skipIntegTestInDisguise = true
+testingConventions {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass 'org.elasticsearch.client.RestClientTestCase'
+    }
+  }
 }
+
 
 dependencyLicenses {
   dependencies = project.configurations.runtime.fileCollection {
@@ -87,7 +88,7 @@ dependencyLicenses {
   }
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   //commons-logging optional dependencies
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
@@ -99,4 +100,4 @@ thirdPartyAudit.excludes = [
   //commons-logging provided dependencies
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener'
-]
+)

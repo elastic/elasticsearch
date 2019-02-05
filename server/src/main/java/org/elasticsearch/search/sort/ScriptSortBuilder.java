@@ -19,9 +19,10 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -31,8 +32,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,7 +50,8 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.NumberSortScript;
+import org.elasticsearch.script.StringSortScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -66,7 +66,7 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  * Script sort builder allows to sort based on a custom script expression.
  */
 public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ScriptSortBuilder.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptSortBuilder.class));
 
     public static final String NAME = "_script";
     public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -279,11 +279,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
         PARSER.declareString((fieldSortBuilder, nestedPath) -> {
-            DEPRECATION_LOGGER.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
+            deprecationLogger.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
             fieldSortBuilder.setNestedPath(nestedPath);
         }, NESTED_PATH_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedFilter, (p, c) -> {
-            DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
+            deprecationLogger.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
@@ -305,9 +305,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.SCRIPT_SORT_CONTEXT);
-        final SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
-
         MultiValueMode valueMode = null;
         if (sortMode != null) {
             valueMode = MultiValueMode.fromString(sortMode.toString());
@@ -319,6 +316,14 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
         final Nested nested;
         if (nestedSort != null) {
+            if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
+                throw new QueryShardException(context,
+                    "max_children is only supported on v6.5.0 or higher");
+            }
+            if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
+                throw new QueryShardException(context,
+                    "max_children is only supported on last level of nested sort");
+            }
             // new nested sorts takes priority
             nested = resolveNested(context, nestedSort);
         } else {
@@ -328,8 +333,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         final IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         switch (type) {
             case STRING:
+                final StringSortScript.Factory factory = context.getScriptService().compile(script, StringSortScript.CONTEXT);
+                final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    SearchScript leafScript;
+                    StringSortScript leafScript;
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
                         leafScript = searchScript.newInstance(context);
@@ -342,26 +349,26 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             }
                             @Override
                             public BytesRef binaryValue() {
-                                final Object run = leafScript.run();
-                                CollectionUtils.ensureNoSelfReferences(run, "ScriptSortBuilder leaf script");
-                                spare.copyChars(run.toString());
+                                spare.copyChars(leafScript.execute());
                                 return spare.get();
                             }
                         };
                         return FieldData.singleton(values);
                     }
                     @Override
-                    protected void setScorer(Scorer scorer) {
+                    protected void setScorer(Scorable scorer) {
                         leafScript.setScorer(scorer);
                     }
                 };
                 break;
             case NUMBER:
+                final NumberSortScript.Factory numberSortFactory = context.getScriptService().compile(script, NumberSortScript.CONTEXT);
+                final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), context.lookup());
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    SearchScript leafScript;
+                    NumberSortScript leafScript;
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.newInstance(context);
+                        leafScript = numberSortScript.newInstance(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) throws IOException {
@@ -370,13 +377,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             }
                             @Override
                             public double doubleValue() {
-                                return leafScript.runAsDouble();
+                                return leafScript.execute();
                             }
                         };
                         return FieldData.singleton(values);
                     }
                     @Override
-                    protected void setScorer(Scorer scorer) {
+                    protected void setScorer(Scorable scorer) {
                         leafScript.setScorer(scorer);
                     }
                 };

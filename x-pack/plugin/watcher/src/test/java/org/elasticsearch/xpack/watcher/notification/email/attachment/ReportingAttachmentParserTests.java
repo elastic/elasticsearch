@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.notification.email.attachment;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,11 +23,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthFactory;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
@@ -69,19 +64,13 @@ public class ReportingAttachmentParserTests extends ESTestCase {
     private Map<String, EmailAttachmentParser> attachmentParsers = new HashMap<>();
     private EmailAttachmentsParser emailAttachmentsParser;
     private ReportingAttachmentParser reportingAttachmentParser;
-    private HttpAuthRegistry authRegistry;
     private MockTextTemplateEngine templateEngine = new MockTextTemplateEngine();
     private String dashboardUrl = "http://www.example.org/ovb/api/reporting/generate/dashboard/My-Dashboard";
 
     @Before
     public void init() throws Exception {
         httpClient = mock(HttpClient.class);
-
-        Map<String, HttpAuthFactory> factories = MapBuilder.<String, HttpAuthFactory>newMapBuilder()
-                .put("basic", new BasicAuthFactory(null))
-                .immutableMap();
-        authRegistry = new HttpAuthRegistry(factories);
-        reportingAttachmentParser = new ReportingAttachmentParser(Settings.EMPTY, httpClient, templateEngine, authRegistry);
+        reportingAttachmentParser = new ReportingAttachmentParser(Settings.EMPTY, httpClient, templateEngine);
 
         attachmentParsers.put(ReportingAttachmentParser.TYPE, reportingAttachmentParser);
         emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
@@ -113,7 +102,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
             builder.field("inline", true);
         }
 
-        HttpAuth auth = null;
+        BasicAuth auth = null;
         boolean withAuth = randomBoolean();
         boolean isPasswordEncrypted = randomBoolean();
         if (withAuth) {
@@ -318,9 +307,8 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         assertThat(allRequests, hasSize(3));
         for (HttpRequest request : allRequests) {
             assertThat(request.auth(), is(notNullValue()));
-            assertThat(request.auth().type(), is("basic"));
             assertThat(request.auth(), instanceOf(BasicAuth.class));
-            BasicAuth basicAuth = (BasicAuth) request.auth();
+            BasicAuth basicAuth = request.auth();
             assertThat(basicAuth.getUsername(), is("foo"));
         }
     }
@@ -351,7 +339,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
                 .put(ReportingAttachmentParser.RETRIES_SETTING.getKey(), retries)
                 .build();
 
-        reportingAttachmentParser = new ReportingAttachmentParser(settings, httpClient, templateEngine, authRegistry);
+        reportingAttachmentParser = new ReportingAttachmentParser(settings, httpClient, templateEngine);
         expectThrows(ElasticsearchException.class, () ->
                 reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, attachment));
 
@@ -364,7 +352,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
                 .thenReturn(new HttpResponse(503))
                 .thenReturn(new HttpResponse(200, randomAlphaOfLength(10)));
 
-        TextTemplateEngine replaceHttpWithHttpsTemplateEngine = new TextTemplateEngine(Settings.EMPTY, null) {
+        TextTemplateEngine replaceHttpWithHttpsTemplateEngine = new TextTemplateEngine(null) {
             @Override
             public String render(TextTemplate textTemplate, Map<String, Object> model) {
                 return textTemplate.getTemplate().replaceAll("REPLACEME", "REPLACED");
@@ -374,7 +362,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         ReportingAttachment attachment = new ReportingAttachment("foo", "http://www.example.org/REPLACEME", randomBoolean(),
                 TimeValue.timeValueMillis(1), 10, new BasicAuth("foo", "bar".toCharArray()), null);
         reportingAttachmentParser = new ReportingAttachmentParser(Settings.EMPTY, httpClient,
-                replaceHttpWithHttpsTemplateEngine, authRegistry);
+                replaceHttpWithHttpsTemplateEngine);
         reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, attachment);
 
         ArgumentCaptor<HttpRequest> requestArgumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
@@ -391,7 +379,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
 
         Settings invalidSettings = Settings.builder().put("xpack.notification.reporting.retries", -10).build();
         e = expectThrows(IllegalArgumentException.class,
-                () -> new ReportingAttachmentParser(invalidSettings, httpClient, templateEngine, authRegistry));
+                () -> new ReportingAttachmentParser(invalidSettings, httpClient, templateEngine));
         assertThat(e.getMessage(), is("Failed to parse value [-10] for setting [xpack.notification.reporting.retries] must be >= 0"));
     }
 

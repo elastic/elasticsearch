@@ -8,26 +8,25 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 
 import java.util.function.Supplier;
 
-public class TransportValidateDetectorAction extends HandledTransportAction<ValidateDetectorAction.Request,
-        ValidateDetectorAction.Response> {
+public class TransportValidateDetectorAction extends HandledTransportAction<ValidateDetectorAction.Request, AcknowledgedResponse> {
 
     @Inject
-    public TransportValidateDetectorAction(Settings settings, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, ValidateDetectorAction.NAME, transportService, actionFilters,
+    public TransportValidateDetectorAction(TransportService transportService, ActionFilters actionFilters) {
+        super(ValidateDetectorAction.NAME, transportService, actionFilters,
             (Supplier<ValidateDetectorAction.Request>) ValidateDetectorAction.Request::new);
     }
 
     @Override
-    protected void doExecute(Task task, ValidateDetectorAction.Request request, ActionListener<ValidateDetectorAction.Response> listener) {
-        listener.onResponse(new ValidateDetectorAction.Response(true));
+    protected void doExecute(Task task, ValidateDetectorAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        listener.onResponse(new AcknowledgedResponse(true));
     }
 
 }

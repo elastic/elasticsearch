@@ -56,7 +56,7 @@ public class CborXContent implements XContent {
         cborFactory.configure(CBORFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.cbor.CBORGenerator#close() method
         cborFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
-        cborFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, XContent.isStrictDuplicateDetectionEnabled());
+        cborFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         cborXContent = new CborXContent();
     }
 

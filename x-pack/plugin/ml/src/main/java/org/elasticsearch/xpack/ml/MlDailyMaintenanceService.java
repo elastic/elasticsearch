@@ -5,20 +5,20 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
-import org.joda.time.DateTime;
-import org.joda.time.chrono.ISOChronology;
 
+import java.time.Clock;
+import java.time.ZonedDateTime;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ScheduledFuture;
@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class MlDailyMaintenanceService implements Releasable {
 
-    private static final Logger LOGGER = Loggers.getLogger(MlDailyMaintenanceService.class);
+    private static final Logger LOGGER = LogManager.getLogger(MlDailyMaintenanceService.class);
 
     private static final int MAX_TIME_OFFSET_MINUTES = 120;
 
@@ -70,9 +70,14 @@ public class MlDailyMaintenanceService implements Releasable {
     private static TimeValue delayToNextTime(ClusterName clusterName) {
         Random random = new Random(clusterName.hashCode());
         int minutesOffset = random.ints(0, MAX_TIME_OFFSET_MINUTES).findFirst().getAsInt();
-        DateTime now = DateTime.now(ISOChronology.getInstance());
-        DateTime next = now.plusDays(1).withTimeAtStartOfDay().plusMinutes(30).plusMinutes(minutesOffset);
-        return TimeValue.timeValueMillis(next.getMillis() - now.getMillis());
+
+        ZonedDateTime now = ZonedDateTime.now(Clock.systemDefaultZone());
+        ZonedDateTime next = now.plusDays(1)
+            .toLocalDate()
+            .atStartOfDay(now.getZone())
+            .plusMinutes(30)
+            .plusMinutes(minutesOffset);
+        return TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
     }
 
     public void start() {

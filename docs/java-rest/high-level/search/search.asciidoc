@@ -1,10 +1,16 @@
-[[java-rest-high-search]]
+--
+:api: search
+:request: SearchRequest
+:response: SearchResponse
+--
+
+[id="{upid}-{api}"]
 === Search API
 
-[[java-rest-high-document-search-request]]
+[id="{upid}-{api}-request"]
 ==== Search Request
 
-The `SearchRequest` is used for any operation that has to do with searching
+The +{request}+ is used for any operation that has to do with searching
 documents, aggregations, suggestions and also offers ways of requesting
 highlighting on the resulting documents.
 
@@ -12,7 +18,7 @@ In its most basic form, we can add a query to the request:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-basic]
+include-tagged::{doc-tests-file}[{api}-request-basic]
 --------------------------------------------------
 
 <1> Creates the `SeachRequest`. Without arguments this runs against all indices.
@@ -20,36 +26,35 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-basic]
 <3> Add a `match_all` query to the `SearchSourceBuilder`.
 <4> Add the `SearchSourceBuilder` to the `SeachRequest`.
 
-[[java-rest-high-search-request-optional]]
+[id="{upid}-{api}-request-optional"]
 ===== Optional arguments
 
-Let's first look at some of the optional arguments of a `SearchRequest`:
+Let's first look at some of the optional arguments of a +{request}+:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-indices-types]
+include-tagged::{doc-tests-file}[{api}-request-indices]
 --------------------------------------------------
 <1> Restricts the request to an index
-<2> Limits the request to a type
 
 There are a couple of other interesting optional parameters:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-routing]
+include-tagged::{doc-tests-file}[{api}-request-routing]
 --------------------------------------------------
 <1> Set a routing parameter
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-indicesOptions]
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-preference]
+include-tagged::{doc-tests-file}[{api}-request-preference]
 --------------------------------------------------
 <1> Use the preference parameter e.g. to execute the search to prefer local
 shards. The default is to randomize across shards.
@@ -65,7 +70,7 @@ Here are a few examples of some common options:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-basics]
+include-tagged::{doc-tests-file}[{api}-source-basics]
 --------------------------------------------------
 <1> Create a `SearchSourceBuilder` with default options.
 <2> Set the query. Can be any type of `QueryBuilder`
@@ -77,14 +82,14 @@ Defaults to 10.
 take.
 
 After this, the `SearchSourceBuilder` only needs to be added to the
-`SearchRequest`:
++{request}+:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-setter]
+include-tagged::{doc-tests-file}[{api}-source-setter]
 --------------------------------------------------
 
-[[java-rest-high-document-search-request-building-queries]]
+[id="{upid}-{api}-request-building-queries"]
 ===== Building queries
 
 Search queries are created using `QueryBuilder` objects. A `QueryBuilder` exists
@@ -94,7 +99,7 @@ A `QueryBuilder` can be created using its constructor:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-builder-ctor]
+include-tagged::{doc-tests-file}[{api}-query-builder-ctor]
 --------------------------------------------------
 <1> Create a full text {ref}/query-dsl-match-query.html[Match Query] that matches
 the text "kimchy" over the field "user".
@@ -104,7 +109,7 @@ of the search query it creates:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-builder-options]
+include-tagged::{doc-tests-file}[{api}-query-builder-options]
 --------------------------------------------------
 <1> Enable fuzzy matching on the match query
 <2> Set the prefix length option on the match query
@@ -117,7 +122,7 @@ This class provides helper methods that can be used to create `QueryBuilder` obj
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-builders]
+include-tagged::{doc-tests-file}[{api}-query-builders]
 --------------------------------------------------
 
 Whatever the method used to create it, the `QueryBuilder` object must be added
@@ -125,10 +130,10 @@ to the `SearchSourceBuilder` as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-query-setter]
+include-tagged::{doc-tests-file}[{api}-query-setter]
 --------------------------------------------------
 
-The <<java-rest-high-query-builders, Building Queries>> page gives a list of all available search queries with
+The <<{upid}-query-builders, Building Queries>> page gives a list of all available search queries with
 their corresponding `QueryBuilder` objects and `QueryBuilders` helper methods.
 
 
@@ -138,7 +143,7 @@ The `SearchSourceBuilder` allows to add one or more `SortBuilder` instances. The
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-sorting]
+include-tagged::{doc-tests-file}[{api}-source-sorting]
 --------------------------------------------------
 <1> Sort descending by `_score` (the default)
 <2> Also sort ascending by `_id` field
@@ -149,17 +154,17 @@ By default, search requests return the contents of the document `_source` but li
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-filtering-off]
+include-tagged::{doc-tests-file}[{api}-source-filtering-off]
 --------------------------------------------------
 
 The method also accepts an array of one or more wildcard patterns to control which fields get included or excluded in a more fine grained way:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-filtering-includes]
+include-tagged::{doc-tests-file}[{api}-source-filtering-includes]
 --------------------------------------------------
 
-[[java-rest-high-request-highlighting]]
+[id="{upid}-{api}-request-highlighting"]
 ===== Requesting Highlighting
 
 Highlighting search results can be achieved by setting a `HighlightBuilder` on the
@@ -168,7 +173,7 @@ fields by adding one or more `HighlightBuilder.Field` instances to a `HighlightB
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-highlighting]
+include-tagged::{doc-tests-file}[{api}-request-highlighting]
 --------------------------------------------------
 <1> Creates a new `HighlightBuilder`
 <2> Create a field highlighter for the `title` field
@@ -179,9 +184,9 @@ There are many options which are explained in detail in the Rest API documentati
 API parameters (e.g. `pre_tags`) are usually changed by
 setters with a similar name (e.g. `#preTags(String ...)`).
 
-Highlighted text fragments can <<java-rest-high-retrieve-highlighting,later be retrieved>> from the `SearchResponse`.
+Highlighted text fragments can <<{upid}-{api}-response-highlighting,later be retrieved>> from the +{response}+.
 
-[[java-rest-high-document-search-request-building-aggs]]
+[id="{upid}-{api}-request-building-aggs"]
 ===== Requesting Aggregations
 
 Aggregations can be added to the search by first creating the appropriate
@@ -191,13 +196,13 @@ sub-aggregation on the average age of employees in the company:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations]
+include-tagged::{doc-tests-file}[{api}-request-aggregations]
 --------------------------------------------------
 
-The <<java-rest-high-aggregation-builders, Building Aggregations>> page gives a list of all available aggregations with
+The <<{upid}-aggregation-builders, Building Aggregations>> page gives a list of all available aggregations with
 their corresponding `AggregationBuilder` objects and `AggregationBuilders` helper methods.
 
-We will later see how to <<java-rest-high-retrieve-aggs,access aggregations>> in the `SearchResponse`.
+We will later see how to <<{upid}-{api}-response-aggs,access aggregations>> in the +{response}+.
 
 ===== Requesting Suggestions
 
@@ -207,14 +212,14 @@ need to be added to the top level `SuggestBuilder`, which itself can be set on t
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-suggestion]
+include-tagged::{doc-tests-file}[{api}-request-suggestion]
 --------------------------------------------------
 <1> Creates a new `TermSuggestionBuilder` for the `user` field and
 the text `kmichy`
 <2> Adds the suggestion builder and names it `suggest_user`
 
-We will later see how to <<java-rest-high-retrieve-suggestions,retrieve suggestions>> from the
-`SearchResponse`.
+We will later see how to <<{upid}-{api}-response-suggestions,retrieve suggestions>> from the
++{response}+.
 
 ===== Profiling Queries and Aggregations
 
@@ -223,56 +228,18 @@ a specific search request. in order to use it, the profile flag must be set to t
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling]
+include-tagged::{doc-tests-file}[{api}-request-profiling]
 --------------------------------------------------
 
-Once the `SearchRequest` is executed the corresponding `SearchResponse` will
-<<java-rest-high-retrieve-profile-results,contain the profiling results>>.
+Once the +{request}+ is executed the corresponding +{response}+ will
+<<{upid}-{api}-response-profile,contain the profiling results>>.
 
-[[java-rest-high-document-search-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-When executing a `SearchRequest` in the following manner, the client waits
-for the `SearchResponse` to be returned before continuing with code execution:
+[id="{upid}-{api}-response"]
+==== {response}
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute]
---------------------------------------------------
-
-[[java-rest-high-document-search-async]]
-==== Asynchronous Execution
-
-Executing a `SearchRequest` can also be done in an asynchronous fashion so that
-the client can return directly. Users need to specify how the response or
-potential failures will be handled by passing the request and a listeners to the
-asynchronous search method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute-async]
---------------------------------------------------
-<1> The `SearchRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `SearchResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed.
-<2> Called when the whole `SearchRequest` fails.
-
-[[java-rest-high-search-response]]
-==== SearchResponse
-
-The `SearchResponse` that is returned by executing the search provides details
+The +{response}+ that is returned by executing the search provides details
 about the search execution itself as well as access to the documents returned.
 First, there is useful information about the request execution itself, like the
 HTTP status code, execution time or whether the request terminated early or timed
@@ -280,7 +247,7 @@ out:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-response-1]
+include-tagged::{doc-tests-file}[{api}-response-1]
 --------------------------------------------------
 
 Second, the response also provides information about the execution on the
@@ -291,10 +258,10 @@ failures can also be handled by iterating over an array off
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-response-2]
+include-tagged::{doc-tests-file}[{api}-response-2]
 --------------------------------------------------
 
-[[java-rest-high-retrieve-searchHits]]
+[id="{upid}-{api}-response-search-hits"]
 ===== Retrieving SearchHits
 
 To get access to the returned documents, we need to first get the `SearchHits`
@@ -302,7 +269,7 @@ contained in the response:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-get]
+include-tagged::{doc-tests-file}[{api}-hits-get]
 --------------------------------------------------
 
 The `SearchHits` provides global information about all hits, like total number
@@ -310,7 +277,7 @@ of hits or the maximum score:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-info]
+include-tagged::{doc-tests-file}[{api}-hits-info]
 --------------------------------------------------
 
 Nested inside the `SearchHits` are the individual search results that can
@@ -319,15 +286,15 @@ be iterated over:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-singleHit]
+include-tagged::{doc-tests-file}[{api}-hits-singleHit]
 --------------------------------------------------
 
-The `SearchHit` provides access to basic information like index, type, docId and
-score of each search hit:
+The `SearchHit` provides access to basic information like index, document ID
+and score of each search hit:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-singleHit-properties]
+include-tagged::{doc-tests-file}[{api}-hits-singleHit-properties]
 --------------------------------------------------
 
 Furthermore, it lets you get back the document source, either as a simple
@@ -338,34 +305,34 @@ cases need to be cast accordingly:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-hits-singleHit-source]
+include-tagged::{doc-tests-file}[{api}-hits-singleHit-source]
 --------------------------------------------------
 
-[[java-rest-high-retrieve-highlighting]]
+[id="{upid}-{api}-response-highlighting"]
 ===== Retrieving Highlighting
 
-If <<java-rest-high-request-highlighting,requested>>, highlighted text fragments can be retrieved from each `SearchHit` in the result. The hit object offers
+If <<{upid}-{api}-request-highlighting,requested>>, highlighted text fragments can be retrieved from each `SearchHit` in the result. The hit object offers
 access to a map of field names to `HighlightField` instances, each of which contains one
 or many highlighted text fragments:
 
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-highlighting-get]
+include-tagged::{doc-tests-file}[{api}-request-highlighting-get]
 --------------------------------------------------
 <1> Get the highlighting for the `title` field
 <2> Get one or many fragments containing the highlighted field content
 
-[[java-rest-high-retrieve-aggs]]
+[id="{upid}-{api}-response-aggs"]
 ===== Retrieving Aggregations
 
-Aggregations can be retrieved from the `SearchResponse` by first getting the
+Aggregations can be retrieved from the +{response}+ by first getting the
 root of the aggregation tree, the `Aggregations` object, and then getting the
 aggregation by name.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations-get]
+include-tagged::{doc-tests-file}[{api}-request-aggregations-get]
 --------------------------------------------------
 <1> Get the `by_company` terms aggregation
 <2> Get the buckets that is keyed with `Elastic`
@@ -377,7 +344,7 @@ otherwise a `ClassCastException` will be thrown:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations-get-wrongCast]
+include-tagged::{doc-tests-file}[search-request-aggregations-get-wrongCast]
 --------------------------------------------------
 <1> This will throw an exception because "by_company" is a `terms` aggregation
 but we try to retrieve it as a `range` aggregation
@@ -388,14 +355,14 @@ needs to happen explicitly:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations-asMap]
+include-tagged::{doc-tests-file}[{api}-request-aggregations-asMap]
 --------------------------------------------------
 
 There are also getters that return all top level aggregations as a list:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations-asList]
+include-tagged::{doc-tests-file}[{api}-request-aggregations-asList]
 --------------------------------------------------
 
 And last but not least you can iterate over all aggregations and then e.g.
@@ -403,17 +370,17 @@ decide how to further process them based on their type:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-aggregations-iterator]
+include-tagged::{doc-tests-file}[{api}-request-aggregations-iterator]
 --------------------------------------------------
 
-[[java-rest-high-retrieve-suggestions]]
+[id="{upid}-{api}-response-suggestions"]
 ===== Retrieving Suggestions
 
-To get back the suggestions from a `SearchResponse`, use the `Suggest` object as an entry point and then retrieve the nested suggestion objects:
+To get back the suggestions from a +{response}+, use the `Suggest` object as an entry point and then retrieve the nested suggestion objects:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-suggestion-get]
+include-tagged::{doc-tests-file}[{api}-request-suggestion-get]
 --------------------------------------------------
 <1> Use the `Suggest` class to access suggestions
 <2> Suggestions can be retrieved by name. You need to assign them to the correct
@@ -421,21 +388,21 @@ type of Suggestion class (here `TermSuggestion`), otherwise a `ClassCastExceptio
 <3> Iterate over the suggestion entries
 <4> Iterate over the options in one entry
 
-[[java-rest-high-retrieve-profile-results]]
+[id="{upid}-{api}-response-profile"]
 ===== Retrieving Profiling Results
 
-Profiling results are retrieved from a `SearchResponse` using the `getProfileResults()` method. This
+Profiling results are retrieved from a +{response}+ using the `getProfileResults()` method. This
  method returns a `Map` containing a `ProfileShardResult` object for every shard involved in the
- `SearchRequest` execution. `ProfileShardResult` are stored in the `Map` using a key that uniquely
+ +{request}+ execution. `ProfileShardResult` are stored in the `Map` using a key that uniquely
  identifies the shard the profile result corresponds to.
 
 Here is a sample code that shows how to iterate over all the profiling results of every shard:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-get]
+include-tagged::{doc-tests-file}[{api}-request-profiling-get]
 --------------------------------------------------
-<1> Retrieve the `Map` of `ProfileShardResult` from the `SearchResponse`
+<1> Retrieve the `Map` of `ProfileShardResult` from the +{response}+
 <2> Profiling results can be retrieved by shard's key if the key is known, otherwise it might be simpler
  to iterate over all the profiling results
 <3> Retrieve the key that identifies which shard the `ProfileShardResult` belongs to
@@ -446,7 +413,7 @@ executed against the underlying Lucene index:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-queries]
+include-tagged::{doc-tests-file}[{api}-request-profiling-queries]
 --------------------------------------------------
 <1> Retrieve the list of `QueryProfileShardResult`
 <2> Iterate over each `QueryProfileShardResult`
@@ -456,21 +423,21 @@ Each `QueryProfileShardResult` gives access to the detailed query tree execution
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-queries-results]
+include-tagged::{doc-tests-file}[{api}-request-profiling-queries-results]
 --------------------------------------------------
 <1> Iterate over the profile results
 <2> Retrieve the name of the Lucene query
 <3> Retrieve the time in millis spent executing the Lucene query
 <4> Retrieve the profile results for the sub-queries (if any)
 
-The Rest API documentation contains more information about {ref}/_profiling_queries.html[Profiling Queries] with
-a description of the {ref}/_profiling_queries.html#_literal_query_literal_section[query profiling information]
+The Rest API documentation contains more information about {ref}/search-profile-queries.html[Profiling Queries] with
+a description of the query profiling information.
 
 The `QueryProfileShardResult` also gives access to the profiling information for the Lucene collectors:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-queries-collectors]
+include-tagged::{doc-tests-file}[{api}-request-profiling-queries-collectors]
 --------------------------------------------------
 <1> Retrieve the profiling result of the Lucene collector
 <2> Retrieve the name of the Lucene collector
@@ -478,14 +445,14 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-
 <4> Retrieve the profile results for the sub-collectors (if any)
 
 The Rest API documentation contains more information about profiling information
-{ref}/_profiling_queries.html#_literal_collectors_literal_section[for Lucene collectors].
+for Lucene collectors. See {ref}/search-profile-queries.html[Profiling queries].
 
 In a very similar manner to the query tree execution, the `QueryProfileShardResult` objects gives access
 to the detailed aggregations tree execution:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-aggs]
+include-tagged::{doc-tests-file}[{api}-request-profiling-aggs]
 --------------------------------------------------
 <1> Retrieve the `AggregationProfileShardResult`
 <2> Iterate over the aggregation profile results
@@ -493,4 +460,5 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-
 <4> Retrieve the time in millis spent executing the Lucene collector
 <5> Retrieve the profile results for the sub-aggregations (if any)
 
-The Rest API documentation contains more information about {ref}/_profiling_aggregations.html[Profiling Aggregations]
+The Rest API documentation contains more information about
+{ref}/search-profile-aggregations.html[Profiling aggregations].

@@ -24,8 +24,10 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class PainlessMethod {
+
     public final Method javaMethod;
     public final Class<?> targetClass;
     public final Class<?> returnType;
@@ -42,5 +44,29 @@ public class PainlessMethod {
         this.typeParameters = Collections.unmodifiableList(typeParameters);
         this.methodHandle = methodHandle;
         this.methodType = methodType;
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) {
+            return true;
+        }
+
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
+
+        PainlessMethod that = (PainlessMethod)object;
+
+        return Objects.equals(javaMethod, that.javaMethod) &&
+                Objects.equals(targetClass, that.targetClass) &&
+                Objects.equals(returnType, that.returnType) &&
+                Objects.equals(typeParameters, that.typeParameters) &&
+                Objects.equals(methodType, that.methodType);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(javaMethod, targetClass, returnType, typeParameters, methodType);
     }
 }

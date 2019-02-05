@@ -34,12 +34,15 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -54,6 +57,9 @@ public final class IngestDocument {
 
     private final Map<String, Object> sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
+
+    // Contains all pipelines that have been executed for this document
+    private final Set<Pipeline> executedPipelines = Collections.newSetFromMap(new IdentityHashMap<>());
 
     public IngestDocument(String index, String type, String id, String routing,
                           Long version, VersionType versionType, Map<String, Object> source) {
@@ -629,6 +635,23 @@ public final class IngestDocument {
             return ((Date) value).clone();
         } else {
             throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+        }
+    }
+
+    /**
+     * Executes the given pipeline with for this document unless the pipeline has already been executed
+     * for this document.
+     * @param pipeline Pipeline to execute
+     * @throws Exception On exception in pipeline execution
+     */
+    public IngestDocument executePipeline(Pipeline pipeline) throws Exception {
+        try {
+            if (this.executedPipelines.add(pipeline) == false) {
+                throw new IllegalStateException("Cycle detected for pipeline: " + pipeline.getId());
+            }
+            return pipeline.execute(this);
+        } finally {
+            executedPipelines.remove(pipeline);
         }
     }
 

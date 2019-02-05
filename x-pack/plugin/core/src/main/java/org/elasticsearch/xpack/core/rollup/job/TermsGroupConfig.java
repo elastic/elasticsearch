@@ -18,17 +18,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -45,7 +39,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class TermsGroupConfig implements Writeable, ToXContentObject {
 
-    private static final String NAME = "terms";
+    static final String NAME = "terms";
     private static final String FIELDS = "fields";
 
     private static final List<String> FLOAT_TYPES = Arrays.asList("half_float", "float", "double", "scaled_float");
@@ -78,29 +72,6 @@ public class TermsGroupConfig implements Writeable, ToXContentObject {
      */
     public String[] getFields() {
         return fields;
-    }
-
-    /**
-     * This returns a set of aggregation builders which represent the configured
-     * set of date histograms.  Used by the rollup indexer to iterate over historical data
-     */
-    public List<CompositeValuesSourceBuilder<?>> toBuilders() {
-        return Arrays.stream(fields).map(f -> {
-            TermsValuesSourceBuilder vsBuilder
-                    = new TermsValuesSourceBuilder(RollupField.formatIndexerAggName(f, TermsAggregationBuilder.NAME));
-            vsBuilder.field(f);
-            vsBuilder.missingBucket(true);
-            return vsBuilder;
-        }).collect(Collectors.toList());
-    }
-
-    /**
-     * @return A map representing this config object as a RollupCaps aggregation object
-     */
-    public Map<String, Object> toAggCap() {
-        Map<String, Object> map = new HashMap<>(1);
-        map.put("agg", TermsAggregationBuilder.NAME);
-        return map;
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,

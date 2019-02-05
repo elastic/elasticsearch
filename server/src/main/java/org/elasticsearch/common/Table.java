@@ -19,8 +19,7 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.time.CompoundDateTimeFormatter;
-import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateFormatter;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -85,7 +84,7 @@ public class Table {
         return this;
     }
 
-    private static final CompoundDateTimeFormatter FORMATTER = DateFormatters.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
+    private static final DateFormatter FORMATTER = DateFormatter.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
 
     public Table startRow() {
         if (headers.isEmpty()) {

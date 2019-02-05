@@ -13,17 +13,19 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
+import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public class TransportGetRollupIndexCapsAction extends HandledTransportAction<GetRollupIndexCapsAction.Request,
@@ -32,9 +34,9 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
     private final ClusterService clusterService;
 
     @Inject
-    public TransportGetRollupIndexCapsAction(Settings settings, TransportService transportService,
-                                             ClusterService clusterService, ActionFilters actionFilters) {
-        super(settings, GetRollupIndexCapsAction.NAME, transportService, actionFilters,
+    public TransportGetRollupIndexCapsAction(TransportService transportService, ClusterService clusterService,
+                                             ActionFilters actionFilters) {
+        super(GetRollupIndexCapsAction.NAME, transportService, actionFilters,
             (Supplier<GetRollupIndexCapsAction.Request>) GetRollupIndexCapsAction.Request::new);
         this.clusterService = clusterService;
     }
@@ -43,7 +45,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
     protected void doExecute(Task task, GetRollupIndexCapsAction.Request request,
                              ActionListener<GetRollupIndexCapsAction.Response> listener) {
 
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(clusterService.getSettings());
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         String[] indices = resolver.concreteIndexNames(clusterService.state(),
             request.indicesOptions(), request.indices());
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(Arrays.asList(indices),
@@ -53,7 +55,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
 
     static Map<String, RollableIndexCaps> getCapsByRollupIndex(List<String> resolvedIndexNames,
                                                                ImmutableOpenMap<String, IndexMetaData> indices) {
-        Map<String, RollableIndexCaps> allCaps = new TreeMap<>();
+        Map<String, List<RollupJobCaps> > allCaps = new TreeMap<>();
 
         StreamSupport.stream(indices.spliterator(), false)
             .filter(entry -> resolvedIndexNames.contains(entry.key))
@@ -63,17 +65,20 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
                     .ifPresent(cap -> {
                         cap.getJobCaps().forEach(jobCap -> {
                             // Do we already have an entry for this index?
-                            RollableIndexCaps indexCaps = allCaps.get(jobCap.getRollupIndex());
+                            List<RollupJobCaps> indexCaps = allCaps.get(jobCap.getRollupIndex());
                             if (indexCaps == null) {
-                                indexCaps = new RollableIndexCaps(jobCap.getRollupIndex());
+                                indexCaps = new ArrayList<>();
                             }
-                            indexCaps.addJobCap(jobCap);
+                            indexCaps.add(jobCap);
                             allCaps.put(jobCap.getRollupIndex(), indexCaps);
                         });
                     });
             });
-
-        return allCaps;
+        // Convert the mutable lists into the RollableIndexCaps
+        return allCaps.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey,
+                e -> new RollableIndexCaps(e.getKey(), e.getValue())));
     }
 
 }

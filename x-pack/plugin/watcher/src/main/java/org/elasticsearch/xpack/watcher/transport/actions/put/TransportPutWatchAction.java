@@ -15,7 +15,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -65,9 +64,9 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
             WatcherParams.builder().hideSecrets(false).hideHeaders(false).includeStatus(true).build();
 
     @Inject
-    public TransportPutWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportPutWatchAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    Clock clock, XPackLicenseState licenseState, WatchParser parser, Client client) {
-        super(settings, PutWatchAction.NAME, transportService, actionFilters, licenseState, PutWatchRequest::new);
+        super(PutWatchAction.NAME, transportService, actionFilters, licenseState, PutWatchRequest::new);
         this.threadPool = threadPool;
         this.clock = clock;
         this.parser = parser;

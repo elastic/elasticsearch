@@ -66,6 +66,7 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
@@ -116,6 +117,23 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(0));
+    }
+
+    public void testMetadataVersion() {
+        createIndex("index-1");
+        createIndex("index-2");
+        long baselineVersion = client().admin().cluster().prepareState().get().getState().metaData().version();
+        assertThat(baselineVersion, greaterThan(0L));
+        assertThat(client().admin().cluster().prepareState().setIndices("index-1").get().getState().metaData().version(),
+            greaterThanOrEqualTo(baselineVersion));
+        assertThat(client().admin().cluster().prepareState().setIndices("index-2").get().getState().metaData().version(),
+            greaterThanOrEqualTo(baselineVersion));
+        assertThat(client().admin().cluster().prepareState().setIndices("*").get().getState().metaData().version(),
+            greaterThanOrEqualTo(baselineVersion));
+        assertThat(client().admin().cluster().prepareState().setIndices("not-found").get().getState().metaData().version(),
+            greaterThanOrEqualTo(baselineVersion));
+        assertThat(client().admin().cluster().prepareState().clear().setMetaData(false).get().getState().metaData().version(),
+            equalTo(0L));
     }
 
     public void testIndexTemplates() throws Exception {
@@ -198,8 +216,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testLargeClusterStatePublishing() throws Exception {
-        int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("10k", "estimatedBytesSize").bytesAsInt(),
-                                                        ByteSizeValue.parseBytesSizeValue("256k", "estimatedBytesSize").bytesAsInt());
+        int estimatedBytesSize = scaledRandomIntBetween(
+            ByteSizeValue.parseBytesSizeValue("10k", "estimatedBytesSize").bytesAsInt(),
+            ByteSizeValue.parseBytesSizeValue("256k", "estimatedBytesSize").bytesAsInt());
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties");
         int counter = 0;
         int numberOfFields = 0;
@@ -224,9 +243,11 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 .addMapping("type", mapping)
                 .setTimeout("60s").get());
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
-        MappingMetaData masterMappingMetaData = client().admin().indices().prepareGetMappings("test").setTypes("type").get().getMappings().get("test").get("type");
+        MappingMetaData masterMappingMetaData = client().admin().indices()
+            .prepareGetMappings("test").setTypes("type").get().getMappings().get("test").get("type");
         for (Client client : clients()) {
-            MappingMetaData mappingMetadata = client.admin().indices().prepareGetMappings("test").setTypes("type").setLocal(true).get().getMappings().get("test").get("type");
+            MappingMetaData mappingMetadata = client.admin().indices()
+                .prepareGetMappings("test").setTypes("type").setLocal(true).get().getMappings().get("test").get("type");
             assertThat(mappingMetadata.source().string(), equalTo(masterMappingMetaData.source().string()));
             assertThat(mappingMetadata, equalTo(masterMappingMetaData));
         }
@@ -271,7 +292,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("a*").setIndicesOptions(allowNoIndices).get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
+            assertThat(e.getMessage(), is("no such index [a*]"));
         }
     }
 
@@ -279,10 +300,11 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         // ignore_unavailable set to false throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
         try {
-            client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
+            client().admin().cluster().prepareState().clear().setMetaData(true)
+                .setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
+            assertThat(e.getMessage(), is("no such index [fzzbzz]"));
         }
     }
 
@@ -368,7 +390,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 if (state.nodes().isLocalNodeElectedMaster()) {
                     if (state.custom("test") == null) {
                         if (installed.compareAndSet(false, true)) {
-                            clusterService.submitStateUpdateTask("install-metadata-custom", new ClusterStateUpdateTask(Priority.URGENT) {
+                            clusterService.submitStateUpdateTask("install-metadata-custom",
+                                new ClusterStateUpdateTask(Priority.URGENT) {
 
                                 @Override
                                 public ClusterState execute(ClusterState currentState) {

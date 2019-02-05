@@ -3,10 +3,12 @@
 [[sql-syntax-show-functions]]
 === SHOW FUNCTIONS
 
+beta[]
+
 .Synopsis
 [source, sql]
 ----
-SHOW FUNCTIONS [ LIKE? pattern<1>? ]?
+SHOW FUNCTIONS [ LIKE pattern<1>? ]?
 ----
 
 <1> SQL match pattern

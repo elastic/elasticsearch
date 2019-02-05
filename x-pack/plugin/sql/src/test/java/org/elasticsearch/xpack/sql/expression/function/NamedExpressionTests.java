@@ -6,36 +6,59 @@
 package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Div;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mul;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Neg;
-import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
 
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 
 public class NamedExpressionTests extends ESTestCase {
 
     public void testArithmeticFunctionName() {
-        Add add = new Add(EMPTY, l(5), l(2));
-        assertEquals("(5 + 2)", add.name());
+        String e = "5 +  2";
+        Add add = new Add(s(e), l(5), l(2));
+        assertEquals(e, add.sourceText());
 
-        Div div = new Div(EMPTY, l(5), l(2));
-        assertEquals("(5 / 2)", div.name());
+        e = "5 /  2";
+        Div div = new Div(s(e), l(5), l(2));
+        assertEquals(e, div.sourceText());
 
-        Mod mod = new Mod(EMPTY, l(5), l(2));
-        assertEquals("(5 % 2)", mod.name());
+        e = "5%2";
+        Mod mod = new Mod(s(e), l(5), l(2));
+        assertEquals(e, mod.sourceText());
 
-        Mul mul = new Mul(EMPTY, l(5), l(2));
-        assertEquals("(5 * 2)", mul.name());
+        e = "5  *  2";
+        Mul mul = new Mul(s(e), l(5), l(2));
+        assertEquals(e, mul.sourceText());
 
-        Sub sub = new Sub(EMPTY, l(5), l(2));
-        assertEquals("(5 - 2)", sub.name());
+        e = "5 -2";
+        Sub sub = new Sub(s(e), l(5), l(2));
+        assertEquals(e, sub.sourceText());
 
-        Neg neg = new Neg(EMPTY, l(5));
-        assertEquals("-5", neg.name());
+        e = " -  5";
+        Neg neg = new Neg(s(e), l(5));
+        assertEquals(e, neg.sourceText());
+    }
+
+    public void testNameForArithmeticFunctionAppliedOnTableColumn() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "myField", new EsField("myESField", DataType.INTEGER, emptyMap(), true));
+        String e = "myField  + 10";
+        Add add = new Add(s(e), fa, l(10));
+        assertEquals(e, add.sourceText());
+    }
+
+    private static Source s(String text) {
+        return new Source(Location.EMPTY, text);
     }
 
     private static Literal l(Object value) {

@@ -36,14 +36,14 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public abstract class SiblingPipelineAggregator extends PipelineAggregator {
-    protected SiblingPipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
+    SiblingPipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
         super(name, bucketsPaths, metaData);
     }
 
     /**
      * Read from a stream.
      */
-    protected SiblingPipelineAggregator(StreamInput in) throws IOException {
+    SiblingPipelineAggregator(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -55,15 +55,15 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
             InternalMultiBucketAggregation multiBucketsAgg = (InternalMultiBucketAggregation) aggregation;
             List<? extends Bucket> buckets = multiBucketsAgg.getBuckets();
             List<Bucket> newBuckets = new ArrayList<>();
-            for (int i = 0; i < buckets.size(); i++) {
-                InternalMultiBucketAggregation.InternalBucket bucket = (InternalMultiBucketAggregation.InternalBucket) buckets.get(i);
+            for (Bucket bucket1 : buckets) {
+                InternalMultiBucketAggregation.InternalBucket bucket = (InternalMultiBucketAggregation.InternalBucket) bucket1;
                 InternalAggregation aggToAdd = doReduce(bucket.getAggregations(), reduceContext);
-                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
-                    return (InternalAggregation) p;
-                }).collect(Collectors.toList());
+                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
+                    .map((p) -> (InternalAggregation) p)
+                    .collect(Collectors.toList());
                 aggs.add(aggToAdd);
                 InternalMultiBucketAggregation.InternalBucket newBucket = multiBucketsAgg.createBucket(new InternalAggregations(aggs),
-                        bucket);
+                    bucket);
                 newBuckets.add(newBucket);
             }
 
@@ -71,9 +71,9 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
         } else if (aggregation instanceof InternalSingleBucketAggregation) {
             InternalSingleBucketAggregation singleBucketAgg = (InternalSingleBucketAggregation) aggregation;
             InternalAggregation aggToAdd = doReduce(singleBucketAgg.getAggregations(), reduceContext);
-            List<InternalAggregation> aggs = StreamSupport.stream(singleBucketAgg.getAggregations().spliterator(), false).map((p) -> {
-                return (InternalAggregation) p;
-            }).collect(Collectors.toList());
+            List<InternalAggregation> aggs = StreamSupport.stream(singleBucketAgg.getAggregations().spliterator(), false)
+                .map((p) -> (InternalAggregation) p)
+                .collect(Collectors.toList());
             aggs.add(aggToAdd);
             return singleBucketAgg.create(new InternalAggregations(aggs));
         } else {

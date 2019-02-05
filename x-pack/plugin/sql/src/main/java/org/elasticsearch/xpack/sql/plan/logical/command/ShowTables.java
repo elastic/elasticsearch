@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
@@ -22,16 +22,22 @@ import static java.util.stream.Collectors.toList;
 
 public class ShowTables extends Command {
 
+    private final String index;
     private final LikePattern pattern;
 
-    public ShowTables(Location location, LikePattern pattern) {
-        super(location);
+    public ShowTables(Source source, String index, LikePattern pattern) {
+        super(source);
+        this.index = index;
         this.pattern = pattern;
     }
 
     @Override
     protected NodeInfo<ShowTables> info() {
-        return NodeInfo.create(this, ShowTables::new, pattern);
+        return NodeInfo.create(this, ShowTables::new, index, pattern);
+    }
+
+    public String index() {
+        return index;
     }
 
     public LikePattern pattern() {
@@ -45,9 +51,9 @@ public class ShowTables extends Command {
 
     @Override
     public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        String index = pattern != null ? pattern.asIndexNameWildcard() : "*";
+        String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
-        session.indexResolver().resolveNames(index, regex, null, ActionListener.wrap(result -> {
+        session.indexResolver().resolveNames(idx, regex, null, ActionListener.wrap(result -> {
             listener.onResponse(Rows.of(output(), result.stream()
                  .map(t -> asList(t.name(), t.type().toSql()))
                 .collect(toList())));
@@ -56,7 +62,7 @@ public class ShowTables extends Command {
 
     @Override
     public int hashCode() {
-        return Objects.hash(pattern);
+        return Objects.hash(index, pattern);
     }
 
     @Override
@@ -70,6 +76,7 @@ public class ShowTables extends Command {
         }
 
         ShowTables other = (ShowTables) obj;
-        return Objects.equals(pattern, other.pattern);
+        return Objects.equals(index, other.index) 
+                && Objects.equals(pattern, other.pattern);
     }
 }

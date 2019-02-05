@@ -66,8 +66,8 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         entries.addAll(ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS);
         entries.add(new NamedXContentRegistry.Entry(ExecutableSection.class,
                 new ParseField("compare_analyzers"), CompareAnalyzers::parse));
-        NamedXContentRegistry executeableSectionRegistry = new NamedXContentRegistry(entries);
-        return ESClientYamlSuiteTestCase.createParameters(executeableSectionRegistry);
+        NamedXContentRegistry executableSectionRegistry = new NamedXContentRegistry(entries);
+        return ESClientYamlSuiteTestCase.createParameters(executableSectionRegistry);
     }
 
     @Override
@@ -92,8 +92,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             final List<HttpHost> hosts,
             final Version esVersion,
             final Version masterVersion) {
-        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion,
-                restClientBuilder -> configureClient(restClientBuilder, restClientSettings()));
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion, masterVersion, this::getClientBuilderWithSniffedHosts);
     }
 
     /**

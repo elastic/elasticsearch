@@ -7,7 +7,7 @@ setup:
       cluster.health:
         wait_for_status: yellow
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
@@ -15,7 +15,7 @@ setup:
               "roles" : [ "x_cluster_role" ]
             }
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "x_cluster_role"
         body:  >
             {
@@ -149,6 +149,7 @@ setup:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: test_index
         body:
           aggs:
@@ -165,6 +166,7 @@ setup:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: aliased_test_index
 
   - match: { _shards.total: 3 }
@@ -175,6 +177,7 @@ setup:
   - do:
       headers: { Authorization: "Basic am9lOnMza3JpdA==" }
       search:
+        rest_total_hits_as_int: true
         index: secure_alias
 
   - match: { _shards.total: 2 }
@@ -188,11 +191,11 @@ setup:
 #  request clears the cached reference to the user so we do not need to do
 #  that manually
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "joe"
         body:  >
             {
               "password": "s3krit",
               "roles" : [ ]
             }
-  - match: { user: { created: false } }
+  - match: { created: false }

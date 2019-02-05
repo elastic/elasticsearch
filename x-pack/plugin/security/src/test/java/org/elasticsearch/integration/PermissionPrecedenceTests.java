@@ -8,7 +8,7 @@ package org.elasticsearch.integration;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.SecureString;
@@ -87,11 +87,11 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
         // first lets try with "admin"... all should work
 
-        PutIndexTemplateResponse putResponse = client
+        AcknowledgedResponse putResponse = client
             .filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER,
                     basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))
             .admin().indices().preparePutTemplate("template1")
-            .setTemplate("test_*")
+            .setPatterns(Collections.singletonList("test_*"))
             .get();
         assertAcked(putResponse);
 
@@ -105,7 +105,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
         Map<String, String> auth = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
                 transportClientPassword()));
         assertThrowsAuthorizationException(client.filterWithHeader(auth).admin().indices().preparePutTemplate("template1")
-                .setTemplate("test_*")::get, PutIndexTemplateAction.NAME, "user");
+                .setPatterns(Collections.singletonList("test_*"))::get, PutIndexTemplateAction.NAME, "user");
 
         Map<String, String> headers = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
                 new SecureString("test123")));

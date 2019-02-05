@@ -31,8 +31,8 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -104,11 +104,12 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         DateMathParser parser = type.dateMathParser;
         Query query = new QueryStringQueryBuilder(DATE_RANGE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createShardContext());
         Query range = LongRange.newIntersectsQuery(DATE_RANGE_FIELD_NAME,
-            new long[]{ parser.parse("2010-01-01", () -> 0)}, new long[]{ parser.parse("2018-01-01", () -> 0)});
+            new long[]{ parser.parse("2010-01-01", () -> 0).toEpochMilli()},
+            new long[]{ parser.parse("2018-01-01", () -> 0).toEpochMilli()});
         Query dv = RangeFieldMapper.RangeType.DATE.dvRangeQuery(DATE_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
-            parser.parse("2010-01-01", () -> 0),
-            parser.parse("2018-01-01", () -> 0), true, true);
+            parser.parse("2010-01-01", () -> 0).toEpochMilli(),
+            parser.parse("2018-01-01", () -> 0).toEpochMilli(), true, true);
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
     }
 

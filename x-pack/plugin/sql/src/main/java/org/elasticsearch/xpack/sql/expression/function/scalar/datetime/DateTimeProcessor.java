@@ -7,62 +7,59 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeFieldType;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableDateTime;
-import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
 import java.util.Objects;
-import java.util.TimeZone;
 
-public class DateTimeProcessor implements Processor {
+public class DateTimeProcessor extends BaseDateTimeProcessor {
     
     public enum DateTimeExtractor {
-        DAY_OF_MONTH(DateTimeFieldType.dayOfMonth()),
-        DAY_OF_WEEK(DateTimeFieldType.dayOfWeek()),
-        DAY_OF_YEAR(DateTimeFieldType.dayOfYear()),
-        HOUR_OF_DAY(DateTimeFieldType.hourOfDay()),
-        MINUTE_OF_DAY(DateTimeFieldType.minuteOfDay()),
-        MINUTE_OF_HOUR(DateTimeFieldType.minuteOfHour()),
-        MONTH_OF_YEAR(DateTimeFieldType.monthOfYear()),
-        SECOND_OF_MINUTE(DateTimeFieldType.secondOfMinute()),
-        WEEK_OF_YEAR(DateTimeFieldType.weekOfWeekyear()),
-        YEAR(DateTimeFieldType.year());
+        DAY_OF_MONTH(ChronoField.DAY_OF_MONTH),
+        ISO_DAY_OF_WEEK(ChronoField.DAY_OF_WEEK),
+        DAY_OF_YEAR(ChronoField.DAY_OF_YEAR),
+        HOUR_OF_DAY(ChronoField.HOUR_OF_DAY),
+        MINUTE_OF_DAY(ChronoField.MINUTE_OF_DAY),
+        MINUTE_OF_HOUR(ChronoField.MINUTE_OF_HOUR),
+        MONTH_OF_YEAR(ChronoField.MONTH_OF_YEAR),
+        SECOND_OF_MINUTE(ChronoField.SECOND_OF_MINUTE),
+        ISO_WEEK_OF_YEAR(ChronoField.ALIGNED_WEEK_OF_YEAR),
+        YEAR(ChronoField.YEAR);
 
-        private final DateTimeFieldType field;
+        private final ChronoField field;
 
-        DateTimeExtractor(DateTimeFieldType field) {
+        DateTimeExtractor(ChronoField field) {
             this.field = field;
         }
 
-        public int extract(ReadableDateTime dt) {
+        public int extract(ZonedDateTime dt) {
             return dt.get(field);
+        }
+
+        public ChronoField chronoField() {
+            return field;
         }
     }
     
     public static final String NAME = "dt";
-
     private final DateTimeExtractor extractor;
-    private final TimeZone timeZone;
 
-    public DateTimeProcessor(DateTimeExtractor extractor, TimeZone timeZone) {
+    public DateTimeProcessor(DateTimeExtractor extractor, ZoneId zoneId) {
+        super(zoneId);
         this.extractor = extractor;
-        this.timeZone = timeZone;
     }
 
     public DateTimeProcessor(StreamInput in) throws IOException {
+        super(in);
         extractor = in.readEnum(DateTimeExtractor.class);
-        timeZone = TimeZone.getTimeZone(in.readString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeEnum(extractor);
-        out.writeString(timeZone.getID());
     }
 
     @Override
@@ -75,32 +72,13 @@ public class DateTimeProcessor implements Processor {
     }
 
     @Override
-    public Object process(Object l) {
-        if (l == null) {
-            return null;
-        }
-
-        ReadableDateTime dt;
-        if (l instanceof String) {
-            // 6.4+
-            final long millis = Long.parseLong(l.toString());
-            dt = new DateTime(millis, DateTimeZone.forTimeZone(timeZone));
-        } else if (l instanceof ReadableInstant) {
-            // 6.3-
-            dt = (ReadableDateTime) l;
-            if (!TimeZone.getTimeZone("UTC").equals(timeZone)) {
-                dt = dt.toDateTime().withZone(DateTimeZone.forTimeZone(timeZone));
-            }
-        } else {
-            throw new SqlIllegalArgumentException("A string or a date is required; received {}", l);
-        }
-
-        return extractor.extract(dt);
+    public Object doProcess(ZonedDateTime dateTime) {
+        return extractor.extract(dateTime);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(extractor, timeZone);
+        return Objects.hash(extractor, zoneId());
     }
 
     @Override
@@ -110,7 +88,7 @@ public class DateTimeProcessor implements Processor {
         }
         DateTimeProcessor other = (DateTimeProcessor) obj;
         return Objects.equals(extractor, other.extractor)
-                && Objects.equals(timeZone, other.timeZone);
+                && Objects.equals(zoneId(), other.zoneId());
     }
 
     @Override

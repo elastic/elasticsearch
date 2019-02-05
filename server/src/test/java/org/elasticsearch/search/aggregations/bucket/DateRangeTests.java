@@ -36,7 +36,7 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
     @Override
     protected DateRangeAggregationBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
-        DateRangeAggregationBuilder factory = new DateRangeAggregationBuilder("foo");
+        DateRangeAggregationBuilder factory = new DateRangeAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
@@ -65,7 +65,7 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
             factory.missing(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
-            factory.timeZone(randomDateTimeZone());
+            factory.timeZone(randomZone());
         }
         return factory;
     }

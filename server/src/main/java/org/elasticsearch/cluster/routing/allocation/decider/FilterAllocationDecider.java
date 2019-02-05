@@ -72,14 +72,14 @@ public class FilterAllocationDecider extends AllocationDecider {
     private static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.include";
     private static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = "cluster.routing.allocation.exclude";
     public static final Setting.AffixSetting<String> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.prefixKeySetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".", (key) ->
-            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
+        Setting.prefixKeySetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".", key ->
+            Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
     public static final Setting.AffixSetting<String> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.prefixKeySetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".", (key) ->
-            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
+        Setting.prefixKeySetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".", key ->
+            Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
     public static final Setting.AffixSetting<String>CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.prefixKeySetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", (key) ->
-            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
+        Setting.prefixKeySetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", key ->
+            Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.NodeScope));
 
     /**
      * The set of {@link RecoverySource.Type} values for which the
@@ -97,13 +97,12 @@ public class FilterAllocationDecider extends AllocationDecider {
     private volatile DiscoveryNodeFilters clusterExcludeFilters;
 
     public FilterAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings));
         setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings));
         setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings));
-        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, (a,b)-> {}, true);
-        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a,b)-> {}, true);
-        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, (a,b)-> {}, true);
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, (a, b) -> {});
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, (a, b) -> {});
+        clusterSettings.addAffixMapUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, (a, b) -> {});
     }
 
     @Override
@@ -158,13 +157,13 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     private Decision shouldIndexFilter(IndexMetaData indexMd, RoutingNode node, RoutingAllocation allocation) {
         if (indexMd.requireFilters() != null) {
-            if (!indexMd.requireFilters().match(node.node())) {
+            if (indexMd.requireFilters().match(node.node()) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match index setting [%s] filters [%s]",
                     IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX, indexMd.requireFilters());
             }
         }
         if (indexMd.includeFilters() != null) {
-            if (!indexMd.includeFilters().match(node.node())) {
+            if (indexMd.includeFilters().match(node.node()) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match index setting [%s] filters [%s]",
                     IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_PREFIX, indexMd.includeFilters());
             }
@@ -180,13 +179,13 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     private Decision shouldClusterFilter(RoutingNode node, RoutingAllocation allocation) {
         if (clusterRequireFilters != null) {
-            if (!clusterRequireFilters.match(node.node())) {
+            if (clusterRequireFilters.match(node.node()) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not match cluster setting [%s] filters [%s]",
                     CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX, clusterRequireFilters);
             }
         }
         if (clusterIncludeFilters != null) {
-            if (!clusterIncludeFilters.match(node.node())) {
+            if (clusterIncludeFilters.match(node.node()) == false) {
                 return allocation.decision(Decision.NO, NAME, "node does not cluster setting [%s] filters [%s]",
                     CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX, clusterIncludeFilters);
             }

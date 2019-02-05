@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -38,15 +36,6 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
     private String id;
     private BytesReference source;
     private XContentType xContentType;
-
-    /**
-     * Create a new pipeline request
-     * @deprecated use {@link #PutPipelineRequest(String, BytesReference, XContentType)} to avoid content type auto-detection
-     */
-    @Deprecated
-    public PutPipelineRequest(String id, BytesReference source) {
-        this(id, source, XContentHelper.xContentType(source));
-    }
 
     /**
      * Create a new pipeline request with the id and source along with the content type of the source
@@ -82,11 +71,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super.readFrom(in);
         id = in.readString();
         source = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType = in.readEnum(XContentType.class);
-        } else {
-            xContentType = XContentHelper.xContentType(source);
-        }
+        xContentType = in.readEnum(XContentType.class);
     }
 
     @Override
@@ -94,9 +79,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super.writeTo(out);
         out.writeString(id);
         out.writeBytesReference(source);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            out.writeEnum(xContentType);
-        }
+        out.writeEnum(xContentType);
     }
 
     @Override

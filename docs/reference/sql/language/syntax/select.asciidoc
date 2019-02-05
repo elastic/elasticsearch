@@ -3,6 +3,8 @@
 [[sql-syntax-select]]
 === SELECT
 
+beta[]
+
 .Synopsis
 [source, sql]
 ----
@@ -88,7 +90,7 @@ where:
 Represents the name (optionally qualified) of an existing table, either a concrete or base one (actual index) or alias.
 
 
-If the table name contains special SQL characters (such as `.`,`-`,etc...) use double quotes to escape them:
+If the table name contains special SQL characters (such as `.`,`-`,`*`,etc...) use double quotes to escape them:
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
@@ -266,7 +268,7 @@ include-tagged::{sql-specs}/docs.csv-spec[groupByHavingMultiple]
 [float]
 ===== Implicit Grouping
 
-As indicated above, it is possible to have a `HAVING` clause without a ``GROUP BY``. In this case, the so-called <<sql-syntax-group-by-implicit, __implicit grouping__>> is applied, meaning all selected rows are considered to form a single group and `HAVING` can be applied on any of the aggregate functions specified on this group. ` 
+As indicated above, it is possible to have a `HAVING` clause without a `GROUP BY`. In this case, the so-called <<sql-syntax-group-by-implicit, __implicit grouping__>> is applied, meaning all selected rows are considered to form a single group and `HAVING` can be applied on any of the aggregate functions specified on this group.
 As such, the query emits only a single row (as there is only a single group) and `HAVING` condition returns either one row (the group) or zero if the condition fails.
 
 In this example, `HAVING` matches:
@@ -299,8 +301,8 @@ where:
 
 `expression`::
 
-Represents an input column, an output column or an ordinal number of the position (starting from one) of an output column. Additionally, ordering can be done based on the results _score_ ` 
-The direction, if not specified, is by default `ASC` (ascending). ` 
+Represents an input column, an output column or an ordinal number of the position (starting from one) of an output column. Additionally, ordering can be done based on the results _score_.
+The direction, if not specified, is by default `ASC` (ascending).
 Regardless of the ordering specified, null values are ordered last (at the end).
 
 IMPORTANT: When used along-side, `GROUP BY` expression can point _only_ to the columns used for grouping.

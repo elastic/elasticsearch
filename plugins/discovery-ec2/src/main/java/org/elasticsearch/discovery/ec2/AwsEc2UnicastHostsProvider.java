@@ -27,9 +27,11 @@ import com.amazonaws.services.ec2.model.GroupIdentifier;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
 import com.amazonaws.services.ec2.model.Tag;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -44,13 +46,15 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.disjoint;
-import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.TAG_PREFIX;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_DNS;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PRIVATE_IP;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_DNS;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_IP;
+import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.TAG_PREFIX;
 
-class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+class AwsEc2UnicastHostsProvider implements UnicastHostsProvider {
+    
+    private static final Logger logger = LogManager.getLogger(AwsEc2UnicastHostsProvider.class);
 
     private final TransportService transportService;
 
@@ -69,7 +73,6 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
     private final TransportAddressesCache dynamicHosts;
 
     AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
-        super(settings);
         this.transportService = transportService;
         this.awsEc2Service = awsEc2Service;
 

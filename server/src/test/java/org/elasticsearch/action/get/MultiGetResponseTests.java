@@ -70,7 +70,7 @@ public class MultiGetResponseTests extends ESTestCase {
         for (int i = 0; i < items.length; i++) {
             if (randomBoolean()) {
                 items[i] = new MultiGetItemResponse(new GetResponse(new GetResult(
-                        randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4), randomNonNegativeLong(),
+                        randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4), 0, 1, randomNonNegativeLong(),
                         true, null, null
                 )), null);
             } else {

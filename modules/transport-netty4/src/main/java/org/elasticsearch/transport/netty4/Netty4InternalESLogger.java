@@ -20,9 +20,10 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.util.internal.logging.AbstractInternalLogger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressLoggerChecks;
-import org.elasticsearch.common.logging.Loggers;
 
 @SuppressLoggerChecks(reason = "safely delegates to logger")
 class Netty4InternalESLogger extends AbstractInternalLogger {
@@ -31,7 +32,7 @@ class Netty4InternalESLogger extends AbstractInternalLogger {
 
     Netty4InternalESLogger(final String name) {
         super(name);
-        this.logger = Loggers.getLogger(name);
+        this.logger = LogManager.getLogger(name);
     }
 
     @Override

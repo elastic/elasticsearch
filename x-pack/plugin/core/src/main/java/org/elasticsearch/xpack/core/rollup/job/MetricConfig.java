@@ -16,22 +16,13 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -54,13 +45,13 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public class MetricConfig implements Writeable, ToXContentObject {
 
     // TODO: replace these with an enum
-    private static final ParseField MIN = new ParseField("min");
-    private static final ParseField MAX = new ParseField("max");
-    private static final ParseField SUM = new ParseField("sum");
-    private static final ParseField AVG = new ParseField("avg");
-    private static final ParseField VALUE_COUNT = new ParseField("value_count");
+    public static final ParseField MIN = new ParseField("min");
+    public static final ParseField MAX = new ParseField("max");
+    public static final ParseField SUM = new ParseField("sum");
+    public static final ParseField AVG = new ParseField("avg");
+    public static final ParseField VALUE_COUNT = new ParseField("value_count");
 
-    private static final String NAME = "metrics";
+    static final String NAME = "metrics";
     private static final String FIELD = "field";
     private static final String METRICS = "metrics";
     private static final ConstructingObjectParser<MetricConfig, Void> PARSER;
@@ -95,7 +86,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
 
     MetricConfig(final StreamInput in) throws IOException {
         field = in.readString();
-        metrics = in.readList(StreamInput::readString);
+        metrics = in.readStringList();
     }
 
     /**
@@ -112,71 +103,30 @@ public class MetricConfig implements Writeable, ToXContentObject {
         return metrics;
     }
 
-    /**
-     * This returns a set of aggregation builders which represent the configured
-     * set of metrics.  Used by the rollup indexer to iterate over historical data
-     */
-    public List<ValuesSourceAggregationBuilder.LeafOnly> toBuilders() {
-        if (metrics.size() == 0) {
-            return Collections.emptyList();
-        }
-
-        List<ValuesSourceAggregationBuilder.LeafOnly> aggs = new ArrayList<>(metrics.size());
-        for (String metric : metrics) {
-            ValuesSourceAggregationBuilder.LeafOnly newBuilder;
-            if (metric.equals(MIN.getPreferredName())) {
-                newBuilder = new MinAggregationBuilder(RollupField.formatFieldName(field, MinAggregationBuilder.NAME, RollupField.VALUE));
-            } else if (metric.equals(MAX.getPreferredName())) {
-                newBuilder = new MaxAggregationBuilder(RollupField.formatFieldName(field, MaxAggregationBuilder.NAME, RollupField.VALUE));
-            } else if (metric.equals(AVG.getPreferredName())) {
-                // Avgs are sum + count
-                newBuilder = new SumAggregationBuilder(RollupField.formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.VALUE));
-                ValuesSourceAggregationBuilder.LeafOnly countBuilder
-                        = new ValueCountAggregationBuilder(
-                                RollupField.formatFieldName(field, AvgAggregationBuilder.NAME, RollupField.COUNT_FIELD), ValueType.NUMERIC);
-                countBuilder.field(field);
-                aggs.add(countBuilder);
-            } else if (metric.equals(SUM.getPreferredName())) {
-                newBuilder = new SumAggregationBuilder(RollupField.formatFieldName(field, SumAggregationBuilder.NAME, RollupField.VALUE));
-            } else if (metric.equals(VALUE_COUNT.getPreferredName())) {
-                // TODO allow non-numeric value_counts.
-                // Hardcoding this is fine for now since the job validation guarantees that all metric fields are numerics
-                newBuilder = new ValueCountAggregationBuilder(
-                        RollupField.formatFieldName(field, ValueCountAggregationBuilder.NAME, RollupField.VALUE), ValueType.NUMERIC);
-            } else {
-                throw new IllegalArgumentException("Unsupported metric type [" + metric + "]");
-            }
-            newBuilder.field(field);
-            aggs.add(newBuilder);
-        }
-        return aggs;
-    }
-
-    /**
-     * @return A map representing this config object as a RollupCaps aggregation object
-     */
-    public List<Map<String, Object>> toAggCap() {
-        return metrics.stream().map(metric -> Collections.singletonMap("agg", (Object)metric)).collect(Collectors.toList());
-    }
-
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
                                  ActionRequestValidationException validationException) {
 
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
         if (fieldCaps != null && fieldCaps.isEmpty() == false) {
             fieldCaps.forEach((key, value) -> {
+                if (value.isAggregatable() == false) {
+                    validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
+                        "but is not.");
+                }
                 if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
-                    if (value.isAggregatable() == false) {
-                        validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
-                                "but is not.");
+                    // nothing to do as all metrics are supported by SUPPORTED_NUMERIC_METRICS currently
+                } else if (RollupField.DATE_FIELD_MAPPER_TYPE.equals(key)) {
+                    if (RollupField.SUPPORTED_DATE_METRICS.containsAll(metrics) == false) {
+                        validationException.addValidationError(
+                            buildSupportedMetricError("date", RollupField.SUPPORTED_DATE_METRICS));
                     }
                 } else {
-                    validationException.addValidationError("The field referenced by a metric group must be a [numeric] type, but found " +
-                            fieldCaps.keySet().toString() + " for field [" + field + "]");
+                    validationException.addValidationError("The field referenced by a metric group must be a [numeric] or [date] type, " +
+                        "but found " + fieldCaps.keySet().toString() + " for field [" + field + "]");
                 }
             });
         } else {
-            validationException.addValidationError("Could not find a [numeric] field with name [" + field + "] in any of the " +
+            validationException.addValidationError("Could not find a [numeric] or [date] field with name [" + field + "] in any of the " +
                     "indices matching the index pattern.");
         }
     }
@@ -194,7 +144,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
-        out.writeStringList(metrics);
+        out.writeStringCollection(metrics);
     }
 
     @Override
@@ -222,5 +172,12 @@ public class MetricConfig implements Writeable, ToXContentObject {
 
     public static MetricConfig fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    private String buildSupportedMetricError(String type, List<String> supportedMetrics) {
+        List<String> unsupportedMetrics = new ArrayList<>(metrics);
+        unsupportedMetrics.removeAll(supportedMetrics);
+        return "Only the metrics " + supportedMetrics + " are supported for [" + type + "] types," +
+            " but unsupported metrics " + unsupportedMetrics + " supplied for field [" + field + "]";
     }
 }

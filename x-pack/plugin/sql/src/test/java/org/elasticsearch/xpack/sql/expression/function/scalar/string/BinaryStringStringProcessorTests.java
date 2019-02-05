@@ -11,10 +11,10 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor.BinaryStringStringOperation;
+import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
 
 public class BinaryStringStringProcessorTests extends AbstractWireSerializingTestCase<BinaryStringStringProcessor> {
@@ -38,26 +38,26 @@ public class BinaryStringStringProcessorTests extends AbstractWireSerializingTes
     }
     
     public void testPositionFunctionWithValidInput() {
-        assertEquals(4, new Position(EMPTY, l("bar"), l("foobar")).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals(1, new Position(EMPTY, l("foo"), l("foobar")).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals(0, new Position(EMPTY, l("foo"), l("bar")).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals(3, new Position(EMPTY, l('r'), l("bar")).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals(0, new Position(EMPTY, l('z'), l("bar")).makeProcessorDefinition().asProcessor().process(null));
-        assertEquals(1, new Position(EMPTY, l('b'), l('b')).makeProcessorDefinition().asProcessor().process(null));
+        assertEquals(4, new Position(EMPTY, l("bar"), l("foobar")).makePipe().asProcessor().process(null));
+        assertEquals(1, new Position(EMPTY, l("foo"), l("foobar")).makePipe().asProcessor().process(null));
+        assertEquals(0, new Position(EMPTY, l("foo"), l("bar")).makePipe().asProcessor().process(null));
+        assertEquals(3, new Position(EMPTY, l('r'), l("bar")).makePipe().asProcessor().process(null));
+        assertEquals(0, new Position(EMPTY, l('z'), l("bar")).makePipe().asProcessor().process(null));
+        assertEquals(1, new Position(EMPTY, l('b'), l('b')).makePipe().asProcessor().process(null));
     }
     
     public void testPositionFunctionWithEdgeCases() {
-        assertNull(new Position(EMPTY, l("foo"), l(null)).makeProcessorDefinition().asProcessor().process(null));
-        assertNull(new Position(EMPTY, l(null), l("foo")).makeProcessorDefinition().asProcessor().process(null));
-        assertNull(new Position(EMPTY, l(null), l(null)).makeProcessorDefinition().asProcessor().process(null));
+        assertNull(new Position(EMPTY, l("foo"), l(null)).makePipe().asProcessor().process(null));
+        assertNull(new Position(EMPTY, l(null), l("foo")).makePipe().asProcessor().process(null));
+        assertNull(new Position(EMPTY, l(null), l(null)).makePipe().asProcessor().process(null));
     }
     
     public void testPositionFunctionInputsValidation() {
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Position(EMPTY, l(5), l("foo")).makeProcessorDefinition().asProcessor().process(null));
+                () -> new Position(EMPTY, l(5), l("foo")).makePipe().asProcessor().process(null));
         assertEquals("A string/char is required; received [5]", siae.getMessage());
         siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Position(EMPTY, l("foo bar"), l(3)).makeProcessorDefinition().asProcessor().process(null));
+                () -> new Position(EMPTY, l("foo bar"), l(3)).makePipe().asProcessor().process(null));
         assertEquals("A string/char is required; received [3]", siae.getMessage());
     }
 }

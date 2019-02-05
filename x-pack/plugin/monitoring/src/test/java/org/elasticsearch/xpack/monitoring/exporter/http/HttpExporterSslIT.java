@@ -95,14 +95,14 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         final Path key = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.pem");
 
         final Settings sslSettings = Settings.builder()
-            .put("xpack.ssl.certificate", cert)
-            .put("xpack.ssl.key", key)
-            .put("xpack.ssl.key_passphrase", "testnode")
+            .put("xpack.transport.security.ssl.certificate", cert)
+            .put("xpack.transport.security.ssl.key", key)
+            .put("xpack.transport.security.ssl.key_passphrase", "testnode")
             .put(globalSettings)
             .build();
 
         TestsSSLService sslService = new TestsSSLService(sslSettings, environment);
-        final SSLContext sslContext = sslService.sslContext(Settings.EMPTY);
+        final SSLContext sslContext = sslService.sslContext("xpack.security.transport.ssl");
         MockWebServer server = new MockWebServer(sslContext, false);
         server.start();
         return server;
@@ -144,7 +144,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             .put("xpack.monitoring.exporters._new.host", "https://" + webServer.getHostName() + ":" + webServer.getPort())
             .put("xpack.monitoring.exporters._new.ssl.truststore.path", truststore)
             .put("xpack.monitoring.exporters._new.ssl.truststore.password", "testnode")
-            .put("xpack.monitoring.exporters._new.ssl.verification_mode", VerificationMode.NONE.name())
+            .put("xpack.monitoring.exporters._new.ssl.verification_mode", VerificationMode.CERTIFICATE.name())
             .build();
         updateSettings.transientSettings(settings);
         final ActionFuture<ClusterUpdateSettingsResponse> future = client().admin().cluster().updateSettings(updateSettings);

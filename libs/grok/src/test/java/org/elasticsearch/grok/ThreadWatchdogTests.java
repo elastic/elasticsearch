@@ -18,15 +18,25 @@
  */
 package org.elasticsearch.grok;
 
-import org.elasticsearch.test.ESTestCase;
-
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class ThreadWatchdogTests extends ESTestCase {
-    
+
     public void testInterrupt() throws Exception {
         AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
         ThreadWatchdog watchdog = ThreadWatchdog.newInstance(10, 100, System::currentTimeMillis, (delay, command) -> {
@@ -43,7 +53,7 @@ public class ThreadWatchdogTests extends ESTestCase {
             thread.start();
             return null;
         });
-    
+
         Map<?, ?> registry = ((ThreadWatchdog.Default) watchdog).registry;
         assertThat(registry.size(), is(0));
         // need to call #register() method on a different thread, assertBusy() fails if current thread gets interrupted
@@ -66,5 +76,39 @@ public class ThreadWatchdogTests extends ESTestCase {
             assertThat(registry.size(), is(0));
         });
     }
-    
+
+    public void testIdleIfNothingRegistered() throws Exception {
+        long interval = 1L;
+        ScheduledExecutorService threadPool = mock(ScheduledExecutorService.class);
+        ThreadWatchdog watchdog = ThreadWatchdog.newInstance(interval, Long.MAX_VALUE, System::currentTimeMillis,
+            (delay, command) -> threadPool.schedule(command, delay, TimeUnit.MILLISECONDS));
+        // Periodic action is not scheduled because no thread is registered
+        verifyZeroInteractions(threadPool);
+        CompletableFuture<Runnable> commandFuture = new CompletableFuture<>();
+        // Periodic action is scheduled because a thread is registered
+        doAnswer(invocationOnMock -> {
+            commandFuture.complete((Runnable) invocationOnMock.getArguments()[0]);
+            return null;
+        }).when(threadPool).schedule(
+            any(Runnable.class), eq(interval), eq(TimeUnit.MILLISECONDS)
+        );
+        watchdog.register();
+        // Registering the first thread should have caused the command to get scheduled again
+        Runnable command = commandFuture.get(1L, TimeUnit.MILLISECONDS);
+        Mockito.reset(threadPool);
+        watchdog.unregister();
+        command.run();
+        // Periodic action is not scheduled again because no thread is registered
+        verifyZeroInteractions(threadPool);
+        watchdog.register();
+        Thread otherThread = new Thread(watchdog::register);
+        try {
+            verify(threadPool).schedule(any(Runnable.class), eq(interval), eq(TimeUnit.MILLISECONDS));
+            // Registering a second thread does not cause the command to get scheduled twice
+            verifyNoMoreInteractions(threadPool);
+            otherThread.start();
+        } finally {
+            otherThread.join();
+        }
+    }
 }

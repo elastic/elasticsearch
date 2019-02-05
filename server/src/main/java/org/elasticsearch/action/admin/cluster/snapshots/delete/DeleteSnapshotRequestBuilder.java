@@ -19,13 +19,15 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Delete snapshot request builder
  */
-public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteSnapshotRequest, DeleteSnapshotResponse, DeleteSnapshotRequestBuilder> {
+public class DeleteSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<DeleteSnapshotRequest,
+        AcknowledgedResponse, DeleteSnapshotRequestBuilder> {
 
     /**
      * Constructs delete snapshot request builder

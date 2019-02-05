@@ -139,12 +139,14 @@ public class MoveAllocationCommand implements AllocationCommand {
                 if (explain) {
                     return new RerouteExplanation(this, decision);
                 }
-                throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " + toDiscoNode + ", since its not allowed, reason: " + decision);
+                throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " +
+                    toDiscoNode + ", since its not allowed, reason: " + decision);
             }
             if (decision.type() == Decision.Type.THROTTLE) {
                 // its being throttled, maybe have a flag to take it into account and fail? for now, just do it since the "user" wants it...
             }
-            allocation.routingNodes().relocateShard(shardRouting, toRoutingNode.nodeId(), allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
+            allocation.routingNodes().relocateShard(shardRouting, toRoutingNode.nodeId(),
+                allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
         }
 
         if (!found) {

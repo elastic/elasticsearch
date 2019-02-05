@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -50,7 +51,6 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_PATTERN;
@@ -62,7 +62,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("security-index-manager-tests");
     private static final ClusterState EMPTY_CLUSTER_STATE = new ClusterState.Builder(CLUSTER_NAME).build();
-    public static final String INDEX_NAME = ".security";
+    private static final String INDEX_NAME = ".security";
     private static final String TEMPLATE_NAME = "SecurityIndexManagerTests-template";
     private SecurityIndexManager manager;
     private Map<Action<?>, Map<ActionRequest, ActionListener<?>>> actions;
@@ -86,7 +86,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
                 actions.put(action, map);
             }
         };
-        manager = new SecurityIndexManager(Settings.EMPTY, client, INDEX_NAME, clusterService);
+        manager = new SecurityIndexManager(client, INDEX_NAME, clusterService);
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() throws IOException {
@@ -106,8 +106,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME);
         Index index = new Index(INDEX_NAME, UUID.randomUUID().toString());
-        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true, EXISTING_STORE_INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
         String nodeId = ESTestCase.randomAlphaOfLength(8);
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0))
                 .addShard(shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize())
@@ -165,7 +165,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         clusterStateBuilder.routingTable(RoutingTable.builder()
                 .add(IndexRoutingTable.builder(prevIndex)
                         .addIndexShard(new IndexShardRoutingTable.Builder(new ShardId(prevIndex, 0))
-                                .addShard(ShardRouting.newUnassigned(new ShardId(prevIndex, 0), true, EXISTING_STORE_INSTANCE,
+                                .addShard(ShardRouting.newUnassigned(new ShardId(prevIndex, 0), true,
+                                    RecoverySource.ExistingStoreRecoverySource.INSTANCE,
                                         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""))
                                         .initialize(UUIDs.randomBase64UUID(random()), null, 0L)
                                         .moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "")))
@@ -347,10 +348,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         assertTrue(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
             SecurityIndexManager.SECURITY_TEMPLATE_NAME, clusterState, logger,
-            Version.V_5_0_0::before));
+            Version.V_6_0_0::before));
         assertFalse(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
             SecurityIndexManager.SECURITY_TEMPLATE_NAME, clusterState, logger,
-            Version.V_5_0_0::after));
+            Version.V_6_0_0::after));
     }
 
     public void testUpToDateMappingsAreIdentifiedAsUpToDate() throws IOException {

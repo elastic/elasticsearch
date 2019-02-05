@@ -2,30 +2,33 @@
 [[configuring-security]]
 == Configuring security in {es}
 ++++
-<titleabbrev>Configuring Security</titleabbrev>
+<titleabbrev>Configuring security</titleabbrev>
 ++++
 
-{security} enables you to easily secure a cluster. With {security}, you can
+The {es} {security-features} enable you to easily secure a cluster. You can
 password-protect your data as well as implement more advanced security measures
 such as encrypting communications, role-based access control, IP filtering, and
 auditing. For more information, see
-{xpack-ref}/xpack-security.html[Securing the Elastic Stack].
+{stack-ov}/elasticsearch-security.html[Securing the {stack}].
 
-To use {security} in {es}:
+To use {es} {security-features}:
 
-. Verify that you are using a license that includes the {security} feature.
+. Verify that you are using a license that includes the {security-features}.
 +
 --
-If you want to try all of the {xpack} features, you can start a 30-day trial. At
-the end of the trial period, you can purchase a subscription to keep using the
-full functionality of the {xpack} components. For more information, see
+If you want to try all of the platinum features, you can start a 30-day trial.
+At the end of the trial period, you can purchase a subscription to keep using
+the full functionality. For more information, see
 https://www.elastic.co/subscriptions and
-{xpack-ref}/license-management.html[License Management].
+{stack-ov}/license-management.html[License Management].
 --
 
 . Verify that the `xpack.security.enabled` setting is `true` on each node in
 your cluster. If you are using a trial license, the default value is `false`.
 For more information, see {ref}/security-settings.html[Security Settings in {es}].
+
+. If you plan to run {es} in a Federal Information Processing Standard (FIPS) 
+140-2 enabled JVM, see <<fips-140-compliance>>. 
 
 . Configure Transport Layer Security (TLS/SSL) for internode-communication.
 +
@@ -34,7 +37,7 @@ NOTE: This requirement applies to clusters with more than one node and to
 clusters with a single node that listens on an external interface. Single-node
 clusters that use a loopback interface do not have this requirement.  For more
 information, see
-{xpack-ref}/encrypting-communications.html[Encrypting Communications].
+{stack-ov}/encrypting-communications.html[Encrypting Communications].
 
 --
 .. <<node-certificates,Generate node certificates for each of your {es} nodes>>.
@@ -46,14 +49,14 @@ information, see
 . Set the passwords for all built-in users.
 +
 --
-{security} provides
+The {es} {security-features} provide
 {stack-ov}/built-in-users.html[built-in users] to
 help you get up and running. The +elasticsearch-setup-passwords+ command is the
 simplest method to set the built-in users' passwords for the first time.
 
 For example, you can run the command in an "interactive" mode, which prompts you
-to enter new passwords for the `elastic`, `kibana`, `beats_system`, and
-`logstash_system` users:
+to enter new passwords for the `elastic`, `kibana`, `beats_system`,
+`logstash_system`, and `apm_system` users:
 
 [source,shell]
 --------------------------------------------------
@@ -77,17 +80,18 @@ user API.
 ** <<configuring-native-realm,Configure a native realm>>.
 ** <<configuring-pki-realm,Configure a PKI realm>>.
 ** <<configuring-saml-realm,Configure a SAML realm>>.
+** <<configuring-kerberos-realm,Configure a Kerberos realm>>.
 
 . Set up roles and users to control access to {es}.
 For example, to grant _John Doe_ full access to all indices that match
 the pattern `events*` and enable him to create visualizations and dashboards
-for those indices in {kib}, you could create an `events_admin` role and
+for those indices in {kib}, you could create an `events_admin` role
 and assign the role to a new `johndoe` user.
 +
 --
 [source,shell]
 ----------------------------------------------------------
-curl -XPOST -u elastic 'localhost:9200/_xpack/security/role/events_admin' -H "Content-Type: application/json" -d '{
+curl -XPOST -u elastic 'localhost:9200/_security/role/events_admin' -H "Content-Type: application/json" -d '{
   "indices" : [
     {
       "names" : [ "events*" ],
@@ -100,7 +104,7 @@ curl -XPOST -u elastic 'localhost:9200/_xpack/security/role/events_admin' -H "Co
   ]
 }'
 
-curl -XPOST -u elastic 'localhost:9200/_xpack/security/user/johndoe' -H "Content-Type: application/json" -d '{
+curl -XPOST -u elastic 'localhost:9200/_security/user/johndoe' -H "Content-Type: application/json" -d '{
   "password" : "userpassword",
   "full_name" : "John Doe",
   "email" : "john.doe@anony.mous",
@@ -122,25 +126,39 @@ curl -XPOST -u elastic 'localhost:9200/_xpack/security/user/johndoe' -H "Content
 xpack.security.audit.enabled: true
 ----------------------------
 +
-For more information, see {xpack-ref}/auditing.html[Auditing Security Events] 
+For more information, see {stack-ov}/auditing.html[Auditing Security Events] 
 and <<auditing-settings>>. 
 
 .. Restart {es}.
 
-By default, events are logged to a dedicated `elasticsearch-access.log` file in
-`ES_HOME/logs`. You can also store the events in an {es} index for
-easier analysis and control what events are logged. 
+Events are logged to a dedicated `<clustername>_audit.log` file in
+`ES_HOME/logs`, on each cluster node.
 --
 
-include::securing-communications/securing-elasticsearch.asciidoc[]
-include::securing-communications/configuring-tls-docker.asciidoc[]
-include::securing-communications/enabling-cipher-suites.asciidoc[]
-include::securing-communications/separating-node-client-traffic.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/securing-elasticsearch.asciidoc
+include::{es-repo-dir}/security/securing-communications/securing-elasticsearch.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/configuring-tls-docker.asciidoc
+include::{es-repo-dir}/security/securing-communications/configuring-tls-docker.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/enabling-cipher-suites.asciidoc
+include::{es-repo-dir}/security/securing-communications/enabling-cipher-suites.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/securing-communications/separating-node-client-traffic.asciidoc
+include::{es-repo-dir}/security/securing-communications/separating-node-client-traffic.asciidoc[]
+:edit_url:
 include::authentication/configuring-active-directory-realm.asciidoc[]
 include::authentication/configuring-file-realm.asciidoc[]
 include::authentication/configuring-ldap-realm.asciidoc[]
 include::authentication/configuring-native-realm.asciidoc[]
 include::authentication/configuring-pki-realm.asciidoc[]
 include::authentication/configuring-saml-realm.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/authentication/configuring-kerberos-realm.asciidoc
+include::authentication/configuring-kerberos-realm.asciidoc[]
+:edit_url: 
+include::fips-140-compliance.asciidoc[]
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/settings/security-settings.asciidoc
 include::{es-repo-dir}/settings/security-settings.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/security/reference/files.asciidoc
+include::{es-repo-dir}/security/reference/files.asciidoc[]
+
+:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/docs/reference/settings/audit-settings.asciidoc
 include::{es-repo-dir}/settings/audit-settings.asciidoc[]

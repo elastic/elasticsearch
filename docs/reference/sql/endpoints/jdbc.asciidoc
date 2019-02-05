@@ -3,14 +3,22 @@
 [[sql-jdbc]]
 == SQL JDBC
 
-Elasticsearch's SQL jdbc driver is a rich, fully featured JDBC driver for Elasticsearch.
-It is Type 4 driver, meaning it is a platform independent, stand-alone, Direct to Database,
-pure Java driver that converts JDBC calls to Elasticsearch SQL.
+beta[]
 
+{es}'s SQL jdbc driver is a rich, fully featured JDBC driver for {es}.
+It is Type 4 driver, meaning it is a platform independent, stand-alone, Direct to Database,
+pure Java driver that converts JDBC calls to {es-sql}.
+
+[[sql-jdbc-installation]]
 [float]
 === Installation
 
-The JDBC driver can be obtained either by downloading it from the https://www.elastic.co/downloads/jdbc-client[elastic.co] site or by using a http://maven.apache.org/[Maven]-compatible tool with the following dependency:
+The JDBC driver can be obtained from:
+
+Dedicated page::
+https://www.elastic.co/downloads/jdbc-client[elastic.co] provides links, typically for manual downloads.
+Maven dependency::
+http://maven.apache.org/[Maven]-compatible tools can retrieve it automatically as a dependency:
 
 ["source","xml",subs="attributes"]
 ----
@@ -37,9 +45,9 @@ from `artifacts.elastic.co/maven` by adding it to the repositories list:
 [float]
 === Setup
 
-The driver main class is `org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver`. 
-Note the driver  implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registerd automatically
-as long as its available in the classpath.
+The driver main class is `org.elasticsearch.xpack.sql.jdbc.EsDriver`. 
+Note the driver  implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registered automatically
+as long as it is available in the classpath.
 
 Once registered, the driver understands the following syntax as an URL:
 
@@ -123,12 +131,14 @@ To put all of it together, the following URL:
 
 ["source","text"]
 ----
-jdbc:es://http://server:3456/timezone=UTC&page.size=250
+jdbc:es://http://server:3456/?timezone=UTC&page.size=250
 ----
 
 Opens up a {es-sql} connection to `server` on port `3456`, setting the JDBC connection timezone to `UTC` and its pagesize to `250` entries.
 
 === API usage
+
+beta[]
 
 One can use JDBC through the official `java.sql` and `javax.sql` packages:
 

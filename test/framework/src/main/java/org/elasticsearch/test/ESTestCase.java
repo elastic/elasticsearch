@@ -29,7 +29,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -54,6 +53,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -69,6 +69,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -113,7 +114,6 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -130,8 +130,8 @@ import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.ZoneId;
 import java.security.Security;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -184,9 +184,9 @@ import static org.hamcrest.Matchers.hasItem;
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
 
-    private static final List<String> JODA_TIMEZONE_IDS;
-    private static final List<String> JAVA_TIMEZONE_IDS;
-    private static final List<String> JAVA_ZONE_IDS;
+    protected static final List<String> JODA_TIMEZONE_IDS;
+    protected static final List<String> JAVA_TIMEZONE_IDS;
+    protected static final List<String> JAVA_ZONE_IDS;
 
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
@@ -198,13 +198,9 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     static {
-        System.setProperty("log4j.shutdownHookEnabled", "false");
-        System.setProperty("log4j2.disable.jmx", "true");
-
+        setTestSysProps();
         LogConfigurator.loadLog4jPlugins();
 
-        // Enable Netty leak detection and monitor logger for logged leak errors
-        System.setProperty("io.netty.leakDetection.level", "paranoid");
         String leakLoggerName = "io.netty.util.ResourceLeakDetector";
         Logger leakLogger = LogManager.getLogger(leakLoggerName);
         Appender leakAppender = new AbstractAppender(leakLoggerName, null,
@@ -231,8 +227,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         BootstrapForTesting.ensureInitialized();
 
-        List<String> jodaTZIds = new ArrayList<>(DateTimeZone.getAvailableIDs());
-        Collections.sort(jodaTZIds);
+        // filter out joda timezones that are deprecated for the java time migration
+        List<String> jodaTZIds = DateTimeZone.getAvailableIDs().stream()
+            .filter(s -> DateUtils.DEPRECATED_SHORT_TZ_IDS.contains(s) == false).sorted().collect(Collectors.toList());
         JODA_TIMEZONE_IDS = Collections.unmodifiableList(jodaTZIds);
 
         List<String> javaTZIds = Arrays.asList(TimeZone.getAvailableIDs());
@@ -243,9 +240,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         Collections.sort(javaZoneIds);
         JAVA_ZONE_IDS = Collections.unmodifiableList(javaZoneIds);
     }
+    @SuppressForbidden(reason = "force log4j and netty sysprops")
+    private static void setTestSysProps() {
+        System.setProperty("log4j.shutdownHookEnabled", "false");
+        System.setProperty("log4j2.disable.jmx", "true");
 
-    protected final Logger logger = Loggers.getLogger(getClass());
-    protected final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+        // Enable Netty leak detection and monitor logger for logged leak errors
+        System.setProperty("io.netty.leakDetection.level", "paranoid");
+    }
+
+    protected final Logger logger = LogManager.getLogger(getClass());
     private ThreadContext threadContext;
 
     // -----------------------------------------------------------------
@@ -365,7 +369,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return "[" + name.substring(start + 1, end) + "] ";
     }
 
-    private void ensureNoWarnings() throws IOException {
+    private void ensureNoWarnings() {
         //Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
         //appropriate test
         try {
@@ -403,7 +407,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
-            assertNotNull(actualWarnings);
+            assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
             final Set<String> actualWarningValues =
                     actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
             for (String msg : expectedWarnings) {
@@ -505,7 +509,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         checkIndexFailed = false;
     }
 
-    public final void ensureCheckIndexPassed() throws Exception {
+    public final void ensureCheckIndexPassed() {
         assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
     }
 
@@ -873,7 +877,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return breakSupplier.getAsBoolean();
     }
 
-    public static boolean terminate(ExecutorService... services) throws InterruptedException {
+    public static boolean terminate(ExecutorService... services) {
         boolean terminated = true;
         for (ExecutorService service : services) {
             if (service != null) {
@@ -883,7 +887,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return terminated;
     }
 
-    public static boolean terminate(ThreadPool threadPool) throws InterruptedException {
+    public static boolean terminate(ThreadPool threadPool) {
         return ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -924,11 +928,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return newNodeEnvironment(Settings.EMPTY);
     }
 
-    public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
-        Settings build = Settings.builder()
+    public Settings buildEnvSettings(Settings settings) {
+        return Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
+    }
+
+    public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
+        Settings build = buildEnvSettings(settings);
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
@@ -936,23 +944,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static Settings.Builder settings(Version version) {
         Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
         return builder;
-    }
-
-    private static String threadName(Thread t) {
-        return "Thread[" +
-                "id=" + t.getId() +
-                ", name=" + t.getName() +
-                ", state=" + t.getState() +
-                ", group=" + groupName(t.getThreadGroup()) +
-                "]";
-    }
-
-    private static String groupName(ThreadGroup threadGroup) {
-        if (threadGroup == null) {
-            return "{null group}";
-        } else {
-            return threadGroup.getName();
-        }
     }
 
     /**
@@ -964,10 +955,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Returns a random subset of values (including a potential empty list)
+     * Returns a random subset of values (including a potential empty list, or the full original list)
      */
     public static <T> List<T> randomSubsetOf(Collection<T> collection) {
-        return randomSubsetOf(randomInt(Math.max(collection.size() - 1, 0)), collection);
+        return randomSubsetOf(randomInt(collection.size()), collection);
     }
 
     /**
@@ -1004,19 +995,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
     }
 
-    private static boolean useNio;
+    private static boolean useZen2;
 
     @BeforeClass
-    public static void setUseNio() throws Exception {
-        useNio = randomBoolean();
+    public static void setUseZen2() {
+        useZen2 = true;
+    }
+
+    protected static boolean getUseZen2() {
+        return useZen2;
     }
 
     public static String getTestTransportType() {
-        return useNio ? MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+        return MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME;
     }
 
     public static Class<? extends Plugin> getTestTransportPlugin() {
-        return useNio ? MockNioTransportPlugin.class : MockTcpTransportPlugin.class;
+        return MockNioTransportPlugin.class;
     }
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
@@ -1160,7 +1155,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 Streamable.newWriteableReader(supplier), version);
     }
 
-    private static <T> T copyInstance(T original, NamedWriteableRegistry namedWriteableRegistry, Writeable.Writer<T> writer,
+    protected static <T> T copyInstance(T original, NamedWriteableRegistry namedWriteableRegistry, Writeable.Writer<T> writer,
                                       Writeable.Reader<T> reader, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(version);
@@ -1379,7 +1374,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new ScriptModule(Settings.EMPTY, singletonList(new ScriptPlugin() {
             @Override
             public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-                return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
+                return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"), Collections.emptyMap());
             }
         }));
     }
@@ -1427,5 +1422,4 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static boolean inFipsJvm() {
         return Security.getProviders()[0].getName().toLowerCase(Locale.ROOT).contains("fips");
     }
-
 }

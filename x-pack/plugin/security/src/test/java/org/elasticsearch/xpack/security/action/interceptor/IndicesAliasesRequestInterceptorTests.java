@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.util.Collections;
@@ -35,11 +35,12 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
 
     public void testInterceptorThrowsWhenFLSDLSEnabled() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
+        when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isAuditingAllowed()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = new AuditTrailService(Settings.EMPTY, Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),
                 new RealmRef(null, null, null));
         final FieldPermissions fieldPermissions;
@@ -56,7 +57,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         } else {
             queries = null;
         }
-        Role role = Role.builder().add(fieldPermissions, queries, IndexPrivilege.ALL, "foo").build();
+        Role role = Role.builder().add(fieldPermissions, queries, IndexPrivilege.ALL, randomBoolean(), "foo").build();
         final String action = IndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.singletonMap("foo",
                 new IndicesAccessControl.IndexAccessControl(true, fieldPermissions, queries)));
@@ -81,11 +82,12 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
 
     public void testInterceptorThrowsWhenTargetHasGreaterPermissions() throws Exception {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
+        when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isAuditingAllowed()).thenReturn(true);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = new AuditTrailService(Settings.EMPTY, Collections.emptyList(), licenseState);
+        AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),
                 new RealmRef(null, null, null));
         Role role = Role.builder()

@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
@@ -23,10 +22,9 @@ public class TransportDeleteRoleMappingAction
     private final NativeRoleMappingStore roleMappingStore;
 
     @Inject
-    public TransportDeleteRoleMappingAction(Settings settings, ActionFilters actionFilters,
-                                            TransportService transportService, NativeRoleMappingStore roleMappingStore) {
-        super(settings, DeleteRoleMappingAction.NAME, transportService, actionFilters,
-            DeleteRoleMappingRequest::new);
+    public TransportDeleteRoleMappingAction(ActionFilters actionFilters, TransportService transportService,
+                                            NativeRoleMappingStore roleMappingStore) {
+        super(DeleteRoleMappingAction.NAME, transportService, actionFilters, DeleteRoleMappingRequest::new);
         this.roleMappingStore = roleMappingStore;
     }
 

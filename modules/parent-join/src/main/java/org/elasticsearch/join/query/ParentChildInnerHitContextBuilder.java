@@ -23,16 +23,21 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
@@ -92,14 +97,14 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
         }
 
         @Override
-        public TopDocs[] topDocs(SearchHit[] hits) throws IOException {
+        public TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException {
             Weight innerHitQueryWeight = createInnerHitQueryWeight();
-            TopDocs[] result = new TopDocs[hits.length];
+            TopDocsAndMaxScore[] result = new TopDocsAndMaxScore[hits.length];
             for (int i = 0; i < hits.length; i++) {
                 SearchHit hit = hits[i];
                 String joinName = getSortedDocValue(joinFieldMapper.name(), context, hit.docId());
                 if (joinName == null) {
-                    result[i] = Lucene.EMPTY_TOP_DOCS;
+                    result[i] = new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
                     continue;
                 }
 
@@ -107,7 +112,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                 ParentIdFieldMapper parentIdFieldMapper =
                     joinFieldMapper.getParentIdFieldMapper(typeName, fetchChildInnerHits == false);
                 if (parentIdFieldMapper == null) {
-                    result[i] = Lucene.EMPTY_TOP_DOCS;
+                    result[i] = new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
                     continue;
                 }
 
@@ -125,29 +130,43 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                     q = context.mapperService().fullName(IdFieldMapper.NAME).termQuery(parentId, qsc);
                 }
 
-                Weight weight = context.searcher().createNormalizedWeight(q, false);
+                Weight weight = context.searcher().createWeight(context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 if (size() == 0) {
                     TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                     for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
                         intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
                     }
-                    result[i] = new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+                    result[i] = new TopDocsAndMaxScore(
+                        new TopDocs(
+                            new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO),
+                            Lucene.EMPTY_SCORE_DOCS
+                        ), Float.NaN);
                 } else {
                     int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                     TopDocsCollector<?> topDocsCollector;
+                    MaxScoreCollector maxScoreCollector = null;
                     if (sort() != null) {
-                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores(), true);
+                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
+                        if (trackScores()) {
+                            maxScoreCollector = new MaxScoreCollector();
+                        }
                     } else {
-                        topDocsCollector = TopScoreDocCollector.create(topN);
+                        topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+                        maxScoreCollector = new MaxScoreCollector();
                     }
                     try {
                         for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
-                            intersect(weight, innerHitQueryWeight, topDocsCollector, ctx);
+                            intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
                         }
                     } finally {
                         clearReleasables(Lifetime.COLLECTION);
                     }
-                    result[i] = topDocsCollector.topDocs(from(), size());
+                    TopDocs topDocs = topDocsCollector.topDocs(from(), size());
+                    float maxScore = Float.NaN;
+                    if (maxScoreCollector != null) {
+                        maxScore = maxScoreCollector.getMaxScore();
+                    }
+                    result[i] = new TopDocsAndMaxScore(topDocs, maxScore);
                 }
             }
             return result;

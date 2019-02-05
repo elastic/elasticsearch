@@ -155,12 +155,13 @@ public final class Role {
         }
 
         public Builder add(IndexPrivilege privilege, String... indices) {
-            groups.add(new IndicesPermission.Group(privilege, FieldPermissions.DEFAULT, null, indices));
+            groups.add(new IndicesPermission.Group(privilege, FieldPermissions.DEFAULT, null, false, indices));
             return this;
         }
 
-        public Builder add(FieldPermissions fieldPermissions, Set<BytesReference> query, IndexPrivilege privilege, String... indices) {
-            groups.add(new IndicesPermission.Group(privilege, fieldPermissions, query, indices));
+        public Builder add(FieldPermissions fieldPermissions, Set<BytesReference> query, IndexPrivilege privilege,
+                boolean allowRestrictedIndices, String... indices) {
+            groups.add(new IndicesPermission.Group(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
             return this;
         }
 
@@ -189,11 +190,8 @@ public final class Role {
                         new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields()));
                 }
                 final Set<BytesReference> query = privilege.getQuery() == null ? null : Collections.singleton(privilege.getQuery());
-                list.add(new IndicesPermission.Group(IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())),
-                    fieldPermissions,
-                    query,
-                    privilege.getIndices()));
-
+                list.add(new IndicesPermission.Group(IndexPrivilege.get(Sets.newHashSet(privilege.getPrivileges())), fieldPermissions,
+                        query, privilege.allowRestrictedIndices(), privilege.getIndices()));
             }
             return list;
         }
@@ -201,7 +199,7 @@ public final class Role {
         static Tuple<ApplicationPrivilege, Set<String>> convertApplicationPrivilege(String role, int index,
                                                                                     RoleDescriptor.ApplicationResourcePrivileges arp) {
             return new Tuple<>(new ApplicationPrivilege(arp.getApplication(),
-                "role." + role.replaceAll("[^a-zA-Z0-9]", "") + "." + index,
+                Sets.newHashSet(arp.getPrivileges()),
                 arp.getPrivileges()
             ), Sets.newHashSet(arp.getResources()));
         }

@@ -22,17 +22,18 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -46,6 +47,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -102,6 +104,18 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
+    protected ClusterBlockLevel globalBlockLevel() {
+        // resync should never be blocked because it's an internal action
+        return null;
+    }
+
+    @Override
+    protected ClusterBlockLevel indexBlockLevel() {
+        // resync should never be blocked because it's an internal action
+        return null;
+    }
+
+    @Override
     protected WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> shardOperationOnPrimary(
         ResyncReplicationRequest request, IndexShard primary) throws Exception {
         final ResyncReplicationRequest replicaRequest = performOnPrimary(request, primary);
@@ -120,6 +134,12 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
     public static Translog.Location performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
+        /*
+         * Operations received from resync do not have auto_id_timestamp individually, we need to bootstrap this max_seen_timestamp
+         * (at least the highest timestamp from any of these operations) to make sure that we will disable optimization for the same
+         * append-only requests with timestamp (sources of these operations) that are replicated; otherwise we may have duplicates.
+         */
+        replica.updateMaxUnsafeAutoIdTimestamp(request.getMaxSeenAutoIdTimestampOnPrimary());
         for (Translog.Operation operation : request.getOperations()) {
             final Engine.Result operationResult = replica.applyTranslogOperation(operation, Engine.Operation.Origin.REPLICA);
             if (operationResult.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
@@ -146,8 +166,10 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             transportOptions,
             new TransportResponseHandler<ResyncReplicationResponse>() {
                 @Override
-                public ResyncReplicationResponse newInstance() {
-                    return newResponseInstance();
+                public ResyncReplicationResponse read(StreamInput in) throws IOException {
+                    ResyncReplicationResponse response = newResponseInstance();
+                    response.readFrom(in);
+                    return response;
                 }
 
                 @Override
@@ -171,12 +193,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
                 @Override
                 public void handleException(TransportException exp) {
-                    final Throwable cause = exp.unwrapCause();
-                    if (TransportActions.isShardNotAvailableException(cause)) {
-                        logger.trace("primary became unavailable during resync, ignoring", exp);
-                    } else {
-                        listener.onFailure(exp);
-                    }
+                    listener.onFailure(exp);
                 }
             });
     }

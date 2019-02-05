@@ -67,6 +67,7 @@ setup:
 "boolean":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -76,6 +77,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -90,26 +92,29 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
                         script:
                             source: "doc.date.get(0)"
-    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12Z' }
+    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
                         script:
                             source: "doc.date.value"
-    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12Z' }
+    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
 
 ---
 "geo_point":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -120,6 +125,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -132,6 +138,7 @@ setup:
 "ip":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -141,6 +148,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -152,6 +160,7 @@ setup:
 "keyword":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -161,6 +170,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -175,6 +185,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -184,6 +195,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -195,6 +207,7 @@ setup:
 "integer":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -204,6 +217,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -215,6 +229,7 @@ setup:
 "short":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -224,6 +239,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -235,6 +251,7 @@ setup:
 "byte":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -244,6 +261,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -255,6 +273,7 @@ setup:
 "double":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -264,6 +283,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -275,6 +295,7 @@ setup:
 "float":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -284,6 +305,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -295,6 +317,7 @@ setup:
 "half_float":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -304,6 +327,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -315,6 +339,7 @@ setup:
 "scaled_float":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -324,6 +349,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -335,6 +361,7 @@ setup:
 "token_count":
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:
@@ -344,6 +371,7 @@ setup:
 
     - do:
         search:
+            rest_total_hits_as_int: true
             body:
                 script_fields:
                     field:

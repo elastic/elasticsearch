@@ -9,13 +9,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomTermsGroupConfig;
@@ -107,9 +105,6 @@ public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCas
         if (e.validationErrors().size() != 0) {
             fail(e.getMessage());
         }
-
-        List<CompositeValuesSourceBuilder<?>> builders = config.toBuilders();
-        assertThat(builders.size(), equalTo(1));
     }
 
     private String getRandomType() {

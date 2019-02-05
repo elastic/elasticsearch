@@ -262,8 +262,6 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testBooleanCaptures() {
-        Map<String, String> bank = new HashMap<>();
-
         String pattern = "%{WORD:name}=%{WORD:status:boolean}";
         Grok g = new Grok(basePatterns, pattern);
 
@@ -477,6 +475,16 @@ public class GrokTests extends ESTestCase {
         Grok grok = new Grok(basePatterns, "%{WORD:unsuppo(r)ted}");
         Map<String, Object> matches = grok.captures("line");
         assertNull(matches);
+    }
+
+    public void testJavaClassPatternWithUnderscore() {
+        Grok grok = new Grok(basePatterns, "%{JAVACLASS}");
+        assertThat(grok.match("Test_Class.class"), is(true));
+    }
+
+    public void testJavaFilePatternWithSpaces() {
+        Grok grok = new Grok(basePatterns, "%{JAVAFILE}");
+        assertThat(grok.match("Test Class.java"), is(true));
     }
 
     private void assertGrokedField(String fieldName) {

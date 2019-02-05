@@ -28,7 +28,7 @@ public final class IndexNotFoundException extends ResourceNotFoundException {
      * Construct with a custom message.
      */
     public IndexNotFoundException(String message, String index) {
-        super(message);
+        super("no such index [" + index + "] and " + message);
         setIndex(index);
     }
 
@@ -37,7 +37,7 @@ public final class IndexNotFoundException extends ResourceNotFoundException {
     }
 
     public IndexNotFoundException(String index, Throwable cause) {
-        super("no such index", cause);
+        super("no such index [" + index + "]", cause);
         setIndex(index);
     }
 
@@ -46,7 +46,7 @@ public final class IndexNotFoundException extends ResourceNotFoundException {
     }
 
     public IndexNotFoundException(Index index, Throwable cause) {
-        super("no such index", cause);
+        super("no such index [" + index.getName() + "]", cause);
         setIndex(index);
     }
 

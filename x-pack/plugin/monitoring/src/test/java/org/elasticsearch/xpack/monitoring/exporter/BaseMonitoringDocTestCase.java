@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -31,14 +29,12 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -272,23 +268,5 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
-    }
-
-    public void testMonitoringNodeBwcSerialization() throws IOException {
-        final Version version = randomVersionBetween(random(), Version.V_5_0_0, Version.V_6_0_0_beta2);
-
-        final byte[] data = Base64.getDecoder()
-                                  .decode("AQVFSWJKdgEDdFFOAQV3cGtMagEFa2xqeWEBBVZTamF2AwVrZXkjMgEyBWtleSMxATEFa2V5IzABMAAAAAAAAA==");
-        try (StreamInput in = StreamInput.wrap(data)) {
-            in.setVersion(version);
-
-            final MonitoringDoc.Node node = new MonitoringDoc.Node(in);
-            assertEquals("EIbJv", node.getUUID());
-            assertEquals("VSjav", node.getName());
-            assertEquals("tQN", node.getHost());
-            assertEquals("wpkLj", node.getTransportAddress());
-            assertEquals("kljya", node.getIp());
-            assertEquals(0L, node.getTimestamp());
-        }
     }
 }

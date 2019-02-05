@@ -5,16 +5,20 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
+import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -40,13 +44,17 @@ public class VariablesTests extends ESTestCase {
                 .metadata(metatdata)
                 .buildMock();
 
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
         assertThat(model, notNullValue());
         assertThat(model.size(), is(1));
 
+        JodaCompatibleZonedDateTime jodaJavaExecutionTime =
+            new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(executionTime.getMillis()), ZoneOffset.UTC);
         assertThat(ObjectPath.eval("ctx", model), instanceOf(Map.class));
         assertThat(ObjectPath.eval("ctx.id", model), is(wid.value()));
-        assertThat(ObjectPath.eval("ctx.execution_time", model), is(executionTime));
+        // NOTE: we use toString() here because two ZonedDateTime are *not* equal, we need to check with isEqual
+        // for date/time equality, but no hamcrest matcher exists for that
+        assertThat(ObjectPath.eval("ctx.execution_time", model), Matchers.hasToString(jodaJavaExecutionTime.toString()));
         assertThat(ObjectPath.eval("ctx.trigger", model), is(event.data()));
         assertThat(ObjectPath.eval("ctx.payload", model), is(payload.data()));
         assertThat(ObjectPath.eval("ctx.metadata", model), is(metatdata));

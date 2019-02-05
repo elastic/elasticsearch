@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,8 +31,6 @@ public enum ValuesSourceType implements Writeable {
     NUMERIC,
     BYTES,
     GEOPOINT;
-
-    public static final ParseField VALUE_SOURCE_TYPE = new ParseField("value_source_type");
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

@@ -49,7 +49,7 @@ initial payload.
 A <<input-search, search>> input contains a `request` object that specifies the
 indices you want to search, the {ref}/search-request-search-type.html[search type],
 and the search request body. The `body` field of a search input is the same as
-the body of an Elasticsearch `_search` request, making the full Elaticsearch
+the body of an Elasticsearch `_search` request, making the full Elasticsearch
 Query DSL available for you to use.
 
 For example, the following `search` input loads the latest VIX quote:
@@ -83,7 +83,7 @@ See <<input-search>> for more details.
 [[loading-http-data]]
 ==== Loading a Payload from a remote HTTP Service with HTTP Input
 
-Use the `http` input to issue a HTTP request and load the returned response as
+Use the `http` input to issue an HTTP request and load the returned response as
 the watch initial payload. This input expects the response body content type
 to either be JSON or YAML.
 
@@ -145,7 +145,7 @@ returned any hits:
 [source,js]
 --------------------------------------------------
 "condition" : {
-    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }}
   },
 --------------------------------------------------
 // NOTCONSOLE
@@ -219,9 +219,9 @@ attaches the payload data to the message:
 "actions" : {
   "send_email" : { <1>
     "email" : { <2>
-      "to" : "<username>@<domainname>",
+      "to" : "email@example.org",
       "subject" : "Watcher Notification",
-      "body" : "{{ctx.payload.hits.total}} error logs found",
+      "body" : "{{ctx.payload.hits.total.value}} error logs found",
       "attachments" : {
         "data_attachment" : {
           "data" : {
@@ -250,7 +250,7 @@ creates a new issue in GitHub
       "url" : "https://api.github.com/repos/<owner>/<repo>/issues", <1>
       "body" : "{
         \"title\": \"Found errors in 'contact.html'\",
-        \"body\": \"Found {{ctx.payload.hits.total}} errors in this page in the last 5 minutes\",
+        \"body\": \"Found {{ctx.payload.hits.total.value}} errors in this page in the last 5 minutes\",
         \"assignee\": \"web-admin\",
         \"labels\": [ \"bug\", \"sev2\" ]
       }",

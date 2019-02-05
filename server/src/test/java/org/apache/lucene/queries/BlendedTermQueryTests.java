@@ -34,13 +34,13 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -63,15 +63,12 @@ public class BlendedTermQueryTests extends ESTestCase {
                 "generator", "foo fighers - generator", "foo fighters generator"
         };
         final boolean omitNorms = random().nextBoolean();
+        final boolean omitFreqs = random().nextBoolean();
         FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);
-        ft.setIndexOptions(random().nextBoolean() ? IndexOptions.DOCS : IndexOptions.DOCS_AND_FREQS);
+        ft.setIndexOptions(omitFreqs ? IndexOptions.DOCS : IndexOptions.DOCS_AND_FREQS);
         ft.setOmitNorms(omitNorms);
         ft.freeze();
 
-        FieldType ft1 = new FieldType(TextField.TYPE_NOT_STORED);
-        ft1.setIndexOptions(random().nextBoolean() ? IndexOptions.DOCS : IndexOptions.DOCS_AND_FREQS);
-        ft1.setOmitNorms(omitNorms);
-        ft1.freeze();
         for (int i = 0; i < username.length; i++) {
             Document d = new Document();
             d.add(new TextField("id", Integer.toString(i), Field.Store.YES));
@@ -83,8 +80,8 @@ public class BlendedTermQueryTests extends ESTestCase {
         for (int j = 0; j < iters; j++) {
             Document d = new Document();
             d.add(new TextField("id", Integer.toString(username.length + j), Field.Store.YES));
-            d.add(new Field("username", "foo fighters", ft1));
-            d.add(new Field("song", "some bogus text to bump up IDF", ft1));
+            d.add(new Field("username", "foo fighters", ft));
+            d.add(new Field("song", "some bogus text to bump up IDF", ft));
             w.addDocument(d);
         }
         w.commit();
@@ -127,9 +124,9 @@ public class BlendedTermQueryTests extends ESTestCase {
         for (int j = 0; j < iters; j++) {
             String[] fields = new String[1 + random().nextInt(10)];
             for (int i = 0; i < fields.length; i++) {
-                fields[i] = TestUtil.randomRealisticUnicodeString(random(), 1, 10);
+                fields[i] = randomRealisticUnicodeOfLengthBetween(1, 10);
             }
-            String term = TestUtil.randomRealisticUnicodeString(random(), 1, 10);
+            String term = randomRealisticUnicodeOfLengthBetween(1, 10);
             Term[] terms = toTerms(fields, term);
             float tieBreaker = random().nextFloat();
             BlendedTermQuery query = BlendedTermQuery.dismaxBlendedQuery(terms, tieBreaker);
@@ -161,13 +158,13 @@ public class BlendedTermQueryTests extends ESTestCase {
         Set<Term> terms = new HashSet<>();
         int num = scaledRandomIntBetween(1, 10);
         for (int i = 0; i < num; i++) {
-            terms.add(new Term(TestUtil.randomRealisticUnicodeString(random(), 1, 10), TestUtil.randomRealisticUnicodeString(random(), 1, 10)));
+            terms.add(new Term(randomRealisticUnicodeOfLengthBetween(1, 10), randomRealisticUnicodeOfLengthBetween(1, 10)));
         }
 
         BlendedTermQuery blendedTermQuery = BlendedTermQuery.dismaxBlendedQuery(terms.toArray(new Term[0]), random().nextFloat());
         Set<Term> extracted = new HashSet<>();
         IndexSearcher searcher = new IndexSearcher(new MultiReader());
-        searcher.createNormalizedWeight(blendedTermQuery, false).extractTerms(extracted);
+        searcher.createWeight(searcher.rewrite(blendedTermQuery), ScoreMode.COMPLETE_NO_SCORES, 1f).extractTerms(extracted);
         assertThat(extracted.size(), equalTo(terms.size()));
         assertThat(extracted, containsInAnyOrder(terms.toArray(new Term[0])));
     }

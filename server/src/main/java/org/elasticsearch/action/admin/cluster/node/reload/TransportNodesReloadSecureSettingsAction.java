@@ -31,7 +31,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginsService;
@@ -52,11 +51,9 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     private final PluginsService pluginsService;
 
     @Inject
-    public TransportNodesReloadSecureSettingsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                      TransportService transportService, ActionFilters actionFilters,
-                                      Environment environment,
-                                      PluginsService pluginService) {
-        super(settings, NodesReloadSecureSettingsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+    public TransportNodesReloadSecureSettingsAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                                    ActionFilters actionFilters, Environment environment, PluginsService pluginService) {
+        super(NodesReloadSecureSettingsAction.NAME, threadPool, clusterService, transportService, actionFilters,
               NodesReloadSecureSettingsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC,
               NodesReloadSecureSettingsResponse.NodeResponse.class);
         this.environment = environment;
@@ -82,16 +79,13 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
 
     @Override
     protected NodesReloadSecureSettingsResponse.NodeResponse nodeOperation(NodeRequest nodeReloadRequest) {
-        final NodesReloadSecureSettingsRequest request = nodeReloadRequest.request;
-        final SecureString secureSettingsPassword = request.secureSettingsPassword();
         try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
             // reread keystore from config file
             if (keystore == null) {
                 return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(),
                         new IllegalStateException("Keystore is missing"));
             }
-            // decrypt the keystore using the password from the request
-            keystore.decrypt(secureSettingsPassword.getChars());
+            keystore.decrypt(new char[0]);
             // add the keystore to the original node settings object
             final Settings settingsWithKeystore = Settings.builder()
                     .put(environment.settings(), false)

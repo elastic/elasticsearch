@@ -35,6 +35,7 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
                     `completion` to provide auto-complete suggestions
 <<token-count>>::   `token_count` to count the number of tokens in a string
 {plugins}/mapper-murmur3.html[`mapper-murmur3`]:: `murmur3` to compute hashes of values at index-time and store them in the index
+{plugins}/mapper-annotated-text.html[`mapper-annotated-text`]:: `annotated-text` to index text containing special markup (typically used for identifying named entities)
 
 <<percolator>>::    Accepts queries from the query-dsl
 
@@ -42,9 +43,14 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 
 <<alias>>::         Defines an alias to an existing field.
 
-<<feature>>::       Record numeric features to boost hits at query time.
+<<rank-feature>>::  Record numeric feature to boost hits at query time.
 
-<<feature-vector>>:: Record numeric feature vectors to boost hits at query time.
+<<rank-features>>:: Record numeric features to boost hits at query time.
+
+<<dense-vector>>::   Record dense vectors of float values.
+
+<<sparse-vector>>::   Record sparse vectors of float values.
+
 
 [float]
 === Multi-fields
@@ -94,6 +100,10 @@ include::types/percolator.asciidoc[]
 
 include::types/parent-join.asciidoc[]
 
-include::types/feature.asciidoc[]
+include::types/rank-feature.asciidoc[]
 
-include::types/feature-vector.asciidoc[]
+include::types/rank-features.asciidoc[]
+
+include::types/dense-vector.asciidoc[]
+
+include::types/sparse-vector.asciidoc[]

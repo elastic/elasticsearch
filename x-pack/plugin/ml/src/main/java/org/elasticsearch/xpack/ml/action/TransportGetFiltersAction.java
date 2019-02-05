@@ -17,7 +17,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -33,7 +32,7 @@ import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
+import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,10 +48,8 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
     private final Client client;
 
     @Inject
-    public TransportGetFiltersAction(Settings settings, TransportService transportService,
-                                     ActionFilters actionFilters, Client client) {
-        super(settings, GetFiltersAction.NAME, transportService, actionFilters,
-            GetFiltersAction.Request::new);
+    public TransportGetFiltersAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(GetFiltersAction.NAME, transportService, actionFilters, GetFiltersAction.Request::new);
         this.client = client;
     }
 

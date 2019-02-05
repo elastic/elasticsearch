@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
+import org.apache.lucene.codecs.TermStats;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
@@ -41,8 +42,8 @@ public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
     }
 
     @Override
-    public long frequency(BytesRef term) throws IOException {
-        return candidateGenerator[0].frequency(term);
+    public TermStats termStats(BytesRef term) throws IOException {
+        return candidateGenerator[0].termStats(term);
     }
 
     @Override
@@ -65,8 +66,8 @@ public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
         return set;
     }
     @Override
-    public Candidate createCandidate(BytesRef term, long frequency, double channelScore, boolean userInput) throws IOException {
-        return candidateGenerator[0].createCandidate(term, frequency, channelScore, userInput);
+    public Candidate createCandidate(BytesRef term, TermStats termStats, double channelScore, boolean userInput) throws IOException {
+        return candidateGenerator[0].createCandidate(term, termStats, channelScore, userInput);
     }
 
 }

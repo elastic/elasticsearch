@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -37,11 +36,11 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportDeprecationInfoAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportDeprecationInfoAction(TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver,
                                           XPackLicenseState licenseState, NodeClient client) {
-        super(settings, DeprecationInfoAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(DeprecationInfoAction.NAME, transportService, clusterService, threadPool, actionFilters,
             DeprecationInfoAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;

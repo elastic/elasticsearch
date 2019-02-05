@@ -19,10 +19,12 @@
 package org.elasticsearch.test.junit.listeners;
 
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
+
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -46,7 +48,7 @@ import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TE
  */
 public class ReproduceInfoPrinter extends RunListener {
 
-    protected final Logger logger = Loggers.getLogger(ESTestCase.class);
+    protected final Logger logger = LogManager.getLogger(ESTestCase.class);
 
     @Override
     public void testStarted(Description description) throws Exception {
@@ -86,7 +88,12 @@ public class ReproduceInfoPrinter extends RunListener {
             gradleMessageBuilder.appendClientYamlSuiteProperties();
         }
 
-        System.err.println(b.toString());
+        printToErr(b.toString());
+    }
+
+    @SuppressForbidden(reason = "printing repro info")
+    private static void printToErr(String s) {
+        System.err.println(s);
     }
 
     protected static class GradleMessageBuilder extends ReproduceErrorMessageBuilder {
@@ -150,6 +157,10 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("tests.distribution", System.getProperty("tests.distribution"));
+            appendOpt("compiler.java", System.getProperty("compiler.java"));
+            appendOpt("runtime.java", System.getProperty("runtime.java"));
+            appendOpt("javax.net.ssl.keyStorePassword", System.getProperty("javax.net.ssl.keyStorePassword"));
+            appendOpt("javax.net.ssl.trustStorePassword", System.getProperty("javax.net.ssl.trustStorePassword"));
             return this;
         }
 

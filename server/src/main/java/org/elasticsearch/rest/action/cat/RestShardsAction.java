@@ -32,16 +32,30 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.time.Instant;
 import java.util.Locale;
+import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -128,16 +142,20 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("get.missing_time", "alias:gmti,getMissingTime;default:false;text-align:right;desc:time spent in failed gets");
         table.addCell("get.missing_total", "alias:gmto,getMissingTotal;default:false;text-align:right;desc:number of failed gets");
 
-        table.addCell("indexing.delete_current", "alias:idc,indexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
+        table.addCell("indexing.delete_current",
+            "alias:idc,indexingDeleteCurrent;default:false;text-align:right;desc:number of current deletions");
         table.addCell("indexing.delete_time", "alias:idti,indexingDeleteTime;default:false;text-align:right;desc:time spent in deletions");
         table.addCell("indexing.delete_total", "alias:idto,indexingDeleteTotal;default:false;text-align:right;desc:number of delete ops");
-        table.addCell("indexing.index_current", "alias:iic,indexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
+        table.addCell("indexing.index_current",
+            "alias:iic,indexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
         table.addCell("indexing.index_time", "alias:iiti,indexingIndexTime;default:false;text-align:right;desc:time spent in indexing");
         table.addCell("indexing.index_total", "alias:iito,indexingIndexTotal;default:false;text-align:right;desc:number of indexing ops");
-        table.addCell("indexing.index_failed", "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops");
+        table.addCell("indexing.index_failed",
+            "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops");
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
-        table.addCell("merges.current_docs", "alias:mcd,mergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
+        table.addCell("merges.current_docs",
+            "alias:mcd,mergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
         table.addCell("merges.current_size", "alias:mcs,mergesCurrentSize;default:false;text-align:right;desc:size of current merges");
         table.addCell("merges.total", "alias:mt,mergesTotal;default:false;text-align:right;desc:number of completed merge ops");
         table.addCell("merges.total_docs", "alias:mtd,mergesTotalDocs;default:false;text-align:right;desc:docs merged");
@@ -146,7 +164,8 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
-        table.addCell("refresh.listeners", "alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners");
+        table.addCell("refresh.listeners",
+            "alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners");
 
         table.addCell("search.fetch_current", "alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
         table.addCell("search.fetch_time", "alias:sfti,searchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
@@ -156,14 +175,19 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("search.query_time", "alias:sqti,searchQueryTime;default:false;text-align:right;desc:time spent in query phase");
         table.addCell("search.query_total", "alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops");
         table.addCell("search.scroll_current", "alias:scc,searchScrollCurrent;default:false;text-align:right;desc:open scroll contexts");
-        table.addCell("search.scroll_time", "alias:scti,searchScrollTime;default:false;text-align:right;desc:time scroll contexts held open");
+        table.addCell("search.scroll_time",
+            "alias:scti,searchScrollTime;default:false;text-align:right;desc:time scroll contexts held open");
         table.addCell("search.scroll_total", "alias:scto,searchScrollTotal;default:false;text-align:right;desc:completed scroll contexts");
 
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
-        table.addCell("segments.index_writer_memory", "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
-        table.addCell("segments.version_map_memory", "alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
-        table.addCell("segments.fixed_bitset_memory", "alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields");
+        table.addCell("segments.index_writer_memory",
+            "alias:siwm,segmentsIndexWriterMemory;default:false;text-align:right;desc:memory used by index writer");
+        table.addCell("segments.version_map_memory",
+            "alias:svmm,segmentsVersionMapMemory;default:false;text-align:right;desc:memory used by version map");
+        table.addCell("segments.fixed_bitset_memory",
+            "alias:sfbm,fixedBitsetMemory;default:false;text-align:right;desc:memory used by fixed bit sets for nested object" +
+            " field types and type filters for types referred in _parent fields");
 
         table.addCell("seq_no.max", "alias:sqm,maxSeqNo;default:false;text-align:right;desc:max sequence number");
         table.addCell("seq_no.local_checkpoint", "alias:sql,localCheckpoint;default:false;text-align:right;desc:local checkpoint");
@@ -175,6 +199,16 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.endHeaders();
         return table;
+    }
+
+    private static <S, T> Object getOrNull(S stats, Function<S, T> accessor, Function<T, Object> func) {
+        if(stats != null) {
+            T t = accessor.apply(stats);
+            if (t != null) {
+                return func.apply(t);
+            }
+        }
+        return null;
     }
 
     private Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
@@ -200,8 +234,8 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell("r");
             }
             table.addCell(shard.state());
-            table.addCell(commonStats == null ? null : commonStats.getDocs().getCount());
-            table.addCell(commonStats == null ? null : commonStats.getStore().getSize());
+            table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getCount));
+            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getSize));
             if (shard.assignedToNode()) {
                 String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
                 String nodeId = shard.currentNodeId();
@@ -248,69 +282,69 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(null);
             }
 
-            table.addCell(commonStats == null ? null : commonStats.getCompletion().getSize());
+            table.addCell(getOrNull(commonStats, CommonStats::getCompletion, CompletionStats::getSize));
 
-            table.addCell(commonStats == null ? null : commonStats.getFieldData().getMemorySize());
-            table.addCell(commonStats == null ? null : commonStats.getFieldData().getEvictions());
+            table.addCell(getOrNull(commonStats, CommonStats::getFieldData, FieldDataStats::getMemorySize));
+            table.addCell(getOrNull(commonStats, CommonStats::getFieldData, FieldDataStats::getEvictions));
 
-            table.addCell(commonStats == null ? null : commonStats.getQueryCache().getMemorySize());
-            table.addCell(commonStats == null ? null : commonStats.getQueryCache().getEvictions());
+            table.addCell(getOrNull(commonStats, CommonStats::getQueryCache, QueryCacheStats::getMemorySize));
+            table.addCell(getOrNull(commonStats, CommonStats::getQueryCache, QueryCacheStats::getEvictions));
 
-            table.addCell(commonStats == null ? null : commonStats.getFlush().getTotal());
-            table.addCell(commonStats == null ? null : commonStats.getFlush().getTotalTime());
+            table.addCell(getOrNull(commonStats, CommonStats::getFlush, FlushStats::getTotal));
+            table.addCell(getOrNull(commonStats, CommonStats::getFlush, FlushStats::getTotalTime));
 
-            table.addCell(commonStats == null ? null : commonStats.getGet().current());
-            table.addCell(commonStats == null ? null : commonStats.getGet().getTime());
-            table.addCell(commonStats == null ? null : commonStats.getGet().getCount());
-            table.addCell(commonStats == null ? null : commonStats.getGet().getExistsTime());
-            table.addCell(commonStats == null ? null : commonStats.getGet().getExistsCount());
-            table.addCell(commonStats == null ? null : commonStats.getGet().getMissingTime());
-            table.addCell(commonStats == null ? null : commonStats.getGet().getMissingCount());
+            table.addCell(getOrNull(commonStats, CommonStats::getGet, GetStats::current));
+            table.addCell(getOrNull(commonStats, CommonStats::getGet, GetStats::getTime));
+            table.addCell(getOrNull(commonStats, CommonStats::getGet, GetStats::getCount));
+            table.addCell(getOrNull(commonStats, CommonStats::getGet, GetStats::getExistsTime));
+            table.addCell(getOrNull(commonStats, CommonStats::getGet, GetStats::getExistsCount));
+            table.addCell(getOrNull(commonStats, CommonStats::getGet, GetStats::getMissingTime));
+            table.addCell(getOrNull(commonStats, CommonStats::getGet, GetStats::getMissingCount));
 
-            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getDeleteCurrent());
-            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getDeleteTime());
-            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getDeleteCount());
-            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getIndexCurrent());
-            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getIndexTime());
-            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getIndexCount());
-            table.addCell(commonStats == null ? null : commonStats.getIndexing().getTotal().getIndexFailedCount());
+            table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getDeleteCurrent()));
+            table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getDeleteTime()));
+            table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getDeleteCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexCurrent()));
+            table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexTime()));
+            table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getIndexing, i -> i.getTotal().getIndexFailedCount()));
 
-            table.addCell(commonStats == null ? null : commonStats.getMerge().getCurrent());
-            table.addCell(commonStats == null ? null : commonStats.getMerge().getCurrentNumDocs());
-            table.addCell(commonStats == null ? null : commonStats.getMerge().getCurrentSize());
-            table.addCell(commonStats == null ? null : commonStats.getMerge().getTotal());
-            table.addCell(commonStats == null ? null : commonStats.getMerge().getTotalNumDocs());
-            table.addCell(commonStats == null ? null : commonStats.getMerge().getTotalSize());
-            table.addCell(commonStats == null ? null : commonStats.getMerge().getTotalTime());
+            table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getCurrent));
+            table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getCurrentNumDocs));
+            table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getCurrentSize));
+            table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getTotal));
+            table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getTotalNumDocs));
+            table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getTotalSize));
+            table.addCell(getOrNull(commonStats, CommonStats::getMerge, MergeStats::getTotalTime));
 
-            table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotal());
-            table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotalTime());
-            table.addCell(commonStats == null ? null : commonStats.getRefresh().getListeners());
+            table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getTotal));
+            table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getTotalTime));
+            table.addCell(getOrNull(commonStats, CommonStats::getRefresh, RefreshStats::getListeners));
 
-            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getFetchCurrent());
-            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getFetchTime());
-            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getFetchCount());
-            table.addCell(commonStats == null ? null : commonStats.getSearch().getOpenContexts());
-            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getQueryCurrent());
-            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getQueryTime());
-            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getQueryCount());
-            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getScrollCurrent());
-            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getScrollTime());
-            table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getScrollCount());
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getFetchCurrent()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getFetchTime()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getFetchCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, SearchStats::getOpenContexts));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryCurrent()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryTime()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getQueryCount()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCurrent()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollTime()));
+            table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCount()));
 
-            table.addCell(commonStats == null ? null : commonStats.getSegments().getCount());
-            table.addCell(commonStats == null ? null : commonStats.getSegments().getMemory());
-            table.addCell(commonStats == null ? null : commonStats.getSegments().getIndexWriterMemory());
-            table.addCell(commonStats == null ? null : commonStats.getSegments().getVersionMapMemory());
-            table.addCell(commonStats == null ? null : commonStats.getSegments().getBitsetMemory());
+            table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getCount));
+            table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getMemory));
+            table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getIndexWriterMemory));
+            table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getVersionMapMemory));
+            table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getBitsetMemory));
 
-            table.addCell(shardStats == null || shardStats.getSeqNoStats() == null ? null : shardStats.getSeqNoStats().getMaxSeqNo());
-            table.addCell(shardStats == null || shardStats.getSeqNoStats() == null ? null : shardStats.getSeqNoStats().getLocalCheckpoint());
-            table.addCell(commitStats == null || shardStats.getSeqNoStats() == null ? null : shardStats.getSeqNoStats().getGlobalCheckpoint());
+            table.addCell(getOrNull(shardStats, ShardStats::getSeqNoStats, SeqNoStats::getMaxSeqNo));
+            table.addCell(getOrNull(shardStats, ShardStats::getSeqNoStats, SeqNoStats::getLocalCheckpoint));
+            table.addCell(getOrNull(shardStats, ShardStats::getSeqNoStats, SeqNoStats::getGlobalCheckpoint));
 
-            table.addCell(commonStats == null ? null : commonStats.getWarmer().current());
-            table.addCell(commonStats == null ? null : commonStats.getWarmer().total());
-            table.addCell(commonStats == null ? null : commonStats.getWarmer().totalTime());
+            table.addCell(getOrNull(commonStats, CommonStats::getWarmer, WarmerStats::current));
+            table.addCell(getOrNull(commonStats, CommonStats::getWarmer, WarmerStats::total));
+            table.addCell(getOrNull(commonStats, CommonStats::getWarmer, WarmerStats::totalTime));
 
             table.endRow();
         }

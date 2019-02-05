@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,10 +19,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.hamcrest.Matchers;
 
@@ -46,10 +48,11 @@ public class RoleDescriptorTests extends ESTestCase {
         RoleDescriptor.IndicesPrivileges privs = RoleDescriptor.IndicesPrivileges.builder()
                 .indices("idx")
                 .privileges("priv")
+                .allowRestrictedIndices(true)
                 .build();
         XContentBuilder b = jsonBuilder();
         privs.toXContent(b, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"names\":[\"idx\"],\"privileges\":[\"priv\"]}", Strings.toString(b));
+        assertEquals("{\"names\":[\"idx\"],\"privileges\":[\"priv\"],\"allow_restricted_indices\":true}", Strings.toString(b));
     }
 
     public void testToString() throws Exception {
@@ -78,7 +81,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
         assertThat(descriptor.toString(), is("Role[name=test, cluster=[all,none]" +
                 ", global=[{APPLICATION:manage:applications=app01,app02}]" +
-                ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], privileges=[read]" +
+                ", indicesPrivileges=[IndicesPrivileges[indices=[i1,i2], allowRestrictedIndices=[false], privileges=[read]" +
                 ", field_security=[grant=[body,title], except=null], query={\"query\": {\"match_all\": {}}}],]" +
                 ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]" +
                 ", runAs=[sudo], metadata=[{}]]"));
@@ -90,6 +93,7 @@ public class RoleDescriptorTests extends ESTestCase {
                         .indices("i1", "i2")
                         .privileges("read")
                         .grantedFields("body", "title")
+                        .allowRestrictedIndices(randomBoolean())
                         .query("{\"query\": {\"match_all\": {}}}")
                         .build()
         };
@@ -129,9 +133,9 @@ public class RoleDescriptorTests extends ESTestCase {
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
 
         q = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"index\": [{\"names\": \"idx1\", \"privileges\": [\"p1\", " +
-                "\"p2\"]}, {\"names\": \"idx2\", \"privileges\": [\"p3\"], \"field_security\": " +
+                "\"p2\"]}, {\"names\": \"idx2\", \"allow_restricted_indices\": true, \"privileges\": [\"p3\"], \"field_security\": " +
                 "{\"grant\": [\"f1\", \"f2\"]}}, {\"names\": " +
-                "\"idx2\", " +
+                "\"idx2\", \"allow_restricted_indices\": false," +
                 "\"privileges\": [\"p3\"], \"field_security\": {\"grant\": [\"f1\", \"f2\"]}, \"query\": \"{\\\"match_all\\\": {}}\"}]}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
@@ -140,12 +144,13 @@ public class RoleDescriptorTests extends ESTestCase {
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
 
         q = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"index\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": " +
-                "[\"p1\", \"p2\"]}]}";
+                "[\"p1\", \"p2\"], \"allow_restricted_indices\": true}]}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
         assertEquals(1, rd.getIndicesPrivileges().length);
         assertArrayEquals(new String[] { "idx1", "idx2" }, rd.getIndicesPrivileges()[0].getIndices());
+        assertTrue(rd.getIndicesPrivileges()[0].allowRestrictedIndices());
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
         assertNull(rd.getIndicesPrivileges()[0].getQuery());
 
@@ -160,7 +165,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(rd.getMetadata().get("foo"), is("bar"));
 
         q = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"]," +
-                " \"index\": [{\"names\": [\"idx1\",\"idx2\"], \"privileges\": [\"p1\", \"p2\"]}]," +
+                " \"index\": [{\"names\": [\"idx1\",\"idx2\"], \"allow_restricted_indices\": false, \"privileges\": [\"p1\", \"p2\"]}]," +
                 " \"applications\": [" +
                 "     {\"resources\": [\"object-123\",\"object-456\"], \"privileges\":[\"read\", \"delete\"], \"application\":\"app1\"}," +
                 "     {\"resources\": [\"*\"], \"privileges\":[\"admin\"], \"application\":\"app2\" }" +
@@ -172,8 +177,9 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(rd.getClusterPrivileges(), arrayContaining("a", "b"));
         assertThat(rd.getIndicesPrivileges().length, equalTo(1));
         assertThat(rd.getIndicesPrivileges()[0].getIndices(), arrayContaining("idx1", "idx2"));
-        assertThat(rd.getRunAs(), arrayContaining("m", "n"));
+        assertThat(rd.getIndicesPrivileges()[0].allowRestrictedIndices(), is(false));
         assertThat(rd.getIndicesPrivileges()[0].getQuery(), nullValue());
+        assertThat(rd.getRunAs(), arrayContaining("m", "n"));
         assertThat(rd.getApplicationPrivileges().length, equalTo(2));
         assertThat(rd.getApplicationPrivileges()[0].getResources(), arrayContaining("object-123", "object-456"));
         assertThat(rd.getApplicationPrivileges()[0].getPrivileges(), arrayContaining("read", "delete"));
@@ -208,7 +214,10 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerialization() throws Exception {
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, null);
+        logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
+        output.setVersion(version);
         RoleDescriptor.IndicesPrivileges[] groups = new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                         .indices("i1", "i2")
@@ -235,6 +244,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
             registry);
+        streamInput.setVersion(version);
         final RoleDescriptor serialized = RoleDescriptor.readFrom(streamInput);
         assertEquals(descriptor, serialized);
     }

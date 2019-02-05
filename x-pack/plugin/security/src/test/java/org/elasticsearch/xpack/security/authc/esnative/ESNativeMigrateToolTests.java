@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
+import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import org.elasticsearch.cli.MockTerminal;
@@ -12,18 +13,20 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -47,11 +50,11 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         logger.info("--> use SSL? {}", useSSL);
-        Settings s = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("xpack.security.http.ssl.enabled", useSSL)
-                .build();
-        return s;
+        Settings.Builder builder = Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal));
+        addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
+        builder.put("xpack.security.http.ssl.enabled", useSSL);
+        return builder.build();
     }
 
     @Override
@@ -75,7 +78,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         SecurityClient c = new SecurityClient(client());
         logger.error("--> creating users");
         int numToAdd = randomIntBetween(1,10);
-        Set<String> addedUsers = new HashSet(numToAdd);
+        Set<String> addedUsers = new HashSet<>(numToAdd);
         for (int i = 0; i < numToAdd; i++) {
             String uname = randomAlphaOfLength(5);
             c.preparePutUser(uname, "s3kirt".toCharArray(), getFastStoredHashAlgoForTests(), "role1", "user").get();
@@ -92,13 +95,15 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
 
         Settings.Builder builder = Settings.builder()
                 .put("path.home", home)
-                .put("path.conf", conf.toString());
-        SecuritySettingsSource.addSSLSettingsForPEMFiles(
+                .put("path.conf", conf.toString())
+                .put("xpack.security.http.ssl.client_authentication", "none");
+        addSSLSettingsForPEMFiles(
             builder,
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
             "testnode",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+            "xpack.security.http.",
+            Collections.singletonList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         Settings settings = builder.build();
         logger.error("--> retrieving users using URL: {}, home: {}", url, home);
 
@@ -125,8 +130,8 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
             c.preparePutRole(rname)
                     .cluster("all", "none")
                     .runAs("root", "nobody")
-                    .addIndices(new String[]{"index"}, new String[]{"read"},
-                            new String[]{"body", "title"}, null, new BytesArray("{\"query\": {\"match_all\": {}}}"))
+                    .addIndices(new String[] { "index" }, new String[] { "read" }, new String[] { "body", "title" }, null,
+                            new BytesArray("{\"query\": {\"match_all\": {}}}"), randomBoolean())
                     .get();
             addedRoles.add(rname);
         }
@@ -138,12 +143,15 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         String password = new String(CharArrays.toUtf8Bytes(nodeClientPassword().getChars()), StandardCharsets.UTF_8);
         String url = getHttpURL();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
-        Settings.Builder builder = Settings.builder().put("path.home", home);
-        SecuritySettingsSource.addSSLSettingsForPEMFiles(builder,
+        Settings.Builder builder = Settings.builder()
+                .put("path.home", home)
+                .put("xpack.security.http.ssl.client_authentication", "none");
+        addSSLSettingsForPEMFiles(builder,
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
             "testclient",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+            "xpack.security.http.",
+            Collections.singletonList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         Settings settings = builder.build();
         logger.error("--> retrieving roles using URL: {}, home: {}", url, home);
 
@@ -154,5 +162,14 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         for (String r : addedRoles) {
             assertThat("expected list to contain: " + r, roles.contains(r), is(true));
         }
+    }
+
+    public void testMissingPasswordParameter() {
+        ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
+
+        final OptionException ex = expectThrows(OptionException.class,
+            () -> muor.getParser().parse("-u", "elastic", "-U", "http://localhost:9200"));
+
+        assertThat(ex.getMessage(), containsString("password"));
     }
 }

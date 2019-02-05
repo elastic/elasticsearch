@@ -15,7 +15,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -238,22 +238,17 @@ public class RoleDescriptor implements ToXContentObject {
         int size = in.readVInt();
         IndicesPrivileges[] indicesPrivileges = new IndicesPrivileges[size];
         for (int i = 0; i < size; i++) {
-            indicesPrivileges[i] = IndicesPrivileges.createFrom(in);
+            indicesPrivileges[i] = new IndicesPrivileges(in);
         }
         String[] runAs = in.readStringArray();
         Map<String, Object> metadata = in.readMap();
 
-        final Map<String, Object> transientMetadata;
-        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
-            transientMetadata = in.readMap();
-        } else {
-            transientMetadata = Collections.emptyMap();
-        }
+        final Map<String, Object> transientMetadata = in.readMap();
 
         final ApplicationResourcePrivileges[] applicationPrivileges;
         final ConditionalClusterPrivilege[] conditionalClusterPrivileges;
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            applicationPrivileges = in.readArray(ApplicationResourcePrivileges::createFrom, ApplicationResourcePrivileges[]::new);
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
             conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
         } else {
             applicationPrivileges = ApplicationResourcePrivileges.NONE;
@@ -273,10 +268,8 @@ public class RoleDescriptor implements ToXContentObject {
         }
         out.writeStringArray(descriptor.runAs);
         out.writeMap(descriptor.metadata);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
-            out.writeMap(descriptor.transientMetadata);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        out.writeMap(descriptor.transientMetadata);
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeArray(ApplicationResourcePrivileges::write, descriptor.applicationPrivileges);
             ConditionalClusterPrivileges.writeArray(out, descriptor.getConditionalClusterPrivileges());
         }
@@ -435,6 +428,7 @@ public class RoleDescriptor implements ToXContentObject {
         String[] privileges = null;
         String[] grantedFields = null;
         String[] deniedFields = null;
+        boolean allowRestrictedIndices = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -450,6 +444,13 @@ public class RoleDescriptor implements ToXContentObject {
                 } else {
                     throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] " +
                             "value to be a string or an array of strings, but found [{}] instead", roleName, currentFieldName, token);
+                }
+            } else if (Fields.ALLOW_RESTRICTED_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                    allowRestrictedIndices = parser.booleanValue();
+                } else {
+                    throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] " +
+                            "value to be a boolean, but found [{}] instead", roleName, currentFieldName, token);
                 }
             } else if (Fields.QUERY.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.START_OBJECT) {
@@ -550,6 +551,7 @@ public class RoleDescriptor implements ToXContentObject {
                 .grantedFields(grantedFields)
                 .deniedFields(deniedFields)
                 .query(query)
+                .allowRestrictedIndices(allowRestrictedIndices)
                 .build();
     }
 
@@ -588,7 +590,7 @@ public class RoleDescriptor implements ToXContentObject {
      * A class representing permissions for a group of indices mapped to
      * privileges, field permissions, and a query.
      */
-    public static class IndicesPrivileges implements ToXContentObject, Streamable {
+    public static class IndicesPrivileges implements ToXContentObject, Writeable {
 
         private static final IndicesPrivileges[] NONE = new IndicesPrivileges[0];
 
@@ -597,8 +599,37 @@ public class RoleDescriptor implements ToXContentObject {
         private String[] grantedFields = null;
         private String[] deniedFields = null;
         private BytesReference query;
+        // by default certain restricted indices are exempted when granting privileges, as they should generally be hidden for ordinary
+        // users. Setting this flag eliminates this special status, and any index name pattern in the permission will cover restricted
+        // indices as well.
+        private boolean allowRestrictedIndices = false;
 
         private IndicesPrivileges() {
+        }
+
+        public IndicesPrivileges(StreamInput in) throws IOException {
+            this.indices = in.readStringArray();
+            this.grantedFields = in.readOptionalStringArray();
+            this.deniedFields = in.readOptionalStringArray();
+            this.privileges = in.readStringArray();
+            this.query = in.readOptionalBytesReference();
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+                allowRestrictedIndices = in.readBoolean();
+            } else {
+                allowRestrictedIndices = false;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringArray(indices);
+            out.writeOptionalStringArray(grantedFields);
+            out.writeOptionalStringArray(deniedFields);
+            out.writeStringArray(privileges);
+            out.writeOptionalBytesReference(query);
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+                out.writeBoolean(allowRestrictedIndices);
+            }
         }
 
         public static Builder builder() {
@@ -636,6 +667,10 @@ public class RoleDescriptor implements ToXContentObject {
             return hasDeniedFields() || hasGrantedFields();
         }
 
+        public boolean allowRestrictedIndices() {
+            return allowRestrictedIndices;
+        }
+
         private boolean hasDeniedFields() {
             return deniedFields != null && deniedFields.length > 0;
         }
@@ -656,6 +691,7 @@ public class RoleDescriptor implements ToXContentObject {
         public String toString() {
             StringBuilder sb = new StringBuilder("IndicesPrivileges[");
             sb.append("indices=[").append(Strings.arrayToCommaDelimitedString(indices));
+            sb.append("], allowRestrictedIndices=[").append(allowRestrictedIndices);
             sb.append("], privileges=[").append(Strings.arrayToCommaDelimitedString(privileges));
             sb.append("], ");
             if (grantedFields != null || deniedFields != null) {
@@ -692,6 +728,7 @@ public class RoleDescriptor implements ToXContentObject {
             IndicesPrivileges that = (IndicesPrivileges) o;
 
             if (!Arrays.equals(indices, that.indices)) return false;
+            if (allowRestrictedIndices != that.allowRestrictedIndices) return false;
             if (!Arrays.equals(privileges, that.privileges)) return false;
             if (!Arrays.equals(grantedFields, that.grantedFields)) return false;
             if (!Arrays.equals(deniedFields, that.deniedFields)) return false;
@@ -701,6 +738,7 @@ public class RoleDescriptor implements ToXContentObject {
         @Override
         public int hashCode() {
             int result = Arrays.hashCode(indices);
+            result = 31 * result + (allowRestrictedIndices ? 1 : 0);
             result = 31 * result + Arrays.hashCode(privileges);
             result = 31 * result + Arrays.hashCode(grantedFields);
             result = 31 * result + Arrays.hashCode(deniedFields);
@@ -726,31 +764,8 @@ public class RoleDescriptor implements ToXContentObject {
             if (query != null) {
                 builder.field("query", query.utf8ToString());
             }
+            builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
             return builder.endObject();
-        }
-
-        public static IndicesPrivileges createFrom(StreamInput in) throws IOException {
-            IndicesPrivileges ip = new IndicesPrivileges();
-            ip.readFrom(in);
-            return ip;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            this.indices = in.readStringArray();
-            this.grantedFields = in.readOptionalStringArray();
-            this.deniedFields = in.readOptionalStringArray();
-            this.privileges = in.readStringArray();
-            this.query = in.readOptionalBytesReference();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(indices);
-            out.writeOptionalStringArray(grantedFields);
-            out.writeOptionalStringArray(deniedFields);
-            out.writeStringArray(privileges);
-            out.writeOptionalBytesReference(query);
         }
 
         public static class Builder {
@@ -770,6 +785,10 @@ public class RoleDescriptor implements ToXContentObject {
                 return this;
             }
 
+            public Builder privileges(Collection<String> privileges) {
+                return privileges(privileges.toArray(new String[privileges.size()]));
+            }
+
             public Builder grantedFields(String... grantedFields) {
                 indicesPrivileges.grantedFields = grantedFields;
                 return this;
@@ -782,6 +801,11 @@ public class RoleDescriptor implements ToXContentObject {
 
             public Builder query(@Nullable String query) {
                 return query(query == null ? null : new BytesArray(query));
+            }
+
+            public Builder allowRestrictedIndices(boolean allow) {
+                indicesPrivileges.allowRestrictedIndices = allow;
+                return this;
             }
 
             public Builder query(@Nullable BytesReference query) {
@@ -805,7 +829,7 @@ public class RoleDescriptor implements ToXContentObject {
         }
     }
 
-    public static class ApplicationResourcePrivileges implements ToXContentObject, Streamable {
+    public static class ApplicationResourcePrivileges implements ToXContentObject, Writeable {
 
         private static final ApplicationResourcePrivileges[] NONE = new ApplicationResourcePrivileges[0];
         private static final ObjectParser<ApplicationResourcePrivileges.Builder, Void> PARSER = new ObjectParser<>("application",
@@ -822,6 +846,19 @@ public class RoleDescriptor implements ToXContentObject {
         private String[] resources;
 
         private ApplicationResourcePrivileges() {
+        }
+
+        public ApplicationResourcePrivileges(StreamInput in) throws IOException {
+            this.application = in.readString();
+            this.privileges = in.readStringArray();
+            this.resources = in.readStringArray();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(application);
+            out.writeStringArray(privileges);
+            out.writeStringArray(resources);
         }
 
         public static Builder builder() {
@@ -885,26 +922,6 @@ public class RoleDescriptor implements ToXContentObject {
             return builder.endObject();
         }
 
-        public static ApplicationResourcePrivileges createFrom(StreamInput in) throws IOException {
-            ApplicationResourcePrivileges ip = new ApplicationResourcePrivileges();
-            ip.readFrom(in);
-            return ip;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            this.application = in.readString();
-            this.privileges = in.readStringArray();
-            this.resources = in.readStringArray();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(application);
-            out.writeStringArray(privileges);
-            out.writeStringArray(resources);
-        }
-
         public static void write(StreamOutput out, ApplicationResourcePrivileges privileges) throws IOException {
             privileges.writeTo(out);
         }
@@ -926,7 +943,7 @@ public class RoleDescriptor implements ToXContentObject {
                 return this;
             }
 
-            public Builder resources(List<String> resources) {
+            public Builder resources(Collection<String> resources) {
                 return resources(resources.toArray(new String[resources.size()]));
             }
 
@@ -971,6 +988,7 @@ public class RoleDescriptor implements ToXContentObject {
         ParseField APPLICATIONS = new ParseField("applications");
         ParseField RUN_AS = new ParseField("run_as");
         ParseField NAMES = new ParseField("names");
+        ParseField ALLOW_RESTRICTED_INDICES = new ParseField("allow_restricted_indices");
         ParseField RESOURCES = new ParseField("resources");
         ParseField QUERY = new ParseField("query");
         ParseField PRIVILEGES = new ParseField("privileges");

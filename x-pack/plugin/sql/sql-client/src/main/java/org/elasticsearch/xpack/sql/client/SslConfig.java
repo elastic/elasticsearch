@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.client;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -62,8 +63,19 @@ public class SslConfig {
 
     private final SSLContext sslContext;
 
-    SslConfig(Properties settings) {
-        enabled = StringUtils.parseBoolean(settings.getProperty(SSL, SSL_DEFAULT));
+    SslConfig(Properties settings, URI baseURI) {
+        boolean isSchemaPresent = baseURI.getScheme() != null;
+        boolean isSSLPropertyPresent = settings.getProperty(SSL) != null;
+        boolean isHttpsScheme = "https".equals(baseURI.getScheme());
+        
+        if (!isSSLPropertyPresent && !isSchemaPresent) {
+            enabled = StringUtils.parseBoolean(SSL_DEFAULT);
+        } else {
+            if (isSSLPropertyPresent && isHttpsScheme && !StringUtils.parseBoolean(settings.getProperty(SSL))) {
+                throw new ClientException("Cannot enable SSL: HTTPS protocol being used in the URL and SSL disabled in properties");
+            }
+            enabled = isHttpsScheme || StringUtils.parseBoolean(settings.getProperty(SSL, SSL_DEFAULT));
+        }
         protocol = settings.getProperty(SSL_PROTOCOL, SSL_PROTOCOL_DEFAULT);
         keystoreLocation = settings.getProperty(SSL_KEYSTORE_LOCATION, SSL_KEYSTORE_LOCATION_DEFAULT);
         keystorePass = settings.getProperty(SSL_KEYSTORE_PASS, SSL_KEYSTORE_PASS_DEFAULT);
@@ -109,19 +121,19 @@ public class SslConfig {
     }
 
 
-    private KeyStore loadKeyStore(String location, char[] pass, String keyStoreType) throws GeneralSecurityException, IOException {
+    private KeyStore loadKeyStore(String source, char[] pass, String keyStoreType) throws GeneralSecurityException, IOException {
         KeyStore keyStore = KeyStore.getInstance(keyStoreType);
-        Path path = Paths.get(location);
+        Path path = Paths.get(source);
 
         if (!Files.exists(path)) {
            throw new ClientException(
-                   "Expected to find keystore file at [" + location + "] but was unable to. Make sure you have specified a valid URI.");
+                    "Expected to find keystore file at [" + source + "] but was unable to. Make sure you have specified a valid URI.");
         }
 
-        try (InputStream in = Files.newInputStream(Paths.get(location), StandardOpenOption.READ)) {
+        try (InputStream in = Files.newInputStream(Paths.get(source), StandardOpenOption.READ)) {
             keyStore.load(in, pass);
         } catch (Exception ex) {
-            throw new ClientException("Cannot open keystore [" + location + "] - " + ex.getMessage(), ex);
+            throw new ClientException("Cannot open keystore [" + source + "] - " + ex.getMessage(), ex);
         } finally {
 
         }
@@ -162,6 +174,7 @@ public class SslConfig {
                 && Objects.equals(truststoreType, other.truststoreType);
     }
 
+    @Override
     public int hashCode() {
         return getClass().hashCode();
     }

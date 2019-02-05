@@ -22,7 +22,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Collector;
@@ -31,6 +31,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
@@ -71,7 +72,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         super(searcher.reader());
         in = searcher.searcher();
         engineSearcher = searcher;
-        setSimilarity(searcher.searcher().getSimilarity(true));
+        setSimilarity(searcher.searcher().getSimilarity());
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
     }
@@ -112,22 +113,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
-        // During tests we prefer to use the wrapped IndexSearcher, because then we use the AssertingIndexSearcher
-        // it is hacky, because if we perform a dfs search, we don't use the wrapped IndexSearcher...
-        if (aggregatedDfs != null && needsScores) {
-            // if scores are needed and we have dfs data then use it
-            return super.createNormalizedWeight(query, needsScores);
-        } else if (profiler != null) {
-            // we need to use the createWeight method to insert the wrappers
-            return super.createNormalizedWeight(query, needsScores);
-        } else {
-            return in.createNormalizedWeight(query, needsScores);
-        }
-    }
-
-    @Override
-    public Weight createWeight(Query query, boolean needsScores, float boost) throws IOException {
+    public Weight createWeight(Query query, ScoreMode scoreMode, float boost) throws IOException {
         if (profiler != null) {
             // createWeight() is called for each query in the tree, so we tell the queryProfiler
             // each invocation so that it can build an internal representation of the query
@@ -137,7 +123,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             timer.start();
             final Weight weight;
             try {
-                weight = super.createWeight(query, needsScores, boost);
+                weight = super.createWeight(query, scoreMode, boost);
             } finally {
                 timer.stop();
                 profiler.pollLastElement();
@@ -145,7 +131,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return new ProfileWeight(query, weight, profile);
         } else {
             // needs to be 'super', not 'in' in order to use aggregated DFS
-            return super.createWeight(query, needsScores, boost);
+            return super.createWeight(query, scoreMode, boost);
         }
     }
 
@@ -195,13 +181,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public Explanation explain(Query query, int doc) throws IOException {
         if (aggregatedDfs != null) {
             // dfs data is needed to explain the score
-            return super.explain(createNormalizedWeight(query, true), doc);
+            return super.explain(createWeight(rewrite(query), ScoreMode.COMPLETE, 1f), doc);
         }
         return in.explain(query, doc);
     }
 
     @Override
-    public TermStatistics termStatistics(Term term, TermContext context) throws IOException {
+    public TermStatistics termStatistics(Term term, TermStates context) throws IOException {
         if (aggregatedDfs == null) {
             // we are either executing the dfs phase or the search_type doesn't include the dfs phase.
             return super.termStatistics(term, context);
@@ -230,5 +216,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     public DirectoryReader getDirectoryReader() {
         return engineSearcher.getDirectoryReader();
+    }
+
+    public Engine.Searcher getEngineSearcher() {
+        return engineSearcher;
     }
 }

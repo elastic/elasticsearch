@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -54,10 +53,10 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
     private final IndicesService indicesService;
 
     @Inject
-    public TransportRecoveryAction(Settings settings, ClusterService clusterService,
+    public TransportRecoveryAction(ClusterService clusterService,
                                    TransportService transportService, IndicesService indicesService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, RecoveryAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(RecoveryAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 RecoveryRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
@@ -69,7 +68,9 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
 
 
     @Override
-    protected RecoveryResponse newResponse(RecoveryRequest request, int totalShards, int successfulShards, int failedShards, List<RecoveryState> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
+    protected RecoveryResponse newResponse(RecoveryRequest request, int totalShards, int successfulShards, int failedShards,
+                                           List<RecoveryState> responses, List<DefaultShardOperationFailedException> shardFailures,
+                                           ClusterState clusterState) {
         Map<String, List<RecoveryState>> shardResponses = new HashMap<>();
         for (RecoveryState recoveryState : responses) {
             if (recoveryState == null) {

@@ -21,12 +21,14 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -83,7 +85,7 @@ public class ReservedRealmTests extends ESTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new ReservedRealm(mock(Environment.class),
             invalidSettings, usersStore, new AnonymousUser(Settings.EMPTY), securityIndex, threadPool));
         assertThat(exception.getMessage(), containsString(invalidAlgoId));
-        assertThat(exception.getMessage(), containsString("Only pbkdf2 or bcrypt family algorithms can be used for password hashing"));
+        assertThat(exception.getMessage(), containsString("Invalid algorithm"));
     }
 
     public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {
@@ -262,7 +264,8 @@ public class ReservedRealmTests extends ESTestCase {
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         assertThat(userFuture.actionGet(),
-            containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true), new BeatsSystemUser(true)));
+            containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true),
+                new BeatsSystemUser(true), new APMSystemUser(true), new RemoteMonitoringUser(true)));
     }
 
     public void testGetUsersDisabled() {
@@ -394,7 +397,8 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
-        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
+        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
             callback.onResponse(null);
@@ -416,14 +420,16 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
-        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
+        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME);
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, mockSecureSettings.getString("bootstrap.password")), listener);
         final AuthenticationResult result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
     }
 
     private User randomReservedUser(boolean enabled) {
-        return randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new LogstashSystemUser(enabled), new BeatsSystemUser(enabled));
+        return randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new LogstashSystemUser(enabled),
+            new BeatsSystemUser(enabled), new APMSystemUser(enabled), new RemoteMonitoringUser(enabled));
     }
 
     /*
@@ -444,26 +450,26 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     private void verifyVersionPredicate(String principal, Predicate<Version> versionPredicate) {
-        assertThat(versionPredicate.test(Version.V_5_0_0_rc1), is(false));
         switch (principal) {
             case LogstashSystemUser.NAME:
-                assertThat(versionPredicate.test(Version.V_5_0_0), is(false));
-                assertThat(versionPredicate.test(Version.V_5_1_1), is(false));
-                assertThat(versionPredicate.test(Version.V_5_2_0), is(true));
                 assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
                 break;
             case BeatsSystemUser.NAME:
-                assertThat(versionPredicate.test(Version.V_5_6_9), is(false));
                 assertThat(versionPredicate.test(Version.V_6_2_3), is(false));
                 assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
                 break;
+            case APMSystemUser.NAME:
+                assertThat(versionPredicate.test(Version.V_6_4_0), is(false));
+                assertThat(versionPredicate.test(Version.V_6_5_0), is(true));
+                break;
+            case RemoteMonitoringUser.NAME:
+                assertThat(versionPredicate.test(Version.V_6_4_0), is(false));
+                assertThat(versionPredicate.test(Version.V_6_5_0), is(true));
+                break;
             default:
-                assertThat(versionPredicate.test(Version.V_5_0_0), is(true));
-                assertThat(versionPredicate.test(Version.V_5_1_1), is(true));
-                assertThat(versionPredicate.test(Version.V_5_2_0), is(true));
                 assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
                 break;
         }
-        assertThat(versionPredicate.test(Version.V_7_0_0_alpha1), is(true));
+        assertThat(versionPredicate.test(Version.V_7_0_0), is(true));
     }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -92,12 +93,12 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        TransportService transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+        TransportService transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);
+        IndexNameExpressionResolver resolver = new Resolver();
         ActionFilters actionFilters = new ActionFilters(new HashSet<>());
 
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
@@ -111,7 +112,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
         if (controlled) {
 
             return new TestTransportBulkAction(
-                    Settings.EMPTY,
                     threadPool,
                     transportService,
                     clusterService,
@@ -136,7 +136,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
             };
         } else {
             return new TestTransportBulkAction(
-                    Settings.EMPTY,
                     threadPool,
                     transportService,
                     clusterService,
@@ -180,7 +179,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
             bulkAction = Strings.replace(bulkAction, "\r\n", "\n");
         }
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         AtomicLong expected = new AtomicLong();
         TransportBulkAction action = createAction(controlled, expected);
         action.doExecute(null, bulkRequest, new ActionListener<BulkResponse>() {
@@ -202,13 +201,11 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
             }
         });
+        //This test's JSON contains outdated references to types
+        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     static class Resolver extends IndexNameExpressionResolver {
-        Resolver(Settings settings) {
-            super(settings);
-        }
-
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();
@@ -218,7 +215,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
     static class TestTransportBulkAction extends TransportBulkAction {
 
         TestTransportBulkAction(
-                Settings settings,
                 ThreadPool threadPool,
                 TransportService transportService,
                 ClusterService clusterService,
@@ -229,7 +225,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 AutoCreateIndex autoCreateIndex,
                 LongSupplier relativeTimeProvider) {
             super(
-                    settings,
                     threadPool,
                     transportService,
                     clusterService,

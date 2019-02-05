@@ -49,6 +49,8 @@ public class ConnectionConfiguration {
 
     public static final String PAGE_SIZE = "page.size";
     private static final String PAGE_SIZE_DEFAULT = "1000";
+    
+    public static final String CLIENT_ID = "client_id";
 
     // Auth
 
@@ -98,7 +100,7 @@ public class ConnectionConfiguration {
         user = settings.getProperty(AUTH_USER);
         pass = settings.getProperty(AUTH_PASS);
 
-        sslConfig = new SslConfig(settings);
+        sslConfig = new SslConfig(settings, baseURI);
         proxyConfig = new ProxyConfig(settings);
 
         this.baseURI = normalizeSchema(baseURI, connectionString, sslConfig.isEnabled());
@@ -126,20 +128,9 @@ public class ConnectionConfiguration {
 
 
     private static URI normalizeSchema(URI uri, String connectionString, boolean isSSLEnabled)  {
-        // Make sure the protocol is correct
-        final String scheme;
-        if (isSSLEnabled) {
-            // It's ok to upgrade from http to https
-            scheme = "https";
-        } else {
-            // Silently downgrading from https to http can cause security issues
-            if ("https".equals(uri.getScheme())) {
-                throw new ClientException("SSL is disabled");
-            }
-            scheme = "http";
-        }
         try {
-            return new URI(scheme, null, uri.getHost(), uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment());
+            return new URI(isSSLEnabled ? "https" : "http", null, uri.getHost(), uri.getPort(), uri.getPath(), uri.getQuery(),
+                    uri.getFragment());
         } catch (URISyntaxException ex) {
             throw new ClientException("Cannot parse process baseURI [" + connectionString + "] " + ex.getMessage());
         }
@@ -170,7 +161,7 @@ public class ConnectionConfiguration {
         if (knownOptions.contains(propertyName)) {
             return null;
         }
-        return "Unknown parameter [" + propertyName + "] ; did you mean " + StringUtils.findSimiliar(propertyName, knownOptions);
+        return "Unknown parameter [" + propertyName + "] ; did you mean " + StringUtils.findSimilar(propertyName, knownOptions);
     }
 
     protected <T> T parseValue(String key, String value, Function<String, T> parser) {

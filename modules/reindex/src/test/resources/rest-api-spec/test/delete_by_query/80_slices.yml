@@ -3,25 +3,25 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      3
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      4
         body:    { "text": "test" }
   - do:
@@ -69,25 +69,25 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      3
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      4
         body:    { "text": "test" }
   - do:
@@ -162,6 +162,7 @@
       indices.refresh: {}
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .tasks
   - match: { hits.total: 1 }
 
@@ -175,37 +176,37 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      3
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      4
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      5
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      6
         body:    { "text": "test" }
   - do:
@@ -275,6 +276,7 @@
       indices.refresh: {}
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .tasks
   - match: { hits.total: 1 }
 
@@ -295,25 +297,25 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      2
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      3
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         id:      4
         body:    { "text": "test" }
   - do:

@@ -69,7 +69,6 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             assertThat(create, instanceOf(PorterStemFilter.class));
             assertAnalyzesTo(analyzer, "consolingly", new String[]{"consolingli"});
         }
-
     }
 
     public void testPorter2FilterFactory() throws IOException {
@@ -97,7 +96,16 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             assertThat(create, instanceOf(SnowballFilter.class));
             assertAnalyzesTo(analyzer, "possibly", new String[]{"possibl"});
         }
-
     }
 
+    public void testMultipleLanguagesThrowsException() throws IOException {
+        Version v = VersionUtils.randomVersion(random());
+        Settings settings = Settings.builder().put("index.analysis.filter.my_english.type", "stemmer")
+                .putList("index.analysis.filter.my_english.language", "english", "light_english").put(SETTING_VERSION_CREATED, v)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN));
+        assertEquals("Invalid stemmer class specified: [english, light_english]", e.getMessage());
+    }
 }

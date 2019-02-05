@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -57,7 +58,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
- * @see PutMappingResponse
+ * @see AcknowledgedResponse
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable, ToXContentObject {
 
@@ -73,6 +74,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     private String type;
 
     private String source;
+    private String origin = "";
 
     private Index concreteIndex;
 
@@ -183,6 +185,16 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return source(buildFromSimplifiedDef(type, source));
     }
 
+    public String origin() {
+        return origin;
+    }
+
+    public PutMappingRequest origin(String origin) {
+        // reserve "null" for bwc.
+        this.origin = Objects.requireNonNull(origin);
+        return this;
+    }
+
     /**
      * @param type
      *            the mapping type
@@ -253,7 +265,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * The mapping source definition.
      */
     public PutMappingRequest source(XContentBuilder mappingBuilder) {
-        return source(Strings.toString(mappingBuilder), mappingBuilder.contentType());
+        return source(BytesReference.bytes(mappingBuilder), mappingBuilder.contentType());
     }
 
     /**
@@ -263,7 +275,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return source(Strings.toString(builder), XContentType.JSON);
+            return source(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
@@ -296,14 +308,15 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
         source = in.readString();
-        if (in.getVersion().before(Version.V_5_3_0)) {
-            // we do not know the format from earlier versions so convert if necessary
-            source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
-        }
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readBoolean(); // updateAllTypes
         }
         concreteIndex = in.readOptionalWriteable(Index::new);
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            origin = in.readOptionalString();
+        } else {
+            origin = null;
+        }
     }
 
     @Override
@@ -313,10 +326,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(type);
         out.writeString(source);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(true); // updateAllTypes
         }
         out.writeOptionalWriteable(concreteIndex);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeOptionalString(origin);
+        }
     }
 
     @Override

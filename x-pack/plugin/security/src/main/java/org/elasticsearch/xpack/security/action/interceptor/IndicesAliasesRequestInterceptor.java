@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -38,42 +39,43 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
 
     @Override
     public void intercept(IndicesAliasesRequest request, Authentication authentication, Role userPermissions, String action) {
-        if (licenseState.isSecurityEnabled() == false) {
-            return;
-        }
-
-        if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
-            IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-            for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {
-                if (aliasAction.actionType() == IndicesAliasesRequest.AliasActions.Type.ADD) {
-                    for (String index : aliasAction.indices()) {
-                        IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
-                        if (indexAccessControl != null) {
-                            final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                            final boolean dls = indexAccessControl.getQueries() != null;
-                            if (fls || dls) {
-                                throw new ElasticsearchSecurityException("Alias requests are not allowed for users who have " +
+        final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
+        if (frozenLicenseState.isAuthAllowed()) {
+            if (frozenLicenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+                IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {
+                    if (aliasAction.actionType() == IndicesAliasesRequest.AliasActions.Type.ADD) {
+                        for (String index : aliasAction.indices()) {
+                            IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
+                            if (indexAccessControl != null) {
+                                final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+                                final boolean dls = indexAccessControl.getQueries() != null;
+                                if (fls || dls) {
+                                    throw new ElasticsearchSecurityException("Alias requests are not allowed for users who have " +
                                         "field or document level security enabled on one of the indices", RestStatus.BAD_REQUEST);
+                                }
                             }
                         }
                     }
                 }
             }
-        }
 
-        Map<String, Automaton> permissionsMap = new HashMap<>();
-        for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {
-            if (aliasAction.actionType() == IndicesAliasesRequest.AliasActions.Type.ADD) {
-                for (String index : aliasAction.indices()) {
-                    Automaton indexPermissions = permissionsMap.computeIfAbsent(index, userPermissions.indices()::allowedActionsMatcher);
-                    for (String alias : aliasAction.aliases()) {
-                        Automaton aliasPermissions =
+            Map<String, Automaton> permissionsMap = new HashMap<>();
+            for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {
+                if (aliasAction.actionType() == IndicesAliasesRequest.AliasActions.Type.ADD) {
+                    for (String index : aliasAction.indices()) {
+                        Automaton indexPermissions =
+                            permissionsMap.computeIfAbsent(index, userPermissions.indices()::allowedActionsMatcher);
+                        for (String alias : aliasAction.aliases()) {
+                            Automaton aliasPermissions =
                                 permissionsMap.computeIfAbsent(alias, userPermissions.indices()::allowedActionsMatcher);
-                        if (Operations.subsetOf(aliasPermissions, indexPermissions) == false) {
-                            // TODO we've already audited a access granted event so this is going to look ugly
-                            auditTrailService.accessDenied(authentication, action, request, userPermissions.names());
-                            throw Exceptions.authorizationError("Adding an alias is not allowed when the alias " +
+                            if (Operations.subsetOf(aliasPermissions, indexPermissions) == false) {
+                                // TODO we've already audited a access granted event so this is going to look ugly
+                                auditTrailService.accessDenied(AuditUtil.extractRequestId(threadContext), authentication, action, request,
+                                    userPermissions.names());
+                                throw Exceptions.authorizationError("Adding an alias is not allowed when the alias " +
                                     "has more permissions than any of the indices");
+                            }
                         }
                     }
                 }

@@ -21,24 +21,22 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
@@ -55,7 +53,7 @@ import static org.hamcrest.Matchers.is;
 
 public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
-    private PutRepositoryResponse createTestRepository(String repository, String type, String settings) throws IOException {
+    private AcknowledgedResponse createTestRepository(String repository, String type, String settings) throws IOException {
         PutRepositoryRequest request = new PutRepositoryRequest(repository);
         request.settings(settings, XContentType.JSON);
         request.type(type);
@@ -71,7 +69,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testCreateRepository() throws IOException {
-        PutRepositoryResponse response = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse response = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(response.isAcknowledged());
     }
 
@@ -117,14 +115,14 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(1, equalTo(response.repositories().size()));
 
         DeleteRepositoryRequest deleteRequest = new DeleteRepositoryRequest(repository);
-        DeleteRepositoryResponse deleteResponse = execute(deleteRequest, highLevelClient().snapshot()::deleteRepository,
+        AcknowledgedResponse deleteResponse = execute(deleteRequest, highLevelClient().snapshot()::deleteRepository,
             highLevelClient().snapshot()::deleteRepositoryAsync);
 
         assertTrue(deleteResponse.isAcknowledged());
     }
 
     public void testVerifyRepository() throws IOException {
-        PutRepositoryResponse putRepositoryResponse = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse putRepositoryResponse = createTestRepository("test", FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         VerifyRepositoryRequest request = new VerifyRepositoryRequest("test");
@@ -146,6 +144,14 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         CreateSnapshotResponse response = createTestSnapshot(request);
         assertEquals(waitForCompletion ? RestStatus.OK : RestStatus.ACCEPTED, response.status());
+        if (waitForCompletion == false) {
+            // If we don't wait for the snapshot to complete we have to cancel it to not leak the snapshot task
+            AcknowledgedResponse deleteResponse = execute(
+                new DeleteSnapshotRequest(repository, snapshot),
+                highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync
+            );
+            assertTrue(deleteResponse.isAcknowledged());
+        }
     }
 
     public void testGetSnapshots() throws IOException {
@@ -153,7 +159,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String snapshot1 = "test_snapshot1";
         String snapshot2 = "test_snapshot2";
 
-        PutRepositoryResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         CreateSnapshotRequest createSnapshotRequest1 = new CreateSnapshotRequest(repository, snapshot1);
@@ -187,7 +193,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String testSnapshot = "snapshot";
         String testIndex = "test_index";
 
-        PutRepositoryResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         createIndex(testIndex, Settings.EMPTY);
@@ -216,7 +222,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String testIndex = "test_index";
         String restoredIndex = testIndex + "_restored";
 
-        PutRepositoryResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(testRepository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         createIndex(testIndex, Settings.EMPTY);
@@ -250,7 +256,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String repository = "test_repository";
         String snapshot = "test_snapshot";
 
-        PutRepositoryResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
@@ -260,7 +266,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
 
         DeleteSnapshotRequest request = new DeleteSnapshotRequest(repository, snapshot);
-        DeleteSnapshotResponse response = execute(request, highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync);
+        AcknowledgedResponse response = execute(request, highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync);
 
         assertTrue(response.isAcknowledged());
     }

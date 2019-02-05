@@ -21,10 +21,10 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.main.MainResponse;
-import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.XPackInfoResponse;
-import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
-import org.elasticsearch.protocol.xpack.license.LicenseStatus;
+import org.elasticsearch.client.xpack.XPackInfoRequest;
+import org.elasticsearch.client.xpack.XPackInfoResponse;
+import org.elasticsearch.client.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
+import org.elasticsearch.client.license.LicenseStatus;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -52,7 +52,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals(versionMap.get("build_hash"), info.getBuild().shortHash());
         assertEquals(versionMap.get("build_date"), info.getBuild().date());
         assertEquals(versionMap.get("build_snapshot"), info.getBuild().isSnapshot());
-        assertEquals(versionMap.get("number"), info.getVersion().toString());
+        assertTrue(versionMap.get("number").toString().startsWith(info.getVersion().toString()));
         assertEquals(versionMap.get("lucene_version"), info.getVersion().luceneVersion.toString());
     }
 
@@ -84,8 +84,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertNotNull(ml.description());
         assertTrue(ml.available());
         assertTrue(ml.enabled());
-        assertEquals(mainResponse.getVersion().toString(),
-                ml.nativeCodeInfo().get("version").toString().replace("-SNAPSHOT", ""));
+        assertEquals(mainResponse.getBuild().getQualifiedVersion(), ml.nativeCodeInfo().get("version").toString());
     }
 
     public void testXPackInfoEmptyRequest() throws IOException {

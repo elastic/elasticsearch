@@ -30,6 +30,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.Index;
@@ -56,6 +58,7 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -73,7 +76,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
-import org.mockito.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -128,6 +130,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                            MappedFieldType... fieldTypes) throws IOException {
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings);
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
+        when(searchContext.indexShard()).thenReturn(indexShard);
         when(searchContext.aggregations())
             .thenReturn(new SearchContextAggregations(AggregatorFactories.EMPTY, bucketConsumer));
         when(searchContext.query()).thenReturn(query);
@@ -137,6 +142,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
         DocumentMapper mapper = mock(DocumentMapper.class);
+        when(mapper.typeText()).thenReturn(new Text(TYPE_NAME));
         when(mapper.type()).thenReturn(TYPE_NAME);
         when(mapperService.documentMapper()).thenReturn(mapper);
         when(searchContext.mapperService()).thenReturn(mapperService);
@@ -152,7 +158,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         QueryShardContext queryShardContext = queryShardContextMock(mapperService);
         when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
-
         Map<String, MappedFieldType> fieldNameToType = new HashMap<>();
         fieldNameToType.putAll(Arrays.stream(fieldTypes)
             .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
@@ -237,7 +242,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     protected SearchContext createSearchContext(IndexSearcher indexSearcher, IndexSettings indexSettings) {
-        Engine.Searcher searcher = new Engine.Searcher("aggregator_test", indexSearcher);
+        Engine.Searcher searcher = new Engine.Searcher("aggregator_test", indexSearcher, () -> indexSearcher.getIndexReader().close());
         QueryCache queryCache = new DisabledQueryCache(indexSettings);
         QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
             @Override
@@ -245,7 +250,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
 
             @Override
-            public boolean shouldCache(Query query) throws IOException {
+            public boolean shouldCache(Query query) {
                 // never cache a query
                 return false;
             }
@@ -300,8 +305,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.getMapperService()).thenReturn(mapperService);
         NestedScope nestedScope = new NestedScope();
-        when(queryShardContext.isFilter()).thenCallRealMethod();
-        Mockito.doCallRealMethod().when(queryShardContext).setIsFilter(Matchers.anyBoolean());
         when(queryShardContext.nestedScope()).thenReturn(nestedScope);
         return queryShardContext;
     }
@@ -365,7 +368,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         List<InternalAggregation> aggs = new ArrayList<> ();
         Query rewritten = searcher.rewrite(query);
-        Weight weight = searcher.createWeight(rewritten, true, 1f);
+        Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(maxBucket);
         C root = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
 

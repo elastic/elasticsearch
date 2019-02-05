@@ -21,6 +21,7 @@ package org.elasticsearch.search.scroll;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -51,7 +52,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                 .setSize(context.numDocs).get();
         assertNoFailures(control);
         SearchHits sh = control.getHits();
-        assertThat(sh.getTotalHits(), equalTo((long) context.numDocs));
+        assertThat(sh.getTotalHits().value, equalTo((long) context.numDocs));
         assertThat(sh.getHits().length, equalTo(context.numDocs));
 
         SearchResponse searchScrollResponse = client().prepareSearch("index")
@@ -61,7 +62,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                 .setScroll("10m").get();
 
         assertNoFailures(searchScrollResponse);
-        assertThat(searchScrollResponse.getHits().getTotalHits(), equalTo((long) context.numDocs));
+        assertThat(searchScrollResponse.getHits().getTotalHits().value, equalTo((long) context.numDocs));
         assertThat(searchScrollResponse.getHits().getHits().length, equalTo(context.scrollRequestSize));
 
         int counter = 0;
@@ -74,7 +75,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         while (true) {
             searchScrollResponse = client().prepareSearchScroll(scrollId).setScroll("10m").get();
             assertNoFailures(searchScrollResponse);
-            assertThat(searchScrollResponse.getHits().getTotalHits(), equalTo((long) context.numDocs));
+            assertThat(searchScrollResponse.getHits().getTotalHits().value, equalTo((long) context.numDocs));
             if (searchScrollResponse.getHits().getHits().length == 0) {
                 break;
             }
@@ -198,6 +199,8 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
         // no replicas, as they might be ordered differently
         settings.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0);
+        // we need to control refreshes as they might take different merges into account
+        settings.put("index.refresh_interval", -1);
 
         assertAcked(prepareCreate("test").setSettings(settings.build()).get());
         final int numDocs = randomIntBetween(10, 200);
@@ -233,7 +236,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         try {
             while (true) {
                 assertNoFailures(scroll);
-                assertEquals(control.getHits().getTotalHits(), scroll.getHits().getTotalHits());
+                assertEquals(control.getHits().getTotalHits().value, scroll.getHits().getTotalHits().value);
                 assertEquals(control.getHits().getMaxScore(), scroll.getHits().getMaxScore(), 0.01f);
                 if (scroll.getHits().getHits().length == 0) {
                     break;
@@ -246,7 +249,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                 scrollDocs += scroll.getHits().getHits().length;
                 scroll = client().prepareSearchScroll(scroll.getScrollId()).setScroll("10m").get();
             }
-            assertEquals(control.getHits().getTotalHits(), scrollDocs);
+            assertEquals(control.getHits().getTotalHits().value, scrollDocs);
         } catch (AssertionError e) {
             logger.info("Control:\n{}", control);
             logger.info("Scroll size={}, from={}:\n{}", size, scrollDocs, scroll);

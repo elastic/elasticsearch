@@ -66,13 +66,13 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
      * This retry logic is implemented in TransportMasterNodeAction and tested by the following master failover scenario.
      */
     @TestLogging("_root:DEBUG")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30844")
     public void testMasterFailoverDuringIndexingWithMappingChanges() throws Throwable {
         logger.info("--> start 4 nodes, 3 master, 1 data");
 
         final Settings sharedSettings = Settings.builder()
                 .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
                 .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
+                .put(TestZenDiscovery.USE_ZEN2.getKey(), false)
                 .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
                 .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
@@ -141,6 +141,6 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
 
         ensureGreen("myindex");
         refresh();
-        assertThat(client().prepareSearch("myindex").get().getHits().getTotalHits(), equalTo(10L));
+        assertThat(client().prepareSearch("myindex").get().getHits().getTotalHits().value, equalTo(10L));
     }
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureString;
@@ -45,7 +44,7 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -65,6 +64,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_SECURITY_INDEX;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
@@ -104,7 +104,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 PutRoleResponse response = securityClient()
                         .preparePutRole("native_anonymous")
                         .cluster("ALL")
-                        .addIndices(new String[]{"*"}, new String[]{"ALL"}, null, null, null)
+                        .addIndices(new String[]{"*"}, new String[]{"ALL"}, null, null, null, randomBoolean())
                         .get();
                 assertTrue(response.isCreated());
             } else {
@@ -189,7 +189,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 .cluster("all", "none")
                 .runAs("root", "nobody")
                 .addIndices(new String[]{"index"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"query\": {\"match_all\": {}}}"))
+                        new BytesArray("{\"query\": {\"match_all\": {}}}"), randomBoolean())
                 .metadata(metadata)
                 .get();
         logger.error("--> waiting for .security index");
@@ -206,13 +206,13 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 .cluster("all", "none")
                 .runAs("root", "nobody")
                 .addIndices(new String[]{"index"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"query\": {\"match_all\": {}}}"))
+                        new BytesArray("{\"query\": {\"match_all\": {}}}"), randomBoolean())
                 .get();
         c.preparePutRole("test_role3")
                 .cluster("all", "none")
                 .runAs("root", "nobody")
                 .addIndices(new String[]{"index"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"query\": {\"match_all\": {}}}"))
+                        new BytesArray("{\"query\": {\"match_all\": {}}}"), randomBoolean())
                 .get();
 
         logger.info("--> retrieving all roles");
@@ -239,7 +239,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         c.preparePutRole("test_role")
                 .cluster("all")
                 .addIndices(new String[] { "*" }, new String[] { "read" }, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"match_all\": {}}"))
+                        new BytesArray("{\"match_all\": {}}"), randomBoolean())
                 .get();
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), hasher, "test_role").get();
@@ -257,7 +257,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
-        assertEquals(1L, searchResp.getHits().getTotalHits());
+        assertEquals(1L, searchResp.getHits().getTotalHits().value);
     }
 
     public void testUpdatingUserAndAuthentication() throws Exception {
@@ -278,7 +278,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
-        assertEquals(1L, searchResp.getHits().getTotalHits());
+        assertEquals(1L, searchResp.getHits().getTotalHits().value);
 
         c.preparePutUser("joe", "s3krit2".toCharArray(), hasher, SecuritySettingsSource.TEST_ROLE).get();
 
@@ -292,7 +292,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         token = basicAuthHeaderValue("joe", new SecureString("s3krit2".toCharArray()));
         searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
-        assertEquals(1L, searchResp.getHits().getTotalHits());
+        assertEquals(1L, searchResp.getHits().getTotalHits().value);
     }
 
     public void testCreateDeleteAuthenticate() {
@@ -314,7 +314,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         SearchResponse searchResp = client().filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("idx").get();
 
-        assertEquals(1L, searchResp.getHits().getTotalHits());
+        assertEquals(1L, searchResp.getHits().getTotalHits().value);
 
         DeleteUserResponse response = c.prepareDeleteUser("joe").get();
         assertThat(response.found(), is(true));
@@ -334,7 +334,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         c.preparePutRole("test_role")
                 .cluster("all")
                 .addIndices(new String[]{"*"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"match_all\": {}}"))
+                        new BytesArray("{\"match_all\": {}}"), randomBoolean())
                 .get();
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), hasher, "test_role").get();
@@ -349,7 +349,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             c.preparePutRole("test_role")
                     .cluster("none")
                     .addIndices(new String[]{"*"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                            new BytesArray("{\"match_all\": {}}"))
+                            new BytesArray("{\"match_all\": {}}"), randomBoolean())
                     .get();
             if (anonymousEnabled && roleExists) {
                 assertNoTimeout(client()
@@ -369,7 +369,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             c.preparePutRole("test_role")
                     .cluster("none")
                     .addIndices(new String[]{"*"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                            new BytesArray("{\"match_all\": {}}"))
+                            new BytesArray("{\"match_all\": {}}"), randomBoolean())
                     .get();
             getRolesResponse = c.prepareGetRoles().names("test_role").get();
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
@@ -385,7 +385,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         c.preparePutRole("test_role")
                 .cluster("all")
                 .addIndices(new String[]{"*"}, new String[]{"read"}, new String[]{"body", "title"}, null,
-                        new BytesArray("{\"match_all\": {}}"))
+                        new BytesArray("{\"match_all\": {}}"), randomBoolean())
                 .get();
         c.preparePutUser("joe", "s3krit".toCharArray(), hasher, "test_role").get();
         logger.error("--> waiting for .security index");
@@ -411,11 +411,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         // create some roles
         client.preparePutRole("admin_role")
                 .cluster("all")
-                .addIndices(new String[]{"*"}, new String[]{"all"}, null, null, null)
+                .addIndices(new String[]{"*"}, new String[]{"all"}, null, null, null, randomBoolean())
                 .get();
         client.preparePutRole("read_role")
                 .cluster("none")
-                .addIndices(new String[]{"*"}, new String[]{"read"}, null, null, null)
+                .addIndices(new String[]{"*"}, new String[]{"read"}, null, null, null, randomBoolean())
                 .get();
 
         assertThat(client.prepareGetUsers("joes").get().hasUsers(), is(false));
@@ -492,14 +492,14 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             client.preparePutUser("joe", randomAlphaOfLengthBetween(0, 5).toCharArray(), hasher,
                 "admin_role").get();
             fail("cannot create a user without a password < 6 characters");
-        } catch (ValidationException v) {
+        } catch (IllegalArgumentException v) {
             assertThat(v.getMessage().contains("password"), is(true));
         }
     }
 
     public void testCannotCreateUserWithInvalidCharactersInName() throws Exception {
         SecurityClient client = securityClient();
-        ValidationException v = expectThrows(ValidationException.class,
+        IllegalArgumentException v = expectThrows(IllegalArgumentException.class,
             () -> client.preparePutUser("fóóbár", "my-am@zing-password".toCharArray(), hasher,
                 "admin_role").get()
         );
@@ -516,7 +516,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         } else {
             client.preparePutRole("read_role")
                     .cluster("none")
-                    .addIndices(new String[]{"*"}, new String[]{"read"}, null, null, null)
+                    .addIndices(new String[]{"*"}, new String[]{"read"}, null, null, null, randomBoolean())
                     .get();
         }
 
@@ -533,7 +533,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> securityClient().preparePutUser(username, randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()
                     : null, hasher, "admin").get());
-        assertThat(exception.getMessage(), containsString("Username [" + username + "] is reserved"));
+        assertThat(exception.getMessage(), containsString("user [" + username + "] is reserved"));
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> securityClient().prepareDeleteUser(username).get());
@@ -551,7 +551,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         exception = expectThrows(IllegalArgumentException.class,
             () -> securityClient().preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar".toCharArray(),
                 hasher).get());
-        assertThat(exception.getMessage(), containsString("Username [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is reserved"));
+        assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
         exception = expectThrows(IllegalArgumentException.class,
             () -> securityClient().preparePutUser(SystemUser.NAME, "foobar".toCharArray(), hasher).get());
@@ -577,7 +577,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                                 basicAuthHeaderValue(username, getReservedPassword())))
                 .execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(username))
                 .get();
-        assertThat(authenticateResponse.user().principal(), is(username));
+        assertThat(authenticateResponse.authentication().getUser().principal(), is(username));
+        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getName(), equalTo("reserved"));
+        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getType(), equalTo("reserved"));
+        assertNull(authenticateResponse.authentication().getLookedUpBy());
     }
 
     public void testOperationsOnReservedRoles() throws Exception {
@@ -639,7 +642,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         SecurityClient client = new SecurityClient(client());
         PutRoleResponse putRoleResponse = client.preparePutRole("admin_role")
                 .cluster("all")
-                .addIndices(new String[]{"*"}, new String[]{"all"}, null, null, null)
+                .addIndices(new String[]{"*"}, new String[]{"all"}, null, null, null, randomBoolean())
                 .get();
         assertThat(putRoleResponse.isCreated(), is(true));
         roles++;
@@ -657,7 +660,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             }
             roleResponse = client.preparePutRole("admin_role_fls")
                     .cluster("all")
-                    .addIndices(new String[]{"*"}, new String[]{"all"}, grantedFields, deniedFields, null)
+                    .addIndices(new String[]{"*"}, new String[]{"all"}, grantedFields, deniedFields, null, randomBoolean())
                     .get();
             assertThat(roleResponse.isCreated(), is(true));
             roles++;
@@ -666,7 +669,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         if (dls) {
             PutRoleResponse roleResponse = client.preparePutRole("admin_role_dls")
                     .cluster("all")
-                    .addIndices(new String[]{"*"}, new String[]{"all"}, null, null, new BytesArray("{ \"match_all\": {} }"))
+                    .addIndices(new String[]{"*"}, new String[]{"all"}, null, null, new BytesArray("{\"match_all\": {}}"), randomBoolean())
                     .get();
             assertThat(roleResponse.isCreated(), is(true));
             roles++;

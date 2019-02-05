@@ -34,6 +34,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           query:

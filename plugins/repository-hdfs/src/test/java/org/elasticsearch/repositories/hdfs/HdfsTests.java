@@ -19,9 +19,9 @@
 package org.elasticsearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,7 +48,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/31498", JavaVersion.current().equals(JavaVersion.parse("11")));
         Client client = client();
 
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("hdfs")
                 .setSettings(Settings.builder()
                         .put("uri", "hdfs:///")
@@ -76,11 +76,25 @@ public class HdfsTests extends ESSingleNodeTestCase {
         assertThat(count(client, "test-idx-3"), equalTo(100L));
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .setIndices("test-idx-*", "-test-idx-3")
+            .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(client.admin()
+            .cluster()
+            .prepareGetSnapshots("test-repo")
+            .setSnapshots("test-snap")
+            .get()
+            .getSnapshots()
+            .get(0)
+            .state(),
+            equalTo(SnapshotState.SUCCESS));
 
         logger.info("--> delete some data");
         for (int i = 0; i < 50; i++) {
@@ -101,7 +115,12 @@ public class HdfsTests extends ESSingleNodeTestCase {
         client.admin().indices().prepareClose("test-idx-1", "test-idx-2").get();
 
         logger.info("--> restore all indices from the snapshot");
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();
@@ -113,7 +132,13 @@ public class HdfsTests extends ESSingleNodeTestCase {
         logger.info("--> delete indices");
         client().admin().indices().prepareDelete("test-idx-1", "test-idx-2").get();
         logger.info("--> restore one index after deletion");
-        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-2").execute().actionGet();
+        restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .setIndices("test-idx-*", "-test-idx-2")
+            .execute()
+            .actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
         assertThat(count(client, "test-idx-1"), equalTo(100L));
@@ -187,6 +212,6 @@ public class HdfsTests extends ESSingleNodeTestCase {
     }
 
     private long count(Client client, String index) {
-        return client.prepareSearch(index).setSize(0).get().getHits().getTotalHits();
+        return client.prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
     }
 }

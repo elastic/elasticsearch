@@ -32,6 +32,7 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
@@ -73,7 +74,7 @@ final class ShardSplittingQuery extends Query {
         this.nestedParentBitSetProducer =  hasNested ? newParentDocBitSetProducer(indexMetaData.getCreationVersion()) : null;
     }
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) {
+    public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
         return new ConstantScoreWeight(this, boost) {
             @Override
             public String toString() {
@@ -113,7 +114,7 @@ final class ShardSplittingQuery extends Query {
                         TwoPhaseIterator twoPhaseIterator =
                             parentBitSet == null ? new RoutingPartitionedDocIdSetIterator(visitor) :
                                 new NestedRoutingPartitionedDocIdSetIterator(visitor, parentBitSet);
-                        return new ConstantScoreScorer(this, score(), twoPhaseIterator);
+                        return new ConstantScoreScorer(this, score(), scoreMode, twoPhaseIterator);
                     } else {
                         // here we potentially guard the docID consumers with our parent bitset if we have one.
                         // this ensures that we are only marking root documents in the nested case and if necessary
@@ -154,7 +155,7 @@ final class ShardSplittingQuery extends Query {
                     }
                 }
 
-                return new ConstantScoreScorer(this, score(), new BitSetIterator(bitSet, bitSet.length()));
+                return new ConstantScoreScorer(this, score(), scoreMode, new BitSetIterator(bitSet, bitSet.length()));
             }
 
             @Override
@@ -348,7 +349,7 @@ final class ShardSplittingQuery extends Query {
                 final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
                 final IndexSearcher searcher = new IndexSearcher(topLevelContext);
                 searcher.setQueryCache(null);
-                final Weight weight = searcher.createNormalizedWeight(query, false);
+                final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 Scorer s = weight.scorer(context);
                 return s == null ? null : BitSet.of(s.iterator(), context.reader().maxDoc());
             };

@@ -9,7 +9,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -36,7 +36,7 @@ abstract class AbstractCompareCondition implements ExecutableCondition {
     @Override
     public final Result execute(WatchExecutionContext ctx) {
         Map<String, Object> resolvedValues = new HashMap<>();
-        Map<String, Object> model = Variables.createCtxModel(ctx, ctx.payload());
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, ctx.payload());
         return doExecute(model, resolvedValues);
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -34,7 +35,8 @@ import java.util.Objects;
 /**
  * Represents the recovery source of a shard. Available recovery types are:
  *
- * - {@link StoreRecoverySource} recovery from the local store (empty or with existing data)
+ * - {@link EmptyStoreRecoverySource} recovery from an empty store
+ * - {@link ExistingStoreRecoverySource} recovery from an existing store
  * - {@link PeerRecoverySource} recovery from a primary on another node
  * - {@link SnapshotRecoverySource} recovery from a snapshot
  * - {@link LocalShardsRecoverySource} recovery from other shards of another index on the same node
@@ -59,8 +61,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     public static RecoverySource readFrom(StreamInput in) throws IOException {
         Type type = Type.values()[in.readByte()];
         switch (type) {
-            case EMPTY_STORE: return StoreRecoverySource.EMPTY_STORE_INSTANCE;
-            case EXISTING_STORE: return StoreRecoverySource.EXISTING_STORE_INSTANCE;
+            case EMPTY_STORE: return EmptyStoreRecoverySource.INSTANCE;
+            case EXISTING_STORE: return new ExistingStoreRecoverySource(in);
             case PEER: return PeerRecoverySource.INSTANCE;
             case SNAPSHOT: return new SnapshotRecoverySource(in);
             case LOCAL_SHARDS: return LocalShardsRecoverySource.INSTANCE;
@@ -91,6 +93,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
     public abstract Type getType();
 
+    public boolean shouldBootstrapNewHistoryUUID() {
+        return false;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -107,25 +113,73 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     }
 
     /**
-     * recovery from an existing on-disk store or a fresh copy
+     * Recovery from a fresh copy
      */
-    public abstract static class StoreRecoverySource extends RecoverySource {
-        public static final StoreRecoverySource EMPTY_STORE_INSTANCE = new StoreRecoverySource() {
-            @Override
-            public Type getType() {
-                return Type.EMPTY_STORE;
-            }
-        };
-        public static final StoreRecoverySource EXISTING_STORE_INSTANCE = new StoreRecoverySource() {
-            @Override
-            public Type getType() {
-                return Type.EXISTING_STORE;
-            }
-        };
+    public static final class EmptyStoreRecoverySource extends RecoverySource {
+        public static final EmptyStoreRecoverySource INSTANCE = new EmptyStoreRecoverySource();
+
+        @Override
+        public Type getType() {
+            return Type.EMPTY_STORE;
+        }
 
         @Override
         public String toString() {
-            return getType() == Type.EMPTY_STORE ? "new shard recovery" : "existing recovery";
+            return "new shard recovery";
+        }
+    }
+
+    /**
+     * Recovery from an existing on-disk store
+     */
+    public static final class ExistingStoreRecoverySource extends RecoverySource {
+        /**
+         * Special allocation id that shard has during initialization on allocate_stale_primary
+         */
+        public static final String FORCED_ALLOCATION_ID = "_forced_allocation_";
+
+        public static final ExistingStoreRecoverySource INSTANCE = new ExistingStoreRecoverySource(false);
+        public static final ExistingStoreRecoverySource FORCE_STALE_PRIMARY_INSTANCE = new ExistingStoreRecoverySource(true);
+
+        private final boolean bootstrapNewHistoryUUID;
+
+        private ExistingStoreRecoverySource(boolean bootstrapNewHistoryUUID) {
+            this.bootstrapNewHistoryUUID = bootstrapNewHistoryUUID;
+        }
+
+        private ExistingStoreRecoverySource(StreamInput in) throws IOException {
+            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
+                bootstrapNewHistoryUUID = in.readBoolean();
+            } else {
+                bootstrapNewHistoryUUID = false;
+            }
+        }
+
+        @Override
+        public void addAdditionalFields(XContentBuilder builder, Params params) throws IOException {
+            builder.field("bootstrap_new_history_uuid", bootstrapNewHistoryUUID);
+        }
+
+        @Override
+        protected void writeAdditionalFields(StreamOutput out) throws IOException {
+            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
+                out.writeBoolean(bootstrapNewHistoryUUID);
+            }
+        }
+
+        @Override
+        public boolean shouldBootstrapNewHistoryUUID() {
+            return bootstrapNewHistoryUUID;
+        }
+
+        @Override
+        public Type getType() {
+            return Type.EXISTING_STORE;
+        }
+
+        @Override
+        public String toString() {
+            return "existing store recovery; bootstrap_history_uuid=" + bootstrapNewHistoryUUID;
         }
     }
 
@@ -155,20 +209,31 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
      * recovery from a snapshot
      */
     public static class SnapshotRecoverySource extends RecoverySource {
+        private final String restoreUUID;
         private final Snapshot snapshot;
         private final String index;
         private final Version version;
 
-        public SnapshotRecoverySource(Snapshot snapshot, Version version, String index) {
+        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, String index) {
+            this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
             this.index = Objects.requireNonNull(index);
         }
 
         SnapshotRecoverySource(StreamInput in) throws IOException {
+            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+                restoreUUID = in.readString();
+            } else {
+                restoreUUID = RestoreInProgress.BWC_UUID;
+            }
             snapshot = new Snapshot(in);
             version = Version.readVersion(in);
             index = in.readString();
+        }
+
+        public String restoreUUID() {
+            return restoreUUID;
         }
 
         public Snapshot snapshot() {
@@ -185,6 +250,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
+            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+                out.writeString(restoreUUID);
+            }
             snapshot.writeTo(out);
             Version.writeVersion(version, out);
             out.writeString(index);
@@ -200,12 +268,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             builder.field("repository", snapshot.getRepository())
                 .field("snapshot", snapshot.getSnapshotId().getName())
                 .field("version", version.toString())
-                .field("index", index);
+                .field("index", index)
+                .field("restoreUUID", restoreUUID);
         }
 
         @Override
         public String toString() {
-            return "snapshot recovery from " + snapshot.toString();
+            return "snapshot recovery [" + restoreUUID + "] from " + snapshot;
         }
 
         @Override
@@ -218,12 +287,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             }
 
             SnapshotRecoverySource that = (SnapshotRecoverySource) o;
-            return snapshot.equals(that.snapshot) && index.equals(that.index) && version.equals(that.version);
+            return restoreUUID.equals(that.restoreUUID) && snapshot.equals(that.snapshot)
+                && index.equals(that.index) && version.equals(that.version);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshot, index, version);
+            return Objects.hash(restoreUUID, snapshot, index, version);
         }
 
     }

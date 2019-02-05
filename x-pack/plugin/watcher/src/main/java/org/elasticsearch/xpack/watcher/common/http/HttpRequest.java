@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.WatcherUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
-import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -37,6 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -50,7 +49,7 @@ public class HttpRequest implements ToXContentObject {
     @Nullable final String path;
     final Map<String, String> params;
     final Map<String, String> headers;
-    @Nullable final HttpAuth auth;
+    @Nullable final BasicAuth auth;
     @Nullable final String body;
     @Nullable final TimeValue connectionTimeout;
     @Nullable final TimeValue readTimeout;
@@ -58,7 +57,7 @@ public class HttpRequest implements ToXContentObject {
 
     public HttpRequest(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable String path,
                        @Nullable Map<String, String> params, @Nullable Map<String, String> headers,
-                       @Nullable HttpAuth auth, @Nullable String body, @Nullable TimeValue connectionTimeout,
+                       @Nullable BasicAuth auth, @Nullable String body, @Nullable TimeValue connectionTimeout,
                        @Nullable TimeValue readTimeout, @Nullable HttpProxy proxy) {
         this.host = host;
         this.port = port;
@@ -102,7 +101,7 @@ public class HttpRequest implements ToXContentObject {
         return headers;
     }
 
-    public HttpAuth auth() {
+    public BasicAuth auth() {
         return auth;
     }
 
@@ -156,17 +155,15 @@ public class HttpRequest implements ToXContentObject {
             builder.field(Field.PARAMS.getPreferredName(), this.params);
         }
         if (headers.isEmpty() == false) {
-            if (WatcherParams.hideSecrets(toXContentParams) && headers.containsKey("Authorization")) {
-                Map<String, String> sanitizedHeaders = new HashMap<>(headers);
-                sanitizedHeaders.put("Authorization", WatcherXContentParser.REDACTED_PASSWORD);
-                builder.field(Field.HEADERS.getPreferredName(), sanitizedHeaders);
+            if (WatcherParams.hideSecrets(toXContentParams)) {
+                builder.field(Field.HEADERS.getPreferredName(), sanitizeHeaders(headers));
             } else {
                 builder.field(Field.HEADERS.getPreferredName(), headers);
             }
         }
         if (auth != null) {
             builder.startObject(Field.AUTH.getPreferredName())
-                        .field(auth.type(), auth, toXContentParams)
+                        .field(BasicAuth.TYPE, auth, toXContentParams)
                     .endObject();
         }
         if (body != null) {
@@ -184,6 +181,15 @@ public class HttpRequest implements ToXContentObject {
             proxy.toXContent(builder, toXContentParams);
         }
         return builder.endObject();
+    }
+
+    private Map<String, String> sanitizeHeaders(Map<String, String> headers) {
+        if (headers.containsKey("Authorization") == false) {
+            return headers;
+        }
+        Map<String, String> sanitizedHeaders = new HashMap<>(headers);
+        sanitizedHeaders.put("Authorization", WatcherXContentParser.REDACTED_PASSWORD);
+        return sanitizedHeaders;
     }
 
     @Override
@@ -222,19 +228,12 @@ public class HttpRequest implements ToXContentObject {
         sb.append("port=[").append(port).append("], ");
         sb.append("path=[").append(path).append("], ");
         if (!headers.isEmpty()) {
-            sb.append(", headers=[");
-            boolean first = true;
-            for (Map.Entry<String, String> header : headers.entrySet()) {
-                if (!first) {
-                    sb.append(", ");
-                }
-                sb.append("[").append(header.getKey()).append(": ").append(header.getValue()).append("]");
-                first = false;
-            }
-            sb.append("], ");
+            sb.append(sanitizeHeaders(headers).entrySet().stream()
+                .map(header -> header.getKey() + ": " + header.getValue())
+                .collect(Collectors.joining(", ", "headers=[", "], ")));
         }
         if (auth != null) {
-            sb.append("auth=[").append(auth.type()).append("], ");
+            sb.append("auth=[").append(BasicAuth.TYPE).append("], ");
         }
         sb.append("connection_timeout=[").append(connectionTimeout).append("], ");
         sb.append("read_timeout=[").append(readTimeout).append("], ");
@@ -254,14 +253,7 @@ public class HttpRequest implements ToXContentObject {
     }
 
     public static class Parser {
-
-        private final HttpAuthRegistry httpAuthRegistry;
-
-        public Parser(HttpAuthRegistry httpAuthRegistry) {
-            this.httpAuthRegistry = httpAuthRegistry;
-        }
-
-        public HttpRequest parse(XContentParser parser) throws IOException {
+        public static HttpRequest parse(XContentParser parser) throws IOException {
             Builder builder = new Builder();
             XContentParser.Token token;
             String currentFieldName = null;
@@ -275,7 +267,7 @@ public class HttpRequest implements ToXContentObject {
                         throw new ElasticsearchParseException("could not parse http request. could not parse [{}] field", currentFieldName);
                     }
                 } else if (Field.AUTH.match(currentFieldName, parser.getDeprecationHandler())) {
-                    builder.auth(httpAuthRegistry.parse(parser));
+                    builder.auth(BasicAuth.parse(parser));
                 } else if (HttpRequest.Field.CONNECTION_TIMEOUT.match(currentFieldName, parser.getDeprecationHandler())) {
                     builder.connectionTimeout(TimeValue.timeValueMillis(parser.longValue()));
                 } else if (HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -302,7 +294,7 @@ public class HttpRequest implements ToXContentObject {
                         builder.setHeaders((Map) WatcherUtils.flattenModel(parser.map()));
                     } else if (Field.PARAMS.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.setParams((Map) WatcherUtils.flattenModel(parser.map()));
-                    }  else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
+                    } else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.body(parser.text());
                     } else {
                         throw new ElasticsearchParseException("could not parse http request. unexpected object field [{}]",
@@ -360,7 +352,7 @@ public class HttpRequest implements ToXContentObject {
         private String path;
         private Map<String, String> params = new HashMap<>();
         private Map<String, String> headers = new HashMap<>();
-        private HttpAuth auth;
+        private BasicAuth auth;
         private String body;
         private TimeValue connectionTimeout;
         private TimeValue readTimeout;
@@ -421,7 +413,7 @@ public class HttpRequest implements ToXContentObject {
             return this;
         }
 
-        public Builder auth(HttpAuth auth) {
+        public Builder auth(BasicAuth auth) {
             this.auth = auth;
             return this;
         }

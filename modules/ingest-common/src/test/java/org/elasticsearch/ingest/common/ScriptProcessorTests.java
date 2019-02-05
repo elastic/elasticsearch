@@ -19,10 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -32,6 +28,10 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.core.Is.is;
@@ -52,7 +52,8 @@ public class ScriptProcessorTests extends ESTestCase {
                             ctx.put("bytes_total", randomBytesTotal);
                             return null;
                         }
-                    )
+                    ),
+                    Collections.emptyMap()
                 )
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS)
@@ -72,5 +73,29 @@ public class ScriptProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata(), hasKey("bytes_out"));
         assertThat(ingestDocument.getSourceAndMetadata(), hasKey("bytes_total"));
         assertThat(ingestDocument.getSourceAndMetadata().get("bytes_total"), is(randomBytesTotal));
+    }
+
+    public void testTypeDeprecation() throws Exception {
+        String scriptName = "script";
+        ScriptService scriptService = new ScriptService(Settings.builder().build(),
+                Collections.singletonMap(
+                        Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(
+                                Script.DEFAULT_SCRIPT_LANG,
+                                Collections.singletonMap(
+                                        scriptName, ctx -> {
+                                            ctx.get("_type");
+                                            return null;
+                                        }
+                                ),
+                                Collections.emptyMap()
+                        )
+                ),
+                new HashMap<>(ScriptModule.CORE_CONTEXTS)
+        );
+        Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), script, scriptService);
+        processor.execute(ingestDocument);
+        assertWarnings("[types removal] Looking up doc types [_type] in scripts is deprecated.");
     }
 }

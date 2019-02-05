@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,6 +44,10 @@ public class DfsSearchResult extends SearchPhaseResult {
     private int maxDoc;
 
     public DfsSearchResult() {
+    }
+
+    public DfsSearchResult(StreamInput in) throws IOException {
+        readFrom(in);
     }
 
     public DfsSearchResult(long id, SearchShardTarget shardTarget) {
@@ -116,7 +121,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         out.writeVInt(maxDoc);
     }
 
-    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
+    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String,
+            CollectionStatistics> fieldStatistics) throws IOException {
         out.writeVInt(fieldStatistics.size());
 
         for (ObjectObjectCursor<String, CollectionStatistics> c : fieldStatistics) {
@@ -124,9 +130,16 @@ public class DfsSearchResult extends SearchPhaseResult {
             CollectionStatistics statistics = c.value;
             assert statistics.maxDoc() >= 0;
             out.writeVLong(statistics.maxDoc());
-            out.writeVLong(addOne(statistics.docCount()));
-            out.writeVLong(addOne(statistics.sumTotalTermFreq()));
-            out.writeVLong(addOne(statistics.sumDocFreq()));
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                // stats are always positive numbers
+                out.writeVLong(statistics.docCount());
+                out.writeVLong(statistics.sumTotalTermFreq());
+                out.writeVLong(statistics.sumDocFreq());
+            } else {
+                out.writeVLong(addOne(statistics.docCount()));
+                out.writeVLong(addOne(statistics.sumTotalTermFreq()));
+                out.writeVLong(addOne(statistics.sumDocFreq()));
+            }
         }
     }
 
@@ -138,16 +151,22 @@ public class DfsSearchResult extends SearchPhaseResult {
     }
 
     public  static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
-        assert termStatistic.docFreq() >= 0;
-        out.writeVLong(termStatistic.docFreq());
-        out.writeVLong(addOne(termStatistic.totalTermFreq()));
+        if (termStatistic != null) {
+            assert termStatistic.docFreq() > 0;
+            out.writeVLong(termStatistic.docFreq());
+            out.writeVLong(addOne(termStatistic.totalTermFreq()));
+        } else {
+            out.writeVLong(0);
+            out.writeVLong(0);
+        }
     }
 
     public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
         return readFieldStats(in, null);
     }
 
-    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
+    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in,
+            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
         final int numFieldStatistics = in.readVInt();
         if (fieldStatistics == null) {
             fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
@@ -156,9 +175,19 @@ public class DfsSearchResult extends SearchPhaseResult {
             final String field = in.readString();
             assert field != null;
             final long maxDoc = in.readVLong();
-            final long docCount = subOne(in.readVLong());
-            final long sumTotalTermFreq = subOne(in.readVLong());
-            final long sumDocFreq = subOne(in.readVLong());
+            final long docCount;
+            final long sumTotalTermFreq;
+            final long sumDocFreq;
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+                // stats are always positive numbers
+                docCount = in.readVLong();
+                sumTotalTermFreq = in.readVLong();
+                sumDocFreq = in.readVLong();
+            } else {
+                docCount = subOne(in.readVLong());
+                sumTotalTermFreq = subOne(in.readVLong());
+                sumDocFreq = subOne(in.readVLong());
+            }
             CollectionStatistics stats = new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
             fieldStatistics.put(field, stats);
         }
@@ -178,6 +207,9 @@ public class DfsSearchResult extends SearchPhaseResult {
                 final long docFreq = in.readVLong();
                 assert docFreq >= 0;
                 final long totalTermFreq = subOne(in.readVLong());
+                if (docFreq == 0) {
+                    continue;
+                }
                 termStatistics[i] = new TermStatistics(term, docFreq, totalTermFreq);
             }
         }

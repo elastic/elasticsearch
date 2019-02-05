@@ -51,7 +51,7 @@ public class YamlXContent implements XContent {
 
     static {
         yamlFactory = new YAMLFactory();
-        yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, XContent.isStrictDuplicateDetectionEnabled());
+        yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         yamlXContent = new YamlXContent();
     }
 

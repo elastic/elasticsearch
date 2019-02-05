@@ -17,13 +17,21 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.protocol.xpack.graph.Connection;
+import org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
+import org.elasticsearch.protocol.xpack.graph.Hop;
+import org.elasticsearch.protocol.xpack.graph.Vertex;
+import org.elasticsearch.protocol.xpack.graph.Vertex.VertexId;
+import org.elasticsearch.protocol.xpack.graph.VertexRequest;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
@@ -39,16 +47,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.graph.action.Connection;
-import org.elasticsearch.xpack.core.graph.action.Connection.ConnectionId;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest.TermBoost;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreResponse;
-import org.elasticsearch.xpack.core.graph.action.Hop;
-import org.elasticsearch.xpack.core.graph.action.Vertex;
-import org.elasticsearch.xpack.core.graph.action.Vertex.VertexId;
-import org.elasticsearch.xpack.core.graph.action.VertexRequest;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -84,9 +83,9 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
     }
 
     @Inject
-    public TransportGraphExploreAction(Settings settings, ThreadPool threadPool, NodeClient client,
-            TransportService transportService, ActionFilters actionFilters, XPackLicenseState licenseState) {
-        super(settings, GraphExploreAction.NAME, transportService, actionFilters, (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
+    public TransportGraphExploreAction(ThreadPool threadPool, NodeClient client, TransportService transportService,
+                                       ActionFilters actionFilters, XPackLicenseState licenseState) {
+        super(GraphExploreAction.NAME, transportService, actionFilters, (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
         this.threadPool = threadPool;
         this.client = client;
         this.licenseState = licenseState;
@@ -98,7 +97,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             new AsyncGraphAction(request, listener).start();
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.GRAPH));
-        }  
+        }
     }
 
     class AsyncGraphAction {
@@ -181,7 +180,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             Hop lastHop = request.getHop(currentHopNumber);
             currentHopNumber++;
             Hop currentHop = request.getHop(currentHopNumber);
-            
+
             final SearchRequest searchRequest = new SearchRequest(request.indices()).types(request.types()).indicesOptions(
                     request.indicesOptions());
             if (request.routing() != null) {
@@ -189,15 +188,15 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             }
 
             BoolQueryBuilder rootBool = QueryBuilders.boolQuery();
-            
+
             // A single sample pool of docs is built at the root of the aggs tree.
             // For quality's sake it might have made more sense to sample top docs
-            // for each of the terms from the previous hop (e.g. an initial query for "beatles" 
-            // may have seperate doc-sample pools for significant root terms "john", "paul", "yoko" etc)
+            // for each of the terms from the previous hop (e.g. an initial query for "beatles"
+            // may have separate doc-sample pools for significant root terms "john", "paul", "yoko" etc)
             // but I found this dramatically slowed down execution - each pool typically had different docs which
             // each had non-overlapping sets of terms that needed frequencies looking up for significant terms.
             // A common sample pool reduces the specialization that can be given to each root term but
-            // ultimately is much faster to run because of the shared vocabulary in a single sample set. 
+            // ultimately is much faster to run because of the shared vocabulary in a single sample set.
             AggregationBuilder sampleAgg = null;
             if (request.sampleDiversityField() != null) {
                 DiversifiedAggregationBuilder diversifiedSampleAgg = AggregationBuilders.diversifiedSampler("sample")
@@ -208,11 +207,11 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             }else{
                 sampleAgg = AggregationBuilders.sampler("sample").shardSize(request.sampleSize());
             }
-            
+
             // Add any user-supplied criteria to the root query as a must clause
             rootBool.must(currentHop.guidingQuery());
-            
-            // Build a MUST clause that matches one of either 
+
+            // Build a MUST clause that matches one of either
             // a:) include clauses supplied by the client or
             // b:) vertex terms from the previous hop.
             BoolQueryBuilder sourceTermsOrClause = QueryBuilders.boolQuery();
@@ -220,10 +219,10 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             addBigOrClause(lastHopFindings, sourceTermsOrClause);
 
             rootBool.must(sourceTermsOrClause);
- 
-            
-            //Now build the agg tree that will channel the content -> 
-            //   base agg is terms agg for terms from last wave (one per field), 
+
+
+            //Now build the agg tree that will channel the content ->
+            //   base agg is terms agg for terms from last wave (one per field),
             //      under each is a sig_terms agg to find next candidates (again, one per field)...
             for (int fieldNum = 0; fieldNum < lastHop.getNumberVertexRequests(); fieldNum++) {
                 VertexRequest lastVr = lastHop.getVertexRequest(fieldNum);
@@ -319,7 +318,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 public void onResponse(SearchResponse searchResponse) {
                     // System.out.println(searchResponse);
                     addShardFailures(searchResponse.getShardFailures());
-                   
+
                     ArrayList<Connection> newConnections = new ArrayList<Connection>();
                     ArrayList<Vertex> newVertices = new ArrayList<Vertex>();
                     Sampler sample = searchResponse.getAggregations().get("sample");
@@ -331,7 +330,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     // what percentage of the total scores its own score
                     // provides
                     double totalSignalOutput = getExpandTotalSignalStrength(lastHop, currentHop, sample);
-                    
+
                     // Signal output can be zero if we did not encounter any new
                     // terms as part of this stage
                     if (totalSignalOutput > 0) {
@@ -342,7 +341,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
                     // Potentially run another round of queries to perform next"hop" - will terminate if no new additions
                     expand();
-                
+
                 }
 
 
@@ -364,7 +363,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                             Vertex fromVertex = getVertex(lastVr.fieldName(), lastWaveTerm.getKeyAsString());
                             for (int k = 0; k < currentHop.getNumberVertexRequests(); k++) {
                                 VertexRequest vr = currentHop.getVertexRequest(k);
-                                // As we travel further out into the graph we apply a 
+                                // As we travel further out into the graph we apply a
                                 // decay to the signals being propagated down the various channels.
                                 double decay = 0.95d;
                                 if (request.useSignificance()) {
@@ -424,14 +423,14 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
 
                 // Having let the signals from the last results rattle around the graph
-                // we have adjusted weights for the various vertices we encountered. 
+                // we have adjusted weights for the various vertices we encountered.
                 // Now we review these new additions and remove those with the
                 // weakest weights.
                 // A priority queue is used to trim vertices according to the size settings
                 // requested for each field.
                 private void trimNewAdditions(Hop currentHop, ArrayList<Connection> newConnections, ArrayList<Vertex> newVertices) {
                     Set<Vertex> evictions = new HashSet<>();
-                    
+
                     for (int k = 0; k < currentHop.getNumberVertexRequests(); k++) {
                         // For each of the fields
                         VertexRequest vr = currentHop.getVertexRequest(k);
@@ -450,7 +449,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                             }
                         }
                     }
-                    // Remove weak new nodes and their dangling connections from the main graph 
+                    // Remove weak new nodes and their dangling connections from the main graph
                     if (evictions.size() > 0) {
                         for (Connection connection : newConnections) {
                             if (evictions.contains(connection.getTo())) {
@@ -465,7 +464,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 // is if the "from" and "to" nodes are a client-supplied set of includes e.g. a list of
                 // music artists then the client may be wanting to draw only the most-interesting connections
                 // between them. See https://github.com/elastic/x-plugins/issues/518#issuecomment-160186424
-                // I guess clients could trim the returned connections (which all have weights) but I wonder if 
+                // I guess clients could trim the returned connections (which all have weights) but I wonder if
                 // we can do something server-side here
 
                 // Helper method - compute the total signal of all scores in the search results
@@ -576,7 +575,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 }
 
                 BoolQueryBuilder rootBool = QueryBuilders.boolQuery();
-                
+
                 AggregationBuilder rootSampleAgg = null;
                 if (request.sampleDiversityField() != null) {
                     DiversifiedAggregationBuilder diversifiedRootSampleAgg = AggregationBuilders.diversifiedSampler("sample")
@@ -587,15 +586,15 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 } else {
                     rootSampleAgg = AggregationBuilders.sampler("sample").shardSize(request.sampleSize());
                 }
-                
-                
-                
+
+
+
                 Hop rootHop = request.getHop(0);
-                
+
                 // Add any user-supplied criteria to the root query as a should clause
                 rootBool.must(rootHop.guidingQuery());
-                
-                
+
+
                 // If any of the root terms have an "include" restriction then
                 // we add a root-level MUST clause that
                 // mandates that at least one of the potentially many terms of
@@ -605,7 +604,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 if (includesContainer.should().size() > 0) {
                     rootBool.must(includesContainer);
                 }
-                
+
 
                 for (int i = 0; i < rootHop.getNumberVertexRequests(); i++) {
                     VertexRequest vr = rootHop.getVertexRequest(i);
@@ -613,7 +612,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         SignificantTermsAggregationBuilder sigBuilder = AggregationBuilders.significantTerms("field" + i);
                         sigBuilder.field(vr.fieldName()).shardMinDocCount(vr.shardMinDocCount()).minDocCount(vr.minDocCount())
                                 // Map execution mode used because Sampler agg
-                                // keeps us focused on smaller sets of high quality 
+                                // keeps us focused on smaller sets of high quality
                                 // docs and therefore examine smaller volumes of terms
                                 .executionHint("map").size(vr.size());
                         // It is feasible that clients could provide a choice of
@@ -648,9 +647,9 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         }
                         rootSampleAgg.subAggregation(termsBuilder);
                     }
-                }                
-                
-                
+                }
+
+
                 // Run the search
                 SearchSourceBuilder source = new SearchSourceBuilder()
                     .query(rootBool)
@@ -669,8 +668,8 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
                         // Determine the total scores for all interesting terms
                         double totalSignalStrength = getInitialTotalSignalStrength(rootHop, sample);
-                        
-                        
+
+
                         // Now gather the best matching terms and compute signal weight according to their
                         // share of the total signal strength
                         for (int j = 0; j < rootHop.getNumberVertexRequests(); j++) {
@@ -680,7 +679,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                                 List<? extends Bucket> buckets = significantTerms.getBuckets();
                                 for (Bucket bucket : buckets) {
                                     double signalWeight = bucket.getSignificanceScore() / totalSignalStrength;
-                                    addVertex(vr.fieldName(), bucket.getKeyAsString(), signalWeight, 
+                                    addVertex(vr.fieldName(), bucket.getKeyAsString(), signalWeight,
                                             currentHopNumber, bucket.getSupersetDf(), bucket.getSubsetDf());
                                 }
                             } else {
@@ -733,11 +732,11 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
         private void addNormalizedBoosts(BoolQueryBuilder includesContainer, VertexRequest vr) {
             TermBoost[] termBoosts = vr.includeValues();
-            
+
 
             if ((includesContainer.should().size() + termBoosts.length) > BooleanQuery.getMaxClauseCount()) {
                 // Too many terms - we need a cheaper form of query to execute this
-                List<String> termValues = new ArrayList<>();                
+                List<String> termValues = new ArrayList<>();
                 for (TermBoost tb : termBoosts) {
                     termValues.add(tb.getTerm());
                 }

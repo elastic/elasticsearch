@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SSource;
@@ -28,11 +27,14 @@ import org.elasticsearch.painless.spi.Whitelist;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.CodeSource;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -45,11 +47,6 @@ import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
  * one for analysis and another to generate the actual byte code using ASM using the root of the tree {@link SSource}.
  */
 final class Compiler {
-
-    /**
-     * The maximum number of characters allowed in the script source.
-     */
-    static final int MAXIMUM_SOURCE_LENGTH = 16384;
 
     /**
      * Define the class with lowest privileges.
@@ -89,16 +86,11 @@ final class Compiler {
          */
         @Override
         public Class<?> findClass(String name) throws ClassNotFoundException {
-            if (scriptClass.getName().equals(name)) {
-                return scriptClass;
+            Class<?> found = additionalClasses.get(name);
+            if (found != null) {
+                return found;
             }
-            if (factoryClass != null && factoryClass.getName().equals(name)) {
-                return factoryClass;
-            }
-            if (statefulFactoryClass != null && statefulFactoryClass.getName().equals(name)) {
-                return statefulFactoryClass;
-            }
-            Class<?> found = painlessLookup.canonicalTypeNameToType(name.replace('$', '.'));
+            found = painlessLookup.javaClassNameToClass(name);
 
             return found != null ? found : super.findClass(name);
         }
@@ -156,19 +148,14 @@ final class Compiler {
     private final Class<?> scriptClass;
 
     /**
-     * The class/interface to create the {@code scriptClass} instance.
-     */
-    private final Class<?> factoryClass;
-
-    /**
-     * An optional class/interface to create the {@code factoryClass} instance.
-     */
-    private final Class<?> statefulFactoryClass;
-
-    /**
      * The whitelist the script will use.
      */
     private final PainlessLookup painlessLookup;
+
+    /**
+     * Classes that do not exist in the lookup, but are needed by the script factories.
+     */
+    private final Map<String, Class<?>> additionalClasses;
 
     /**
      * Standard constructor.
@@ -179,9 +166,36 @@ final class Compiler {
      */
     Compiler(Class<?> scriptClass, Class<?> factoryClass, Class<?> statefulFactoryClass, PainlessLookup painlessLookup) {
         this.scriptClass = scriptClass;
-        this.factoryClass = factoryClass;
-        this.statefulFactoryClass = statefulFactoryClass;
         this.painlessLookup = painlessLookup;
+        Map<String, Class<?>> additionalClasses = new HashMap<>();
+        additionalClasses.put(scriptClass.getName(), scriptClass);
+        addFactoryMethod(additionalClasses, factoryClass, "newInstance");
+        addFactoryMethod(additionalClasses, statefulFactoryClass, "newFactory");
+        addFactoryMethod(additionalClasses, statefulFactoryClass, "newInstance");
+        this.additionalClasses = Collections.unmodifiableMap(additionalClasses);
+    }
+
+    private static void addFactoryMethod(Map<String, Class<?>> additionalClasses, Class<?> factoryClass, String methodName) {
+        if (factoryClass == null) {
+            return;
+        }
+
+        Method factoryMethod = null;
+        for (Method method : factoryClass.getMethods()) {
+            if (methodName.equals(method.getName())) {
+                factoryMethod = method;
+                break;
+            }
+        }
+        if (factoryMethod == null) {
+            return;
+        }
+
+        additionalClasses.put(factoryClass.getName(), factoryClass);
+        for (int i = 0; i < factoryMethod.getParameterTypes().length; ++i) {
+            Class<?> parameterClazz = factoryMethod.getParameterTypes()[i];
+            additionalClasses.put(parameterClazz.getName(), parameterClazz);
+        }
     }
 
     /**
@@ -193,17 +207,11 @@ final class Compiler {
      * @return An executable script that implements both a specified interface and is a subclass of {@link PainlessScript}
      */
     Constructor<?> compile(Loader loader, MainMethodReserved reserved, String name, String source, CompilerSettings settings) {
-        if (source.length() > MAXIMUM_SOURCE_LENGTH) {
-            throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
-                " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
-                " plugin if a script longer than this length is a requirement.");
-        }
-
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, painlessLookup,
                 null);
-        Map<String, LocalMethod> localMethods = root.analyze(painlessLookup);
-        root.write();
+        root.analyze(painlessLookup);
+        Map<String, Object> statics = root.write();
 
         try {
             Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, root.getBytes());
@@ -211,7 +219,10 @@ final class Compiler {
             clazz.getField("$SOURCE").set(null, source);
             clazz.getField("$STATEMENTS").set(null, root.getStatements());
             clazz.getField("$DEFINITION").set(null, painlessLookup);
-            clazz.getField("$LOCALS").set(null, localMethods);
+
+            for (Map.Entry<String, Object> statik : statics.entrySet()) {
+                clazz.getField(statik.getKey()).set(null, statik.getValue());
+            }
 
             return clazz.getConstructors()[0];
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
@@ -226,12 +237,6 @@ final class Compiler {
      * @return The bytes for compilation.
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
-        if (source.length() > MAXIMUM_SOURCE_LENGTH) {
-            throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
-                " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
-                " plugin if a script longer than this length is a requirement.");
-        }
-
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SSource root = Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), name, source, settings, painlessLookup,
                 debugStream);

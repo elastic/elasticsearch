@@ -16,9 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.optional-base'
 apply plugin: 'nebula.maven-base-publish'
@@ -29,10 +26,10 @@ dependencies {
     compile "org.elasticsearch:elasticsearch-core:${version}"
 }
 
-test.enabled = false
+unitTest.enabled = false
 // Since CLI does not depend on :server, it cannot run the jarHell task
 jarHell.enabled = false
 
 forbiddenApisMain {
-    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+    replaceSignatureFiles 'jdk-signatures'
 }

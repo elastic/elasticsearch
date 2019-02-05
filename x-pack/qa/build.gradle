@@ -18,19 +18,3 @@ subprojects {
     }
   }
 }
-
-/* Remove assemble on all qa projects because we don't need to publish
- * artifacts for them. */
-gradle.projectsEvaluated {
-  subprojects {
-    Task assemble = project.tasks.findByName('assemble')
-    if (assemble) {
-      project.tasks.remove(assemble)
-      project.build.dependsOn.remove('assemble')
-    }
-    Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
-    if (dependenciesInfo) {
-      project.precommit.dependsOn.remove('dependenciesInfo')
-    }
-  }
-}

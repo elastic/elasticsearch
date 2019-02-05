@@ -29,9 +29,7 @@ import org.elasticsearch.cluster.metadata.AliasAction.NewAliasValidator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -54,7 +52,7 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
 /**
  * Service responsible for submitting add and remove aliases requests
  */
-public class MetaDataIndexAliasesService extends AbstractComponent {
+public class MetaDataIndexAliasesService {
 
     private final ClusterService clusterService;
 
@@ -67,9 +65,8 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService, IndicesService indicesService,
+    public MetaDataIndexAliasesService(ClusterService clusterService, IndicesService indicesService,
             AliasValidator aliasValidator, MetaDataDeleteIndexService deleteIndexService, NamedXContentRegistry xContentRegistry) {
-        super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.aliasValidator = aliasValidator;

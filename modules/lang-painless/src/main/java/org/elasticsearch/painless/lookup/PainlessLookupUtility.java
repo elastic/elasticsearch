@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.lookup;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -73,6 +72,21 @@ import java.util.Objects;
  * </ul>
  */
 public final class PainlessLookupUtility {
+    
+    /**
+     * The name for an anonymous class.
+     */
+    public static final String ANONYMOUS_CLASS_NAME = "$anonymous";
+
+    /**
+     * The def type name as specified in the source for a script.
+     */
+    public static final String DEF_CLASS_NAME = "def";
+
+    /**
+     * The method name for all constructors.
+     */
+    public static final String CONSTRUCTOR_NAME = "<init>";
 
     /**
      * Converts a canonical type name to a type based on the terminology specified as part of the documentation for
@@ -83,7 +97,7 @@ public final class PainlessLookupUtility {
         Objects.requireNonNull(canonicalTypeName);
         Objects.requireNonNull(canonicalClassNamesToClasses);
 
-        Class<?> type = canonicalClassNamesToClasses.get(canonicalTypeName);
+        Class<?> type = DEF_CLASS_NAME.equals(canonicalTypeName) ? def.class : canonicalClassNamesToClasses.get(canonicalTypeName);
 
         if (type != null) {
             return type;
@@ -101,45 +115,47 @@ public final class PainlessLookupUtility {
                     canonicalTypeName.charAt(arrayIndex++) == ']') {
                     ++arrayDimensions;
                 } else {
-                    throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
+                    return null;
                 }
             }
 
             canonicalTypeName = canonicalTypeName.substring(0, canonicalTypeName.indexOf('['));
-            type = canonicalClassNamesToClasses.get(canonicalTypeName);
+            type = DEF_CLASS_NAME.equals(canonicalTypeName) ? def.class : canonicalClassNamesToClasses.get(canonicalTypeName);
 
-            char arrayBraces[] = new char[arrayDimensions];
-            Arrays.fill(arrayBraces, '[');
-            String javaTypeName = new String(arrayBraces);
+            if (type != null) {
+                char arrayBraces[] = new char[arrayDimensions];
+                Arrays.fill(arrayBraces, '[');
+                String javaTypeName = new String(arrayBraces);
 
-            if (type == boolean.class) {
-                javaTypeName += "Z";
-            } else if (type == byte.class) {
-                javaTypeName += "B";
-            } else if (type == short.class) {
-                javaTypeName += "S";
-            } else if (type == char.class) {
-                javaTypeName += "C";
-            } else if (type == int.class) {
-                javaTypeName += "I";
-            } else if (type == long.class) {
-                javaTypeName += "J";
-            } else if (type == float.class) {
-                javaTypeName += "F";
-            } else if (type == double.class) {
-                javaTypeName += "D";
-            } else {
-                javaTypeName += "L" + type.getName() + ";";
-            }
+                if (type == boolean.class) {
+                    javaTypeName += "Z";
+                } else if (type == byte.class) {
+                    javaTypeName += "B";
+                } else if (type == short.class) {
+                    javaTypeName += "S";
+                } else if (type == char.class) {
+                    javaTypeName += "C";
+                } else if (type == int.class) {
+                    javaTypeName += "I";
+                } else if (type == long.class) {
+                    javaTypeName += "J";
+                } else if (type == float.class) {
+                    javaTypeName += "F";
+                } else if (type == double.class) {
+                    javaTypeName += "D";
+                } else {
+                    javaTypeName += "L" + type.getName() + ";";
+                }
 
-            try {
-                return Class.forName(javaTypeName);
-            } catch (ClassNotFoundException cnfe) {
-                throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found", cnfe);
+                try {
+                    return Class.forName(javaTypeName);
+                } catch (ClassNotFoundException cnfe) {
+                    throw new IllegalStateException("internal error", cnfe);
+                }
             }
         }
 
-        throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
+        return null;
     }
 
     /**
@@ -152,7 +168,9 @@ public final class PainlessLookupUtility {
 
         String canonicalTypeName = type.getCanonicalName();
 
-        if (canonicalTypeName.startsWith(def.class.getCanonicalName())) {
+        if (canonicalTypeName == null) {
+            canonicalTypeName = ANONYMOUS_CLASS_NAME;
+        } else if (canonicalTypeName.startsWith(def.class.getCanonicalName())) {
             canonicalTypeName = canonicalTypeName.replace(def.class.getCanonicalName(), DEF_CLASS_NAME);
         }
 
@@ -253,22 +271,6 @@ public final class PainlessLookupUtility {
     }
 
     /**
-     * Ensures a type exists based on the terminology specified as part of {@link PainlessLookupUtility}.  Throws an
-     * {@link IllegalArgumentException} if the type does not exist.
-     */
-    public static void validateType(Class<?> type, Collection<Class<?>> classes) {
-        String canonicalTypeName = typeToCanonicalTypeName(type);
-
-        while (type.getComponentType() != null) {
-            type = type.getComponentType();
-        }
-
-        if (classes.contains(type) == false) {
-            throw new IllegalArgumentException("type [" + canonicalTypeName + "] not found");
-        }
-    }
-
-    /**
      * Converts a type  to its boxed type equivalent if one exists based on the terminology specified as part of
      * {@link PainlessLookupUtility}. Otherwise, this behaves as an identity function.
      */
@@ -356,17 +358,7 @@ public final class PainlessLookupUtility {
     public static String buildPainlessFieldKey(String fieldName) {
         return fieldName;
     }
-
-    /**
-     * The def type name as specified in the source for a script.
-     */
-    public static final String DEF_CLASS_NAME = "def";
-
-    /**
-     * The method name for all constructors.
-     */
-    public static final String CONSTRUCTOR_NAME = "<init>";
-
+    
     private PainlessLookupUtility() {
 
     }

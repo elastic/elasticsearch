@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,12 +27,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 public class PutIndexTemplateRequestBuilder
-    extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
+    extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, AcknowledgedResponse, PutIndexTemplateRequestBuilder> {
 
     public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action) {
         super(client, action, new PutIndexTemplateRequest());
@@ -39,16 +39,6 @@ public class PutIndexTemplateRequestBuilder
 
     public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action, String name) {
         super(client, action, new PutIndexTemplateRequest(name));
-    }
-
-    /**
-     * Sets the match expression that will be used to match on indices created.
-     *
-     * @deprecated Replaced by {@link #setPatterns(List)}
-     */
-    @Deprecated
-    public PutIndexTemplateRequestBuilder setTemplate(String indexPattern) {
-        return setPatterns(Collections.singletonList(indexPattern));
     }
 
     /**

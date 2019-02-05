@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -22,6 +23,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -113,5 +115,28 @@ public class EmailTemplateTests extends ESTestCase {
         assertThat(email.bcc.size(), is(2));
         assertThat(email.bcc, containsInAnyOrder(new Email.Address("bcc1@example.org"),
                 new Email.Address("bcc2@example.org")));
+    }
+
+    public void testEmailValidation() {
+        assertValidEmail("sender@example.org");
+        assertValidEmail("sender+foo@example.org");
+        assertValidEmail("Test User <sender@example.org>");
+        assertValidEmail("Test User <sender@example.org>, foo@example.org");
+        assertValidEmail("a@com");
+        assertValidEmail("{{valid due to mustache}}, sender@example.org");
+        assertInvalidEmail("lol.com");
+        assertInvalidEmail("user");
+        // only the whole string is tested if this is a mustache template, not parts of it
+        assertValidEmail("{{valid due to mustache}}, lol.com");
+    }
+
+    private void assertValidEmail(String email) {
+        EmailTemplate.Parser.validateEmailAddresses(new TextTemplate(email));
+    }
+
+    private void assertInvalidEmail(String email) {
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+            () -> EmailTemplate.Parser.validateEmailAddresses(new TextTemplate(email)));
+        assertThat(e.getMessage(), startsWith("invalid email address"));
     }
 }

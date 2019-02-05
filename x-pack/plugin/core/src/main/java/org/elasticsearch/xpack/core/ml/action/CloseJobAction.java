@@ -38,7 +38,12 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -77,6 +82,31 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
 
         public Request() {
             openJobIds = new String[] {};
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            timeout = in.readTimeValue();
+            force = in.readBoolean();
+            openJobIds = in.readStringArray();
+            local = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
+                allowNoJobs = in.readBoolean();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(jobId);
+            out.writeTimeValue(timeout);
+            out.writeBoolean(force);
+            out.writeStringArray(openJobIds);
+            out.writeBoolean(local);
+            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+                out.writeBoolean(allowNoJobs);
+            }
         }
 
         public Request(String jobId) {
@@ -126,32 +156,6 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
 
         public void setOpenJobIds(String [] openJobIds) {
             this.openJobIds = openJobIds;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            timeout = in.readTimeValue();
-            force = in.readBoolean();
-            openJobIds = in.readStringArray();
-            local = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoJobs = in.readBoolean();
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(jobId);
-            out.writeTimeValue(timeout);
-            out.writeBoolean(force);
-            out.writeStringArray(openJobIds);
-            out.writeBoolean(local);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoJobs);
-            }
         }
 
         @Override
@@ -208,30 +212,15 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean closed;
-
-        public Response() {
-            super(null, null);
-
-        }
-
-        public Response(StreamInput in) throws IOException {
-            super(null, null);
-            readFrom(in);
-        }
+        private final boolean closed;
 
         public Response(boolean closed) {
             super(null, null);
             this.closed = closed;
         }
 
-        public boolean isClosed() {
-            return closed;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             closed = in.readBoolean();
         }
 
@@ -239,6 +228,10 @@ public class CloseJobAction extends Action<CloseJobAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(closed);
+        }
+
+        public boolean isClosed() {
+            return closed;
         }
 
         @Override

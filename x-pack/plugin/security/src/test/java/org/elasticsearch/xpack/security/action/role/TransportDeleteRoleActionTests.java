@@ -45,7 +45,7 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, (x) -> null, null, Collections.emptySet());
-        TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ActionFilters.class),
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class),
                 rolesStore, transportService);
 
         DeleteRoleRequest request = new DeleteRoleRequest();
@@ -76,7 +76,7 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, (x) -> null, null, Collections.emptySet());
-        TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ActionFilters.class),
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class),
                 rolesStore, transportService);
 
         DeleteRoleRequest request = new DeleteRoleRequest();
@@ -120,13 +120,11 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, (x) -> null, null, Collections.emptySet());
-        TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ActionFilters.class),
-                rolesStore, transportService);
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class), rolesStore, transportService);
 
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);
 
-        final boolean found = randomBoolean();
         doAnswer(new Answer() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {

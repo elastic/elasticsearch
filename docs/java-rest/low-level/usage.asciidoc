@@ -307,7 +307,7 @@ You can also customize the response consumer used to buffer the asynchronous
 responses. The default consumer will buffer up to 100MB of response on the
 JVM heap. If the response is larger then the request will fail. You could,
 for example, lower the maximum size which might be useful if you are running
-in a heap constrained environment like the exmaple above.
+in a heap constrained environment like the example above.
 
 Once you've created the singleton you can use it when making requests:
 
@@ -328,7 +328,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-options-cus
 
 The client is quite happy to execute many actions in parallel. The following
 example indexes many documents in parallel. In a real world scenario you'd
-probably want to use the `_bulk` API instead, but the example is illustative.
+probably want to use the `_bulk` API instead, but the example is illustrative.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

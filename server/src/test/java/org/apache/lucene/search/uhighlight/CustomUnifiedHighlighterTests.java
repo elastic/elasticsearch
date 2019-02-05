@@ -74,7 +74,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         IndexSearcher searcher = newSearcher(reader);
         iw.close();
         TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-        assertThat(topDocs.totalHits, equalTo(1L));
+        assertThat(topDocs.totalHits.value, equalTo(1L));
         String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
         CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(searcher, analyzer, null,
                 new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()), locale,
@@ -126,7 +126,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         final String[] outputs = {
             "The quick <b>brown</b> fox."
         };
-        MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery();
+        MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("text");
         query.add(new Term("text", "bro"));
         assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
             BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
@@ -139,7 +139,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         final String[] outputs = {
             "The <b>quick</b> <b>brown</b> <b>fox</b>."
         };
-        MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery();
+        MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("text");
         query.add(new Term("text", "quick"));
         query.add(new Term("text", "brown"));
         query.add(new Term("text", "fo"));

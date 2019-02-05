@@ -20,7 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -30,12 +30,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
-import org.elasticsearch.common.unit.RatioValue;
-import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -46,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,11 +60,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.ListIterator;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -75,7 +74,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
-import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 
 /**
@@ -100,7 +98,7 @@ public final class Settings implements ToXContentFragment {
      */
     private final SetOnce<Set<String>> keys = new SetOnce<>();
 
-    Settings(Map<String, Object> settings, SecureSettings secureSettings) {
+    private Settings(Map<String, Object> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
         this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
         this.secureSettings = secureSettings;
@@ -322,7 +320,7 @@ public final class Settings implements ToXContentFragment {
      * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
      */
     static class DeprecationLoggerHolder {
-        static DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Settings.class));
+        static DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Settings.class));
     }
 
     /**
@@ -356,23 +354,6 @@ public final class Settings implements ToXContentFragment {
      */
     public ByteSizeValue getAsMemory(String setting, String defaultValue) throws SettingsException {
         return MemorySizeValue.parseBytesSizeValueOrHeapRatio(get(setting, defaultValue), setting);
-    }
-
-    /**
-     * Returns the setting value (as a RatioValue) associated with the setting key. Provided values can
-     * either be a percentage value (eg. 23%), or expressed as a floating point number (eg. 0.23). If
-     * it does not exist, parses the default value provided.
-     */
-    public RatioValue getAsRatio(String setting, String defaultValue) throws SettingsException {
-        return RatioValue.parseRatioValue(get(setting, defaultValue));
-    }
-
-    /**
-     * Returns the setting value (as size) associated with the setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    public SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException {
-        return parseSizeValue(get(setting), defaultValue);
     }
 
     /**
@@ -479,11 +460,7 @@ public final class Settings implements ToXContentFragment {
      * Returns group settings for the given setting prefix.
      */
     public Map<String, Settings> getAsGroups() throws SettingsException {
-        return getAsGroups(false);
-    }
-
-    public Map<String, Settings> getAsGroups(boolean ignoreNonGrouped) throws SettingsException {
-        return getGroupsInternal("", ignoreNonGrouped);
+        return getGroupsInternal("", false);
     }
 
     /**
@@ -542,14 +519,12 @@ public final class Settings implements ToXContentFragment {
         if (o == null || getClass() != o.getClass()) return false;
 
         Settings that = (Settings) o;
-        if (settings != null ? !settings.equals(that.settings) : that.settings != null) return false;
-        return true;
+        return Objects.equals(settings, that.settings);
     }
 
     @Override
     public int hashCode() {
-        int result = settings != null ? settings.hashCode() : 0;
-        return result;
+        return settings != null ? settings.hashCode() : 0;
     }
 
     public static Settings readSettingsFromStream(StreamInput in) throws IOException {
@@ -688,21 +663,21 @@ public final class Settings implements ToXContentFragment {
                     }
                 }
                 String key = keyBuilder.toString();
-                validateValue(key, list, builder, parser, allowNullValues);
+                validateValue(key, list, parser, allowNullValues);
                 builder.putList(key, list);
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 String key = keyBuilder.toString();
-                validateValue(key, null, builder, parser, allowNullValues);
+                validateValue(key, null, parser, allowNullValues);
                 builder.putNull(key);
             } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING
                 || parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 String key = keyBuilder.toString();
                 String value = parser.text();
-                validateValue(key, value, builder, parser, allowNullValues);
+                validateValue(key, value, parser, allowNullValues);
                 builder.put(key, value);
             } else if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
                 String key = keyBuilder.toString();
-                validateValue(key, parser.text(), builder, parser, allowNullValues);
+                validateValue(key, parser.text(), parser, allowNullValues);
                 builder.put(key, parser.booleanValue());
             } else {
                 XContentParserUtils.throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
@@ -710,19 +685,7 @@ public final class Settings implements ToXContentFragment {
         }
     }
 
-    private static void validateValue(String key, Object currentValue, Settings.Builder builder, XContentParser parser,
-                                      boolean allowNullValues) {
-        if (builder.map.containsKey(key)) {
-            throw new ElasticsearchParseException(
-                "duplicate settings key [{}] found at line number [{}], column number [{}], previous value [{}], current value [{}]",
-                key,
-                parser.getTokenLocation().lineNumber,
-                parser.getTokenLocation().columnNumber,
-                builder.map.get(key),
-                currentValue
-            );
-        }
-
+    private static void validateValue(String key, Object currentValue, XContentParser parser, boolean allowNullValues) {
         if (currentValue == null && allowNullValues == false) {
             throw new ElasticsearchParseException(
                 "null-valued setting found for key [{}] found at line number [{}], column number [{}]",
@@ -779,7 +742,7 @@ public final class Settings implements ToXContentFragment {
         // we use a sorted map for consistent serialization when using getAsMap()
         private final Map<String, Object> map = new TreeMap<>();
 
-        private SetOnce<SecureSettings> secureSettings = new SetOnce<>();
+        private final SetOnce<SecureSettings> secureSettings = new SetOnce<>();
 
         private Builder() {
 
@@ -838,8 +801,8 @@ public final class Settings implements ToXContentFragment {
          * @param timeValue The setting timeValue
          * @return The builder
          */
-        public Builder put(String key, TimeValue timeValue) {
-            return put(key, timeValue.toString());
+        public Builder put(final String key, final TimeValue timeValue) {
+            return put(key, timeValue.getStringRep());
         }
 
         /**
@@ -849,8 +812,8 @@ public final class Settings implements ToXContentFragment {
          * @param byteSizeValue The setting value
          * @return The builder
          */
-        public Builder put(String key, ByteSizeValue byteSizeValue) {
-            return put(key, byteSizeValue.toString());
+        public Builder put(final String key, final ByteSizeValue byteSizeValue) {
+            return put(key, byteSizeValue.getStringRep());
         }
 
         /**
@@ -921,18 +884,6 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder putNull(String key) {
             return put(key, (String) null);
-        }
-
-        /**
-         * Sets a setting with the provided setting key and class as value.
-         *
-         * @param key   The setting key
-         * @param clazz The setting class value
-         * @return The builder
-         */
-        public Builder put(String key, Class clazz) {
-            map.put(key, clazz.getName());
-            return this;
         }
 
         /**
@@ -1007,8 +958,8 @@ public final class Settings implements ToXContentFragment {
          * @param value   The time value
          * @return The builder
          */
-        public Builder put(String setting, long value, TimeUnit timeUnit) {
-            put(setting, timeUnit.toMillis(value) + "ms");
+        public Builder put(final String setting, final long value, final TimeUnit timeUnit) {
+            put(setting, new TimeValue(value, timeUnit));
             return this;
         }
 
@@ -1046,22 +997,6 @@ public final class Settings implements ToXContentFragment {
         public Builder putList(String setting, List<String> values) {
             remove(setting);
             map.put(setting, new ArrayList<>(values));
-            return this;
-        }
-
-        /**
-         * Sets the setting group.
-         */
-        public Builder put(String settingPrefix, String groupName, String[] settings, String[] values) throws SettingsException {
-            if (settings.length != values.length) {
-                throw new SettingsException("The settings length must match the value length");
-            }
-            for (int i = 0; i < settings.length; i++) {
-                if (values[i] == null) {
-                    continue;
-                }
-                put(settingPrefix + "." + groupName + "." + settings[i], values[i]);
-            }
             return this;
         }
 
@@ -1198,18 +1133,12 @@ public final class Settings implements ToXContentFragment {
 
                 @Override
                 public boolean shouldIgnoreMissing(String placeholderName) {
-                    if (placeholderName.startsWith("prompt.")) {
-                        return true;
-                    }
-                    return false;
+                    return placeholderName.startsWith("prompt.");
                 }
 
                 @Override
                 public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
-                    if (placeholderName.startsWith("prompt.")) {
-                        return false;
-                    }
-                    return true;
+                    return !placeholderName.startsWith("prompt.");
                 }
             };
 
@@ -1383,7 +1312,7 @@ public final class Settings implements ToXContentFragment {
         @Override
         public int size() {
             if (size == -1) {
-                size = Math.toIntExact(delegate.keySet().stream().filter((e) -> filter.test(e)).count());
+                size = Math.toIntExact(delegate.keySet().stream().filter(filter).count());
             }
             return size;
         }

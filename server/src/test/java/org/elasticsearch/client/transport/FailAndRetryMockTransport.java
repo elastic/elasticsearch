@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client.transport;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -26,26 +28,27 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportStats;
 
-import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.Map;
@@ -59,9 +62,9 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     private final Random random;
     private final ClusterName clusterName;
     private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
-    final Object requestHandlerMutex = new Object();
+    private final Object requestHandlerMutex = new Object();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
-    private TransportConnectionListener listener;
+    private TransportMessageListener listener;
 
     private boolean connectMode = true;
 
@@ -78,8 +81,9 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     protected abstract ClusterState getMockClusterState(DiscoveryNode node);
 
     @Override
-    public Connection getConnection(DiscoveryNode node) {
-        return new Connection() {
+    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> connectionListener) {
+        connectionListener.onResponse(new CloseableConnection() {
+
             @Override
             public DiscoveryNode getNode() {
                 return node;
@@ -87,19 +91,22 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
             @Override
             public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws IOException, TransportException {
-
+                throws TransportException {
                 //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
                 if (connectMode) {
                     if (TransportLivenessAction.NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
-                        transportResponseHandler.handleResponse(new LivenessResponse(ClusterName.CLUSTER_NAME_SETTING.
-                            getDefault(Settings.EMPTY),
-                            node));
+                        ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
+                        transportResponseHandler.handleResponse(new LivenessResponse(clusterName, node));
                     } else if (ClusterStateAction.NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
                         ClusterState clusterState = getMockClusterState(node);
-                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L));
+                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L, false));
+                    } else if (TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
+                        TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
+                        Version version = node.getVersion();
+                        transportResponseHandler.handleResponse(new TransportService.HandshakeResponse(node, clusterName, version));
+
                     } else {
                         throw new UnsupportedOperationException("Mock transport does not understand action " + action);
                     }
@@ -129,17 +136,9 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                     }
                 }
             }
+        });
 
-            @Override
-            public void close() throws IOException {
-
-            }
-        };
-    }
-
-    @Override
-    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
-        return getConnection(node);
+        return () -> {};
     }
 
     protected abstract Response newResponse();
@@ -173,23 +172,6 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     @Override
     public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean nodeConnected(DiscoveryNode node) {
-        return false;
-    }
-
-    @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
-                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
-        throws ConnectTransportException {
-
-    }
-
-    @Override
-    public void disconnectFromNode(DiscoveryNode node) {
-
     }
 
     @Override
@@ -245,13 +227,15 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
         return requestHandlers.get(action);
     }
 
+
     @Override
-    public void addConnectionListener(TransportConnectionListener listener) {
+    public void addMessageListener(TransportMessageListener listener) {
         this.listener = listener;
     }
 
     @Override
-    public boolean removeConnectionListener(TransportConnectionListener listener) {
+    public boolean removeMessageListener(TransportMessageListener listener) {
         throw new UnsupportedOperationException();
     }
+
 }

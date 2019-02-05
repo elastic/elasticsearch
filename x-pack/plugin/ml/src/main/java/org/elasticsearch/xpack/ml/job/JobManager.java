@@ -5,21 +5,20 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -29,11 +28,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -46,51 +44,55 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
+import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
  * <ul>
  * <li>creation</li>
+ * <li>reading</li>
  * <li>deletion</li>
  * <li>updating</li>
- * <li>starting/stopping of datafeed jobs</li>
  * </ul>
  */
-public class JobManager extends AbstractComponent {
+public class JobManager {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-            new DeprecationLogger(Loggers.getLogger(JobManager.class));
+    private static final Logger logger = LogManager.getLogger(JobManager.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final Environment environment;
     private final JobResultsProvider jobResultsProvider;
     private final ClusterService clusterService;
     private final Auditor auditor;
     private final Client client;
+    private final ThreadPool threadPool;
     private final UpdateJobProcessNotifier updateJobProcessNotifier;
+    private final JobConfigProvider jobConfigProvider;
+    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
 
@@ -98,15 +100,17 @@ public class JobManager extends AbstractComponent {
      * Create a JobManager
      */
     public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
-                      ClusterService clusterService, Auditor auditor,
+                      ClusterService clusterService, Auditor auditor, ThreadPool threadPool,
                       Client client, UpdateJobProcessNotifier updateJobProcessNotifier) {
-        super(settings);
         this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.auditor = Objects.requireNonNull(auditor);
         this.client = Objects.requireNonNull(client);
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.updateJobProcessNotifier = updateJobProcessNotifier;
+        this.jobConfigProvider = new JobConfigProvider(client);
+        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
 
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
@@ -117,35 +121,46 @@ public class JobManager extends AbstractComponent {
         this.maxModelMemoryLimit = maxModelMemoryLimit;
     }
 
-    /**
-     * Gets the job that matches the given {@code jobId}.
-     *
-     * @param jobId the jobId
-     * @return The {@link Job} matching the given {code jobId}
-     * @throws ResourceNotFoundException if no job matches {@code jobId}
-     */
-    public Job getJobOrThrowIfUnknown(String jobId) {
-        return getJobOrThrowIfUnknown(jobId, clusterService.state());
+    public void jobExists(String jobId, ActionListener<Boolean> listener) {
+        jobConfigProvider.jobExists(jobId, true, listener);
     }
 
     /**
      * Gets the job that matches the given {@code jobId}.
      *
      * @param jobId the jobId
-     * @param clusterState the cluster state
-     * @return The {@link Job} matching the given {code jobId}
-     * @throws ResourceNotFoundException if no job matches {@code jobId}
+     * @param jobListener the Job listener. If no job matches {@code jobId}
+     *                    a ResourceNotFoundException is returned
      */
-    public static Job getJobOrThrowIfUnknown(String jobId, ClusterState clusterState) {
-        Job job = MlMetadata.getMlMetadata(clusterState).getJobs().get(jobId);
+    public void getJob(String jobId, ActionListener<Job> jobListener) {
+        jobConfigProvider.getJob(jobId, ActionListener.wrap(
+                r -> jobListener.onResponse(r.build()), // TODO JIndex we shouldn't be building the job here
+                e -> {
+                    if (e instanceof ResourceNotFoundException) {
+                        // Try to get the job from the cluster state
+                        getJobFromClusterState(jobId, jobListener);
+                    } else {
+                        jobListener.onFailure(e);
+                    }
+                }
+        ));
+    }
+
+    /**
+     * Read a job from the cluster state.
+     * The job is returned on the same thread even though a listener is used.
+     *
+     * @param jobId the jobId
+     * @param jobListener the Job listener. If no job matches {@code jobId}
+     *                    a ResourceNotFoundException is returned
+     */
+    private void getJobFromClusterState(String jobId, ActionListener<Job> jobListener) {
+        Job job = MlMetadata.getMlMetadata(clusterService.state()).getJobs().get(jobId);
         if (job == null) {
-            throw ExceptionsHelper.missingJobException(jobId);
+            jobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+        } else {
+            jobListener.onResponse(job);
         }
-        return job;
-    }
-
-    private Set<String> expandJobIds(String expression, boolean allowNoJobs, ClusterState clusterState) {
-        return MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
     }
 
     /**
@@ -153,19 +168,49 @@ public class JobManager extends AbstractComponent {
      * Note that when the {@code jobId} is {@link MetaData#ALL} all jobs are returned.
      *
      * @param expression   the jobId or an expression matching jobIds
-     * @param clusterState the cluster state
      * @param allowNoJobs  if {@code false}, an error is thrown when no job matches the {@code jobId}
-     * @return A {@link QueryPage} containing the matching {@code Job}s
+     * @param jobsListener The jobs listener
      */
-    public QueryPage<Job> expandJobs(String expression, boolean allowNoJobs, ClusterState clusterState) {
-        Set<String> expandedJobIds = expandJobIds(expression, allowNoJobs, clusterState);
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-        List<Job> jobs = new ArrayList<>();
-        for (String expandedJobId : expandedJobIds) {
-            jobs.add(mlMetadata.getJobs().get(expandedJobId));
+    public void expandJobs(String expression, boolean allowNoJobs, ActionListener<QueryPage<Job>> jobsListener) {
+        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoJobs, clusterService.state());
+
+        jobConfigProvider.expandJobs(expression, allowNoJobs, false, ActionListener.wrap(
+                jobBuilders -> {
+                    // Check for duplicate jobs
+                    for (Job.Builder jb : jobBuilders) {
+                        if (clusterStateJobs.containsKey(jb.getId())) {
+                            jobsListener.onFailure(new IllegalStateException("Job [" + jb.getId() + "] configuration " +
+                                    "exists in both clusterstate and index"));
+                            return;
+                        }
+                    }
+
+                    // Merge cluster state and index jobs
+                    List<Job> jobs = new ArrayList<>();
+                    for (Job.Builder jb : jobBuilders) {
+                        jobs.add(jb.build());
+                    }
+
+                    jobs.addAll(clusterStateJobs.values());
+                    Collections.sort(jobs, Comparator.comparing(Job::getId));
+                    jobsListener.onResponse(new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
+                },
+                jobsListener::onFailure
+        ));
+    }
+
+    private Map<String, Job> expandJobsFromClusterState(String expression, boolean allowNoJobs, ClusterState clusterState) {
+        Map<String, Job> jobIdToJob = new HashMap<>();
+        try {
+            Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
+            MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+            for (String expandedJobId : expandedJobIds) {
+                jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));
+            }
+        } catch (Exception e) {
+            // ignore
         }
-        logger.debug("Returning jobs matching [" + expression + "]");
-        return new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD);
+        return jobIdToJob;
     }
 
     /**
@@ -185,7 +230,7 @@ public class JobManager extends AbstractComponent {
     }
 
     /**
-     * Stores a job in the cluster state
+     * Stores the anomaly job configuration
      */
     public void putJob(PutJobAction.Request request, AnalysisRegistry analysisRegistry, ClusterState state,
                        ActionListener<PutJobAction.Response> actionListener) throws IOException {
@@ -196,12 +241,10 @@ public class JobManager extends AbstractComponent {
         Job job = request.getJobBuilder().build(new Date());
 
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
-            DEPRECATION_LOGGER.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
+            deprecationLogger.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
 
-        // pre-flight check, not necessarily required, but avoids figuring this out while on the CS update thread
-        XPackPlugin.checkReadyForXPackCustomMetadata(state);
-
+        // Check for the job in the cluster state first
         MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(state);
         if (currentMlMetadata.getJobs().containsKey(job.getId())) {
             actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
@@ -212,19 +255,13 @@ public class JobManager extends AbstractComponent {
             @Override
             public void onResponse(Boolean indicesCreated) {
 
-                clusterService.submitStateUpdateTask("put-job-" + job.getId(),
-                        new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
-                            @Override
-                            protected PutJobAction.Response newResponse(boolean acknowledged) {
-                                auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
-                                return new PutJobAction.Response(job);
-                            }
-
-                            @Override
-                            public ClusterState execute(ClusterState currentState) {
-                                return updateClusterState(job, false, currentState);
-                            }
-                        });
+                jobConfigProvider.putJob(job, ActionListener.wrap(
+                        response -> {
+                            auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
+                            actionListener.onResponse(new PutJobAction.Response(job));
+                        },
+                        actionListener::onFailure
+                ));
             }
 
             @Override
@@ -243,34 +280,133 @@ public class JobManager extends AbstractComponent {
             }
         };
 
-        ActionListener<Boolean> checkForLeftOverDocs = ActionListener.wrap(
-                response -> {
-                    jobResultsProvider.createJobResultIndex(job, state, putJobListener);
+        ActionListener<List<String>> checkForLeftOverDocs = ActionListener.wrap(
+                matchedIds -> {
+                    if (matchedIds.isEmpty()) {
+                        jobResultsProvider.createJobResultIndex(job, state, putJobListener);
+                    } else {
+                        // A job has the same Id as one of the group names
+                        // error with the first in the list
+                        actionListener.onFailure(new ResourceAlreadyExistsException(
+                                Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, matchedIds.get(0))));
+                    }
                 },
                 actionListener::onFailure
         );
 
-        jobResultsProvider.checkForLeftOverDocuments(job, checkForLeftOverDocs);
+        ActionListener<Boolean> checkNoJobsWithGroupId = ActionListener.wrap(
+                groupExists -> {
+                    if (groupExists) {
+                        actionListener.onFailure(new ResourceAlreadyExistsException(
+                                Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, job.getId())));
+                        return;
+                    }
+                    if (job.getGroups().isEmpty()) {
+                        checkForLeftOverDocs.onResponse(Collections.emptyList());
+                    } else {
+                        jobConfigProvider.jobIdMatches(job.getGroups(), checkForLeftOverDocs);
+                    }
+                },
+                actionListener::onFailure
+        );
+
+        ActionListener<Boolean> checkNoGroupWithTheJobId = ActionListener.wrap(
+                ok -> {
+                    jobConfigProvider.groupExists(job.getId(), checkNoJobsWithGroupId);
+                },
+                actionListener::onFailure
+        );
+
+        jobConfigProvider.jobExists(job.getId(), false, ActionListener.wrap(
+                jobExists -> {
+                    if (jobExists) {
+                        actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
+                    } else {
+                        jobResultsProvider.checkForLeftOverDocuments(job, checkNoGroupWithTheJobId);
+                    }
+                },
+                actionListener::onFailure
+        ));
     }
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
-        Job job = getJobOrThrowIfUnknown(request.getJobId());
-        validate(request.getJobUpdate(), job, ActionListener.wrap(
-                nullValue -> internalJobUpdate(request, actionListener),
-                actionListener::onFailure));
+
+        Runnable doUpdate = () -> {
+                jobConfigProvider.updateJobWithValidation(request.getJobId(), request.getJobUpdate(), maxModelMemoryLimit,
+                        this::validate, ActionListener.wrap(
+                                updatedJob -> postJobUpdate(request, updatedJob, actionListener),
+                                actionListener::onFailure
+                        ));
+        };
+
+        ClusterState clusterState = clusterService.state();
+        if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), clusterState)) {
+            actionListener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("update job", request.getJobId()));
+            return;
+        }
+
+        if (request.getJobUpdate().getGroups() != null && request.getJobUpdate().getGroups().isEmpty() == false) {
+
+            // check the new groups are not job Ids
+            jobConfigProvider.jobIdMatches(request.getJobUpdate().getGroups(), ActionListener.wrap(
+                    matchingIds -> {
+                        if (matchingIds.isEmpty()) {
+                            doUpdate.run();
+                        } else {
+                            actionListener.onFailure(new ResourceAlreadyExistsException(
+                                    Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, matchingIds.get(0))));
+                        }
+                    },
+                    actionListener::onFailure
+            ));
+        } else {
+            doUpdate.run();
+        }
     }
 
-    private void validate(JobUpdate jobUpdate, Job job, ActionListener<Void> handler) {
-        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(client.threadPool().executor(
+    private void postJobUpdate(UpdateJobAction.Request request, Job updatedJob, ActionListener<PutJobAction.Response> actionListener) {
+        // Autodetect must be updated if the fields that the C++ uses are changed
+        if (request.getJobUpdate().isAutodetectProcessUpdate()) {
+            JobUpdate jobUpdate = request.getJobUpdate();
+            if (isJobOpen(clusterService.state(), request.getJobId())) {
+                updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate), ActionListener.wrap(
+                        isUpdated -> {
+                            if (isUpdated) {
+                                auditJobUpdatedIfNotInternal(request);
+                            }
+                        }, e -> {
+                            // No need to do anything
+                        }
+                ));
+            }
+        } else {
+            logger.debug("[{}] No process update required for job update: {}", () -> request.getJobId(), () -> {
+                try {
+                    XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+                    request.getJobUpdate().toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+                    return Strings.toString(jsonBuilder);
+                } catch (IOException e) {
+                    return "(unprintable due to " + e.getMessage() + ")";
+                }
+            });
+
+            auditJobUpdatedIfNotInternal(request);
+        }
+
+        actionListener.onResponse(new PutJobAction.Response(updatedJob));
+    }
+
+    private void validate(Job job, JobUpdate jobUpdate, ActionListener<Void> handler) {
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(client.threadPool().executor(
                 MachineLearning.UTILITY_THREAD_POOL_NAME), true);
-        validateModelSnapshotIdUpdate(job, jobUpdate.getModelSnapshotId(), chainTaskExecutor);
-        validateAnalysisLimitsUpdate(job, jobUpdate.getAnalysisLimits(), chainTaskExecutor);
-        chainTaskExecutor.execute(handler);
+        validateModelSnapshotIdUpdate(job, jobUpdate.getModelSnapshotId(), voidChainTaskExecutor);
+        validateAnalysisLimitsUpdate(job, jobUpdate.getAnalysisLimits(), voidChainTaskExecutor);
+        voidChainTaskExecutor.execute(ActionListener.wrap(aVoids -> handler.onResponse(null), handler::onFailure));
     }
 
-    private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, ChainTaskExecutor chainTaskExecutor) {
+    private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, VoidChainTaskExecutor voidChainTaskExecutor) {
         if (modelSnapshotId != null) {
-            chainTaskExecutor.add(listener -> {
+            voidChainTaskExecutor.add(listener -> {
                 jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
                     if (newModelSnapshot == null) {
                         String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId,
@@ -292,12 +428,12 @@ public class JobManager extends AbstractComponent {
         }
     }
 
-    private void validateAnalysisLimitsUpdate(Job job, AnalysisLimits newLimits, ChainTaskExecutor chainTaskExecutor) {
+    private void validateAnalysisLimitsUpdate(Job job, AnalysisLimits newLimits, VoidChainTaskExecutor voidChainTaskExecutor) {
         if (newLimits == null || newLimits.getModelMemoryLimit() == null) {
             return;
         }
         Long newModelMemoryLimit = newLimits.getModelMemoryLimit();
-        chainTaskExecutor.add(listener -> {
+        voidChainTaskExecutor.add(listener -> {
             if (isJobOpen(clusterService.state(), job.getId())) {
                 listener.onFailure(ExceptionsHelper.badRequestException("Cannot update " + Job.ANALYSIS_LIMITS.getPreferredName()
                         + " while the job is open"));
@@ -319,86 +455,6 @@ public class JobManager extends AbstractComponent {
         });
     }
 
-    private void internalJobUpdate(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
-        if (request.isWaitForAck()) {
-            // Use the ack cluster state update
-            clusterService.submitStateUpdateTask("update-job-" + request.getJobId(),
-                    new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
-                        private AtomicReference<Job> updatedJob = new AtomicReference<>();
-
-                        @Override
-                        protected PutJobAction.Response newResponse(boolean acknowledged) {
-                            return new PutJobAction.Response(updatedJob.get());
-                        }
-
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
-                            updatedJob.set(request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit));
-                            return updateClusterState(updatedJob.get(), true, currentState);
-                        }
-
-                        @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                            afterClusterStateUpdate(newState, request);
-                        }
-                    });
-        } else {
-            clusterService.submitStateUpdateTask("update-job-" + request.getJobId(), new ClusterStateUpdateTask() {
-                private AtomicReference<Job> updatedJob = new AtomicReference<>();
-
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
-                    updatedJob.set(request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit));
-                    return updateClusterState(updatedJob.get(), true, currentState);
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    actionListener.onFailure(e);
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    afterClusterStateUpdate(newState, request);
-                    actionListener.onResponse(new PutJobAction.Response(updatedJob.get()));
-                }
-            });
-        }
-    }
-
-    private void afterClusterStateUpdate(ClusterState newState, UpdateJobAction.Request request) {
-        JobUpdate jobUpdate = request.getJobUpdate();
-
-        // Change is required if the fields that the C++ uses are being updated
-        boolean processUpdateRequired = jobUpdate.isAutodetectProcessUpdate();
-
-        if (processUpdateRequired && isJobOpen(newState, request.getJobId())) {
-            updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate), ActionListener.wrap(
-                    isUpdated -> {
-                        if (isUpdated) {
-                            auditJobUpdatedIfNotInternal(request);
-                        }
-                    }, e -> {
-                        // No need to do anything
-                    }
-            ));
-        } else {
-            logger.debug("[{}] No process update required for job update: {}", () -> request.getJobId(), () -> {
-                try {
-                    XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-                    jobUpdate.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-                    return Strings.toString(jsonBuilder);
-                } catch (IOException e) {
-                    return "(unprintable due to " + e.getMessage() + ")";
-                }
-            });
-
-            auditJobUpdatedIfNotInternal(request);
-        }
-    }
-
     private void auditJobUpdatedIfNotInternal(UpdateJobAction.Request request) {
         if (request.isInternal() == false) {
             auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_UPDATED, request.getJobUpdate().getUpdateFields()));
@@ -411,32 +467,42 @@ public class JobManager extends AbstractComponent {
         return jobState == JobState.OPENED;
     }
 
-    private ClusterState updateClusterState(Job job, boolean overwrite, ClusterState currentState) {
-        MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
-        builder.putJob(job, overwrite);
-        return buildNewClusterState(currentState, builder);
+    private Set<String> openJobIds(ClusterState clusterState) {
+        PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
+        return MlTasks.openJobIds(persistentTasks);
     }
 
-    public void notifyFilterChanged(MlFilter filter, Set<String> addedItems, Set<String> removedItems) {
+    public void notifyFilterChanged(MlFilter filter, Set<String> addedItems, Set<String> removedItems,
+                                    ActionListener<Boolean> updatedListener) {
         if (addedItems.isEmpty() && removedItems.isEmpty()) {
+            updatedListener.onResponse(Boolean.TRUE);
             return;
         }
 
-        ClusterState clusterState = clusterService.state();
-        QueryPage<Job> jobs = expandJobs("*", true, clusterService.state());
-        for (Job job : jobs.results()) {
-            Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
-            if (jobFilters.contains(filter.getId())) {
-                if (isJobOpen(clusterState, job.getId())) {
-                    updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter),
-                            ActionListener.wrap(isUpdated -> {
-                                auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
-                            }, e -> {}));
-                } else {
-                    auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
-                }
-            }
-        }
+        jobConfigProvider.findJobsWithCustomRules(ActionListener.wrap(
+                jobBuilders -> {
+                    threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                        for (Job job: jobBuilders) {
+                            Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
+                            ClusterState clusterState = clusterService.state();
+                            if (jobFilters.contains(filter.getId())) {
+                                if (isJobOpen(clusterState, job.getId())) {
+                                    updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter),
+                                            ActionListener.wrap(isUpdated -> {
+                                                auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                                            }, e -> {
+                                            }));
+                                } else {
+                                    auditFilterChanges(job.getId(), filter.getId(), addedItems, removedItems);
+                                }
+                            }
+                        }
+
+                        updatedListener.onResponse(Boolean.TRUE);
+                    });
+                },
+                updatedListener::onFailure
+        ));
     }
 
     private void auditFilterChanges(String jobId, String filterId, Set<String> addedItems, Set<String> removedItems) {
@@ -466,91 +532,47 @@ public class JobManager extends AbstractComponent {
         sb.append("]");
     }
 
-    public void updateProcessOnCalendarChanged(List<String> calendarJobIds) {
+    public void updateProcessOnCalendarChanged(List<String> calendarJobIds, ActionListener<Boolean> updateListener) {
         ClusterState clusterState = clusterService.state();
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-
-        List<String> existingJobsOrGroups =
-                calendarJobIds.stream().filter(mlMetadata::isGroupOrJob).collect(Collectors.toList());
-
-        Set<String> expandedJobIds = new HashSet<>();
-        existingJobsOrGroups.forEach(jobId -> expandedJobIds.addAll(expandJobIds(jobId, true, clusterState)));
-        for (String jobId : expandedJobIds) {
-            if (isJobOpen(clusterState, jobId)) {
-                updateJobProcessNotifier.submitJobUpdate(UpdateParams.scheduledEventsUpdate(jobId), ActionListener.wrap(
-                        isUpdated -> {
-                            if (isUpdated) {
-                                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS));
-                            }
-                        }, e -> {}
-                ));
-            }
+        Set<String> openJobIds = openJobIds(clusterState);
+        if (openJobIds.isEmpty()) {
+            updateListener.onResponse(Boolean.TRUE);
+            return;
         }
-    }
 
-    public void deleteJob(DeleteJobAction.Request request, JobStorageDeletionTask task,
-                          ActionListener<DeleteJobAction.Response> actionListener) {
+        // calendarJobIds may be a group or job
+        jobConfigProvider.expandGroupIds(calendarJobIds, ActionListener.wrap(
+                expandedIds -> {
+                    threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                        // Merge the expended group members with the request Ids.
+                        // Ids that aren't jobs will be filtered by isJobOpen()
+                        expandedIds.addAll(calendarJobIds);
 
-        String jobId = request.getJobId();
-        logger.debug("Deleting job '" + jobId + "'");
-
-        // Step 4. When the job has been removed from the cluster state, return a response
-        // -------
-        CheckedConsumer<Boolean, Exception> apiResponseHandler = jobDeleted -> {
-            if (jobDeleted) {
-                logger.info("Job [" + jobId + "] deleted");
-                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DELETED));
-                actionListener.onResponse(new DeleteJobAction.Response(true));
-            } else {
-                actionListener.onResponse(new DeleteJobAction.Response(false));
-            }
-        };
-
-        // Step 3. When the physical storage has been deleted, remove from Cluster State
-        // -------
-        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> clusterService.submitStateUpdateTask("delete-job-" + jobId,
-                new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(apiResponseHandler, actionListener::onFailure)) {
-
-                    @Override
-                    protected Boolean newResponse(boolean acknowledged) {
-                        return acknowledged && response;
-                    }
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(currentState);
-                        if (currentMlMetadata.getJobs().containsKey(jobId) == false) {
-                            // We wouldn't have got here if the job never existed so
-                            // the Job must have been deleted by another action.
-                            // Don't error in this case
-                            return currentState;
+                        for (String jobId : expandedIds) {
+                            if (isJobOpen(clusterState, jobId)) {
+                                updateJobProcessNotifier.submitJobUpdate(UpdateParams.scheduledEventsUpdate(jobId), ActionListener.wrap(
+                                        isUpdated -> {
+                                            if (isUpdated) {
+                                                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS));
+                                            }
+                                        },
+                                        e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e)
+                                ));
+                            }
                         }
 
-                        MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
-                        builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
-                        return buildNewClusterState(currentState, builder);
-                    }
-            });
-
-
-        // Step 2. Remove the job from any calendars
-        CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> {
-            jobResultsProvider.removeJobFromCalendars(jobId, ActionListener.<Boolean>wrap(deleteJobStateHandler::accept,
-                    actionListener::onFailure ));
-        };
-
-
-        // Step 1. Delete the physical storage
-
-        // This task manages the physical deletion of the job state and results
-        task.delete(jobId, client, clusterService.state(), removeFromCalendarsHandler, actionListener::onFailure);
+                        updateListener.onResponse(Boolean.TRUE);
+                    });
+                },
+                updateListener::onFailure
+        ));
     }
 
     public void revertSnapshot(RevertModelSnapshotAction.Request request, ActionListener<RevertModelSnapshotAction.Response> actionListener,
             ModelSnapshot modelSnapshot) {
 
         final ModelSizeStats modelSizeStats = modelSnapshot.getModelSizeStats();
-        final JobResultsPersister persister = new JobResultsPersister(settings, client);
+        final JobResultsPersister persister = new JobResultsPersister(client);
 
         // Step 3. After the model size stats is persisted, also persist the snapshot's quantiles and respond
         // -------
@@ -575,46 +597,19 @@ public class JobManager extends AbstractComponent {
             }
         };
 
-        // Step 1. Do the cluster state update
+        // Step 1. update the job
         // -------
-        Consumer<Long> clusterStateHandler = response -> clusterService.submitStateUpdateTask("revert-snapshot-" + request.getJobId(),
-                new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(updateHandler, actionListener::onFailure)) {
+        JobUpdate update = new JobUpdate.Builder(request.getJobId())
+            .setModelSnapshotId(modelSnapshot.getSnapshotId())
+            .build();
 
-            @Override
-            protected Boolean newResponse(boolean acknowledged) {
-                if (acknowledged) {
-                    auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
-                    return true;
-                }
-                actionListener.onFailure(new IllegalStateException("Could not revert modelSnapshot on job ["
-                        + request.getJobId() + "], not acknowledged by master."));
-                return false;
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
-                Job.Builder builder = new Job.Builder(job);
-                builder.setModelSnapshotId(modelSnapshot.getSnapshotId());
-                builder.setEstablishedModelMemory(response);
-                return updateClusterState(builder.build(), true, currentState);
-            }
-        });
-
-        // Step 0. Find the appropriate established model memory for the reverted job
-        // -------
-        jobResultsProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats, clusterStateHandler,
-                actionListener::onFailure);
-    }
-
-    private static MlMetadata.Builder createMlMetadataBuilder(ClusterState currentState) {
-        return new MlMetadata.Builder(MlMetadata.getMlMetadata(currentState));
-    }
-
-    private static ClusterState buildNewClusterState(ClusterState currentState, MlMetadata.Builder builder) {
-        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-        ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, builder.build()).build());
-        return newState.build();
+        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(
+            job -> {
+                auditor.info(request.getJobId(),
+                    Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
+                updateHandler.accept(Boolean.TRUE);
+            },
+            actionListener::onFailure
+        ));
     }
 }

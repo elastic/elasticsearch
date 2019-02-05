@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
@@ -51,7 +50,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         Path location = randomRepoPath();
 
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-1")
+        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-1")
                 .setType("fs").setSettings(Settings.builder()
                                 .put("location", location)
                 ).get();
@@ -98,6 +97,16 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-1"), notNullValue());
         assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-2"), notNullValue());
 
+        logger.info("--> check that trying to create a repository with the same settings repeatedly does not update cluster state");
+        String beforeStateUuid = clusterStateResponse.getState().stateUUID();
+        assertThat(
+            client.admin().cluster().preparePutRepository("test-repo-1")
+                .setType("fs").setSettings(Settings.builder()
+                .put("location", location)
+            ).get().isAcknowledged(),
+            equalTo(true));
+        assertEquals(beforeStateUuid, client.admin().cluster().prepareState().clear().get().getState().stateUUID());
+
         logger.info("--> delete repository test-repo-1");
         client.admin().cluster().prepareDeleteRepository("test-repo-1").get();
         repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();
@@ -139,13 +148,14 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                     .get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
-            assertThat(ex.toString(), containsString("location [" + location + "] doesn't match any of the locations specified by path.repo"));
+            assertThat(ex.toString(), containsString("location [" + location + "] doesn't match any of the locations specified " +
+                "by path.repo"));
         }
     }
 
     public void testRepositoryAckTimeout() throws Exception {
         logger.info("-->  creating repository test-repo-1 with 0s timeout - shouldn't ack");
-        PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-1")
+        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo-1")
                 .setType("fs").setSettings(Settings.builder()
                                 .put("location", randomRepoPath())
                                 .put("compress", randomBoolean())
@@ -164,7 +174,7 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("-->  deleting repository test-repo-2 with 0s timeout - shouldn't ack");
-        DeleteRepositoryResponse deleteRepositoryResponse = client().admin().cluster().prepareDeleteRepository("test-repo-2")
+        AcknowledgedResponse deleteRepositoryResponse = client().admin().cluster().prepareDeleteRepository("test-repo-2")
                 .setTimeout("0s").get();
         assertThat(deleteRepositoryResponse.isAcknowledged(), equalTo(false));
 
@@ -179,10 +189,17 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         Settings settings = Settings.builder()
                 .put("location", randomRepoPath())
                 .put("random_control_io_exception_rate", 1.0).build();
+        Settings readonlySettings = Settings.builder().put(settings)
+            .put("readonly", true).build();
         logger.info("-->  creating repository that cannot write any files - should fail");
         assertThrows(client.admin().cluster().preparePutRepository("test-repo-1")
                         .setType("mock").setSettings(settings),
                 RepositoryVerificationException.class);
+
+        logger.info("-->  creating read-only repository that cannot read any files - should fail");
+        assertThrows(client.admin().cluster().preparePutRepository("test-repo-2")
+                .setType("mock").setSettings(readonlySettings),
+            RepositoryVerificationException.class);
 
         logger.info("-->  creating repository that cannot write any files, but suppress verification - should be acked");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo-1")
@@ -190,6 +207,13 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("-->  verifying repository");
         assertThrows(client.admin().cluster().prepareVerifyRepository("test-repo-1"), RepositoryVerificationException.class);
+
+        logger.info("-->  creating read-only repository that cannot read any files, but suppress verification - should be acked");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo-2")
+            .setType("mock").setSettings(readonlySettings).setVerify(false));
+
+        logger.info("-->  verifying repository");
+        assertThrows(client.admin().cluster().prepareVerifyRepository("test-repo-2"), RepositoryVerificationException.class);
 
         Path location = randomRepoPath();
 

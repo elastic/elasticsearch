@@ -38,6 +38,10 @@ include::shut-down-node.asciidoc[]
 . *Upgrade all nodes.*
 +
 --
+include::remove-xpack.asciidoc[]
+--
++
+--
 include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
 --
@@ -47,8 +51,6 @@ include::set-paths-tip.asciidoc[]
 Use the `elasticsearch-plugin` script to install the upgraded version of each
 installed Elasticsearch plugin. All plugins must be upgraded when you upgrade
 a node.
-+
-include::remove-xpack.asciidoc[]
 
 . *Start each upgraded node.*
 +
@@ -57,10 +59,14 @@ If you have dedicated master nodes, start them first and wait for them to
 form a cluster and elect a master before proceeding with your data nodes.
 You can check progress by looking at the logs.
 
-As soon as the <<master-election,minimum number of master-eligible nodes>>
-have discovered each other, they form a cluster and elect a master. At
-that point, you can use <<cat-health,`_cat/health`>> and
-<<cat-nodes,`_cat/nodes`>> to monitor nodes joining the cluster:
+If upgrading from a 6.x cluster, you must
+<<modules-discovery-bootstrap-cluster,configure cluster bootstrapping>> by
+setting the `cluster.initial_master_nodes` setting.
+
+As soon as enough master-eligible nodes have discovered each other, they form a
+cluster and elect a master. At that point, you can use
+<<cat-health,`_cat/health`>> and <<cat-nodes,`_cat/nodes`>> to monitor nodes
+joining the cluster:
 
 [source,sh]
 --------------------------------------------------

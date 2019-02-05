@@ -7,7 +7,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'shadow')
+    testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
@@ -41,7 +41,7 @@ Object httpPrincipal = new Object() {
     @Override
     String toString() {
         InetAddress resolvedAddress = InetAddress.getByName('127.0.0.1')
-        return "HTTP/" + resolvedAddress.getHostName()
+        return "HTTP/" + resolvedAddress.getCanonicalHostName()
     }
 }
 
@@ -87,16 +87,14 @@ integTestCluster {
     setting 'http.host', '127.0.0.1'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
-    setting 'xpack.security.authc.realms.file.type', 'file'
-    setting 'xpack.security.authc.realms.file.order', '0'
+    setting 'xpack.security.authc.realms.file.file1.order', '0'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.security.audit.enabled', 'true'
     // Kerberos realm
-    setting 'xpack.security.authc.realms.kerberos.type', 'kerberos'
-    setting 'xpack.security.authc.realms.kerberos.order', '1'
-    setting 'xpack.security.authc.realms.kerberos.keytab.path', 'es.keytab'
-    setting 'xpack.security.authc.realms.kerberos.krb.debug', 'true'
-    setting 'xpack.security.authc.realms.kerberos.remove_realm_name', 'false'
+    setting 'xpack.security.authc.realms.kerberos.kerberos.order', '1'
+    setting 'xpack.security.authc.realms.kerberos.kerberos.keytab.path', 'es.keytab'
+    setting 'xpack.security.authc.realms.kerberos.kerberos.krb.debug', 'true'
+    setting 'xpack.security.authc.realms.kerberos.kerberos.remove_realm_name', 'false'
 
     Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
     String jvmArgsStr = " -Djava.security.krb5.conf=${krb5conf}" + " -Dsun.security.krb5.debug=true"
@@ -135,6 +133,7 @@ integTestRunner {
 
 if (project.rootProject.vagrantSupported == false) {
     integTest.enabled = false
+    testingConventions.enabled = false
 } else {
     project.sourceSets.test.output.dir(generatedResources)
     integTestCluster.dependsOn krb5AddPrincipals, krb5kdcFixture, copyKeytabToGeneratedResources

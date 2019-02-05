@@ -17,6 +17,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -55,6 +56,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * Unit tests for the reloading of SSL configuration
  */
+@TestLogging("org.elasticsearch.watcher:TRACE")
 public class SSLConfigurationReloaderTests extends ESTestCase {
 
     private ThreadPool threadPool;
@@ -69,7 +71,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     }
 
     @After
-    public void cleanup() throws Exception {
+    public void cleanup() {
         if (threadPool != null) {
             terminate(threadPool);
         }
@@ -78,7 +80,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     /**
      * Tests reloading a keystore that is used in the KeyManager of SSLContext
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32124")
     public void testReloadingKeyStore() throws Exception {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         final Path tempDir = createTempDir();
@@ -87,10 +88,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keystorePath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.jks"), updatedKeystorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
-            .put("xpack.ssl.keystore.path", keystorePath)
+            .put("xpack.security.transport.ssl.keystore.path", keystorePath)
             .setSecureSettings(secureSettings)
             .build();
         final Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
@@ -143,11 +144,12 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"), updatedCertPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), certPath);
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
-            .put("xpack.ssl.key", keyPath)
-            .put("xpack.ssl.certificate", certPath)
+            .put("xpack.security.transport.ssl.key", keyPath)
+            .put("xpack.security.transport.ssl.certificate", certPath)
+            .putList("xpack.security.transport.ssl.certificate_authorities", certPath.toString())
             .setSecureSettings(secureSettings)
             .build();
         final Environment env = randomBoolean() ? null :
@@ -192,7 +194,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Tests the reloading of SSLContext when the trust store is modified. The same store is used as a TrustStore (for the
      * reloadable SSLContext used in the HTTPClient) and as a KeyStore for the MockWebServer
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32124")
     public void testReloadingTrustStore() throws Exception {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path tempDir = createTempDir();
@@ -202,9 +203,9 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.jks"),
             updatedTruststorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
-            .put("xpack.ssl.truststore.path", trustStorePath)
+            .put("xpack.security.transport.ssl.truststore.path", trustStorePath)
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();
@@ -254,7 +255,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), serverKeyPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.crt"), updatedCert);
         Settings settings = Settings.builder()
-            .put("xpack.ssl.certificate_authorities", serverCertPath)
+            .putList("xpack.security.transport.ssl.certificate_authorities", serverCertPath.toString())
             .put("path.home", createTempDir())
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
@@ -300,16 +301,16 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path keystorePath = tempDir.resolve("testnode.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keystorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
-            .put("xpack.ssl.keystore.path", keystorePath)
+            .put("xpack.security.transport.ssl.keystore.path", keystorePath)
             .setSecureSettings(secureSettings)
             .put("path.home", createTempDir())
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [keystore reload exception]");
@@ -339,18 +340,18 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), certPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-            .put("xpack.ssl.key", keyPath)
-            .put("xpack.ssl.certificate", certPath)
-            .putList("xpack.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
+            .put("xpack.security.transport.ssl.key", keyPath)
+            .put("xpack.security.transport.ssl.certificate", certPath)
+            .putList("xpack.security.transport.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [pem key reload exception]");
@@ -376,16 +377,16 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path trustStorePath = tempDir.resolve("testnode.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), trustStorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
-            .put("xpack.ssl.truststore.path", trustStorePath)
+            .put("xpack.security.transport.ssl.truststore.path", trustStorePath)
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [truststore reload exception]");
@@ -411,13 +412,13 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path clientCertPath = tempDir.resolve("testclient.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);
         Settings settings = Settings.builder()
-            .putList("xpack.ssl.certificate_authorities", clientCertPath.toString())
+            .putList("xpack.security.transport.ssl.certificate_authorities", clientCertPath.toString())
             .put("path.home", createTempDir())
             .build();
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        final SSLConfiguration config = sslService.sslConfiguration(settings.getByPrefix("xpack.security.transport.ssl."));
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [pem trust reload exception]");
@@ -437,20 +438,20 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
 
     }
-    private void validateSSLConfigurationIsReloaded(Settings settings, Environment env,
-                                                    Consumer<SSLContext> preChecks,
-                                                    Runnable modificationFunction,
-                                                    Consumer<SSLContext> postChecks)
-        throws Exception {
 
+    private void validateSSLConfigurationIsReloaded(Settings settings, Environment env, Consumer<SSLContext> preChecks,
+                                                    Runnable modificationFunction, Consumer<SSLContext> postChecks) throws Exception {
         final CountDownLatch reloadLatch = new CountDownLatch(1);
         final SSLService sslService = new SSLService(settings, env);
-        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
-                super.reloadSSLContext(configuration);
-                reloadLatch.countDown();
+                try {
+                    super.reloadSSLContext(configuration);
+                } finally {
+                    reloadLatch.countDown();
+                }
             }
         };
         // Baseline checks

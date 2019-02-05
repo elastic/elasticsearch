@@ -34,6 +34,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -57,6 +58,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -405,16 +407,20 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat("expected no failures but got: " + response.buildFailureMessage(), response.hasFailures(), equalTo(false));
         assertThat(response.getItems().length, equalTo(numDocs));
         for (int i = 0; i < numDocs; i++) {
-            assertThat(response.getItems()[i].getItemId(), equalTo(i));
-            assertThat(response.getItems()[i].getId(), equalTo(Integer.toString(i)));
-            assertThat(response.getItems()[i].getIndex(), equalTo("test"));
-            assertThat(response.getItems()[i].getType(), equalTo("type1"));
-            assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
+            final BulkItemResponse itemResponse = response.getItems()[i];
+            assertThat(itemResponse.getFailure(), nullValue());
+            assertThat(itemResponse.isFailed(), equalTo(false));
+            assertThat(itemResponse.getItemId(), equalTo(i));
+            assertThat(itemResponse.getId(), equalTo(Integer.toString(i)));
+            assertThat(itemResponse.getIndex(), equalTo("test"));
+            assertThat(itemResponse.getType(), equalTo("type1"));
+            assertThat(itemResponse.getOpType(), equalTo(OpType.UPDATE));
             for (int j = 0; j < 5; j++) {
                 GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).get();
                 assertThat(getResponse.isExists(), equalTo(false));
             }
         }
+        assertThat(response.hasFailures(), equalTo(false));
     }
 
     public void testBulkIndexingWhileInitializing() throws Exception {
@@ -565,7 +571,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("bulkindex*").get();
         assertHitCount(searchResponse, 3);
 
-        assertAcked(client().admin().indices().prepareClose("bulkindex2"));
+        assertBusy(() -> assertAcked(client().admin().indices().prepareClose("bulkindex2")));
 
         BulkResponse bulkResponse = client().bulk(bulkRequest).get();
         assertThat(bulkResponse.hasFailures(), is(true));
@@ -577,7 +583,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         createIndex("bulkindex1");
 
         client().prepareIndex("bulkindex1", "index1_type", "1").setSource("text", "test").get();
-        assertAcked(client().admin().indices().prepareClose("bulkindex1"));
+        assertBusy(() -> assertAcked(client().admin().indices().prepareClose("bulkindex1")));
 
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
@@ -589,8 +595,11 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         BulkItemResponse[] responseItems = bulkResponse.getItems();
         assertThat(responseItems.length, is(3));
         assertThat(responseItems[0].getOpType(), is(OpType.INDEX));
+        assertThat(responseItems[0].getFailure().getCause(), instanceOf(IndexClosedException.class));
         assertThat(responseItems[1].getOpType(), is(OpType.UPDATE));
+        assertThat(responseItems[1].getFailure().getCause(), instanceOf(IndexClosedException.class));
         assertThat(responseItems[2].getOpType(), is(OpType.DELETE));
+        assertThat(responseItems[2].getFailure().getCause(), instanceOf(IndexClosedException.class));
     }
 
     // issue 9821

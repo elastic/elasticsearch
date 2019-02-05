@@ -44,10 +44,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -72,18 +74,22 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 break;
             case 1:
                 // use mapped date field, using date string representation
+                Instant now = Instant.now();
+                ZonedDateTime start = now.minusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
+                ZonedDateTime end = now.plusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
                 query = new RangeQueryBuilder(randomFrom(
                     DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, DATE_ALIAS_FIELD_NAME));
-                query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
-                query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
+                query.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start));
+                query.to(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end));
                 // Create timestamp option only then we have a date mapper,
                 // otherwise we could trigger exception.
                 if (createShardContext().getMapperService().fullName(DATE_FIELD_NAME) != null) {
                     if (randomBoolean()) {
-                        query.timeZone(randomDateTimeZone().getID());
+                        query.timeZone(randomZone().getId());
                     }
                     if (randomBoolean()) {
-                        query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
+                        String format = "strict_date_optional_time";
+                        query.format(format);
                     }
                 }
                 break;
@@ -444,7 +450,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         query.from(queryFromValue);
         query.to(queryToValue);
-        query.timeZone(randomFrom(DateTimeZone.getAvailableIDs()));
+        query.timeZone(randomZone().getId());
         query.format("yyyy-MM-dd");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
@@ -562,5 +568,41 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertEquals(ShapeRelation.WITHIN, builder.relation());
         builder.relation("intersects");
         assertEquals(ShapeRelation.INTERSECTS, builder.relation());
+    }
+
+    public void testConvertNowRangeToMatchAll() throws IOException {
+        RangeQueryBuilder query = new RangeQueryBuilder(DATE_FIELD_NAME);
+        DateTime queryFromValue = new DateTime(2019, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
+        DateTime queryToValue = new DateTime(2020, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
+        if (randomBoolean()) {
+            query.from("now");
+            query.to(queryToValue);
+        } else if (randomBoolean()) {
+            query.from(queryFromValue);
+            query.to("now");
+        } else {
+            query.from("now");
+            query.to("now+1h");
+        }
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
+
+        queryShardContext = new QueryShardContext(queryShardContext) {
+
+            @Override
+            public boolean convertNowRangeToMatchAll() {
+                return true;
+            }
+        };
+        rewritten = query.rewrite(queryShardContext);
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+    }
+
+    public void testTypeField() throws IOException {
+        RangeQueryBuilder builder = QueryBuilders.rangeQuery("_type")
+            .from("value1");
+        builder.doToQuery(createShardContext());
+        assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
 }

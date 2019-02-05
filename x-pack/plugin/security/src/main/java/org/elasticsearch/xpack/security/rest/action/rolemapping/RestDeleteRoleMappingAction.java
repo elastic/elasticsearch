@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -28,14 +30,20 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  */
 public class RestDeleteRoleMappingAction extends SecurityBaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestDeleteRoleMappingAction.class));
+
     public RestDeleteRoleMappingAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(DELETE, "/_xpack/security/role_mapping/{name}", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            DELETE, "/_security/role_mapping/{name}", this,
+            DELETE, "/_xpack/security/role_mapping/{name}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_delete_role_mapping_action";
+        return "security_delete_role_mapping_action";
     }
 
     @Override

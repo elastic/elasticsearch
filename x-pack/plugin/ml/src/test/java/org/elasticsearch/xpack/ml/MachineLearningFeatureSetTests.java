@@ -6,14 +6,19 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -26,7 +31,6 @@ import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
@@ -41,18 +45,25 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStatsTests;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -63,6 +74,8 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     private Settings commonSettings;
     private ClusterService clusterService;
     private Client client;
+    private JobManager jobManager;
+    private JobManagerHolder jobManagerHolder;
     private XPackLicenseState licenseState;
 
     @Before
@@ -73,7 +86,11 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
                 .build();
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
+        jobManager = mock(JobManager.class);
+        jobManagerHolder = new JobManagerHolder(jobManager);
         licenseState = mock(XPackLicenseState.class);
+        ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE).build();
+        when(clusterService.state()).thenReturn(clusterState);
         givenJobs(Collections.emptyList(), Collections.emptyList());
         givenDatafeeds(Collections.emptyList());
     }
@@ -95,7 +112,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
 
     public void testAvailable() throws Exception {
         MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(commonSettings), clusterService,
-                client, licenseState);
+                client, licenseState, jobManagerHolder);
         boolean available = randomBoolean();
         when(licenseState.isMachineLearningAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -120,7 +137,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }
         boolean expected = enabled || useDefault;
         MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, client, licenseState);
+                clusterService, client, licenseState, jobManagerHolder);
         assertThat(featureSet.enabled(), is(expected));
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
@@ -154,7 +171,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         ));
 
         MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, client, licenseState);
+                clusterService, client, licenseState, jobManagerHolder);
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage mlUsage = future.get();
@@ -223,6 +240,71 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }
     }
 
+    public void testUsageDisabledML() throws Exception {
+        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        Settings.Builder settings = Settings.builder().put(commonSettings);
+        settings.put("xpack.ml.enabled", false);
+
+        JobManagerHolder emptyJobManagerHolder = new JobManagerHolder();
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
+                clusterService, client, licenseState, emptyJobManagerHolder);
+        PlainActionFuture<Usage> future = new PlainActionFuture<>();
+        featureSet.usage(future);
+        XPackFeatureSet.Usage mlUsage = future.get();
+        BytesStreamOutput out = new BytesStreamOutput();
+        mlUsage.writeTo(out);
+        XPackFeatureSet.Usage serializedUsage = new MachineLearningFeatureSetUsage(out.bytes().streamInput());
+
+        for (XPackFeatureSet.Usage usage : Arrays.asList(mlUsage, serializedUsage)) {
+            assertThat(usage, is(notNullValue()));
+            assertThat(usage.name(), is(XPackField.MACHINE_LEARNING));
+            assertThat(usage.enabled(), is(false));
+        }
+    }
+
+    public void testNodeCount() throws Exception {
+        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        int nodeCount = randomIntBetween(1, 3);
+        givenNodeCount(nodeCount);
+        Settings.Builder settings = Settings.builder().put(commonSettings);
+        settings.put("xpack.ml.enabled", true);
+        MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
+            clusterService, client, licenseState, jobManagerHolder);
+
+        PlainActionFuture<Usage> future = new PlainActionFuture<>();
+        featureSet.usage(future);
+        XPackFeatureSet.Usage usage = future.get();
+
+        assertThat(usage.available(), is(true));
+        assertThat(usage.enabled(), is(true));
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        usage.writeTo(out);
+        XPackFeatureSet.Usage serializedUsage = new MachineLearningFeatureSetUsage(out.bytes().streamInput());
+
+        XContentSource source;
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            serializedUsage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            source = new XContentSource(builder);
+        }
+        assertThat(source.getValue("node_count"), equalTo(nodeCount));
+
+        BytesStreamOutput oldOut = new BytesStreamOutput();
+        oldOut.setVersion(Version.V_6_0_0);
+        usage.writeTo(oldOut);
+        StreamInput oldInput = oldOut.bytes().streamInput();
+        oldInput.setVersion(Version.V_6_0_0);
+        XPackFeatureSet.Usage oldSerializedUsage = new MachineLearningFeatureSetUsage(oldInput);
+
+        XContentSource oldSource;
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            oldSerializedUsage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            oldSource = new XContentSource(builder);
+        }
+
+        assertNull(oldSource.getValue("node_count"));
+    }
+
     public void testUsageGivenMlMetadataNotInstalled() throws Exception {
         when(licenseState.isMachineLearningAllowed()).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
@@ -230,7 +312,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
 
         MachineLearningFeatureSet featureSet = new MachineLearningFeatureSet(TestEnvironment.newEnvironment(settings.build()),
-                clusterService, client, licenseState);
+                clusterService, client, licenseState, jobManagerHolder);
         PlainActionFuture<Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage usage = future.get();
@@ -267,15 +349,14 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     private void givenJobs(List<Job> jobs, List<GetJobsStatsAction.Response.JobStats> jobsStats) {
-        MlMetadata.Builder mlMetadataBuilder = new MlMetadata.Builder();
-        for (Job job : jobs) {
-            mlMetadataBuilder.putJob(job, false);
-        }
-        ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE)
-                .metaData(new MetaData.Builder()
-                        .putCustom(MlMetadata.TYPE, mlMetadataBuilder.build()))
-                .build();
-        when(clusterService.state()).thenReturn(clusterState);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<QueryPage<Job>> jobListener =
+                    (ActionListener<QueryPage<Job>>) invocationOnMock.getArguments()[2];
+            jobListener.onResponse(
+                    new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
+            return Void.TYPE;
+        }).when(jobManager).expandJobs(eq(MetaData.ALL), eq(true), any(ActionListener.class));
 
         doAnswer(invocationOnMock -> {
             ActionListener<GetJobsStatsAction.Response> listener =
@@ -284,6 +365,37 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
                     new QueryPage<>(jobsStats, jobsStats.size(), Job.RESULTS_FIELD)));
             return Void.TYPE;
         }).when(client).execute(same(GetJobsStatsAction.INSTANCE), any(), any());
+    }
+
+    private void givenNodeCount(int nodeCount) {
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        for (int i = 0; i < nodeCount; i++) {
+            Map<String, String> attrs = new HashMap<>();
+            attrs.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(20));
+            Set<DiscoveryNode.Role> roles = new HashSet<>();
+            roles.add(DiscoveryNode.Role.DATA);
+            roles.add(DiscoveryNode.Role.MASTER);
+            roles.add(DiscoveryNode.Role.INGEST);
+            nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-ml-node-" + i,
+                new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
+                attrs,
+                roles,
+                Version.CURRENT));
+        }
+        for (int i = 0; i < randomIntBetween(1, 3); i++) {
+            Map<String, String> attrs = new HashMap<>();
+            Set<DiscoveryNode.Role> roles = new HashSet<>();
+            roles.add(DiscoveryNode.Role.DATA);
+            roles.add(DiscoveryNode.Role.MASTER);
+            roles.add(DiscoveryNode.Role.INGEST);
+            nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-non-ml-node-" + i,
+                new TransportAddress(TransportAddress.META_ADDRESS, 9300 + i),
+                attrs,
+                roles,
+                Version.CURRENT));
+        }
+        ClusterState clusterState = new ClusterState.Builder(ClusterState.EMPTY_STATE).nodes(nodesBuilder.build()).build();
+        when(clusterService.state()).thenReturn(clusterState);
     }
 
     private void givenDatafeeds(List<GetDatafeedsStatsAction.Response.DatafeedStats> datafeedStats) {

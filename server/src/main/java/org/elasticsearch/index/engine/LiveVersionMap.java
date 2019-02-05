@@ -40,8 +40,9 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
     private static final class VersionLookup {
 
-        /** Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones, we only account
-         *  for the CHM entry here, and account for BytesRef/VersionValue against the tombstones, since refresh would not clear this RAM. */
+        /** Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones,
+         *  we only account for the CHM entry here, and account for BytesRef/VersionValue against the tombstones, since refresh would not
+         *  clear this RAM. */
         final AtomicLong ramBytesUsed = new AtomicLong();
 
         private static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());
@@ -123,7 +124,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
 
         Maps() {
-            this(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()), VersionLookup.EMPTY, false);
+            this(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()),
+                VersionLookup.EMPTY, false);
         }
 
         boolean isSafeAccessMode() {
@@ -252,8 +254,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // means Lucene did not actually open a new reader because it detected no changes, it's possible old has some entries in it, which
         // is fine: it means they were actually already included in the previously opened reader, so we can still safely drop them in that
         // case.  This is because we assign new maps (in beforeRefresh) slightly before Lucene actually flushes any segments for the
-        // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact reflected
-        // in the previous reader.   We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
+        // reopen, and so any concurrent indexing requests can still sneak in a few additions to that current map that are in fact
+        // reflected in the previous reader.   We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
 
         maps = maps.invalidateOldMap();
         assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMap()) != null;
@@ -416,8 +418,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         maps = new Maps();
         tombstones.clear();
         // NOTE: we can't zero this here, because a refresh thread could be calling InternalEngine.pruneDeletedTombstones at the same time,
-        // and this will lead to an assert trip.  Presumably it's fine if our ramBytesUsedTombstones is non-zero after clear since the index
-        // is being closed:
+        // and this will lead to an assert trip.  Presumably it's fine if our ramBytesUsedTombstones is non-zero after clear since the
+        // index is being closed:
         //ramBytesUsedTombstones.set(0);
     }
 
@@ -434,6 +436,14 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         return maps.current.ramBytesUsed.get();
     }
 
+    /**
+     * Returns how much RAM is current being freed up by refreshing.  This is {@link #ramBytesUsed()}
+     * except does not include tombstones because they don't clear on refresh.
+     */
+    long getRefreshingBytes() {
+        return maps.old.ramBytesUsed.get();
+    }
+
     @Override
     public Collection<Accountable> getChildResources() {
         // TODO: useful to break down RAM usage here?
@@ -447,7 +457,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         return maps.current.map;
     }
 
-    /** Iterates over all deleted versions, including new ones (not yet exposed via reader) and old ones (exposed via reader but not yet GC'd). */
+    /** Iterates over all deleted versions, including new ones (not yet exposed via reader) and old ones
+     *  (exposed via reader but not yet GC'd). */
     Map<BytesRef, DeleteVersionValue> getAllTombstones() {
         return tombstones;
     }
@@ -462,8 +473,9 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         return keyedLock.acquire(uid);
     }
 
-    private boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
-        assert keyedLock.isHeldByCurrentThread(uid) : "Thread [" + Thread.currentThread().getName() + "], uid [" + uid.utf8ToString() + "]";
+    boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
+        assert keyedLock.isHeldByCurrentThread(uid) : "Thread [" + Thread.currentThread().getName() +
+            "], uid [" + uid.utf8ToString() + "]";
         return true;
     }
 }

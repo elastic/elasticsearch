@@ -203,7 +203,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
         DocWriteRequest.logDeprecationWarnings(this, DEPRECATION_LOGGER);
 
-
         return validationException;
     }
 

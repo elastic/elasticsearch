@@ -588,6 +588,23 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    /**
+     * Read an {@link Instant} from the stream with nanosecond resolution
+     */
+    public final Instant readInstant() throws IOException {
+        return Instant.ofEpochSecond(readLong(), readInt());
+    }
+
+    /**
+     * Read an optional {@link Instant} from the stream. Returns <code>null</code> when
+     * no instant is present.
+     */
+    @Nullable
+    public final Instant readOptionalInstant() throws IOException {
+        final boolean present = readBoolean();
+        return present ? readInstant() : null;
+    }
+
     @SuppressWarnings("unchecked")
     private List readArrayList() throws IOException {
         int size = readArraySize();

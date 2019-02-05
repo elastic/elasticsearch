@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.security.authc;
 
-import com.google.common.collect.Sets;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -62,12 +60,10 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
+import javax.crypto.SecretKeyFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -84,10 +80,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import javax.crypto.SecretKeyFactory;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -132,12 +127,11 @@ public class ApiKeyService {
     private final Settings settings;
     private final ExpiredApiKeysRemover expiredApiKeysRemover;
     private final TimeValue deleteInterval;
-    private final CompositeRolesStore compositeRolesStore;
 
     private volatile long lastExpirationRunMs;
 
-    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex, ClusterService clusterService,
-            CompositeRolesStore compositeRolesStore) {
+    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex,
+                         ClusterService clusterService) {
         this.clock = clock;
         this.client = client;
         this.securityIndex = securityIndex;
@@ -147,16 +141,17 @@ public class ApiKeyService {
         this.settings = settings;
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.expiredApiKeysRemover = new ExpiredApiKeysRemover(settings, client);
-        this.compositeRolesStore = compositeRolesStore;
     }
 
     /**
      * Asynchronously creates a new API key based off of the request and authentication
      * @param authentication the authentication that this api key should be based off of
      * @param request the request to create the api key included any permission restrictions
+     * @param roleDescriptorSet the user's actual roles that we always enforce
      * @param listener the listener that will be used to notify of completion
      */
-    public void createApiKey(Authentication authentication, CreateApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
+    public void createApiKey(Authentication authentication, CreateApiKeyRequest request, Set<RoleDescriptor> roleDescriptorSet,
+                             ActionListener<CreateApiKeyResponse> listener) {
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
@@ -209,13 +204,10 @@ public class ApiKeyService {
 
                         // Save limited_by_role_descriptors
                         builder.startObject("limited_by_role_descriptors");
-                        compositeRolesStore.getRoleDescriptors(Sets.newHashSet(authentication.getUser().roles()),
-                                ActionListener.wrap(rdSet -> {
-                                    for (RoleDescriptor descriptor : rdSet) {
-                                        builder.field(descriptor.getName(),
-                                                (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
-                                    }
-                                }, listener::onFailure));
+                        for (RoleDescriptor descriptor : roleDescriptorSet) {
+                            builder.field(descriptor.getName(),
+                                    (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+                        }
                         builder.endObject();
 
                         builder.field("name", request.getName())
@@ -294,10 +286,9 @@ public class ApiKeyService {
 
     /**
      * The current request has been authenticated by an API key and this method enables the
-     * retrieval of role descriptors that are associated with the api key and triggers the building
-     * of the {@link Role} to authorize the request.
+     * retrieval of role descriptors that are associated with the api key
      */
-    public void getRoleForApiKey(Authentication authentication, CompositeRolesStore rolesStore, ActionListener<Role> listener) {
+    public void getRoleForApiKey(Authentication authentication, ActionListener<ApiKeyRoleDescriptors> listener) {
         if (authentication.getAuthenticationType() != Authentication.AuthenticationType.API_KEY) {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }
@@ -312,18 +303,37 @@ public class ApiKeyService {
             listener.onFailure(new ElasticsearchSecurityException("no role descriptors found for API key"));
         } else if (roleDescriptors == null || roleDescriptors.isEmpty()) {
             final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
-            rolesStore.buildAndCacheRoleFromDescriptors(authnRoleDescriptorsList, apiKeyId, listener);
+            listener.onResponse(new ApiKeyRoleDescriptors(apiKeyId, authnRoleDescriptorsList, null));
         } else {
             final List<RoleDescriptor> roleDescriptorList = parseRoleDescriptors(apiKeyId, roleDescriptors);
             final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
-            rolesStore.buildAndCacheRoleFromDescriptors(roleDescriptorList, apiKeyId, ActionListener.wrap(role -> {
-                rolesStore.buildAndCacheRoleFromDescriptors(authnRoleDescriptorsList, apiKeyId, ActionListener.wrap(limitedByRole -> {
-                    Role finalRole = LimitedRole.createLimitedRole(role, limitedByRole);
-                    listener.onResponse(finalRole);
-                }, listener::onFailure));
-            }, listener::onFailure));
+            listener.onResponse(new ApiKeyRoleDescriptors(apiKeyId, roleDescriptorList, authnRoleDescriptorsList));
+        }
+    }
+
+    public static class ApiKeyRoleDescriptors {
+
+        private final String apiKeyId;
+        private final List<RoleDescriptor> roleDescriptors;
+        private final List<RoleDescriptor> limitedByRoleDescriptors;
+
+        public ApiKeyRoleDescriptors(String apiKeyId, List<RoleDescriptor> roleDescriptors, List<RoleDescriptor> limitedByDescriptors) {
+            this.apiKeyId = apiKeyId;
+            this.roleDescriptors = roleDescriptors;
+            this.limitedByRoleDescriptors = limitedByDescriptors;
         }
 
+        public String getApiKeyId() {
+            return apiKeyId;
+        }
+
+        public List<RoleDescriptor> getRoleDescriptors() {
+            return roleDescriptors;
+        }
+
+        public List<RoleDescriptor> getLimitedByRoleDescriptors() {
+            return limitedByRoleDescriptors;
+        }
     }
 
     private List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, final Map<String, Object> roleDescriptors) {

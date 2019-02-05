@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
@@ -22,7 +21,6 @@ import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
@@ -77,8 +75,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
             .put("transport.profiles.client.bind_host", "localhost")
             .put("xpack.security.audit.enabled", false)
-            .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
+            .put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         if (randomBoolean()) {
             settingsBuilder.put("transport.profiles.default.xpack.security.type", "node"); // this is default lets set it randomly
         }
@@ -108,15 +105,8 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             .put("xpack.security.transport.ssl.enabled", true)
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
             .put("path.home", home)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
-            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
-        if (getUseZen2() == false) {
-            nodeSettings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(),
-                ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(internalCluster().getInstance(Settings.class)));
-        }
-        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(
-            LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class);
+            .put(Node.NODE_MASTER_SETTING.getKey(), false);
+        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, MockHttpTransport.TestPlugin.class);
         addSSLSettingsForPEMFiles(
             nodeSettings,
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
@@ -154,15 +144,8 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
             .put("discovery.initial_state_timeout", "0s")
             .put("path.home", home)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
-            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
-        if (getUseZen2() == false) {
-            nodeSettings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(),
-                ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(internalCluster().getInstance(Settings.class)));
-        }
-        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(
-            LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class, MockHttpTransport.TestPlugin.class);
+            .put(Node.NODE_MASTER_SETTING.getKey(), false);
+        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, MockHttpTransport.TestPlugin.class);
         addSSLSettingsForPEMFiles(
             nodeSettings,
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",

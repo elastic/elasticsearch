@@ -39,7 +39,7 @@ class AuthorizedIndices {
     }
 
     private List<String> load() {
-        Predicate<String> predicate = userRoles.indices().allowedIndicesMatcher(action);
+        Predicate<String> predicate = userRoles.allowedIndicesMatcher(action);
 
         List<String> indicesAndAliases = new ArrayList<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?

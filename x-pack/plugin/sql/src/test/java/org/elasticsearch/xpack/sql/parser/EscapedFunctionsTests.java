@@ -144,9 +144,9 @@ public class EscapedFunctionsTests extends ESTestCase {
     public void testFunctionWithFunctionWithArgAndParams() {
         String e = "POWER(?, {fn POWER({fn ABS(?)}, {fN ABS(?)})})";
         Function f = (Function) parser.createExpression(e,
-                asList(new SqlTypedParamValue(DataType.LONG.esType, 1),
-                       new SqlTypedParamValue(DataType.LONG.esType, 1),
-                       new SqlTypedParamValue(DataType.LONG.esType, 1)));
+                asList(new SqlTypedParamValue(DataType.LONG.typeName, 1),
+                       new SqlTypedParamValue(DataType.LONG.typeName, 1),
+                       new SqlTypedParamValue(DataType.LONG.typeName, 1)));
 
         assertEquals(e, f.sourceText());
         assertEquals(2, f.arguments().size());

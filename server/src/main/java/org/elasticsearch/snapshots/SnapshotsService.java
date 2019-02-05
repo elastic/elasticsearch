@@ -409,12 +409,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     metaData = builder.build();
                 }
 
-                if (endingSnapshots.contains(snapshot.snapshot())) {
-                    // Snapshot was already aborted concurrently, we're done here.
-                    userCreateSnapshotListener.onResponse(snapshot.snapshot());
-                    return;
-                }
-
                 repository.initializeSnapshot(snapshot.snapshot().getSnapshotId(), snapshot.indices(), metaData);
                 snapshotCreated = true;
 

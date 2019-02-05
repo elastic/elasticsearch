@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-public class DataFrameRowsJoiner {
+class DataFrameRowsJoiner {
 
     private static final Logger LOGGER = LogManager.getLogger(DataFrameRowsJoiner.class);
 
@@ -37,13 +37,13 @@ public class DataFrameRowsJoiner {
     private List<RowResults> currentResults;
     private boolean failed;
 
-    public DataFrameRowsJoiner(String analyticsId, Client client, DataFrameDataExtractor dataExtractor) {
+    DataFrameRowsJoiner(String analyticsId, Client client, DataFrameDataExtractor dataExtractor) {
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.client = Objects.requireNonNull(client);
         this.dataExtractor = Objects.requireNonNull(dataExtractor);
     }
 
-    public void processRowResults(RowResults rowResults) {
+    void processRowResults(RowResults rowResults) {
         if (failed) {
             // If we are in failed state we drop the results but we let the processor
             // parse the output
@@ -97,7 +97,9 @@ public class DataFrameRowsJoiner {
             SearchHit hit = row.getHit();
             Map<String, Object> source = new LinkedHashMap(hit.getSourceAsMap());
             source.putAll(result.getResults());
-            IndexRequest indexRequest = new IndexRequest(hit.getIndex(), hit.getType(), hit.getId());
+            new IndexRequest(hit.getIndex());
+            IndexRequest indexRequest = new IndexRequest(hit.getIndex());
+            indexRequest.id(hit.getId());
             indexRequest.source(source);
             indexRequest.opType(DocWriteRequest.OpType.INDEX);
             bulkRequest.add(indexRequest);

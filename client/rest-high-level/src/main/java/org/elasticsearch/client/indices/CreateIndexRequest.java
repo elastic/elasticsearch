@@ -338,10 +338,14 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
         return this;
     }
 
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
 
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(SETTINGS.getPreferredName());
         settings.toXContent(builder, params);
         builder.endObject();
@@ -356,8 +360,6 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
         for (Alias alias : aliases) {
             alias.toXContent(builder, params);
         }
-        builder.endObject();
-
         builder.endObject();
         return builder;
     }

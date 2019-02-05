@@ -652,25 +652,25 @@ public class MasterServiceTests extends ESTestCase {
                 "test1 shouldn't see because setting is too low",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*cluster state update task [test1] took [*] above the warn threshold of *"));
+                "*cluster state update task [test1] took [*] which is above the warn threshold of *"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test2",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*cluster state update task [test2] took [32s] above the warn threshold of *"));
+                "*cluster state update task [test2] took [32s] which is above the warn threshold of *"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test3",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*cluster state update task [test3] took [33s] above the warn threshold of *"));
+                "*cluster state update task [test3] took [33s] which is above the warn threshold of *"));
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "test4",
                 MasterService.class.getCanonicalName(),
                 Level.WARN,
-                "*cluster state update task [test4] took [34s] above the warn threshold of *"));
+                "*cluster state update task [test4] took [34s] which is above the warn threshold of *"));
 
         Logger clusterLogger = LogManager.getLogger(MasterService.class);
         Loggers.addAppender(clusterLogger, mockAppender);

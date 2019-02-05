@@ -20,6 +20,7 @@ import com.nimbusds.openid.connect.sdk.LogoutRequest;
 import com.nimbusds.openid.connect.sdk.Nonce;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -103,8 +104,6 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         this.roleMapper = roleMapper;
         this.rpConfiguration = buildRelyingPartyConfiguration(config);
         this.opConfiguration = buildOpenIdConnectProviderConfiguration(config);
-        this.openIdConnectAuthenticator =
-            new OpenIdConnectAuthenticator(config, opConfiguration, rpConfiguration, sslService, watcherService);
         this.principalAttribute = ClaimParser.forSetting(logger, PRINCIPAL_CLAIM, config, true);
         this.groupsAttribute = ClaimParser.forSetting(logger, GROUPS_CLAIM, config, false);
         this.dnAttribute = ClaimParser.forSetting(logger, DN_CLAIM, config, false);
@@ -115,6 +114,8 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             throw new IllegalStateException("OpenID Connect Realm requires that the token service be enabled ("
                 + XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey() + ")");
         }
+        this.openIdConnectAuthenticator =
+            new OpenIdConnectAuthenticator(config, opConfiguration, rpConfiguration, sslService, watcherService);
     }
 
     // For testing
@@ -408,12 +409,12 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                                 values = Collections.emptyList();
                             } else if (claimValueObject instanceof String) {
                                 values = Collections.singletonList((String) claimValueObject);
-                            } else if (claimValueObject instanceof List == false) {
+                            } else if (claimValueObject instanceof List) {
+                                values = (List<String>) claimValueObject;
+                            } else {
                                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
                                     + " expects a claim with String or a String Array value but found a "
                                     + claimValueObject.getClass().getName());
-                            } else {
-                                values = (List<String>) claimValueObject;
                             }
                             return values.stream().map(s -> {
                                 final Matcher matcher = regex.matcher(s);
@@ -462,4 +463,3 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         }
     }
 }
-

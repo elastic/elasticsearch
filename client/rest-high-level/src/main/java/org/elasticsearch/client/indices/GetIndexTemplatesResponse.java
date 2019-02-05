@@ -16,24 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.admin.indices.template.get;
+package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
-import static java.util.Collections.singletonMap;
 
-public class GetIndexTemplatesResponse extends ActionResponse implements ToXContentObject {
+public class GetIndexTemplatesResponse  {
+
+    @Override
+    public String toString() {
+        List<IndexTemplateMetaData> thisList = new ArrayList<>(this.indexTemplates);
+        thisList.sort(Comparator.comparing(IndexTemplateMetaData::name));
+        return "GetIndexTemplatesResponse [indexTemplates=" + thisList + "]";
+    }
 
     private final List<IndexTemplateMetaData> indexTemplates;
 
@@ -41,7 +42,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
         indexTemplates = new ArrayList<>();
     }
 
-    public GetIndexTemplatesResponse(List<IndexTemplateMetaData> indexTemplates) {
+    GetIndexTemplatesResponse(List<IndexTemplateMetaData> indexTemplates) {
         this.indexTemplates = indexTemplates;
     }
 
@@ -49,35 +50,6 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
         return indexTemplates;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        indexTemplates.clear();
-        for (int i = 0 ; i < size ; i++) {
-            indexTemplates.add(0, IndexTemplateMetaData.readFrom(in));
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(indexTemplates.size());
-        for (IndexTemplateMetaData indexTemplate : indexTemplates) {
-            indexTemplate.writeTo(out);
-        }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        params = new ToXContent.DelegatingMapParams(singletonMap("reduce_mappings", "true"), params);
-        builder.startObject();
-        for (IndexTemplateMetaData indexTemplateMetaData : getIndexTemplates()) {
-            IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
-        }
-        builder.endObject();
-        return builder;
-    }
 
     public static GetIndexTemplatesResponse fromXContent(XContentParser parser) throws IOException {
         final List<IndexTemplateMetaData> templates = new ArrayList<>();
@@ -89,4 +61,30 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
         }
         return new GetIndexTemplatesResponse(templates);
     }
+
+    @Override
+    public int hashCode() {
+        List<IndexTemplateMetaData> sortedList = new ArrayList<>(this.indexTemplates);
+        sortedList.sort(Comparator.comparing(IndexTemplateMetaData::name));
+        return Objects.hash(sortedList);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        // To compare results we need to make sure the templates are listed in the same order
+        GetIndexTemplatesResponse other = (GetIndexTemplatesResponse) obj;
+        List<IndexTemplateMetaData> thisList = new ArrayList<>(this.indexTemplates);
+        List<IndexTemplateMetaData> otherList = new ArrayList<>(other.indexTemplates);
+        thisList.sort(Comparator.comparing(IndexTemplateMetaData::name));
+        otherList.sort(Comparator.comparing(IndexTemplateMetaData::name));
+        return Objects.equals(thisList, otherList);
+    }
+    
+    
 }

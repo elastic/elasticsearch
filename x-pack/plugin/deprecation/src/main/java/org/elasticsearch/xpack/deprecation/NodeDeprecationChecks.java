@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
 
 /**
  * Node-specific deprecation checks
@@ -186,6 +188,19 @@ public class NodeDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                     "#tls-setting-fallback",
                 "each component must have TLS/SSL configured explicitly");
+        }
+        return null;
+    }
+
+    static DeprecationIssue transportSslEnabledWithoutSecurityEnabled(Settings nodeSettings, PluginsAndModules plugins) {
+        if (TRANSPORT_SSL_ENABLED.get(nodeSettings) && nodeSettings.hasValue(SECURITY_ENABLED.getKey()) == false) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "TLS/SSL in use, but security not explicitly enabled",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#trial-explicit-security",
+                "security should be explicitly enabled (with [" + SECURITY_ENABLED.getKey() +
+                    "]), it will no longer be automatically enabled when transport SSL is enabled ([" +
+                    TRANSPORT_SSL_ENABLED.getKey() + "])");
         }
         return null;
     }

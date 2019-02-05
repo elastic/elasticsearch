@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
@@ -33,7 +34,7 @@ public class CurrentDateTime extends CurrentFunction {
     }
 
     static ZonedDateTime nanoPrecision(ZonedDateTime zdt, Expression precisionExpression) {
-        int precision = precisionExpression != null ? ((Number) precisionExpression.fold()).intValue() : 0;
+        int precision = precisionExpression != null ? Foldables.intValueOf(precisionExpression) : 0;
         int nano = zdt.getNano();
         if (precision >= 0 && precision < 10) {
             // remove the remainder

@@ -463,7 +463,7 @@ public class DataTypeConversionTests extends ESTestCase {
     public void testEsDataTypes() {
         for (DataType type : values()) {
             if (type != DATE) { // Doesn't have a corresponding type in ES
-                assertEquals(type, fromTypeName(type.esSQLType));
+                assertEquals(type, fromTypeName(type.typeName));
             }
         }
     }

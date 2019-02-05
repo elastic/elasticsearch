@@ -36,7 +36,7 @@ public class Sub extends DateTimeArithmeticOperation {
     protected TypeResolution resolveWithIntervals() {
         if (right().dataType().isDateBased() && DataTypes.isInterval(left().dataType())) {
             return new TypeResolution(format(null, "Cannot subtract a {}[{}] from an interval[{}]; do you mean the reverse?",
-                right().dataType().esSQLType, right().source().text(), left().source().text()));
+                right().dataType().typeName, right().source().text(), left().source().text()));
         }
         return TypeResolution.TYPE_RESOLVED;
     }

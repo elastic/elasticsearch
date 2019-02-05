@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.JDBCType;
@@ -127,9 +126,14 @@ public enum DataType {
 
 
     /**
-     * Lowercase type name
+     * Type's name used for error messages and column info for the clients
      */
-    public final String esSQLType;
+    public final String typeName;
+
+    /**
+     * Elasticsearch data type that it maps to
+     */
+    public final String esType;
 
     /**
      * Compatible JDBC type
@@ -177,7 +181,8 @@ public enum DataType {
 
     DataType(SQLType sqlType, int size, int defaultPrecision, int displaySize, boolean isInteger,
             boolean isRational, boolean defaultDocValues) {
-        this.esSQLType = name().toLowerCase(Locale.ROOT);
+        this.typeName = name().toLowerCase(Locale.ROOT);
+        this.esType = name().equals("DATETIME") ? "date" : typeName;
         this.sqlType = sqlType;
         this.size = size;
         this.defaultPrecision = defaultPrecision;
@@ -185,16 +190,6 @@ public enum DataType {
         this.isInteger = isInteger;
         this.isRational = isRational;
         this.defaultDocValues = defaultDocValues;
-    }
-
-    public String esType() {
-        if (this == DATE || DataTypes.isInterval(this)) {
-            throw new SqlIllegalArgumentException("{} doesn't have a corresponding ES data type", this);
-        }
-        if (this == DATETIME) {
-            return "date";
-        }
-        return esSQLType;
     }
 
     public String sqlName() {

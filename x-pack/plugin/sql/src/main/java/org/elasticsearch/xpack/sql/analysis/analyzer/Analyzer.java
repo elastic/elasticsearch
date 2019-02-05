@@ -216,7 +216,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // compound fields
             else if (allowCompound == false && fa.dataType().isPrimitive() == false) {
                 named = u.withUnresolvedMessage(
-                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esSQLType + "] only its subfields");
+                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().typeName + "] only its subfields");
             }
         }
         return named;

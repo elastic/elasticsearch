@@ -660,7 +660,7 @@ public final class Verifier {
                     for (Expression value : in.list()) {
                         if (areTypesCompatible(dt, value.dataType()) == false) {
                             localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
-                                dt.esSQLType, value.dataType().esSQLType));
+                                dt.typeName, value.dataType().typeName));
                             return;
                         }
                     }
@@ -681,7 +681,7 @@ public final class Verifier {
                         } else {
                             if (areTypesCompatible(dt, child.dataType()) == false) {
                                 localFailures.add(fail(child, "expected data type [%s], value provided is of type [%s]",
-                                    dt.esSQLType, child.dataType().esSQLType));
+                                    dt.typeName, child.dataType().typeName));
                                 return;
                             }
                         }

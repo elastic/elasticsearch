@@ -2148,7 +2148,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRestoreShard() throws IOException {
         final IndexShard source = newStartedShard(true);
-        final IndexShard target = newStartedShard(true, Settings.builder()
+        IndexShard target = newStartedShard(true, Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), source.indexSettings().isSoftDeleteEnabled()).build());
 
         indexDoc(source, "_doc", "0");

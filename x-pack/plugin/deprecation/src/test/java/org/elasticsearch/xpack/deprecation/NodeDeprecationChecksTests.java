@@ -20,6 +20,7 @@ import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -50,20 +51,29 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     private void assertSettingsAndIssue(String key, String value, DeprecationIssue expected) {
+        assertSettingsAndIssues(Settings.builder().put(key, value).build(), expected);
+    }
+
+    private void assertSettingsAndIssues(Settings nodeSettings, DeprecationIssue... expected) {
         Settings settings = Settings.builder()
             .put(CLUSTER_NAME_SETTING.getKey(), "elasticsearch")
             .put(NODE_NAME_SETTING.getKey(), "node_check")
             .put(DISCOVERY_TYPE_SETTING.getKey(), "single-node") // Needed due to NodeDeprecationChecks#discoveryConfigurationCheck
-            .put(key, value)
+            .put(nodeSettings)
             .build();
-        List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Version.CURRENT, Build.CURRENT,
-            discoveryNode, settings, osInfo, null, null,
-            null, null, null, pluginsAndModules, null, null));
-        List<NodeStats> nodeStats = Collections.singletonList(new NodeStats(discoveryNode, 0L, null,
-            null, null, null, null, new FsInfo(0L, null, paths), null, null, null,
-            null, null, null, null));
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
-        assertEquals(singletonList(expected), issues);
+        assertThat(issues, Matchers.containsInAnyOrder(expected));
+    }
+
+    private void assertNoIssue(Settings settings) {
+        Settings nodeSettings = Settings.builder()
+            .put(settings)
+            .put(CLUSTER_NAME_SETTING.getKey(), "elasticsearch")
+            .put(NODE_NAME_SETTING.getKey(), "node_check")
+            .put(DISCOVERY_TYPE_SETTING.getKey(), "single-node") // Needed due to NodeDeprecationChecks#discoveryConfigurationCheck
+            .build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(nodeSettings, pluginsAndModules));
+        assertThat(issues, Matchers.empty());
     }
 
     public void testHttpEnabledCheck() {
@@ -104,8 +114,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "recommended replacement is the logfile audit output type");
         assertSettingsAndIssue("xpack.security.audit.outputs", randomFrom("[index]", "[\"index\", \"logfile\"]"), expected);
         assertSettingsAndIssue("xpack.security.audit.index.events.emit_request_body", Boolean.toString(randomBoolean()), expected);
-        assertSettingsAndIssue("xpack.security.audit.index.client.xpack.security.transport.ssl.enabled",
-            Boolean.toString(randomBoolean()), expected);
+
+        Settings goodAuditSslSettings = Settings.builder()
+            .put("xpack.security.audit.index.client.xpack.security.transport.ssl.enabled", true)
+            .put("xpack.security.audit.index.client.xpack.security.transport.ssl.supported_protocols", "TLSv1.2,TLSv1.1")
+            .build();
+        assertSettingsAndIssues(goodAuditSslSettings, expected);
         assertSettingsAndIssue("xpack.security.audit.index.client.cluster.name", randomAlphaOfLength(4), expected);
         assertSettingsAndIssue("xpack.security.audit.index.settings.index.number_of_shards", Integer.toString(randomInt()), expected);
         assertSettingsAndIssue("xpack.security.audit.index.events.include",
@@ -309,9 +323,74 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
                 "#tls-setting-fallback",
             "each component must have TLS/SSL configured explicitly");
-        assertSettingsAndIssue("xpack.ssl.keystore.path", randomAlphaOfLength(8), expected);
-        assertSettingsAndIssue("xpack.ssl.truststore.password", randomAlphaOfLengthBetween(2, 12), expected);
-        assertSettingsAndIssue("xpack.ssl.certificate_authorities",
-            Strings.arrayToCommaDelimitedString(randomArray(1, 4, String[]::new, () -> randomAlphaOfLengthBetween(4, 16))), expected);
+        assertSettingsAndIssues(Settings.builder()
+            .put("xpack.ssl.keystore.path", randomAlphaOfLength(8))
+            .putList("xpack.ssl.supported_protocols", randomAlphaOfLength(8))
+            .build(), expected);
+        assertSettingsAndIssues(Settings.builder()
+            .put("xpack.ssl.truststore.password", randomAlphaOfLengthBetween(2, 12))
+            .putList("xpack.ssl.supported_protocols", randomAlphaOfLength(8))
+            .build(), expected);
+        assertSettingsAndIssues(Settings.builder()
+            .put("xpack.ssl.certificate_authorities",
+                Strings.arrayToCommaDelimitedString(randomArray(1, 4, String[]::new, () -> randomAlphaOfLengthBetween(4, 16))))
+            .putList("xpack.ssl.supported_protocols", randomAlphaOfLength(8))
+            .build(),
+            expected);
+    }
+
+    public void testTlsv1ProtocolDisabled() {
+        DeprecationIssue[] expected = {
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "TLS v1.0 has been removed from default TLS/SSL protocols",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html#tls-v1-removed",
+                "These ssl contexts rely on the default TLS/SSL protocols: [" +
+                    "xpack.http.ssl, " +
+                    "xpack.monitoring.exporters.ems.ssl, " +
+                    "xpack.monitoring.exporters.foo.ssl, " +
+                    "xpack.security.authc.realms.ldap1.ssl]"),
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Security realm settings structure changed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#include-realm-type-in-setting",
+                "these settings must be updated to the new format while the node is offline during the upgrade to 7.0")
+        };
+
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", true)
+            .put("xpack.http.ssl.verification_mode", "none")
+            .put("xpack.security.http.ssl.keystore.path", "/path/to/keystore.p12")
+            .putList("xpack.security.http.ssl.supported_protocols", "TLSv1.2", "TLSv1.1", "TLSv1")
+            .put("xpack.security.transport.ssl.enabled", true)
+            .putList("xpack.security.transport.ssl.supported_protocols", randomAlphaOfLengthBetween(3,6))
+            .putList("xpack.monitoring.exporters.ems.ssl.certificate_authorities", "/path/to/ca.pem")
+            .putList("xpack.monitoring.exporters.bar.host", "https://foo.example.net/")
+            .putList("xpack.monitoring.exporters.bar.ssl.supported_protocols", randomAlphaOfLengthBetween(3,6))
+            .putList("xpack.monitoring.exporters.foo.host", "https://foo.example.net/")
+            .put("xpack.security.authc.realms.ldap1.type", "ldap")
+            .putList("xpack.security.authc.realms.ldap1.url", "ldaps://my.ldap.example.net/")
+            .put("xpack.security.authc.realms.ldap2.type", "ldap")
+            .putList("xpack.security.authc.realms.ldap2.url", "ldaps://your.ldap.example.net/")
+            .putList("xpack.security.authc.realms.ldap2.ssl.supported_protocols", generateRandomStringArray(3, 5, false, false))
+            .build();
+        assertSettingsAndIssues(settings, expected);
+    }
+
+    public void testTransportSslEnabledWithoutSecurityEnabled() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "TLS/SSL in use, but security not explicitly enabled",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#trial-explicit-security",
+            "security should be explicitly enabled (with [xpack.security.enabled])," +
+                " it will no longer be automatically enabled when transport SSL is enabled ([xpack.security.transport.ssl.enabled])");
+        assertSettingsAndIssues(Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", true)
+            .putList("xpack.security.transport.ssl.supported_protocols", "TLS1.2", "TLS1.0")
+            .build(), expected);
+        assertNoIssue(Settings.builder()
+            .put("xpack.security.enabled", randomBoolean())
+            .put("xpack.security.transport.ssl.enabled", randomBoolean())
+            .putList("xpack.security.transport.ssl.supported_protocols", "TLS1.2", "TLS1.0")
+            .build());
     }
 }

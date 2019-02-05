@@ -22,7 +22,7 @@ public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, 
     public static CurrentDateTime randomCurrentDateTime() {
         return new CurrentDateTime(EMPTY, Literal.of(EMPTY, randomInt(10)),
             new Configuration(randomZone(), Protocol.FETCH_SIZE,
-                Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null));
+                Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null, null));
     }
 
     @Override
@@ -39,7 +39,7 @@ public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, 
     protected CurrentDateTime mutate(CurrentDateTime instance) {
         return new CurrentDateTime(instance.source(), Literal.of(EMPTY, randomInt(10)),
             new Configuration(randomZone(), Protocol.FETCH_SIZE,
-                Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null));
+                Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null, null));
     }
 
     @Override

@@ -171,7 +171,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
 
             pauseFollow("index2");
-            followerClient().execute(ResumeFollowAction.INSTANCE, followRequest).get();
+            followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow("index2")).get();
             final int secondBatchNumDocs = randomIntBetween(2, 64);
             logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
             indexer.continueIndexing(secondBatchNumDocs);

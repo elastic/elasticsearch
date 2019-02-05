@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
@@ -217,7 +218,11 @@ public final class TransportPutFollowAction
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
         assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "PutFollowAction does not support DEFAULT.";
-        client.execute(ResumeFollowAction.INSTANCE, request, ActionListener.wrap(
+        FollowParameters parameters = request.getParameters();
+        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
+        resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
+        resumeFollowRequest.setParameters(new FollowParameters(parameters));
+        client.execute(ResumeFollowAction.INSTANCE, resumeFollowRequest, ActionListener.wrap(
             r -> activeShardsObserver.waitForActiveShards(new String[]{request.getFollowerIndex()},
                 request.waitForActiveShards(), request.timeout(), result ->
                     listener.onResponse(new PutFollowAction.Response(true, result, r.isAcknowledged())),

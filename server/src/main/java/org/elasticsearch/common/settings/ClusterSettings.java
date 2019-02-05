@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.coordination.LagDetector;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -232,7 +233,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     DiscoverySettings.PUBLISH_TIMEOUT_SETTING,
                     DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING,
                     DiscoverySettings.COMMIT_TIMEOUT_SETTING,
-                    DiscoverySettings.NO_MASTER_BLOCK_SETTING,
+                    NoMasterBlockService.NO_MASTER_BLOCK_SETTING,
+                    NoMasterBlockService.LEGACY_NO_MASTER_BLOCK_SETTING,
                     GatewayService.EXPECTED_DATA_NODES_SETTING,
                     GatewayService.EXPECTED_MASTER_NODES_SETTING,
                     GatewayService.EXPECTED_NODES_SETTING,

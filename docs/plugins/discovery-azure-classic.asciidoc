@@ -30,7 +30,7 @@ cloud:
                    type: pkcs12
 
 discovery:
-    zen.hosts_provider: azure
+    seed_providers: azure
 ----
 
 [IMPORTANT]

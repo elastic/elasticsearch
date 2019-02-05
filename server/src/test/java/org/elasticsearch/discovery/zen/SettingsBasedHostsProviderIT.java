@@ -24,8 +24,8 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SettingsBasedHostsProviderIT extends ESIntegTestCase {
@@ -36,13 +36,13 @@ public class SettingsBasedHostsProviderIT extends ESIntegTestCase {
 
         // super.nodeSettings enables file-based discovery, but here we disable it again so we can test the static list:
         if (randomBoolean()) {
-            builder.putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey());
+            builder.putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey());
         } else {
-            builder.remove(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey());
+            builder.remove(DISCOVERY_SEED_PROVIDERS_SETTING.getKey());
         }
 
         // super.nodeSettings sets this to an empty list, which disables any search for other nodes, but here we want this to happen:
-        builder.remove(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey());
+        builder.remove(DISCOVERY_SEED_HOSTS_SETTING.getKey());
 
         return builder.build();
     }
@@ -56,7 +56,7 @@ public class SettingsBasedHostsProviderIT extends ESIntegTestCase {
 
         int extraNodes = randomIntBetween(1, 5);
         internalCluster().startNodes(extraNodes,
-            Settings.builder().putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), seedNodeAddress).build());
+            Settings.builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), seedNodeAddress).build());
 
         ensureStableCluster(extraNodes + 1);
     }

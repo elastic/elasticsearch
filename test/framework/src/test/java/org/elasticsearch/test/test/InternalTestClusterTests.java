@@ -58,7 +58,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.DATA;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.INGEST;
 import static org.elasticsearch.cluster.node.DiscoveryNode.Role.MASTER;
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
@@ -162,8 +162,8 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(
                         NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                         2 * ((masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes))
-                    .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
-                    .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
+                    .put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
                 if (autoManageMinMasterNodes == false) {
                     assert minNumDataNodes == maxNumDataNodes;
@@ -239,8 +239,8 @@ public class InternalTestClusterTests extends ESTestCase {
                         NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
                         2 + (masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                    .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
-                    .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
+                    .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                     .build();
             }
 
@@ -337,8 +337,8 @@ public class InternalTestClusterTests extends ESTestCase {
                         .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numNodes)
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
                         .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
-                        .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
-                        .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
+                        .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
+                        .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                         .build();
             }
 
@@ -420,8 +420,8 @@ public class InternalTestClusterTests extends ESTestCase {
                 return Settings.builder()
                     .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                    .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
-                    .putList(SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
+                    .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
+                    .putList(SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey())
                     .build();
             }
 

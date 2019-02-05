@@ -332,7 +332,7 @@ public final class Intervals {
         int MAX_HOUR = 23;
         int MAX_MINUTE = 59;
         int MAX_SECOND = 59;
-        int MAX_MILLI = 999999999;
+        int MAX_MILLI = 999;
         
         char DOT = '.';
         char SPACE = ' ';

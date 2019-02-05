@@ -46,9 +46,8 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestGetIndicesAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestGetIndicesAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of get indices requests " +
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetIndicesAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of get indices requests " +
         "will change in 7.0. Please start using the include_type_name parameter set to false to move to the new, " +
         "typeless response format that will become the default.";
 

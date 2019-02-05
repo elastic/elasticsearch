@@ -881,9 +881,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public void finalizeRecovery(
-                final long globalCheckpoint,
-                final ActionListener<Void> listener) {
+        public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
             if (hasBlocked() == false) {
                 // it maybe that not ops have been transferred, block now
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);

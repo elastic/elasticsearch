@@ -705,9 +705,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void finalizeRecovery(
-                final long globalCheckpoint,
-                final ActionListener<Void> listener) {
+        public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
         }
 
         @Override

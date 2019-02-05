@@ -194,30 +194,26 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *
      * @return a tuple indicating whether or not any retention leases were expired, and the non-expired retention leases
      */
-    public Tuple<Boolean, RetentionLeases> getRetentionLeases(final boolean expireLeases) {
-        final RetentionLeases nonExpiredRetentionLeases;
-        synchronized (this) {
-            if (expireLeases == false) {
-                return Tuple.tuple(false, retentionLeases);
-            }
-            assert primaryMode;
-            // the primary calculates the non-expired retention leases and syncs them to replicas
-            final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
-            final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
-            final Map<Boolean, List<RetentionLease>> partitionByExpiration = retentionLeases
-                    .leases()
-                    .stream()
-                    .collect(Collectors.groupingBy(lease -> currentTimeMillis - lease.timestamp() > retentionLeaseMillis));
-            if (partitionByExpiration.get(true) == null) {
-                // early out as no retention leases have expired
-                return Tuple.tuple(false, retentionLeases);
-            }
-            final Collection<RetentionLease> nonExpiredLeases =
-                    partitionByExpiration.get(false) != null ? partitionByExpiration.get(false) : Collections.emptyList();
-            retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
-            nonExpiredRetentionLeases = retentionLeases;
+    public synchronized Tuple<Boolean, RetentionLeases> getRetentionLeases(final boolean expireLeases) {
+        if (expireLeases == false) {
+            return Tuple.tuple(false, retentionLeases);
         }
-        return Tuple.tuple(true, nonExpiredRetentionLeases);
+        assert primaryMode;
+        // the primary calculates the non-expired retention leases and syncs them to replicas
+        final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
+        final long retentionLeaseMillis = indexSettings.getRetentionLeaseMillis();
+        final Map<Boolean, List<RetentionLease>> partitionByExpiration = retentionLeases
+                .leases()
+                .stream()
+                .collect(Collectors.groupingBy(lease -> currentTimeMillis - lease.timestamp() > retentionLeaseMillis));
+        if (partitionByExpiration.get(true) == null) {
+            // early out as no retention leases have expired
+            return Tuple.tuple(false, retentionLeases);
+        }
+        final Collection<RetentionLease> nonExpiredLeases =
+                partitionByExpiration.get(false) != null ? partitionByExpiration.get(false) : Collections.emptyList();
+        retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
+        return Tuple.tuple(true, retentionLeases);
     }
 
     /**

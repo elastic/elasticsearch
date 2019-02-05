@@ -770,7 +770,7 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
         setRandomVersion(updateRequest, expectedParams);
         setRandomVersionType(updateRequest::versionType, expectedParams);
-        setRandomIfSeqNoAndTerm(updateRequest, expectedParams);
+        setRandomIfSeqNoAndTerm(updateRequest, new HashMap<>()); // if* params are passed in the body
         if (randomBoolean()) {
             int retryOnConflict = randomIntBetween(0, 5);
             updateRequest.retryOnConflict(retryOnConflict);

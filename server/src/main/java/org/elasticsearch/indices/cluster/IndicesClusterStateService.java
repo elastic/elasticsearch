@@ -26,6 +26,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -56,8 +57,10 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRelocatedException;
@@ -142,7 +145,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final SnapshotShardsService snapshotShardsService,
             final PrimaryReplicaSyncer primaryReplicaSyncer,
             final GlobalCheckpointSyncAction globalCheckpointSyncAction,
-            final RetentionLeaseSyncAction retentionLeaseSyncAction) {
+            final RetentionLeaseSyncAction retentionLeaseSyncAction,
+            final RetentionLeaseBackgroundSyncAction retentionLeaseBackgroundSyncAction) {
         this(
                 settings,
                 (AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>>) indicesService,
@@ -158,7 +162,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 snapshotShardsService,
                 primaryReplicaSyncer,
                 globalCheckpointSyncAction::updateGlobalCheckpointForShard,
-                Objects.requireNonNull(retentionLeaseSyncAction)::syncRetentionLeasesForShard);
+                new RetentionLeaseSyncer() {
+                    @Override
+                    public void sync(
+                            final ShardId shardId,
+                            final RetentionLeases retentionLeases,
+                            final ActionListener<ReplicationResponse> listener) {
+                        Objects.requireNonNull(retentionLeaseSyncAction).sync(shardId, retentionLeases, listener);
+                    }
+
+                    @Override
+                    public void backgroundSync(final ShardId shardId, final RetentionLeases retentionLeases) {
+                        Objects.requireNonNull(retentionLeaseBackgroundSyncAction).backgroundSync(shardId, retentionLeases);
+                    }
+                });
     }
 
     // for tests

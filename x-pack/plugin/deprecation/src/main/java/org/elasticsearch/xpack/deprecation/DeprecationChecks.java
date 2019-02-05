@@ -33,6 +33,7 @@ public class DeprecationChecks {
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
+            ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkShardLimit,
             ClusterDeprecationChecks::checkClusterName
         ));
@@ -51,6 +52,8 @@ public class DeprecationChecks {
             NodeDeprecationChecks::gcsRepositoryChanges,
             NodeDeprecationChecks::fileDiscoveryPluginRemoved,
             NodeDeprecationChecks::defaultSSLSettingsRemoved,
+            NodeDeprecationChecks::tlsv1ProtocolDisabled,
+            NodeDeprecationChecks::transportSslEnabledWithoutSecurityEnabled,
             NodeDeprecationChecks::watcherNotificationsSecureSettingsCheck,
             NodeDeprecationChecks::auditIndexSettingsCheck
         ));

@@ -10,11 +10,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.hamcrest.Matchers.is;
@@ -46,8 +46,8 @@ public class MlInitializationServiceTests extends ESTestCase {
         }).when(executorService).execute(any(Runnable.class));
         when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
 
-        ScheduledFuture scheduledFuture = mock(ScheduledFuture.class);
-        when(threadPool.schedule(any(), any(), any())).thenReturn(scheduledFuture);
+        Scheduler.ScheduledCancellable scheduledCancellable = mock(Scheduler.ScheduledCancellable.class);
+        when(threadPool.schedule(any(Runnable.class), any(), any())).thenReturn(scheduledCancellable);
 
         when(clusterService.getClusterName()).thenReturn(CLUSTER_NAME);
     }

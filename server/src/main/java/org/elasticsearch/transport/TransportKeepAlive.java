@@ -158,7 +158,7 @@ final class TransportKeepAlive implements Closeable {
 
         void ensureStarted() {
             if (isStarted.get() == false && isStarted.compareAndSet(false, true)) {
-                threadPool.schedule(pingInterval, ThreadPool.Names.GENERIC, this);
+                threadPool.schedule(this, pingInterval, ThreadPool.Names.GENERIC);
             }
         }
 
@@ -186,7 +186,7 @@ final class TransportKeepAlive implements Closeable {
         @Override
         protected void onAfterInLifecycle() {
             try {
-                threadPool.schedule(pingInterval, ThreadPool.Names.GENERIC, this);
+                threadPool.schedule(this, pingInterval, ThreadPool.Names.GENERIC);
             } catch (EsRejectedExecutionException ex) {
                 if (ex.isExecutorShutdown()) {
                     logger.debug("couldn't schedule new ping execution, executor is shutting down", ex);

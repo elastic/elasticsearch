@@ -6,9 +6,11 @@
 package org.elasticsearch.license;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
@@ -266,7 +268,10 @@ public class XPackLicenseState {
         }
     }
 
+    private final Logger logger;
+    private final DeprecationLogger deprecationLogger;
     private final List<LicenseStateListener> listeners;
+
     private final boolean isSecurityEnabled;
     private final boolean isSecurityExplicitlyEnabled;
 
@@ -274,14 +279,35 @@ public class XPackLicenseState {
     private boolean isSecurityEnabledByTrialVersion;
 
     public XPackLicenseState(Settings settings) {
+        this.logger = LogManager.getLogger(getClass());
+        this.deprecationLogger = new DeprecationLogger(logger);
         this.listeners = new CopyOnWriteArrayList<>();
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        // 6.0+ requires TLS for production licenses, so if TLS is enabled and security is enabled
-        // we can interpret this as an explicit enabling of security if the security enabled
-        // setting is not explicitly set
-        this.isSecurityExplicitlyEnabled = isSecurityEnabled &&
-            (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) || XPackSettings.TRANSPORT_SSL_ENABLED.get(settings));
+        this.isSecurityExplicitlyEnabled = checkSecurityExplicitlyEnabled(settings);
         this.isSecurityEnabledByTrialVersion = false;
+    }
+
+    /**
+     * 6.0+ requires TLS for production licenses, so if TLS is enabled and security is enabled
+     * we can interpret this as an explicit enabling of security if the security enabled
+     * setting is not explicitly set.
+     * This behaviour is deprecated, and will be removed in 7.0
+     */
+    private boolean checkSecurityExplicitlyEnabled(Settings settings) {
+        if (isSecurityEnabled) {
+            if (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey())) {
+                return true;
+            }
+            if (XPackSettings.TRANSPORT_SSL_ENABLED.get(settings)) {
+                deprecationLogger.deprecated("Automatically enabling security because [{}] is true. " +
+                        "This behaviour will be removed in a future version of Elasticsearch. " +
+                        "Please set [{}] to true",
+                    XPackSettings.TRANSPORT_SSL_ENABLED.getKey(),
+                    XPackSettings.SECURITY_ENABLED.getKey());
+                return true;
+            }
+        }
+        return false;
     }
 
     private XPackLicenseState(XPackLicenseState xPackLicenseState) {
@@ -290,6 +316,8 @@ public class XPackLicenseState {
         this.isSecurityExplicitlyEnabled = xPackLicenseState.isSecurityExplicitlyEnabled;
         this.status = xPackLicenseState.status;
         this.isSecurityEnabledByTrialVersion = xPackLicenseState.isSecurityEnabledByTrialVersion;
+        this.logger = xPackLicenseState.logger;
+        this.deprecationLogger = xPackLicenseState.deprecationLogger;
     }
 
     /**
@@ -309,8 +337,12 @@ public class XPackLicenseState {
                 // Before 6.3, Trial licenses would default having security enabled.
                 // If this license was generated before that version, then treat it as if security is explicitly enabled
                 if (mostRecentTrialVersion == null || mostRecentTrialVersion.before(Version.V_6_3_0)) {
-                    LogManager.getLogger(getClass()).info("Automatically enabling security for older trial license ({})",
+                    logger.info("Automatically enabling security for older trial license ({})",
                         mostRecentTrialVersion == null ? "[pre 6.1.0]" : mostRecentTrialVersion.toString());
+                    deprecationLogger.deprecated(
+                        "Automatically enabling security because the current trial license was generated before 6.3.0. " +
+                            "This behaviour will be removed in a future version of Elasticsearch. " +
+                            "Please set [{}] to true", XPackSettings.SECURITY_ENABLED.getKey());
                     isSecurityEnabledByTrialVersion = true;
                 }
             }

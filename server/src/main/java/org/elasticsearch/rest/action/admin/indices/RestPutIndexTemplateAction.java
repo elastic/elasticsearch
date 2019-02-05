@@ -42,6 +42,9 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
             LogManager.getLogger(RestPutIndexTemplateAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in put index template " +
+            "requests is deprecated. To be compatible with 7.0, the mapping definition should not be nested under " +
+            "the type name, and the parameter include_type_name must be provided and set to false.";
 
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);
@@ -68,7 +71,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
 
-        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, true);
+        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         Map<String, Object> sourceAsMap = prepareRequestSource(request, includeTypeName);
         putRequest.source(sourceAsMap);
 
@@ -83,6 +86,9 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             newSourceAsMap.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
             return newSourceAsMap;
         } else {
+            if(includeTypeName && sourceAsMap.containsKey("mappings") ) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);                
+            }
             return sourceAsMap;
         }
     }

@@ -232,6 +232,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         verifyInvalidateResponse(1, responses, invalidateResponse);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38408")
     public void testGetAndInvalidateApiKeysWithExpiredAndInvalidatedApiKey() throws Exception {
         List<CreateApiKeyResponse> responses = createApiKeys(1, null);
         Instant created = Instant.now();

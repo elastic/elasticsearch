@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.EnumSet;

@@ -233,6 +233,6 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     }
 
     private boolean isSuperuser(User user) {
-        return Arrays.binarySearch(user.roles(), "custom_superuser") > -1;
+        return Arrays.asList(user.roles()).contains("custom_superuser");
     }
 }

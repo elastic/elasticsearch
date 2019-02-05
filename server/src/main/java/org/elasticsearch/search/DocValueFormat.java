@@ -31,6 +31,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -38,7 +39,6 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Base64;
@@ -160,6 +160,15 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
+    static DocValueFormat withNanosecondResolution(final DocValueFormat format) {
+        if (format instanceof DateTime) {
+            DateTime dateTime = (DateTime) format;
+            return new DateTime(dateTime.formatter, dateTime.timeZone, DateFieldMapper.Resolution.NANOSECONDS);
+        } else {
+            throw new IllegalArgumentException("trying to convert a known date time formatter to a nanosecond one, wrong field used?");
+        }
+    }
+
     final class DateTime implements DocValueFormat {
 
         public static final String NAME = "date_time";
@@ -167,11 +176,13 @@ public interface DocValueFormat extends NamedWriteable {
         final DateFormatter formatter;
         final ZoneId timeZone;
         private final DateMathParser parser;
+        final DateFieldMapper.Resolution resolution;
 
-        public DateTime(DateFormatter formatter, ZoneId timeZone) {
+        public DateTime(DateFormatter formatter, ZoneId timeZone, DateFieldMapper.Resolution resolution) {
             this.formatter = formatter;
             this.timeZone = Objects.requireNonNull(timeZone);
             this.parser = formatter.toDateMathParser();
+            this.resolution = resolution;
         }
 
         public DateTime(StreamInput in) throws IOException {
@@ -180,8 +191,10 @@ public interface DocValueFormat extends NamedWriteable {
             String zoneId = in.readString();
             if (in.getVersion().before(Version.V_7_0_0)) {
                 this.timeZone = DateUtils.of(zoneId);
+                this.resolution = DateFieldMapper.Resolution.MILLISECONDS;
             } else {
                 this.timeZone = ZoneId.of(zoneId);
+                this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             }
         }
 
@@ -197,12 +210,13 @@ public interface DocValueFormat extends NamedWriteable {
                 out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
             } else {
                 out.writeString(timeZone.getId());
+                out.writeVInt(resolution.ordinal());
             }
         }
 
         @Override
         public String format(long value) {
-            return formatter.format(Instant.ofEpochMilli(value).atZone(timeZone));
+            return formatter.format(resolution.toInstant(value).atZone(timeZone));
         }
 
         @Override
@@ -212,7 +226,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            return parser.parse(value, now, roundUp, timeZone).toEpochMilli();
+            return resolution.convert(parser.parse(value, now, roundUp, timeZone));
         }
 
         @Override

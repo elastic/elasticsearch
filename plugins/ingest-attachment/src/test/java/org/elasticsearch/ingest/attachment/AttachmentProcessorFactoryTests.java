@@ -25,18 +25,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.ingest.attachment.AttachmentProcessor.Property.CONTENT;
-import static org.elasticsearch.ingest.attachment.AttachmentProcessor.Property.CONTENT_LENGTH;
-import static org.elasticsearch.ingest.attachment.AttachmentProcessor.Property.CONTENT_TYPE;
 import static org.elasticsearch.ingest.attachment.AttachmentProcessor.RESERVED_PROPERTIES_KEYS;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;

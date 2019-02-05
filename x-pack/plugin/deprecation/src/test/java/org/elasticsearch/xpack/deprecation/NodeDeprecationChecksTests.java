@@ -346,6 +346,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         };
 
         Settings settings = Settings.builder()
+            .put("xpack.security.enabled", true)
             .put("xpack.http.ssl.verification_mode", "none")
             .put("xpack.security.http.ssl.keystore.path", "/path/to/keystore.p12")
             .putList("xpack.security.http.ssl.supported_protocols", "TLSv1.2", "TLSv1.1", "TLSv1")
@@ -371,10 +372,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "#trial-explicit-security",
             "security should be explicitly enabled (with [xpack.security.enabled])," +
                 " it will no longer be automatically enabled when transport SSL is enabled ([xpack.security.transport.ssl.enabled])");
-        assertSettingsAndIssue("xpack.security.transport.ssl.enabled", "true", expected);
+        assertSettingsAndIssues(Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", true)
+            .putList("xpack.security.transport.ssl.supported_protocols", "TLS1.2", "TLS1.0")
+            .build(), expected);
         assertNoIssue(Settings.builder()
             .put("xpack.security.enabled", randomBoolean())
             .put("xpack.security.transport.ssl.enabled", randomBoolean())
+            .putList("xpack.security.transport.ssl.supported_protocols", "TLS1.2", "TLS1.0")
             .build());
     }
 }

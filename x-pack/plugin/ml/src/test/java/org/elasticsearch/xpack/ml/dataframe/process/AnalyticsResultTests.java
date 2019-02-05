@@ -7,24 +7,20 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
+import org.elasticsearch.xpack.ml.dataframe.process.results.RowResultsTests;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResult> {
 
     @Override
     protected AnalyticsResult createTestInstance() {
-        int checksum = randomInt();
-        Map<String, Object> results = new HashMap<>();
-        int resultsSize = randomIntBetween(1, 10);
-        for (int i = 0; i < resultsSize; i++) {
-            String resultField = randomAlphaOfLength(20);
-            Object resultValue = randomBoolean() ? randomAlphaOfLength(20) : randomDouble();
-            results.put(resultField, resultValue);
+        RowResults rowResults = null;
+        if (randomBoolean()) {
+            rowResults = RowResultsTests.createRandom();
         }
-        return new AnalyticsResult(checksum, results);
+        return new AnalyticsResult(rowResults);
     }
 
     @Override

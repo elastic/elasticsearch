@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
@@ -132,7 +131,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
 
-@Repeat(iterations = 200)
 public class RequestConvertersTests extends ESTestCase {
     public void testPing() {
         Request request = RequestConverters.ping();
@@ -817,12 +815,12 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private void assertIfSeqNoAndTerm(DocWriteRequest<?>request, DocWriteRequest<?> parsedRequest) {
+    private static void assertIfSeqNoAndTerm(DocWriteRequest<?>request, DocWriteRequest<?> parsedRequest) {
         assertEquals(request.ifSeqNo(), parsedRequest.ifSeqNo());
         assertEquals(request.ifPrimaryTerm(), parsedRequest.ifPrimaryTerm());
     }
 
-    private void setRandomIfSeqNoAndTerm(DocWriteRequest<?> request, Map<String, String> expectedParams) {
+    private static void setRandomIfSeqNoAndTerm(DocWriteRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             final long seqNo = randomNonNegativeLong();
             request.setIfSeqNo(seqNo);

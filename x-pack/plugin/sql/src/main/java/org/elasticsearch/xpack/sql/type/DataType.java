@@ -23,37 +23,37 @@ import java.util.Map;
 public enum DataType {
 
     // @formatter:off
-    //                     jdbc type,          size,              defPrecision,dispSize, int,   rat,   docvals
-    NULL(                  JDBCType.NULL,      0,                 0,                 0,  false, false, false),
-    UNSUPPORTED(           JDBCType.OTHER,     0,                 0,                 0,  false, false, false),
-    BOOLEAN(               JDBCType.BOOLEAN,   1,                 1,                 1,  false, false, false),
-    BYTE(                  JDBCType.TINYINT,   Byte.BYTES,        3,                 5,  true,  false, true),
-    SHORT(                 JDBCType.SMALLINT,  Short.BYTES,       5,                 6,  true,  false, true),
-    INTEGER(               JDBCType.INTEGER,   Integer.BYTES,     10,                11, true,  false, true),
-    LONG(                  JDBCType.BIGINT,    Long.BYTES,        19,                20, true,  false, true),
+    //             esType            jdbc type,          size,              defPrecision,dispSize, int,   rat,   docvals
+    NULL(          "null",           JDBCType.NULL,      0,                 0,                 0,  false, false, false),
+    UNSUPPORTED(                     JDBCType.OTHER,     0,                 0,                 0,  false, false, false),
+    BOOLEAN(       "boolean",        JDBCType.BOOLEAN,   1,                 1,                 1,  false, false, false),
+    BYTE(          "byte",           JDBCType.TINYINT,   Byte.BYTES,        3,                 5,  true,  false, true),
+    SHORT(         "short",          JDBCType.SMALLINT,  Short.BYTES,       5,                 6,  true,  false, true),
+    INTEGER(       "intenger",       JDBCType.INTEGER,   Integer.BYTES,     10,                11, true,  false, true),
+    LONG(          "long",           JDBCType.BIGINT,    Long.BYTES,        19,                20, true,  false, true),
     // 53 bits defaultPrecision ~ 15(15.95) decimal digits (53log10(2)),
-    DOUBLE(                JDBCType.DOUBLE,    Double.BYTES,      15,                25, false, true,  true),
+    DOUBLE(        "double",         JDBCType.DOUBLE,    Double.BYTES,      15,                25, false, true,  true),
     // 24 bits defaultPrecision - 24*log10(2) =~ 7 (7.22)
-    FLOAT(                 JDBCType.REAL,      Float.BYTES,       7,                 15, false, true,  true),
-    HALF_FLOAT(            JDBCType.FLOAT,     Double.BYTES,      16,                25, false, true,  true),
+    FLOAT(         "float",          JDBCType.REAL,      Float.BYTES,       7,                 15, false, true,  true),
+    HALF_FLOAT(    "half_float",     JDBCType.FLOAT,     Double.BYTES,      16,                25, false, true,  true),
     // precision is based on long
-    SCALED_FLOAT(          JDBCType.FLOAT,     Double.BYTES,      19,                25, false, true,  true),
-    KEYWORD(               JDBCType.VARCHAR,   Integer.MAX_VALUE, 256,               0,  false, false, true),
-    TEXT(                  JDBCType.VARCHAR,   Integer.MAX_VALUE, Integer.MAX_VALUE, 0,  false, false, false),
-    OBJECT(                JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
-    NESTED(                JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
-    BINARY(                JDBCType.VARBINARY, -1,                Integer.MAX_VALUE, 0,  false, false, false),
-    DATE(                  JDBCType.DATE,      Long.BYTES,        10,                10, false, false, true),
+    SCALED_FLOAT(  "scaled_float",   JDBCType.FLOAT,     Double.BYTES,      19,                25, false, true,  true),
+    KEYWORD(       "keyword",        JDBCType.VARCHAR,   Integer.MAX_VALUE, 256,               0,  false, false, true),
+    TEXT(          "text",           JDBCType.VARCHAR,   Integer.MAX_VALUE, Integer.MAX_VALUE, 0,  false, false, false),
+    OBJECT(        "object",         JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
+    NESTED(        "nested",         JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
+    BINARY(        "binary",         JDBCType.VARBINARY, -1,                Integer.MAX_VALUE, 0,  false, false, false),
+    DATE(                            JDBCType.DATE,      Long.BYTES,        10,                10, false, false, true),
     // since ODBC and JDBC interpret precision for Date as display size
     // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
-    DATETIME(              JDBCType.TIMESTAMP, Long.BYTES,        24,                24, false, false, true),
+    DATETIME(      "date",           JDBCType.TIMESTAMP, Long.BYTES,        24,                24, false, false, true),
     //
     // specialized types
     //
     // IP can be v4 or v6. The latter has 2^128 addresses or 340,282,366,920,938,463,463,374,607,431,768,211,456
     // aka 39 chars
-    IP(                    JDBCType.VARCHAR,   39,               39,                 0,  false, false, true),
+    IP(            "ip",             JDBCType.VARCHAR,   39,               39,                 0,  false, false, true),
     //
     // INTERVALS
     // the list is long as there are a lot of variations and that's what clients (ODBC) expect
@@ -181,8 +181,13 @@ public enum DataType {
 
     DataType(SQLType sqlType, int size, int defaultPrecision, int displaySize, boolean isInteger,
             boolean isRational, boolean defaultDocValues) {
+        this(null, sqlType, size, defaultPrecision, displaySize, isInteger, isRational, defaultDocValues);
+    }
+
+    DataType(String esType, SQLType sqlType, int size, int defaultPrecision, int displaySize, boolean isInteger,
+             boolean isRational, boolean defaultDocValues) {
         this.typeName = name().toLowerCase(Locale.ROOT);
-        this.esType = name().equals("DATETIME") ? "date" : typeName;
+        this.esType = esType;
         this.sqlType = sqlType;
         this.size = size;
         this.defaultPrecision = defaultPrecision;

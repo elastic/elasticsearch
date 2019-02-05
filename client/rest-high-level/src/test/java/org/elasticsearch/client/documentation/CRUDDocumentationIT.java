@@ -503,7 +503,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-request-cas
             request.setIfSeqNo(2L); // <1>
             request.setIfPrimaryTerm(1L); // <2>
-            // end::update-request-request-cas
+            // end::update-request-cas
             // tag::update-request-detect-noop
             request.detectNoop(false); // <1>
             // end::update-request-detect-noop

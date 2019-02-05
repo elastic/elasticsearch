@@ -198,5 +198,4 @@ public class DateUtilsTests extends ESTestCase {
         long startOf1996 = Year.of(1996).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundYear(endOf1996), is(startOf1996));
     }
-
 }

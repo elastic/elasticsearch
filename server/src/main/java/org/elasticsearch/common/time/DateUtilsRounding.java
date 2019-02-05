@@ -36,6 +36,35 @@ class DateUtilsRounding {
     private static final int MILLIS_PER_DAY = 86_400_000;
     private static final long MILLIS_PER_YEAR = 31556952000L;
 
+    // see org.joda.time.chrono.BasicGJChronology
+    private static final long[] MIN_TOTAL_MILLIS_BY_MONTH_ARRAY;
+    private static final long[] MAX_TOTAL_MILLIS_BY_MONTH_ARRAY;
+    private static final int[] MIN_DAYS_PER_MONTH_ARRAY = {
+        31,28,31,30,31,30,31,31,30,31,30,31
+    };
+    private static final int[] MAX_DAYS_PER_MONTH_ARRAY = {
+        31,29,31,30,31,30,31,31,30,31,30,31
+    };
+
+    static {
+        MIN_TOTAL_MILLIS_BY_MONTH_ARRAY = new long[12];
+        MAX_TOTAL_MILLIS_BY_MONTH_ARRAY = new long[12];
+
+        long minSum = 0;
+        long maxSum = 0;
+        for (int i = 0; i < 11; i++) {
+            long millis = MIN_DAYS_PER_MONTH_ARRAY[i]
+                * (long) MILLIS_PER_DAY;
+            minSum += millis;
+            MIN_TOTAL_MILLIS_BY_MONTH_ARRAY[i + 1] = minSum;
+
+            millis = MAX_DAYS_PER_MONTH_ARRAY[i]
+                * (long) MILLIS_PER_DAY;
+            maxSum += millis;
+            MAX_TOTAL_MILLIS_BY_MONTH_ARRAY[i + 1] = maxSum;
+        }
+    }
+
     /**
      * calculates the first day of a year in milliseconds since the epoch (assuming UTC)
      *
@@ -148,34 +177,6 @@ class DateUtilsRounding {
             return MAX_TOTAL_MILLIS_BY_MONTH_ARRAY[month - 1];
         } else {
             return MIN_TOTAL_MILLIS_BY_MONTH_ARRAY[month - 1];
-        }
-    }
-
-    private static final long[] MIN_TOTAL_MILLIS_BY_MONTH_ARRAY;
-    private static final long[] MAX_TOTAL_MILLIS_BY_MONTH_ARRAY;
-    private static final int[] MIN_DAYS_PER_MONTH_ARRAY = {
-        31,28,31,30,31,30,31,31,30,31,30,31
-    };
-    private static final int[] MAX_DAYS_PER_MONTH_ARRAY = {
-        31,29,31,30,31,30,31,31,30,31,30,31
-    };
-
-    static {
-        MIN_TOTAL_MILLIS_BY_MONTH_ARRAY = new long[12];
-        MAX_TOTAL_MILLIS_BY_MONTH_ARRAY = new long[12];
-
-        long minSum = 0;
-        long maxSum = 0;
-        for (int i = 0; i < 11; i++) {
-            long millis = MIN_DAYS_PER_MONTH_ARRAY[i]
-                * (long) MILLIS_PER_DAY;
-            minSum += millis;
-            MIN_TOTAL_MILLIS_BY_MONTH_ARRAY[i + 1] = minSum;
-
-            millis = MAX_DAYS_PER_MONTH_ARRAY[i]
-                * (long) MILLIS_PER_DAY;
-            maxSum += millis;
-            MAX_TOTAL_MILLIS_BY_MONTH_ARRAY[i + 1] = maxSum;
         }
     }
 }

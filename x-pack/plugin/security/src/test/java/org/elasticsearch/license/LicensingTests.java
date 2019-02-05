@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -58,7 +59,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -290,23 +291,25 @@ public class LicensingTests extends SecurityIntegTestCase {
         Path home = createTempDir();
         Path conf = home.resolve("config");
         Files.createDirectories(conf);
-        Settings nodeSettings = Settings.builder()
+        Settings.Builder nodeSettings = Settings.builder()
             .put(nodeSettings(maxNumberOfNodes() - 1).filter(s -> "xpack.security.enabled".equals(s) == false))
             .put("node.name", "my-test-node")
             .put("network.host", "localhost")
             .put("cluster.name", internalCluster().getClusterName())
-            .put("discovery.zen.minimum_master_nodes",
-                internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
             .put("path.home", home)
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
             .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
-            .putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey())
-            .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), unicastHostsList)
-            .build();
+            .putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey())
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), unicastHostsList);
+        if (getUseZen2() == false) {
+            nodeSettings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(),
+                ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(internalCluster().getInstance(Settings.class)));
+        }
+
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class,
             MockHttpTransport.TestPlugin.class);
-        try (Node node = new MockNode(nodeSettings, mockPlugins)) {
+        try (Node node = new MockNode(nodeSettings.build(), mockPlugins)) {
             node.start();
             ensureStableCluster(cluster().size() + 1);
         }

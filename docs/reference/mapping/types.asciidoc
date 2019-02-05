@@ -7,12 +7,13 @@ document:
 [float]
 === Core datatypes
 
-string::        <<text,`text`>> and <<keyword,`keyword`>>
-<<number>>::    `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
-<<date>>::      `date`
-<<boolean>>::   `boolean`
-<<binary>>::    `binary`
-<<range>>::     `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`
+string::         <<text,`text`>> and <<keyword,`keyword`>>
+<<number>>::     `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
+<<date>>::       `date`
+<<date_nanos>>:: `date_nanos`
+<<boolean>>::    `boolean`
+<<binary>>::     `binary`
+<<range>>::      `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`
 
 [float]
 === Complex datatypes
@@ -78,6 +79,8 @@ include::types/range.asciidoc[]
 include::types/boolean.asciidoc[]
 
 include::types/date.asciidoc[]
+
+include::types/date_nanos.asciidoc[]
 
 include::types/geo-point.asciidoc[]
 

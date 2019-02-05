@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 
 /**
  * A alternative zen discovery which allows using mocks for things like pings, as well as
@@ -60,6 +60,7 @@ public class TestZenDiscovery extends ZenDiscovery {
 
     public static final Setting<Boolean> USE_ZEN2 =
         Setting.boolSetting("discovery.zen.use_zen2", true, Setting.Property.NodeScope);
+    private static final String TEST_ZEN_DISCOVERY_TYPE = "test-zen";
 
     /** A plugin which installs mock discovery and configures it to be used. */
     public static class TestPlugin extends Plugin implements DiscoveryPlugin {
@@ -75,7 +76,7 @@ public class TestZenDiscovery extends ZenDiscovery {
                                                                   ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider,
                                                                   AllocationService allocationService, GatewayMetaState gatewayMetaState) {
             // we don't get the latest setting which were updated by the extra settings for the plugin. TODO: fix.
-            Settings fixedSettings = Settings.builder().put(settings).putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()).build();
+            Settings fixedSettings = Settings.builder().put(settings).putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()).build();
             return Collections.singletonMap("test-zen", () -> {
                 if (USE_ZEN2.get(settings)) {
                     return new Coordinator("test_node", fixedSettings, clusterSettings, transportService, namedWriteableRegistry,
@@ -97,8 +98,8 @@ public class TestZenDiscovery extends ZenDiscovery {
         @Override
         public Settings additionalSettings() {
             return Settings.builder()
-                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
-                .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), TEST_ZEN_DISCOVERY_TYPE)
+                .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey())
                 .build();
         }
     }
@@ -123,5 +124,10 @@ public class TestZenDiscovery extends ZenDiscovery {
 
     public ZenPing getZenPing() {
         return zenPing;
+    }
+
+    public static boolean usingZen1(Settings settings) {
+        return DiscoveryModule.ZEN_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
+            || USE_ZEN2.get(settings) == false;
     }
 }

@@ -766,8 +766,6 @@ public class RequestConvertersTests extends ESTestCase {
             }
         }
         setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
-        setRandomVersion(updateRequest, expectedParams);
-        setRandomVersionType(updateRequest::versionType, expectedParams);
         if (randomBoolean()) {
             int retryOnConflict = randomIntBetween(0, 5);
             updateRequest.retryOnConflict(retryOnConflict);

@@ -236,7 +236,8 @@ castTemplate
     ;
 
 builtinDateTimeFunction
-    : name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
+    : name=CURRENT_DATE ('(' ')')?
+    | name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
     ;
     
 convertTemplate
@@ -337,7 +338,7 @@ string
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS | CURRENT 
+    | CATALOGS | COLUMNS
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
     | FIRST | FORMAT | FULL | FUNCTIONS
@@ -370,7 +371,7 @@ CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
 CONVERT: 'CONVERT';
-CURRENT: 'CURRENT';
+CURRENT_DATE : 'CURRENT_DATE';
 CURRENT_TIMESTAMP : 'CURRENT_TIMESTAMP';
 DAY: 'DAY';
 DAYS: 'DAYS';

@@ -6,11 +6,13 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collection;
 import java.util.Map;
@@ -38,6 +40,26 @@ public final class LimitedRole extends Role {
     }
 
     @Override
+    public ClusterPermission cluster() {
+        throw new UnsupportedOperationException("cannot retrieve cluster permission on limited role");
+    }
+
+    @Override
+    public IndicesPermission indices() {
+        throw new UnsupportedOperationException("cannot retrieve indices permission on limited role");
+    }
+
+    @Override
+    public ApplicationPermission application() {
+        throw new UnsupportedOperationException("cannot retrieve application permission on limited role");
+    }
+
+    @Override
+    public RunAsPermission runAs() {
+        throw new UnsupportedOperationException("cannot retrieve cluster permission on limited role");
+    }
+
+    @Override
     public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
                                           Map<String, AliasOrIndex> aliasAndIndexLookup,
                                           FieldPermissionsCache fieldPermissionsCache) {
@@ -55,9 +77,16 @@ public final class LimitedRole extends Role {
      */
     @Override
     public Predicate<String> allowedIndicesMatcher(String action) {
-        Predicate<String> predicate = indices().allowedIndicesMatcher(action);
+        Predicate<String> predicate = super.indices().allowedIndicesMatcher(action);
         predicate = predicate.and(limitedBy.indices().allowedIndicesMatcher(action));
         return predicate;
+    }
+
+    @Override
+    public Automaton allowedActionsMatcher(String index) {
+        final Automaton allowedMatcher = super.allowedActionsMatcher(index);
+        final Automaton limitedByMatcher = super.allowedActionsMatcher(index);
+        return Automatons.intersectAndMinimize(allowedMatcher, limitedByMatcher);
     }
 
     /**
@@ -138,6 +167,11 @@ public final class LimitedRole extends Role {
         ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.application().checkResourcePrivileges(applicationName,
                 checkForResources, checkForPrivilegeNames, storedPrivileges);
         return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
+    }
+
+    @Override
+    public boolean checkRunAs(String runAs) {
+        return super.checkRunAs(runAs) && limitedBy.checkRunAs(runAs);
     }
 
     /**

@@ -911,9 +911,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
         ApiKeyService apiKeyService = mock(ApiKeyService.class);
+        NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener =
+                (ActionListener<Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+            listener.onResponse(Collections.emptyList());
+            return Void.TYPE;
+        }).when(nativePrivStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
-                mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
+                nativePrivStore, Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService);
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = new Authentication(new User("test api key user", "superuser"),
@@ -946,9 +953,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
         ApiKeyService apiKeyService = mock(ApiKeyService.class);
+        NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener =
+                (ActionListener<Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+            listener.onResponse(Collections.emptyList());
+            return Void.TYPE;
+        }).when(nativePrivStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
         final CompositeRolesStore compositeRolesStore =
             new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
-                mock(NativePrivilegeStore.class), Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
+                nativePrivStore, Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService);
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = new Authentication(new User("test api key user", "api_key"),
@@ -965,7 +979,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
         Role role = roleFuture.actionGet();
-        assertThat(role.cluster().check("cluster:admin/foo", Empty.INSTANCE), is(false));
+        assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE), is(false));
         verify(apiKeyService).getRoleForApiKey(eq(authentication), any(ActionListener.class));
     }
 

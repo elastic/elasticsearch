@@ -959,7 +959,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
                 final Authentication restrictedUserAuthn = createAuthentication(new User("restricted_user", "restricted_monitor"));
                 assertThrowsAuthorizationException(() -> authorize(restrictedUserAuthn, action, request), action, "restricted_user");
-                verify(auditTrail).accessDenied(requestId, restrictedUserAuthn, action, request,
+                verify(auditTrail).accessDenied(eq(requestId), eq(restrictedUserAuthn), eq(action), eq(request),
                     authzInfoRoles(new String[] { "restricted_monitor" }));
                 verifyNoMoreInteractions(auditTrail);
             }
@@ -967,7 +967,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
                 final Authentication unrestrictedUserAuthn = createAuthentication(new User("unrestricted_user", "unrestricted_monitor"));
                 authorize(unrestrictedUserAuthn, action, request);
-                verify(auditTrail).accessGranted(requestId, unrestrictedUserAuthn, action, request,
+                verify(auditTrail).accessGranted(eq(requestId), eq(unrestrictedUserAuthn), eq(action), eq(request),
                     authzInfoRoles(new String[] { "unrestricted_monitor" }));
                 verifyNoMoreInteractions(auditTrail);
             }
@@ -1016,7 +1016,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
                 final Authentication authentication = createAuthentication(superuser);
                 authorize(authentication, action, request);
-                verify(auditTrail).accessGranted(requestId, authentication, action, request, authzInfoRoles(superuser.roles()));
+                verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
+                    authzInfoRoles(superuser.roles()));
             }
         }
     }
@@ -1039,7 +1040,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         String action = SearchAction.NAME;
         SearchRequest request = new SearchRequest("_all");
-        authorize(createAuthentication(superuser), action, request);
+        authorize(authentication, action, request);
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(superuser.roles()));
         assertThat(request.indices(), arrayContainingInAnyOrder(INTERNAL_SECURITY_INDEX, SECURITY_INDEX_NAME));
     }
@@ -1417,55 +1418,68 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
             auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(Settings.EMPTY),
             engine, Collections.emptySet(), licenseState);
-        Authentication authentication = createAuthentication(new User("test user", "a_all"));
-        assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
-        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
-        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        Authentication authentication;
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            authentication = createAuthentication(new User("test user", "a_all"));
+            assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
+            when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
+            assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        }
 
         when(licenseState.isAuthorizationEngineAllowed()).thenReturn(true);
-        authentication = createAuthentication(new User("runas", new String[] { "runas_role" }, new User("runner", "runner_role")));
-        assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
-        assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
-        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
-        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            authentication = createAuthentication(new User("runas", new String[]{"runas_role"}, new User("runner", "runner_role")));
+            assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
+            assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+            when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
+            assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+            assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        }
 
         when(licenseState.isAuthorizationEngineAllowed()).thenReturn(true);
-        authentication = createAuthentication(new User("runas", new String[] { "runas_role" }, new ElasticUser(true)));
-        assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
-        assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
-        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
-        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            authentication = createAuthentication(new User("runas", new String[]{"runas_role"}, new ElasticUser(true)));
+            assertEquals(engine, authorizationService.getAuthorizationEngine(authentication));
+            assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+            assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+            when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
+            assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+            assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        }
 
         when(licenseState.isAuthorizationEngineAllowed()).thenReturn(true);
-        authentication = createAuthentication(new User("elastic", new String[] { "superuser" }, new User("runner", "runner_role")));
-        assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
-        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-        assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
-        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
-        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            authentication = createAuthentication(new User("elastic", new String[]{"superuser"}, new User("runner", "runner_role")));
+            assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
+            assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+            assertEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+            when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
+            assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+            assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        }
 
         when(licenseState.isAuthorizationEngineAllowed()).thenReturn(true);
-        authentication = createAuthentication(new User("kibana", new String[] { "kibana_system" }, new ElasticUser(true)));
-        assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
-        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-        assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
-        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
-        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            authentication = createAuthentication(new User("kibana", new String[]{"kibana_system"}, new ElasticUser(true)));
+            assertNotEquals(engine, authorizationService.getAuthorizationEngine(authentication));
+            assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+            assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+            assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+            when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
+            assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+            assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        }
 
         when(licenseState.isAuthorizationEngineAllowed()).thenReturn(true);
-        authentication = createAuthentication(randomFrom(XPackUser.INSTANCE, XPackSecurityUser.INSTANCE,
-            new ElasticUser(true), new KibanaUser(true)));
-        assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
-        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-        when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
-        assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
-        assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            authentication = createAuthentication(randomFrom(XPackUser.INSTANCE, XPackSecurityUser.INSTANCE,
+                new ElasticUser(true), new KibanaUser(true)));
+            assertNotEquals(engine, authorizationService.getRunAsAuthorizationEngine(authentication));
+            assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+            when(licenseState.isAuthorizationEngineAllowed()).thenReturn(false);
+            assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+            assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
+        }
     }
 
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {

@@ -489,8 +489,7 @@ public class RBACEngineTests extends ESTestCase {
                     .put("index", true).put("delete", true).map()).build(),
             ResourcePrivileges.builder("apache-2017-01")
                 .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                    .put("index", true).put("delete", false).map()
-            )
+                    .put("index", true).put("delete", false).map()).build()
         ));
     }
 

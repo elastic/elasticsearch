@@ -224,17 +224,7 @@ public final class TransportPutFollowAction
                     FollowParameters parameters = request.getParameters();
                     ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
                         resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
-                        resumeFollowRequest.getParameters().setMaxOutstandingReadRequests(parameters.getMaxOutstandingReadRequests());
-                        resumeFollowRequest.getParameters().setMaxOutstandingWriteRequests(parameters.getMaxOutstandingWriteRequests());
-                        resumeFollowRequest.getParameters().setMaxReadRequestOperationCount(parameters.getMaxReadRequestOperationCount());
-                        resumeFollowRequest.getParameters().setMaxWriteRequestOperationCount(
-                            parameters.getMaxWriteRequestOperationCount());
-                        resumeFollowRequest.getParameters().setMaxReadRequestSize(parameters.getMaxReadRequestSize());
-                        resumeFollowRequest.getParameters().setMaxWriteRequestSize(parameters.getMaxWriteRequestSize());
-                        resumeFollowRequest.getParameters().setMaxWriteBufferCount(parameters.getMaxWriteBufferCount());
-                        resumeFollowRequest.getParameters().setMaxWriteBufferSize(parameters.getMaxWriteBufferSize());
-                        resumeFollowRequest.getParameters().setReadPollTimeout(parameters.getReadPollTimeout());
-                        resumeFollowRequest.getParameters().setMaxRetryDelay(parameters.getMaxRetryDelay());
+                        resumeFollowRequest.setParameters(new FollowParameters(parameters));
                         client.execute(ResumeFollowAction.INSTANCE, resumeFollowRequest, ActionListener.wrap(
                         r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
                         listener::onFailure

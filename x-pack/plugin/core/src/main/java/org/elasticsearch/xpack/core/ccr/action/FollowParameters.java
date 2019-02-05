@@ -51,6 +51,19 @@ public class FollowParameters implements Writeable {
     public FollowParameters() {
     }
 
+    public FollowParameters(FollowParameters source) {
+        this.maxReadRequestOperationCount = source.maxReadRequestOperationCount;
+        this.maxWriteRequestOperationCount = source.maxWriteRequestOperationCount;
+        this.maxOutstandingReadRequests = source.maxOutstandingReadRequests;
+        this.maxOutstandingWriteRequests = source.maxOutstandingWriteRequests;
+        this.maxReadRequestSize = source.maxReadRequestSize;
+        this.maxWriteRequestSize = source.maxWriteRequestSize;
+        this.maxWriteBufferCount = source.maxWriteBufferCount;
+        this.maxWriteBufferSize = source.maxWriteBufferSize;
+        this.maxRetryDelay = source.maxRetryDelay;
+        this.readPollTimeout = source.readPollTimeout;
+    }
+
     public Integer getMaxReadRequestOperationCount() {
         return maxReadRequestOperationCount;
     }
@@ -237,7 +250,7 @@ public class FollowParameters implements Writeable {
         return builder;
     }
 
-    public static <POJO extends FollowParameters> void initParser(AbstractObjectParser<POJO, ?> parser) {
+    public static <P extends FollowParameters> void initParser(AbstractObjectParser<P, ?> parser) {
         parser.declareInt(FollowParameters::setMaxReadRequestOperationCount, MAX_READ_REQUEST_OPERATION_COUNT);
         parser.declareInt(FollowParameters::setMaxWriteRequestOperationCount, MAX_WRITE_REQUEST_OPERATION_COUNT);
         parser.declareInt(FollowParameters::setMaxOutstandingReadRequests, MAX_OUTSTANDING_READ_REQUESTS);
@@ -269,7 +282,7 @@ public class FollowParameters implements Writeable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || (o instanceof FollowParameters == false)) return false;
+        if (o instanceof FollowParameters == false) return false;
         FollowParameters that = (FollowParameters) o;
         return Objects.equals(maxReadRequestOperationCount, that.maxReadRequestOperationCount) &&
             Objects.equals(maxWriteRequestOperationCount, that.maxWriteRequestOperationCount) &&

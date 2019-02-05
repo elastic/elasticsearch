@@ -1016,7 +1016,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         forceMergeRequest.maxNumSegments(1);
         leaderClient().admin().indices().forceMerge(forceMergeRequest).actionGet();
 
-        followerClient().execute(ResumeFollowAction.INSTANCE, followRequest.getFollowRequest()).get();
+        followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow("index2")).get();
 
         assertBusy(() -> {
             List<ShardFollowNodeTaskStatus> statuses = getFollowTaskStatuses("index2");

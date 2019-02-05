@@ -56,6 +56,16 @@ dependencies {
     compile "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
     compile 'com.google.guava:guava:19.0'
 
+    // Dependencies for oidc
+    compile "com.nimbusds:oauth2-oidc-sdk:6.5"
+    compile "com.nimbusds:nimbus-jose-jwt:4.41.2"
+    compile "com.nimbusds:lang-tag:1.4.4"
+    compile "com.sun.mail:javax.mail:1.6.2"
+    compile "net.jcip:jcip-annotations:1.0"
+    compile "net.minidev:json-smart:2.3"
+    compile "net.minidev:accessors-smart:1.2"
+
+
     testCompile 'org.elasticsearch:securemock:1.2'
     testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
     //testCompile "org.yaml:snakeyaml:${versions.snakeyaml}"
@@ -160,7 +170,7 @@ forbiddenPatterns {
 }
 
 forbiddenApisMain {
-    signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt')
+    signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
@@ -257,7 +267,13 @@ thirdPartyAudit {
         'net.sf.ehcache.Ehcache',
         'net.sf.ehcache.Element',
         // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
-        'org.slf4j.ext.EventData'
+        'org.slf4j.ext.EventData',
+        'org.cryptomator.siv.SivMode',
+        'org.objectweb.asm.ClassWriter',
+        'org.objectweb.asm.Label',
+        'org.objectweb.asm.MethodVisitor',
+        'org.objectweb.asm.Type'
+
     )
 
     ignoreViolations (
@@ -278,7 +294,13 @@ if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
         'javax.xml.bind.JAXBElement',
         'javax.xml.bind.JAXBException',
         'javax.xml.bind.Unmarshaller',
-        'javax.xml.bind.UnmarshallerHandler'
+        'javax.xml.bind.UnmarshallerHandler', 
+        'javax.activation.ActivationDataFlavor',
+        'javax.activation.DataContentHandler',
+        'javax.activation.DataHandler',
+        'javax.activation.DataSource',
+        'javax.activation.FileDataSource',
+        'javax.activation.FileTypeMap'
     )
 }
 

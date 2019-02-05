@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.action.oidc;
 
+import com.nimbusds.oauth2.sdk.id.State;
+import com.nimbusds.openid.connect.sdk.Nonce;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -49,7 +51,8 @@ public class TransportOpenIdConnectAuthenticateAction
     @Override
     protected void doExecute(Task task, OpenIdConnectAuthenticateRequest request,
                              ActionListener<OpenIdConnectAuthenticateResponse> listener) {
-        final OpenIdConnectToken token = new OpenIdConnectToken(request.getRedirectUri(), request.getState(), request.getNonce());
+        final OpenIdConnectToken token = new OpenIdConnectToken(request.getRedirectUri(), new State(request.getState()),
+            new Nonce(request.getNonce()));
         final ThreadContext threadContext = threadPool.getThreadContext();
         Authentication originatingAuthentication = Authentication.getAuthentication(threadContext);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {

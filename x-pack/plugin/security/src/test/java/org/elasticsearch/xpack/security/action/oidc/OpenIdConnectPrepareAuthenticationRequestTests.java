@@ -23,9 +23,26 @@ public class OpenIdConnectPrepareAuthenticationRequestTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         request.writeTo(out);
 
-        final OpenIdConnectPrepareAuthenticationRequest unserialized =
+        final OpenIdConnectPrepareAuthenticationRequest deserialized =
             new OpenIdConnectPrepareAuthenticationRequest(out.bytes().streamInput());
-        assertThat(unserialized.getRealmName(), equalTo("oidc-realm1"));
+        assertThat(deserialized.getRealmName(), equalTo("oidc-realm1"));
+    }
+
+    public void testSerializationWithStateAndNonce() throws IOException {
+        final OpenIdConnectPrepareAuthenticationRequest request = new OpenIdConnectPrepareAuthenticationRequest();
+        final String nonce = randomAlphaOfLengthBetween(8, 12);
+        final String state = randomAlphaOfLengthBetween(8, 12);
+        request.setRealmName("oidc-realm1");
+        request.setNonce(nonce);
+        request.setState(state);
+        final BytesStreamOutput out = new BytesStreamOutput();
+        request.writeTo(out);
+
+        final OpenIdConnectPrepareAuthenticationRequest deserialized =
+            new OpenIdConnectPrepareAuthenticationRequest(out.bytes().streamInput());
+        assertThat(deserialized.getRealmName(), equalTo("oidc-realm1"));
+        assertThat(deserialized.getState(), equalTo(state));
+        assertThat(deserialized.getNonce(), equalTo(nonce));
     }
 
     public void testValidation() {

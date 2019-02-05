@@ -14,6 +14,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -21,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
@@ -93,10 +95,18 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                     }
                 }
                 for (Map.Entry<String, Set<String>> grantedAliasNoIndex : indicesNotCoveredByAlias.entrySet()) {
-                    final String logMessage = String.format(ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
+                    final String logMessage = String.format(Locale.ROOT, ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
                             grantedAliasNoIndex.getKey(), String.join(", ", grantedAliasNoIndex.getValue()));
                     deprecationLogger.deprecated(logMessage);
                 }
+                // mark role as checked for "today"
+                addToCache(cacheKey);
+            }
+        }
+        for (final RoleDescriptor roleDescriptor : effectiveRoleDescriptors) {
+            final String cacheKey = buildCacheKey(roleDescriptor.getName());
+            if (false == isCached(cacheKey)) {
+                
                 // mark role as checked for "today"
                 addToCache(cacheKey);
             }

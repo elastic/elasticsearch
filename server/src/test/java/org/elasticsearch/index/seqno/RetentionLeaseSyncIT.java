@@ -197,10 +197,9 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
 
     public void testRetentionLeasesSyncOnRecovery() throws Exception {
         final int numberOfReplicas = 1;
-        //
         /*
          * We effectively disable the background sync to ensure that the retention leases are not synced in the background so that the only
-         *
+         * source of retention leases on the replicas would be from the commit point and recovery.
          */
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)

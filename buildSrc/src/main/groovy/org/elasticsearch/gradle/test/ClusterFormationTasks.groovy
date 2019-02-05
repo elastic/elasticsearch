@@ -272,7 +272,7 @@ class ClusterFormationTasks {
         }
         setup = configureCheckPreviousTask(taskName(prefix, node, 'checkPrevious'), project, setup, node)
         setup = configureStopTask(taskName(prefix, node, 'stopPrevious'), project, setup, node)
-        setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution)
+        setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution, config.distribution)
         setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, writeConfig)
         setup = configureCreateKeystoreTask(taskName(prefix, node, 'createKeystore'), project, setup, node)
         setup = configureAddKeystoreSettingTasks(prefix, project, setup, node)
@@ -341,14 +341,15 @@ class ClusterFormationTasks {
     }
 
     /** Adds a task to extract the elasticsearch distribution */
-    static Task configureExtractTask(String name, Project project, Task setup, NodeInfo node, Configuration configuration) {
+    static Task configureExtractTask(String name, Project project, Task setup, NodeInfo node,
+                                     Configuration configuration, String distribution) {
         List extractDependsOn = [configuration, setup]
         /* configuration.singleFile will be an external artifact if this is being run by a plugin not living in the
           elasticsearch source tree. If this is a plugin built in the elasticsearch source tree or this is a distro in
           the elasticsearch source tree then this should be the version of elasticsearch built by the source tree.
           If it isn't then Bad Things(TM) will happen. */
         Task extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
-            if (getOs().equals("windows")) {
+            if (getOs().equals("windows") || distribution.equals("integ-test-zip")) {
                 from {
                     project.zipTree(configuration.singleFile)
                 }

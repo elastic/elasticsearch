@@ -48,6 +48,7 @@ import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsResponse;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -95,14 +96,20 @@ import static org.hamcrest.Matchers.lessThan;
 public class CrudIT extends ESRestHighLevelClientTestCase {
 
     public void testDelete() throws IOException {
+        highLevelClient().indices().create(
+            new CreateIndexRequest("index").settings(Collections.singletonMap("index.number_of_shards", "1")),
+            RequestOptions.DEFAULT);
         {
             // Testing deletion
             String docId = "id";
-            highLevelClient().index(
+            IndexResponse indexResponse = highLevelClient().index(
                     new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")), RequestOptions.DEFAULT);
             DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
             if (randomBoolean()) {
-                deleteRequest.version(1L);
+                deleteRequest.setIfSeqNo(indexResponse.getSeqNo());
+                deleteRequest.setIfPrimaryTerm(indexResponse.getPrimaryTerm());
+            } else {
+                deleteRequest.version(indexResponse.getVersion());
             }
             DeleteResponse deleteResponse = execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
                     highLevelClient()::delete, highLevelClient()::deleteAsync);
@@ -127,13 +134,26 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             String docId = "version_conflict";
             highLevelClient().index(
                     new IndexRequest("index", "type", docId).source(Collections.singletonMap("foo", "bar")), RequestOptions.DEFAULT);
-            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId).version(2);
+            DeleteRequest deleteRequest = new DeleteRequest("index", "type", docId);
+            final boolean seqNos = randomBoolean();
+            if (seqNos) {
+                deleteRequest.setIfSeqNo(2).setIfPrimaryTerm(2);
+            } else {
+                deleteRequest.version(2);
+            }
+
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync,
                         highLevelClient()::delete, highLevelClient()::deleteAsync));
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][" + docId + "]: " +
-                "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
+            if (seqNos) {
+                assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][" + docId + "]: " +
+                    "version conflict, required seqNo [2], primary term [2]. current document has seqNo [3] and primary term [1]]",
+                    exception.getMessage());
+            } else {
+                assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][" + docId + "]: " +
+                    "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
+            }
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         {
@@ -453,18 +473,29 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("type", indexResponse.getType());
             assertEquals("id", indexResponse.getId());
             assertEquals(2L, indexResponse.getVersion());
+            final boolean seqNosForConflict = randomBoolean();
 
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
                 IndexRequest wrongRequest = new IndexRequest("index", "type", "id");
                 wrongRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("field", "test").endObject());
-                wrongRequest.version(5L);
+                if (seqNosForConflict) {
+                    wrongRequest.setIfSeqNo(2).setIfPrimaryTerm(2);
+                } else {
+                    wrongRequest.version(5);
+                }
 
                 execute(wrongRequest, highLevelClient()::index, highLevelClient()::indexAsync,
                         highLevelClient()::index, highLevelClient()::indexAsync);
             });
             assertEquals(RestStatus.CONFLICT, exception.status());
-            assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][id]: " +
-                         "version conflict, current version [2] is different than the one provided [5]]", exception.getMessage());
+            if (seqNosForConflict) {
+                assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][id]: " +
+                        "version conflict, required seqNo [1], primary term [5]. current document has seqNo [2] and primary term [1]]",
+                    exception.getMessage());
+            } else {
+                assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][id]: " +
+                    "version conflict, current version [2] is different than the one provided [5]]", exception.getMessage());
+            }
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         {
@@ -763,7 +794,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 if (opType == DocWriteRequest.OpType.INDEX) {
                     IndexRequest indexRequest = new IndexRequest("index", "test", id).source(source, xContentType);
                     if (erroneous) {
-                        indexRequest.version(12L);
+                        indexRequest.setIfSeqNo(12L);
+                        indexRequest.setIfPrimaryTerm(12L);
                     }
                     bulkRequest.add(indexRequest);
 
@@ -1075,7 +1107,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                     if (opType == DocWriteRequest.OpType.INDEX) {
                         IndexRequest indexRequest = new IndexRequest("index", "test", id).source(xContentType, "id", i);
                         if (erroneous) {
-                            indexRequest.version(12L);
+                            indexRequest.setIfSeqNo(12L);
+                            indexRequest.setIfPrimaryTerm(12L);
                         }
                         processor.add(indexRequest);
 

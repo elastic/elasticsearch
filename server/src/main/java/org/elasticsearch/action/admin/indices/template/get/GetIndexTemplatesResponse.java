@@ -41,7 +41,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
         indexTemplates = new ArrayList<>();
     }
 
-    public GetIndexTemplatesResponse(List<IndexTemplateMetaData> indexTemplates) {
+    GetIndexTemplatesResponse(List<IndexTemplateMetaData> indexTemplates) {
         this.indexTemplates = indexTemplates;
     }
 

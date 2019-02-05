@@ -23,19 +23,19 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
+import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
-    private DeprecationLogger deprecationLogger;
     private ThreadPool threadPool;
 
     @Before
     public void init() throws Exception {
-        this.deprecationLogger = mock(DeprecationLogger.class);
         this.threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
         Mockito.doAnswer((Answer) invocation -> {
@@ -48,12 +48,17 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
     }
 
     public void testSimpleAliasIndexPair() throws Exception {
+        final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
         final MetaData.Builder metaDataBuilder = MetaData.builder();
         addIndex(metaDataBuilder, "index", "alias");
-        final RoleDescriptor roleDescriptor = new RoleDescriptor("role1", null,
+        final RoleDescriptor roleOverAlias = new RoleDescriptor("roleOverAlias", null,
                 new RoleDescriptor.IndicesPrivileges[] { indexPrivileges("read", "alias") }, null);
-        DeprecationRoleDescriptorConsumer deprecation = new DeprecationRoleDescriptorConsumer(mockClusterService(metaDataBuilder.build()),
-                this.threadPool, deprecationLogger);
+        final RoleDescriptor roleOverIndex = new RoleDescriptor("roleOverIndex", null,
+                new RoleDescriptor.IndicesPrivileges[] { indexPrivileges("write", "index") }, null);
+        DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
+                mockClusterService(metaDataBuilder.build()), threadPool, deprecationLogger);
+        deprecationConsumer.accept(Arrays.asList(roleOverAlias, roleOverIndex));
+        verify(deprecationLogger).deprecated(DeprecationRoleDescriptorConsumer.DEPRECATION_STANZA, "roleOverAlias", "alias", "index");
     }
 
     private void addIndex(MetaData.Builder metaDataBuilder, String index, String... aliases) {
@@ -79,7 +84,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
                 .indices(indicesOrAliases)
                 .privileges(priv)
                 .grantedFields(randomArray(0, 2, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4)))
-                .query(randomFrom(null, "{ }"))
+                .query(randomBoolean() ? null : "{ }")
                 .build();
     }
 

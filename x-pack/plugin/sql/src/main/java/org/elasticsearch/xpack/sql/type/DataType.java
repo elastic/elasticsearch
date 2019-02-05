@@ -29,7 +29,7 @@ public enum DataType {
     BOOLEAN(       "boolean",        JDBCType.BOOLEAN,   1,                 1,                 1,  false, false, false),
     BYTE(          "byte",           JDBCType.TINYINT,   Byte.BYTES,        3,                 5,  true,  false, true),
     SHORT(         "short",          JDBCType.SMALLINT,  Short.BYTES,       5,                 6,  true,  false, true),
-    INTEGER(       "intenger",       JDBCType.INTEGER,   Integer.BYTES,     10,                11, true,  false, true),
+    INTEGER(       "integer",        JDBCType.INTEGER,   Integer.BYTES,     10,                11, true,  false, true),
     LONG(          "long",           JDBCType.BIGINT,    Long.BYTES,        19,                20, true,  false, true),
     // 53 bits defaultPrecision ~ 15(15.95) decimal digits (53log10(2)),
     DOUBLE(        "double",         JDBCType.DOUBLE,    Double.BYTES,      15,                25, false, true,  true),
@@ -57,7 +57,7 @@ public enum DataType {
     //
     // INTERVALS
     // the list is long as there are a lot of variations and that's what clients (ODBC) expect
-    //                        jdbc type,                         size,            prec,disp, int,   rat,   docvals
+    //           esType:null  jdbc type,                         size,            prec,disp, int,   rat,   docvals
     INTERVAL_YEAR(            ExtTypes.INTERVAL_YEAR,            Integer.BYTES,   7,    7,   false, false, false),
     INTERVAL_MONTH(           ExtTypes.INTERVAL_MONTH,           Integer.BYTES,   7,    7,   false, false, false),
     INTERVAL_DAY(             ExtTypes.INTERVAL_DAY,             Long.BYTES,      23,   23,  false, false, false),

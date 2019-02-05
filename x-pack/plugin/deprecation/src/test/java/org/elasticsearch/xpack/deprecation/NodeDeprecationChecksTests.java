@@ -64,6 +64,17 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issues, Matchers.containsInAnyOrder(expected));
     }
 
+    private void assertNoIssue(Settings settings) {
+        Settings nodeSettings = Settings.builder()
+            .put(settings)
+            .put(CLUSTER_NAME_SETTING.getKey(), "elasticsearch")
+            .put(NODE_NAME_SETTING.getKey(), "node_check")
+            .put(DISCOVERY_TYPE_SETTING.getKey(), "single-node") // Needed due to NodeDeprecationChecks#discoveryConfigurationCheck
+            .build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(nodeSettings, pluginsAndModules));
+        assertThat(issues, Matchers.empty());
+    }
+
     public void testHttpEnabledCheck() {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "HTTP Enabled setting removed",
@@ -351,5 +362,19 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .putList("xpack.security.authc.realms.ldap2.ssl.supported_protocols", generateRandomStringArray(3, 5, false, false))
             .build();
         assertSettingsAndIssues(settings, expected);
+    }
+
+    public void testTransportSslEnabledWithoutSecurityEnabled() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "TLS/SSL in use, but security not explicitly enabled",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#trial-explicit-security",
+            "security should be explicitly enabled (with [xpack.security.enabled])," +
+                " it will no longer be automatically enabled when transport SSL is enabled ([xpack.security.transport.ssl.enabled])");
+        assertSettingsAndIssue("xpack.security.transport.ssl.enabled", "true", expected);
+        assertNoIssue(Settings.builder()
+            .put("xpack.security.enabled", randomBoolean())
+            .put("xpack.security.transport.ssl.enabled", randomBoolean())
+            .build());
     }
 }

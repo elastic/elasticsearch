@@ -73,6 +73,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         client().performRequest(createTestIndex);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/36816")
     public void testMigration() throws Exception {
         // v5.5.0 is the first version where ml jobs can be
         // retained after upgrade

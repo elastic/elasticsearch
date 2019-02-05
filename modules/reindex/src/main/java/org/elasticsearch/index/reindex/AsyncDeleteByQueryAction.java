@@ -31,21 +31,21 @@ import org.elasticsearch.threadpool.ThreadPool;
 /**
  * Implementation of delete-by-query using scrolling and bulk.
  */
-public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest> {
+public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
+
     private final boolean useSeqNoForCAS;
 
     public AsyncDeleteByQueryAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                                    ThreadPool threadPool, DeleteByQueryRequest request, ScriptService scriptService,
-                                    ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
+                                    ThreadPool threadPool, TransportDeleteByQueryAction action, DeleteByQueryRequest request,
+                                    ScriptService scriptService, ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
         super(task,
             // not all nodes support sequence number powered optimistic concurrency control, we fall back to version
             clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0) == false,
             // all nodes support sequence number powered optimistic concurrency control and we can use it
             clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0),
-            logger, client, threadPool, request, scriptService, listener);
+            logger, client, threadPool, action, request, listener);
         useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
     }
-
 
     @Override
     protected boolean accept(ScrollableHitSource.Hit doc) {

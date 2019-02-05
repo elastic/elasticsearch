@@ -42,9 +42,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
@@ -55,7 +55,6 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -280,7 +279,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 public void run() {
                     if (timeout != null) {
                         NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
-                        notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
+                        notifyTimeout.cancellable = threadPool.schedule(notifyTimeout, timeout, ThreadPool.Names.GENERIC);
                         onGoingTimeouts.add(notifyTimeout);
                     }
                     timeoutClusterStateListeners.add(listener);
@@ -541,7 +540,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     class NotifyTimeout implements Runnable {
         final TimeoutClusterStateListener listener;
         final TimeValue timeout;
-        volatile ScheduledFuture future;
+        volatile Scheduler.Cancellable cancellable;
 
         NotifyTimeout(TimeoutClusterStateListener listener, TimeValue timeout) {
             this.listener = listener;
@@ -549,12 +548,14 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
 
         public void cancel() {
-            FutureUtils.cancel(future);
+            if (cancellable != null) {
+                cancellable.cancel();
+            }
         }
 
         @Override
         public void run() {
-            if (future != null && future.isCancelled()) {
+            if (cancellable != null && cancellable.isCancelled()) {
                 return;
             }
             if (lifecycle.stoppedOrClosed()) {

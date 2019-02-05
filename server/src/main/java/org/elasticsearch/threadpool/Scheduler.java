@@ -19,6 +19,9 @@
 
 package org.elasticsearch.threadpool;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -27,6 +30,8 @@ import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
+import java.util.concurrent.Delayed;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -39,6 +44,14 @@ import java.util.function.Consumer;
  */
 public interface Scheduler {
 
+    /**
+     * Create a scheduler that can be used client side. Server side, please use <code>ThreadPool.schedule</code> instead.
+     *
+     * Notice that if any scheduled jobs fail with an exception, they will be logged as a warning. This includes jobs started
+     * using execute, submit and schedule.
+     * @param settings the settings to use
+     * @return executor
+     */
     static ScheduledThreadPoolExecutor initScheduler(Settings settings) {
         final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(1,
                 EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
@@ -85,6 +98,24 @@ public interface Scheduler {
      * The command runs on scheduler thread. Do not run blocking calls on the scheduler thread. Subclasses may allow
      * to execute on a different executor, in which case blocking calls are allowed.
      *
+     * @param command the command to run
+     * @param delay delay before the task executes
+     * @param executor the name of the executor that has to execute this task. Ignored in the default implementation but can be used
+     *                 by subclasses that support multiple executors.
+     * @return a ScheduledFuture who's get will return when the task has been added to its target thread pool and throws an exception if
+     *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
+     *         the ScheduledFuture cannot interact with it.
+     * @throws EsRejectedExecutionException if the task cannot be scheduled for execution
+     */
+    ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor);
+
+    /**
+     * Schedules a one-shot command to be run after a given delay. The command is not run in the context of the calling thread.
+     * To preserve the context of the calling thread you may call {@link #preserveContext(Runnable)} on the runnable before passing
+     * it to this method.
+     * The command runs on scheduler thread. Do not run blocking calls on the scheduler thread. Subclasses may allow
+     * to execute on a different executor, in which case blocking calls are allowed.
+     *
      * @param delay delay before the task executes
      * @param executor the name of the executor that has to execute this task. Ignored in the default implementation but can be used
      *                 by subclasses that support multiple executors.
@@ -93,8 +124,12 @@ public interface Scheduler {
      *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
      *         the ScheduledFuture cannot interact with it.
      * @throws EsRejectedExecutionException if the task cannot be scheduled for execution
+     * @deprecated use {@link #schedule(Runnable, TimeValue, String)} instead
      */
-    ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command);
+    @Deprecated
+    default ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable command) {
+        return ScheduledCancellableAdapter.toScheduledFuture(schedule(command, delay, executor));
+    }
 
     /**
      * Schedules a periodic action that runs on scheduler thread. Do not run blocking calls on the scheduler thread. Subclasses may allow
@@ -112,6 +147,25 @@ public interface Scheduler {
     }
 
     /**
+     * Utility method to wrap a <code>Future</code> as a <code>Cancellable</code>
+     * @param future the future to wrap
+     * @return a cancellable delegating to the future
+     */
+    static Cancellable wrapAsCancellable(Future<?> future) {
+        return new CancellableAdapter(future);
+    }
+
+    /**
+     * Utility method to wrap a <code>ScheduledFuture</code> as a <code>ScheduledCancellable</code>
+     * @param scheduledFuture the scheduled future to wrap
+     * @return a SchedulecCancellable delegating to the scheduledFuture
+     */
+    static ScheduledCancellable wrapAsScheduledCancellable(ScheduledFuture<?> scheduledFuture) {
+        return new ScheduledCancellableAdapter(scheduledFuture);
+    }
+
+
+    /**
      * This interface represents an object whose execution may be cancelled during runtime.
      */
     interface Cancellable {
@@ -119,7 +173,7 @@ public interface Scheduler {
         /**
          * Cancel the execution of this object. This method is idempotent.
          */
-        void cancel();
+        boolean cancel();
 
         /**
          * Check if the execution has been cancelled
@@ -127,6 +181,11 @@ public interface Scheduler {
          */
         boolean isCancelled();
     }
+
+    /**
+     * A scheduled cancellable allow cancelling and reading the remaining delay of a scheduled task.
+     */
+    interface ScheduledCancellable extends Delayed, Cancellable { }
 
     /**
      * This class encapsulates the scheduling of a {@link Runnable} that needs to be repeated on a interval. For example, checking a value
@@ -165,12 +224,14 @@ public interface Scheduler {
             this.scheduler = scheduler;
             this.rejectionConsumer = rejectionConsumer;
             this.failureConsumer = failureConsumer;
-            scheduler.schedule(interval, executor, this);
+            scheduler.schedule(this, interval, executor);
         }
 
         @Override
-        public void cancel() {
+        public boolean cancel() {
+            final boolean result = run;
             run = false;
+            return result;
         }
 
         @Override
@@ -202,7 +263,7 @@ public interface Scheduler {
             // if this has not been cancelled reschedule it to run again
             if (run) {
                 try {
-                    scheduler.schedule(interval, executor, this);
+                    scheduler.schedule(this, interval, executor);
                 } catch (final EsRejectedExecutionException e) {
                     onRejection(e);
                 }
@@ -211,9 +272,10 @@ public interface Scheduler {
     }
 
     /**
-     * This subclass ensures to properly bubble up Throwable instances of type Error.
+     * This subclass ensures to properly bubble up Throwable instances of type Error and logs exceptions thrown in submitted/scheduled tasks
      */
     class SafeScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor {
+        private static final Logger logger = LogManager.getLogger(SafeScheduledThreadPoolExecutor.class);
 
         @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
         public SafeScheduledThreadPoolExecutor(int corePoolSize, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
@@ -232,7 +294,12 @@ public interface Scheduler {
 
         @Override
         protected void afterExecute(Runnable r, Throwable t) {
-            EsExecutors.rethrowErrors(r);
+            Throwable exception = EsExecutors.rethrowErrors(r);
+            if (exception != null) {
+                logger.warn(() ->
+                    new ParameterizedMessage("uncaught exception in scheduled thread [{}]", Thread.currentThread().getName()),
+                    exception);
+            }
         }
     }
 }

@@ -111,6 +111,7 @@ import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -212,6 +213,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return globalCheckpointSyncer;
     }
 
+    private final RetentionLeaseSyncer retentionLeaseSyncer;
+
     @Nullable
     private RecoveryState recoveryState;
 
@@ -266,7 +269,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final List<SearchOperationListener> searchOperationListener,
             final List<IndexingOperationListener> listeners,
             final Runnable globalCheckpointSyncer,
-            final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> retentionLeaseSyncer,
+            final RetentionLeaseSyncer retentionLeaseSyncer,
             final CircuitBreakerService circuitBreakerService) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -288,6 +291,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         listenersList.add(internalIndexingStats);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
         this.globalCheckpointSyncer = globalCheckpointSyncer;
+        this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         final List<SearchOperationListener> searchListenersList = new ArrayList<>(searchOperationListener);
         searchListenersList.add(searchStats);
         this.searchOperationListener = new SearchOperationListener.CompositeListener(searchListenersList, logger);
@@ -322,7 +326,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         UNASSIGNED_SEQ_NO,
                         globalCheckpointListeners::globalCheckpointUpdated,
                         threadPool::absoluteTimeInMillis,
-                        retentionLeaseSyncer);
+                        (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, retentionLeases, listener));
         this.replicationTracker = replicationTracker;
 
         // the query cache is a node-level thing, however we want the most popular filters
@@ -1925,7 +1929,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Get all non-expired retention leases tracked on this shard. An unmodifiable copy of the retention leases is returned.
+     * Get all non-expired retention leases tracked on this shard.
      *
      * @return the retention leases
      */
@@ -1984,6 +1988,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertReplicationTarget();
         verifyNotClosed();
         replicationTracker.updateRetentionLeasesOnReplica(retentionLeases);
+    }
+
+    /**
+     * Syncs the current retention leases to all replicas.
+     */
+    public void backgroundSyncRetentionLeases() {
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        retentionLeaseSyncer.backgroundSync(shardId, getRetentionLeases());
     }
 
     /**

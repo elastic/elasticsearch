@@ -63,3 +63,6 @@ java.util.concurrent.ScheduledThreadPoolExecutor#<init>(int)
 java.util.concurrent.ScheduledThreadPoolExecutor#<init>(int, java.util.concurrent.ThreadFactory)
 java.util.concurrent.ScheduledThreadPoolExecutor#<init>(int, java.util.concurrent.RejectedExecutionHandler)
 java.util.concurrent.ScheduledThreadPoolExecutor#<init>(int, java.util.concurrent.ThreadFactory, java.util.concurrent.RejectedExecutionHandler)
+
+@defaultMessage use Scheduler.schedule(Runnable, delay, executor) instead (mocking tests typically rely on that signature).
+org.elasticsearch.threadpool.Scheduler#schedule(org.elasticsearch.common.unit.TimeValue, java.lang.String, java.lang.Runnable)

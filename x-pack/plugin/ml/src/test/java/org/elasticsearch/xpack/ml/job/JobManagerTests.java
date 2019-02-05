@@ -989,7 +989,7 @@ public class JobManagerTests extends ESTestCase {
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[3];
             listener.onFailure(new ResourceNotFoundException("missing job"));
             return null;
-        }).when(jobConfigProvider).updateJob(anyString(), any(), any(), any(ActionListener.class));
+        }).when(jobConfigProvider).updateJob(anyString(), any(), any(), any(Version.class), any(ActionListener.class));
 
         JobManager jobManager = new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
                 auditor, threadPool, mock(Client.class), updateJobProcessNotifier, jobConfigProvider);
@@ -1009,7 +1009,7 @@ public class JobManagerTests extends ESTestCase {
 
         jobManager.revertSnapshot(request, mock(ActionListener.class), modelSnapshot);
         verify(clusterService, times(1)).submitStateUpdateTask(eq("revert-snapshot-cs-revert"), any(AckedClusterStateUpdateTask.class));
-        verify(jobConfigProvider, never()).updateJob(any(), any(), any(), any());
+        verify(jobConfigProvider, never()).updateJob(any(), any(), any(), any(Version.class), any());
     }
 
     private Job.Builder createJobFoo() {

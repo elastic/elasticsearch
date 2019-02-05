@@ -120,7 +120,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncRefreshTask refreshTask;
     private volatile AsyncTranslogFSync fsyncTask;
     private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
-    private volatile AsyncRetentionLeaseBackgroundSyncTask retentionLeaseBackgroundSyncTask;
+    private volatile AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -197,7 +197,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.refreshTask = new AsyncRefreshTask(this);
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
-        this.retentionLeaseBackgroundSyncTask = new AsyncRetentionLeaseBackgroundSyncTask(this);
+        this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         rescheduleFsyncTask(indexSettings.getTranslogDurability());
     }
 
@@ -288,7 +288,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         fsyncTask,
                         trimTranslogTask,
                         globalCheckpointTask,
-                        retentionLeaseBackgroundSyncTask);
+                        retentionLeaseSyncTask);
             }
         }
     }
@@ -770,8 +770,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         sync(is -> is.maybeSyncGlobalCheckpoint("background"), "global checkpoint");
     }
 
-    private void backgroundSyncRetentionLeases() {
-        sync(IndexShard::backgroundSyncRetentionLeases, "retention lease");
+    private void syncRetentionLeases() {
+        sync(IndexShard::syncRetentionLeases, "retention lease");
     }
 
     private void sync(final Consumer<IndexShard> sync, final String source) {
@@ -794,11 +794,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                                 && e instanceof IndexShardClosedException == false) {
                                             logger.warn(
                                                     new ParameterizedMessage(
-                                                            "{} failed to execute background {} sync", shard.shardId(), source), e);
+                                                            "{} failed to execute {} sync", shard.shardId(), source), e);
                                         }
                                     },
                                     ThreadPool.Names.SAME,
-                                    "background " + source + " sync");
+                                    source + " sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }
@@ -939,15 +939,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    final class AsyncRetentionLeaseBackgroundSyncTask extends BaseAsyncTask {
+    final class AsyncRetentionLeaseSyncTask extends BaseAsyncTask {
 
-        AsyncRetentionLeaseBackgroundSyncTask(final IndexService indexService) {
+        AsyncRetentionLeaseSyncTask(final IndexService indexService) {
             super(indexService, RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings()));
         }
 
         @Override
         protected void runInternal() {
-            indexService.backgroundSyncRetentionLeases();
+            indexService.syncRetentionLeases();
         }
 
         @Override
@@ -957,7 +957,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         public String toString() {
-            return "retention_lease_background_sync";
+            return "retention_lease_sync";
         }
 
     }

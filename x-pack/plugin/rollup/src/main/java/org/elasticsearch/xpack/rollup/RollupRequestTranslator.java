@@ -22,8 +22,8 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
+import org.joda.time.DateTimeZone;
 
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -220,7 +220,7 @@ public class RollupRequestTranslator {
                 rolledDateHisto.interval(source.interval());
             }
 
-            String timezone = source.timeZone() == null ? ZoneOffset.UTC.toString() : source.timeZone().toString();
+            String timezone = source.timeZone() == null ? DateTimeZone.UTC.toString() : source.timeZone().toString();
             filterConditions.add(new TermQueryBuilder(RollupField.formatFieldName(source,
                 DateHistogramGroupConfig.TIME_ZONE), timezone));
 

@@ -43,11 +43,10 @@ import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
+import org.joda.time.DateTime;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -78,7 +77,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         int numDocs = randomIntBetween(1,10);
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
-            long timestamp = ZonedDateTime.now(ZoneOffset.UTC).minusDays(i).toInstant().toEpochMilli();
+            long timestamp = new DateTime().minusDays(i).getMillis();
             document.add(new SortedNumericDocValuesField(timestampField, timestamp));
             document.add(new LongPoint(timestampField, timestamp));
             document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1,100)));
@@ -142,7 +141,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         int numDocs = randomIntBetween(1,10);
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
-            long timestamp = ZonedDateTime.now(ZoneOffset.UTC).minusDays(i).toInstant().toEpochMilli();
+            long timestamp = new DateTime().minusDays(i).getMillis();
             document.add(new SortedNumericDocValuesField(timestampField, timestamp));
             document.add(new LongPoint(timestampField, timestamp));
             document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1,100)));
@@ -266,7 +265,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         int numDocs = randomIntBetween(1,10);
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
-            long timestamp = ZonedDateTime.now(ZoneOffset.UTC).minusDays(i).toInstant().toEpochMilli();
+            long timestamp = new DateTime().minusDays(i).getMillis();
             document.add(new SortedNumericDocValuesField(timestampField, timestamp));
             document.add(new LongPoint(timestampField, timestamp));
             document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1,100)));

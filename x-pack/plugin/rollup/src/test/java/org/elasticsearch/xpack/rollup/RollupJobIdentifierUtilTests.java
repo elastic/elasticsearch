@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
+import org.joda.time.DateTimeZone;
 
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -310,7 +311,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         final GroupConfig group = new GroupConfig(
                     // NOTE same name but wrong type
-                    new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId()),
+                    new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID()),
                     new HistogramGroupConfig(1L, "baz"), // <-- NOTE right type but wrong name
                     null
                 );
@@ -333,7 +334,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
 
         final GroupConfig group = new GroupConfig(
-                    new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId())
+                    new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID())
                 );
         final List<MetricConfig> metrics =
                     Arrays.asList(new MetricConfig("max_field", singletonList("max")), new MetricConfig("avg_field", singletonList("avg")));
@@ -355,7 +356,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         final GroupConfig group = new GroupConfig(
                     // interval in job is much higher than agg interval above
-                    new DateHistogramGroupConfig("foo", new DateHistogramInterval("100d"), null, ZoneOffset.UTC.getId())
+                    new DateHistogramGroupConfig("foo", new DateHistogramInterval("100d"), null, DateTimeZone.UTC.getID())
                 );
         final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
@@ -374,7 +375,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         final GroupConfig group = new GroupConfig(
                     // NOTE different field from the one in the query
-                    new DateHistogramGroupConfig("bar", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId())
+                    new DateHistogramGroupConfig("bar", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID())
                 );
         final List<MetricConfig> metrics =
                     Arrays.asList(new MetricConfig("max_field", singletonList("max")), new MetricConfig("avg_field", singletonList("avg")));
@@ -395,7 +396,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
 
         final GroupConfig group = new GroupConfig(
-                    new DateHistogramGroupConfig("bar", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId()),
+                    new DateHistogramGroupConfig("bar", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID()),
                     new HistogramGroupConfig(1L, "baz"), // <-- NOTE right type but wrong name
                     null
                 );
@@ -418,7 +419,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
 
         final GroupConfig group = new GroupConfig(
-                    new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId()),
+                    new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID()),
                     new HistogramGroupConfig(1L, "baz"), // <-- NOTE right type but wrong name
                     null
                 );

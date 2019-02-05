@@ -70,8 +70,8 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 public class DiscoveryModule {
     private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
 
-    public static final String ZEN_DISCOVERY_TYPE = "zen";
-    public static final String ZEN2_DISCOVERY_TYPE = "zen2";
+    public static final String ZEN_DISCOVERY_TYPE = "legacy-zen";
+    public static final String ZEN2_DISCOVERY_TYPE = "zen";
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
         new Setting<>("discovery.type", ZEN2_DISCOVERY_TYPE, Function.identity(), Property.NodeScope);

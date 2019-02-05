@@ -29,8 +29,7 @@ import static org.hamcrest.Matchers.containsString;
 public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEvent> {
 
     public static ScheduledEvent createScheduledEvent(String calendarId) {
-        long millis = Clock.system(randomZone()).millis();// TODO we are converting to UTC anyway??
-        ZonedDateTime start = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC);
+        ZonedDateTime start = Clock.systemUTC().instant().atZone(ZoneOffset.UTC);
         return new ScheduledEvent(randomAlphaOfLength(10), start, start.plusSeconds(randomIntBetween(1, 10000)),
                 calendarId, null);
     }

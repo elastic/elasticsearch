@@ -24,6 +24,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -37,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchParseException;
@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RankEvalResponseTests extends ESTestCase {
 
     private static final Exception[] RANDOM_EXCEPTIONS = new Exception[] {
-            new ClusterBlockException(singleton(DiscoverySettings.NO_MASTER_BLOCK_WRITES)),
+            new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
             new CircuitBreakingException("Data too large", 123, 456, CircuitBreaker.Durability.PERMANENT),
             new SearchParseException(new TestSearchContext(null), "Parse failure", new XContentLocation(12, 98)),
             new IllegalArgumentException("Closed resource", new RuntimeException("Resource")),

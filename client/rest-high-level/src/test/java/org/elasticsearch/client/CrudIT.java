@@ -138,7 +138,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 () -> execute(deleteRequest, highLevelClient()::delete, highLevelClient()::deleteAsync));
             assertEquals(RestStatus.CONFLICT, exception.status());
             assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[_doc][" + docId + "]: " +
-                "version conflict, current version [1] is different than the one provided [2]]", exception.getMessage());
+                "version conflict, required seqNo [2], primary term [2]. current document has seqNo [3] and primary term [1]]", exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         {
@@ -527,7 +527,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             });
             assertEquals(RestStatus.CONFLICT, exception.status());
             assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[_doc][id]: " +
-                         "version conflict, current version [2] is different than the one provided [5]]", exception.getMessage());
+                         "version conflict, required seqNo [1], primary term [5]. current document has seqNo [2] and primary term [1]]",
+                exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         {

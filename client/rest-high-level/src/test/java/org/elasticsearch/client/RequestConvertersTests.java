@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
@@ -131,6 +132,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
 
+@Repeat(iterations = 200)
 public class RequestConvertersTests extends ESTestCase {
     public void testPing() {
         Request request = RequestConverters.ping();
@@ -281,6 +283,7 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomRefreshPolicy(deleteRequest::setRefreshPolicy, expectedParams);
         setRandomVersion(deleteRequest, expectedParams);
         setRandomVersionType(deleteRequest::versionType, expectedParams);
+        setRandomIfSeqNoAndTerm(deleteRequest, expectedParams);
 
         if (frequently()) {
             if (randomBoolean()) {
@@ -631,6 +634,7 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             setRandomVersion(indexRequest, expectedParams);
             setRandomVersionType(indexRequest::versionType, expectedParams);
+            setRandomIfSeqNoAndTerm(indexRequest, expectedParams);
         }
 
         if (frequently()) {
@@ -768,6 +772,7 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
         setRandomVersion(updateRequest, expectedParams);
         setRandomVersionType(updateRequest::versionType, expectedParams);
+        setRandomIfSeqNoAndTerm(updateRequest, expectedParams);
         if (randomBoolean()) {
             int retryOnConflict = randomIntBetween(0, 5);
             updateRequest.retryOnConflict(retryOnConflict);
@@ -798,6 +803,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(updateRequest.docAsUpsert(), parsedUpdateRequest.docAsUpsert());
         assertEquals(updateRequest.detectNoop(), parsedUpdateRequest.detectNoop());
         assertEquals(updateRequest.fetchSource(), parsedUpdateRequest.fetchSource());
+        assertIfSeqNoAndTerm(updateRequest, parsedUpdateRequest);
         assertEquals(updateRequest.script(), parsedUpdateRequest.script());
         if (updateRequest.doc() != null) {
             assertToXContentEquivalent(updateRequest.doc().source(), parsedUpdateRequest.doc().source(), xContentType);
@@ -808,6 +814,22 @@ public class RequestConvertersTests extends ESTestCase {
             assertToXContentEquivalent(updateRequest.upsertRequest().source(), parsedUpdateRequest.upsertRequest().source(), xContentType);
         } else {
             assertNull(parsedUpdateRequest.upsertRequest());
+        }
+    }
+
+    private void assertIfSeqNoAndTerm(DocWriteRequest<?>request, DocWriteRequest<?> parsedRequest) {
+        assertEquals(request.ifSeqNo(), parsedRequest.ifSeqNo());
+        assertEquals(request.ifPrimaryTerm(), parsedRequest.ifPrimaryTerm());
+    }
+
+    private void setRandomIfSeqNoAndTerm(DocWriteRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            final long seqNo = randomNonNegativeLong();
+            request.setIfSeqNo(seqNo);
+            expectedParams.put("if_seq_no", Long.toString(seqNo));
+            final long primaryTerm = randomLongBetween(1, 200);
+            request.setIfPrimaryTerm(primaryTerm);
+            expectedParams.put("if_primary_term", Long.toString(primaryTerm));
         }
     }
 

@@ -185,9 +185,9 @@ prevent having to specify them with each single request
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-max-retry-timeout]
 --------------------------------------------------
 <1> Set the timeout that should be honoured in case multiple attempts are made
-for the same request. The default value is 30 seconds, same as the default
-socket timeout. In case the socket timeout is customized, the maximum retry
-timeout should be adjusted accordingly
+for the same request. The default value is 90 seconds. In case the socket
+timeout is set to a higher value, the max retry timeout should be adjusted
+accordingly. deprecated[6.7.0, max retry timeout will be removed in 7.0.0]
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

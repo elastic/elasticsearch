@@ -72,7 +72,7 @@ final class Pre67PutFollow {
 
             @Override
             public ClusterState execute(final ClusterState currentState) throws Exception {
-                String followIndex = request.getFollowRequest().getFollowerIndex();
+                String followIndex = request.getFollowerIndex();
                 IndexMetaData currentIndex = currentState.metaData().index(followIndex);
                 if (currentIndex != null) {
                     throw new ResourceAlreadyExistsException(currentIndex.getIndex());
@@ -112,10 +112,10 @@ final class Pre67PutFollow {
                 ClusterState updatedState = builder.build();
 
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
-                    .addAsNew(updatedState.metaData().index(request.getFollowRequest().getFollowerIndex()));
+                    .addAsNew(updatedState.metaData().index(request.getFollowerIndex()));
                 updatedState = allocationService.reroute(
                     ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
-                    "follow index [" + request.getFollowRequest().getFollowerIndex() + "] created");
+                    "follow index [" + request.getFollowerIndex() + "] created");
 
                 logger.info("[{}] creating index, cause [ccr_create_and_follow], shards [{}]/[{}]",
                     followIndex, followIMD.getNumberOfShards(), followIMD.getNumberOfReplicas());
@@ -126,10 +126,13 @@ final class Pre67PutFollow {
     }
 
     private void initiateFollowing(final PutFollowAction.Request request, final ActionListener<PutFollowAction.Response> listener) {
-        activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},
+        activeShardsObserver.waitForActiveShards(new String[]{request.getFollowerIndex()},
             ActiveShardCount.DEFAULT, request.timeout(), result -> {
                 if (result) {
-                    client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
+                    ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
+                    resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
+                    resumeFollowRequest.setParameters(request.getParameters());
+                    client.execute(ResumeFollowAction.INSTANCE, resumeFollowRequest, ActionListener.wrap(
                         r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
                         listener::onFailure
                     ));

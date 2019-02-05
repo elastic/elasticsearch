@@ -358,6 +358,10 @@ public final class IndexSettings {
         return retentionLeaseMillis;
     }
 
+    private void setRetentionLeaseMillis(final TimeValue retentionLease) {
+        this.retentionLeaseMillis = retentionLease.millis();
+    }
+
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
@@ -546,6 +550,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING, this::setRetentionLeaseMillis);
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {

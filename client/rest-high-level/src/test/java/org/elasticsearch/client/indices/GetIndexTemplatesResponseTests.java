@@ -22,10 +22,16 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
@@ -33,6 +39,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +48,10 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
+import static org.elasticsearch.index.RandomCreateIndexGenerator.randomMappingFields;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.hamcrest.Matchers.equalTo;
 
 public class GetIndexTemplatesResponseTests extends ESTestCase {
     
@@ -60,6 +71,66 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
             .randomFieldsExcludeFilter(randomFieldsExcludeFilter())
             .shuffleFieldsExceptions(new String[] {"aliases", "mappings", "patterns", "settings"})
             .test();
+    }
+
+    public void testParsingFromEsResponse() throws IOException {
+        for (int runs = 0; runs < 20; runs++) {
+            org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse esResponse =
+                new org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse(new ArrayList<>());
+
+            XContentType xContentType = randomFrom(XContentType.values());
+            int numTemplates = randomIntBetween(0, 32);
+            for (int i = 0; i < numTemplates; i++) {
+                org.elasticsearch.cluster.metadata.IndexTemplateMetaData.Builder esIMD =
+                    new org.elasticsearch.cluster.metadata.IndexTemplateMetaData.Builder(String.format("%02d ", i) + randomAlphaOfLength(4));
+                esIMD.patterns(Arrays.asList(generateRandomStringArray(32, 4, false, false)));
+                esIMD.settings(randomIndexSettings());
+                esIMD.putMapping("_doc", new CompressedXContent(BytesReference.bytes(randomMapping("_doc", xContentType))));
+                int numAliases = randomIntBetween(0, 8);
+                for (int j = 0; j < numAliases; j++) {
+                    esIMD.putAlias(randomAliasMetaData(String.format("%02d ", j) + randomAlphaOfLength(4)));
+                }
+                esIMD.order(randomIntBetween(0, Integer.MAX_VALUE));
+                esIMD.version(randomIntBetween(0, Integer.MAX_VALUE));
+                esResponse.getIndexTemplates().add(esIMD.build());
+            }
+
+            XContentBuilder xContentBuilder = XContentBuilder.builder(xContentType.xContent());
+            esResponse.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(xContentBuilder), xContentType)) {
+                GetIndexTemplatesResponse response = GetIndexTemplatesResponse.fromXContent(parser);
+                assertThat(response.getIndexTemplates().size(), equalTo(numTemplates));
+
+                response.getIndexTemplates().sort(Comparator.comparing(IndexTemplateMetaData::name));
+                for (int i = 0; i < numTemplates; i++) {
+                    org.elasticsearch.cluster.metadata.IndexTemplateMetaData esIMD = esResponse.getIndexTemplates().get(i);
+                    IndexTemplateMetaData result = response.getIndexTemplates().get(i);
+
+                    assertThat(result.patterns(), equalTo(esIMD.patterns()));
+                    assertThat(result.settings(), equalTo(esIMD.settings()));
+                    assertThat(result.order(), equalTo(esIMD.order()));
+                    assertThat(result.version(), equalTo(esIMD.version()));
+
+                    assertThat(esIMD.mappings().size(), equalTo(1));
+                    BytesArray mappingSource = new BytesArray(esIMD.mappings().valuesIt().next().uncompressed());
+                    Map<String, Object> expectedMapping = XContentHelper.convertToMap(mappingSource, true, xContentBuilder.contentType()).v2();
+                    assertThat(result.mappings().sourceAsMap(), equalTo(expectedMapping.get("_doc")));
+
+                    assertThat(result.aliases().size(), equalTo(esIMD.aliases().size()));
+                    List<AliasMetaData> expectedAliases = Arrays.stream(esIMD.aliases().values().toArray(AliasMetaData.class))
+                        .sorted(Comparator.comparing(AliasMetaData::alias))
+                        .collect(Collectors.toList());
+                    List<AliasMetaData> actualAliases = Arrays.stream(result.aliases().values().toArray(AliasMetaData.class))
+                        .sorted(Comparator.comparing(AliasMetaData::alias))
+                        .collect(Collectors.toList());
+                    for (int j = 0; j < result.aliases().size(); j++) {
+                        assertThat(actualAliases.get(j), equalTo(expectedAliases.get(j)));
+                    }
+                }
+            }
+        }
     }
 
     private Predicate<String> randomFieldsExcludeFilter() {
@@ -148,5 +219,40 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
         org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse serverResponse = new        
                 org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse(serverIndexTemplates);
         serverResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
+    }
+
+    private static AliasMetaData randomAliasMetaData(String name) {
+        AliasMetaData.Builder alias = AliasMetaData.builder(name);
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                alias.routing(randomAlphaOfLength(5));
+            } else {
+                if (randomBoolean()) {
+                    alias.indexRouting(randomAlphaOfLength(5));
+                }
+                if (randomBoolean()) {
+                    alias.searchRouting(randomAlphaOfLength(5));
+                }
+            }
+        }
+
+        if (randomBoolean()) {
+            alias.filter("{\"term\":{\"year\":2016}}");
+        }
+
+        if (randomBoolean()) {
+            alias.writeIndex(randomBoolean());
+        }
+        return alias.build();
+    }
+
+    static XContentBuilder randomMapping(String type, XContentType xContentType) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+        builder.startObject().startObject(type);
+
+        randomMappingFields(builder, true);
+
+        builder.endObject().endObject();
+        return builder;
     }
 }

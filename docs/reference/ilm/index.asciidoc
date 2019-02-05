@@ -49,11 +49,11 @@ hardware.
 
 [IMPORTANT]
 ===========================
-{ilm} does not support mixed-cluster usage. Usage of new policies using
-new actions that do not exist in the oldest version of a cluster with
-mixed-versioned nodes. Although it may be possible to create such new
-policies against newer-versioned nodes, there is no guarantee they
-will work as intended.
+{ilm} does not support mixed-cluster usage. Although it
+may be possible to create such new policies against
+newer-versioned nodes, there is no guarantee they will
+work as intended. New policies using new actions that
+do not exist in the oldest versioned node will cause errors.
 ===========================
 
 --

@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -54,6 +55,17 @@ public class SetsTests extends ESTestCase {
                 current = next;
             }
         }
+    }
+
+    public void testIntersection() {
+        final int endExclusive = randomIntBetween(0, 256);
+        final Tuple<Set<Integer>, Set<Integer>> sets = randomSets(endExclusive);
+        final Set<Integer> intersection = Sets.intersection(sets.v1(), sets.v2());
+        final Set<Integer> expectedIntersection = IntStream.range(0, endExclusive)
+                .boxed()
+                .filter(i -> (sets.v1().contains(i) && sets.v2().contains(i)))
+                .collect(Collectors.toSet());
+        assertThat(intersection, containsInAnyOrder(expectedIntersection.toArray(new Integer[0])));
     }
 
     /**

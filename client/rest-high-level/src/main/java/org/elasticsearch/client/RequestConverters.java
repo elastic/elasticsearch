@@ -108,6 +108,8 @@ final class RequestConverters {
         parameters.withTimeout(deleteRequest.timeout());
         parameters.withVersion(deleteRequest.version());
         parameters.withVersionType(deleteRequest.versionType());
+        parameters.withIfSeqNo(deleteRequest.ifSeqNo());
+        parameters.withIfPrimaryTerm(deleteRequest.ifPrimaryTerm());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
         return request;
@@ -313,6 +315,8 @@ final class RequestConverters {
         parameters.withTimeout(indexRequest.timeout());
         parameters.withVersion(indexRequest.version());
         parameters.withVersionType(indexRequest.versionType());
+        parameters.withIfSeqNo(indexRequest.ifSeqNo());
+        parameters.withIfPrimaryTerm(indexRequest.ifPrimaryTerm());
         parameters.withPipeline(indexRequest.getPipeline());
         parameters.withRefreshPolicy(indexRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);

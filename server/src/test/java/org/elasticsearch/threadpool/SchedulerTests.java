@@ -19,7 +19,6 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -29,12 +28,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -157,37 +153,4 @@ public class SchedulerTests extends ESTestCase {
             Scheduler.terminate(executor, 10, TimeUnit.SECONDS);
         }
     }
-
-    @SuppressForbidden(reason = "this tests that the deprecated method still works")
-    public void testDeprecatedSchedule() throws ExecutionException, InterruptedException {
-        verifyDeprecatedSchedule(((threadPool, runnable)
-            -> threadPool.schedule(TimeValue.timeValueMillis(randomInt(10)), ThreadPool.Names.SAME, runnable)));
-    }
-
-    public void testThreadPoolScheduleDeprecated() throws ExecutionException, InterruptedException {
-        verifyDeprecatedSchedule(((threadPool, runnable)
-            -> threadPool.scheduleDeprecated(TimeValue.timeValueMillis(randomInt(10)), ThreadPool.Names.SAME, runnable)));
-    }
-
-    private void verifyDeprecatedSchedule(BiFunction<ThreadPool,
-        Runnable, ScheduledFuture<?>> scheduleFunction) throws InterruptedException, ExecutionException {
-        ThreadPool threadPool = new TestThreadPool("test");
-        CountDownLatch missingExecutions = new CountDownLatch(1);
-        try {
-            scheduleFunction.apply(threadPool, missingExecutions::countDown)
-                .get();
-            assertEquals(0, missingExecutions.getCount());
-
-            ExecutionException exception = expectThrows(ExecutionException.class,
-                "schedule(...).get() must throw exception from runnable",
-                () -> scheduleFunction.apply(threadPool,
-                    () -> { throw new IllegalArgumentException("FAIL"); }
-                ).get());
-
-            assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
-        } finally {
-            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        }
-    }
-
 }

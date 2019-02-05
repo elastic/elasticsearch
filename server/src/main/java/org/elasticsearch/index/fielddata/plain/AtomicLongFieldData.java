@@ -50,8 +50,12 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
     @Override
     public final ScriptDocValues<?> getScriptValues() {
         switch (numericType) {
+        // for now, dates and nanoseconds are treated the same, which also means, that the precision is only on millisecond level
         case DATE:
-            return new ScriptDocValues.Dates(getLongValues());
+            return new ScriptDocValues.Dates(getLongValues(), false);
+        case DATE_NANOSECONDS:
+            assert this instanceof SortedNumericDVIndexFieldData.NanoSecondFieldData;
+            return new ScriptDocValues.Dates(((SortedNumericDVIndexFieldData.NanoSecondFieldData) this).getLongValuesAsNanos(), true);
         case BOOLEAN:
             return new ScriptDocValues.Booleans(getLongValues());
         default:

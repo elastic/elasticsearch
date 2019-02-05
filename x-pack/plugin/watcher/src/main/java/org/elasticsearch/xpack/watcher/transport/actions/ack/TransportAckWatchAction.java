@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.transport.actions.ack;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -35,16 +34,16 @@ import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequest, AckWatchResponse> {
 
@@ -84,7 +83,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                         if (getResponse.isExists() == false) {
                             listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId()));
                         } else {
-                            DateTime now = new DateTime(clock.millis(), UTC);
+                            ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
                             Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(),
                                 now, XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());
                             watch.status().version(getResponse.getVersion());
@@ -102,12 +101,8 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
                             UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId());
                             // this may reject this action, but prevents concurrent updates from a watch execution
-                            if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_0_0)) {
-                                updateRequest.setIfSeqNo(getResponse.getSeqNo());
-                                updateRequest.setIfPrimaryTerm(getResponse.getPrimaryTerm());
-                            } else {
-                                updateRequest.version(getResponse.getVersion());
-                            }
+                            updateRequest.setIfSeqNo(getResponse.getSeqNo());
+                            updateRequest.setIfPrimaryTerm(getResponse.getPrimaryTerm());
                             updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                             XContentBuilder builder = jsonBuilder();
                             builder.startObject()

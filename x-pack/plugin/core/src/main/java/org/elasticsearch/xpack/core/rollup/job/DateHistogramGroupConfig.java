@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -238,16 +237,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         } else {
             rounding = new Rounding.Builder(TimeValue.parseTimeValue(expr, "createRounding"));
         }
-        rounding.timeZone(ZoneId.of(timeZone));
+        rounding.timeZone(ZoneId.of(timeZone, ZoneId.SHORT_IDS));
         return rounding.build();
     }
-
-    private static DateTimeZone toDateTimeZone(final String timezone) {
-        try {
-            return DateTimeZone.forOffsetHours(Integer.parseInt(timezone));
-        } catch (NumberFormatException e) {
-            return DateTimeZone.forID(timezone);
-        }
-    }
-
 }

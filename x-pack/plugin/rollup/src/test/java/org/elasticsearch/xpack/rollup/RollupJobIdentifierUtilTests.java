@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.joda.time.DateTimeZone;
 
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -672,14 +673,14 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
             .dateHistogramInterval(job.getGroupConfig().getDateHistogram().getInterval())
-            .timeZone(DateTimeZone.forID("Canada/Mountain"));
+            .timeZone(ZoneId.of("Canada/Mountain"));
 
         Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
         assertThat(bestCaps.size(), equalTo(1));
 
         builder = new DateHistogramAggregationBuilder("foo").field("foo")
             .dateHistogramInterval(job.getGroupConfig().getDateHistogram().getInterval())
-            .timeZone(DateTimeZone.forID("America/Edmonton"));
+            .timeZone(ZoneId.of("America/Edmonton"));
 
         bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
         assertThat(bestCaps.size(), equalTo(1));
@@ -694,14 +695,14 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         builder = new DateHistogramAggregationBuilder("foo").field("foo")
             .dateHistogramInterval(job.getGroupConfig().getDateHistogram().getInterval())
-            .timeZone(DateTimeZone.forID("Canada/Mountain"));
+            .timeZone(ZoneId.of("Canada/Mountain"));
 
         bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
         assertThat(bestCaps.size(), equalTo(1));
 
         builder = new DateHistogramAggregationBuilder("foo").field("foo")
             .dateHistogramInterval(job.getGroupConfig().getDateHistogram().getInterval())
-            .timeZone(DateTimeZone.forID("America/Edmonton"));
+            .timeZone(ZoneId.of("America/Edmonton"));
 
         bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
         assertThat(bestCaps.size(), equalTo(1));

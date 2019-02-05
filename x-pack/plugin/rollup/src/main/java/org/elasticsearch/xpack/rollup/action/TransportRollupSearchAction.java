@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.rollup.RollupJobIdentifierUtils;
 import org.elasticsearch.xpack.rollup.RollupRequestTranslator;
 import org.elasticsearch.xpack.rollup.RollupResponseTranslator;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -291,17 +290,16 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             String fieldName = range.fieldName();
             // Many range queries don't include the timezone because the default is UTC, but the query
             // builder will return null so we need to set it here
-            String timeZone = range.timeZone() == null ? DateTimeZone.UTC.toString() : range.timeZone();
+            String timeZone = range.timeZone() == null ? DateHistogramGroupConfig.DEFAULT_ZONEID_TIMEZONE.toString() : range.timeZone();
 
             String rewrittenFieldName = rewriteFieldName(jobCaps, RangeQueryBuilder.NAME, fieldName, timeZone);
             RangeQueryBuilder rewritten = new RangeQueryBuilder(rewrittenFieldName)
                 .from(range.from())
                 .to(range.to())
                 .includeLower(range.includeLower())
-                .includeUpper(range.includeUpper());
-            if (range.timeZone() != null) {
-                rewritten.timeZone(range.timeZone());
-            }
+                .includeUpper(range.includeUpper())
+                .timeZone(timeZone);
+
             if (range.format() != null) {
                 rewritten.format(range.format());
             }

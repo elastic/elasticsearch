@@ -118,7 +118,7 @@ public class SearchActionTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Unsupported Query in search request: [match_phrase]"));
     }
 
-    public void testRange() {
+    public void testRangeTimezoneUTC() {
         final GroupConfig groupConfig = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
         final RollupJobConfig config = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  groupConfig, emptyList(), null);
         RollupJobCaps cap = new RollupJobCaps(config);
@@ -127,6 +127,19 @@ public class SearchActionTests extends ESTestCase {
         QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("UTC"), caps);
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         assertThat(((RangeQueryBuilder)rewritten).fieldName(), equalTo("foo.date_histogram.timestamp"));
+        assertThat(((RangeQueryBuilder)rewritten).timeZone(), equalTo("UTC"));
+    }
+
+    public void testRangeTimezoneZ() {
+        final GroupConfig groupConfig = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
+        final RollupJobConfig config = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  groupConfig, emptyList(), null);
+        RollupJobCaps cap = new RollupJobCaps(config);
+        Set<RollupJobCaps> caps = new HashSet<>();
+        caps.add(cap);
+        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("Z"), caps);
+        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
+        assertThat(((RangeQueryBuilder)rewritten).fieldName(), equalTo("foo.date_histogram.timestamp"));
+        assertThat(((RangeQueryBuilder)rewritten).timeZone(), equalTo("Z"));
     }
 
     public void testRangeNullTimeZone() {
@@ -138,6 +151,7 @@ public class SearchActionTests extends ESTestCase {
         QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1), caps);
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         assertThat(((RangeQueryBuilder)rewritten).fieldName(), equalTo("foo.date_histogram.timestamp"));
+        assertThat(((RangeQueryBuilder)rewritten).timeZone(), equalTo("Z"));
     }
 
     public void testRangeWrongTZ() {

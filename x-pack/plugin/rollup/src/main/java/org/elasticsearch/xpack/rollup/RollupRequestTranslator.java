@@ -19,8 +19,9 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -204,7 +205,7 @@ public class RollupRequestTranslator {
                 rolledDateHisto.interval(source.interval());
             }
 
-            DateTimeZone timezone = source.timeZone() == null ? DateTimeZone.UTC : source.timeZone();
+            ZoneId timezone = source.timeZone() == null ? DateHistogramGroupConfig.DEFAULT_ZONEID_TIMEZONE : source.timeZone();
             rolledDateHisto.timeZone(timezone);
             rolledDateHisto.offset(source.offset());
             if (source.extendedBounds() != null) {

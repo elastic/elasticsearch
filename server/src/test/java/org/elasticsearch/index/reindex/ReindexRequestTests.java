@@ -21,11 +21,13 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.slice.SliceBuilder;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.CoreMatchers.is;
 
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
@@ -63,6 +65,14 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
         assertEquals("Validation Failed: 1: can't specify both manual and automatic slicing at the same time;", e.getMessage());
+    }
+
+    public void testReindexShouldThrowErrorWhenCreateIsUsedWithCreate() {
+        ReindexRequest reindex = newRequest();
+        reindex.setDestOpType("create");
+        reindex.setDestVersionType(VersionType.EXTERNAL);
+        ActionRequestValidationException e = reindex.validate();
+        assertThat(e.getMessage(), is("Validation Failed: 1: create operations only support internal versioning. use index instead;"));
     }
 
     @Override

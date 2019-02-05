@@ -38,7 +38,6 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.index.VersionType.EXTERNAL;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
 /**

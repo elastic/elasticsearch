@@ -60,7 +60,7 @@ public class Authentication implements ToXContentObject {
             this.lookedUpBy = null;
         }
         this.version = in.getVersion();
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
             type = AuthenticationType.values()[in.readVInt()];
             metadata = in.readMap();
         } else {
@@ -165,7 +165,7 @@ public class Authentication implements ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             out.writeVInt(type.ordinal());
             out.writeMap(metadata);
         }

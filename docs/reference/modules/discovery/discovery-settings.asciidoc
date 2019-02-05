@@ -105,9 +105,10 @@ Discovery and cluster formation are affected by the following settings:
 `discovery.cluster_formation_warning_timeout`::
 
     Sets how long a node will try to form a cluster before logging a warning
-    that the cluster did not form. Defaults to `10s`. If a cluster has not 
+    that the cluster did not form. Defaults to `10s`. If a cluster has not
     formed after `discovery.cluster_formation_warning_timeout` has elapsed then
-    the node will log a warning message that starts with the phrase `master not discovered` which describes the current state of the discovery process.
+    the node will log a warning message that starts with the phrase `master not
+    discovered` which describes the current state of the discovery process.
 
 `discovery.find_peers_interval`::
 
@@ -128,12 +129,12 @@ Discovery and cluster formation are affected by the following settings:
     Sets how long a node will wait after asking its peers again before
     considering the request to have failed. Defaults to `3s`.    
 
-`discovery.zen.hosts_provider`:: 
-    Specifies which type of <<built-in-hosts-providers,hosts provider>> provides
-    the list of seed nodes. By default, it is the 
+`discovery.seed_providers`::
+    Specifies which types of <<built-in-hosts-providers,seed provider>> provide
+    the addresses of seed nodes. By default, it is the
     <<settings-based-hosts-provider,settings-based hosts provider>>.
 
-[[no-master-block]]`discovery.zen.no_master_block`::
+[[no-master-block]]`cluster.no_master_block`::
 Specifies which operations are rejected when there is no active master in a
 cluster. This setting has two valid values:
 +
@@ -149,15 +150,19 @@ cluster.
 
 [NOTE]
 ===============================
-* The `discovery.zen.no_master_block` setting doesn't apply to nodes-based APIs
+* The `cluster.no_master_block` setting doesn't apply to nodes-based APIs
 (for example, cluster stats, node info, and node stats APIs). Requests to these
 APIs are not be blocked and can run on any available node.
   
 * For the cluster to be fully operational, it must have an active master.
 ===============================
+
+WARNING: This setting replaces the `discovery.zen.no_master_block` setting in
+earlier versions. The `discovery.zen.no_master_block` setting is ignored.
+
 --
 
-`discovery.zen.ping.unicast.hosts`::
+`discovery.seed_hosts`::
 
     Provides a list of master-eligible nodes in the cluster. The list contains
     either an array of hosts or a comma-delimited string. Each value has the
@@ -165,7 +170,12 @@ APIs are not be blocked and can run on any available node.
     `transport.profiles.default.port`. Note that IPv6 hosts must be bracketed.
     The default value is `127.0.0.1, [::1]`. See <<unicast.hosts>>.
 
-`discovery.zen.ping.unicast.hosts.resolve_timeout`::
+`discovery.seed_resolver.timeout`::
 
     Sets the amount of time to wait for DNS lookups on each round of discovery.
     This is specified as a <<time-units, time unit>> and defaults to `5s`.
+
+`discovery.seed_resolver.max_concurrent_resolvers`::
+
+    Sets the number of threads with which to perform DNS lookups for seed nodes.
+    This defaults to `10`.

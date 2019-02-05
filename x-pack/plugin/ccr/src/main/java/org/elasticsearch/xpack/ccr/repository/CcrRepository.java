@@ -313,7 +313,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         final IndexMetaData leaderIndexMetadata = indexMetadataFuture.actionGet(ccrSettings.getRecoveryActionTimeout());
         final MappingMetaData mappingMetaData = leaderIndexMetadata.mapping();
         if (mappingMetaData != null) {
-            final PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
+            final PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData)
+                .masterNodeTimeout(TimeValue.timeValueMinutes(30));
             followerClient.admin().indices().putMapping(putMappingRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
         }
     }
@@ -329,8 +330,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     private static class RestoreSession extends FileRestoreContext implements Closeable {
 
-        private static final int BUFFER_SIZE = 1 << 16;
-
         private final Client remoteClient;
         private final String sessionUUID;
         private final DiscoveryNode node;
@@ -342,7 +341,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         RestoreSession(String repositoryName, Client remoteClient, String sessionUUID, DiscoveryNode node, IndexShard indexShard,
                        RecoveryState recoveryState, Store.MetadataSnapshot sourceMetaData, long mappingVersion,
                        CcrSettings ccrSettings, LongConsumer throttleListener) {
-            super(repositoryName, indexShard, SNAPSHOT_ID, recoveryState, BUFFER_SIZE);
+            super(repositoryName, indexShard, SNAPSHOT_ID, recoveryState, Math.toIntExact(ccrSettings.getChunkSize().getBytes()));
             this.remoteClient = remoteClient;
             this.sessionUUID = sessionUUID;
             this.node = node;

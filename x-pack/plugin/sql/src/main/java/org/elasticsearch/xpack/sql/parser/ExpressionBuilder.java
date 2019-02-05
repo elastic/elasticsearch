@@ -465,7 +465,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitBuiltinDateTimeFunction(BuiltinDateTimeFunctionContext ctx) {
-        // maps current_XXX to their respective functions
+        // maps CURRENT_XXX to its respective function e.g: CURRENT_TIMESTAMP()
         // since the functions need access to the Configuration, the parser only registers the definition and not the actual function
         Source source = source(ctx);
         Literal p = null;
@@ -484,13 +484,15 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         
         String functionName = ctx.name.getText();
-        
+
         switch (ctx.name.getType()) {
+            case SqlBaseLexer.CURRENT_DATE:
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             case SqlBaseLexer.CURRENT_TIMESTAMP:
                 return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, p != null ? singletonList(p) : emptyList());
+            default:
+                throw new ParsingException(source, "Unknown function [{}]", functionName);
         }
-
-        throw new ParsingException(source, "Unknown function [{}]", functionName);
     }
 
     @Override

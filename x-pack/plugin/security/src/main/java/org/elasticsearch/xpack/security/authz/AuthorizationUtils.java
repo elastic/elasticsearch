@@ -154,9 +154,10 @@ public final class AuthorizationUtils {
                 setUserRoles(null); // we can inform the listener immediately - nothing to fetch for us on system user
                 setRunAsRoles(null);
             } else {
-                service.roles(authentication.getUser().authenticatedUser(), ActionListener.wrap(this::setUserRoles, listener::onFailure));
+                service.roles(authentication.getUser().authenticatedUser(), authentication,
+                    ActionListener.wrap(this::setUserRoles, listener::onFailure));
                 if (authentication.getUser().isRunAs()) {
-                    service.roles(authentication.getUser(), ActionListener.wrap(this::setRunAsRoles, listener::onFailure));
+                    service.roles(authentication.getUser(), authentication, ActionListener.wrap(this::setRunAsRoles, listener::onFailure));
                 } else {
                     setRunAsRoles(null);
                 }

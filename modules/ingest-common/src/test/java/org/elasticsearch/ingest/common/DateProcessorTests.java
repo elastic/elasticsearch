@@ -45,9 +45,7 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     private TemplateScript.Factory templatize(ZoneId timezone) {
-        // prevent writing "UTC" as string, as joda time does not parse it
-        String id = timezone.equals(ZoneOffset.UTC) ? "UTC" : timezone.getId();
-        return new TestTemplateService.MockTemplateScript.Factory(id);
+        return new TestTemplateService.MockTemplateScript.Factory(timezone.getId());
     }
 
     public void testJavaPattern() {
@@ -115,6 +113,8 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     public void testJavaPatternLocale() {
+        // @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/31724")
+        assumeFalse("Can't run in a FIPS JVM, Joda parse date error", inFipsJvm());
         DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
             templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ITALIAN),
                 "date_as_string", Collections.singletonList("yyyy dd MMMM"), "date_as_date");
@@ -186,7 +186,7 @@ public class DateProcessorTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> processor.execute(RandomDocumentPicks.randomIngestDocument(random(), document)));
         assertThat(e.getMessage(), equalTo("unable to parse date [2010]"));
-        assertThat(e.getCause().getMessage(), equalTo("The datetime zone id 'invalid_timezone' is not recognised"));
+        assertThat(e.getCause().getMessage(), equalTo("Unknown time-zone ID: invalid_timezone"));
     }
 
     public void testInvalidLocale() {

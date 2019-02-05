@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -52,14 +54,16 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
 
     private final Client client;
     private final JobManager jobManager;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportUpdateFilterAction(TransportService transportService, ActionFilters actionFilters, Client client,
-                                       JobManager jobManager) {
+                                       JobManager jobManager, ClusterService clusterService) {
         super(UpdateFilterAction.NAME, transportService, actionFilters,
             (Supplier<UpdateFilterAction.Request>) UpdateFilterAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -95,13 +99,20 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         }
 
         MlFilter updatedFilter = MlFilter.builder(filter.getId()).setDescription(description).setItems(items).build();
-        indexUpdatedFilter(updatedFilter, filterWithVersion.version, request, listener);
+        indexUpdatedFilter(
+            updatedFilter, filterWithVersion.version, filterWithVersion.seqNo, filterWithVersion.primaryTerm, request, listener);
     }
 
-    private void indexUpdatedFilter(MlFilter filter, long version, UpdateFilterAction.Request request,
+    private void indexUpdatedFilter(MlFilter filter, final long version, final long seqNo, final long primaryTerm,
+                                    UpdateFilterAction.Request request,
                                     ActionListener<PutFilterAction.Response> listener) {
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
-        indexRequest.version(version);
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0)) {
+            indexRequest.setIfSeqNo(seqNo);
+            indexRequest.setIfPrimaryTerm(primaryTerm);
+        } else {
+            indexRequest.version(version);
+        }
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -146,7 +157,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
                              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             MlFilter filter = MlFilter.LENIENT_PARSER.apply(parser, null).build();
-                            listener.onResponse(new FilterWithVersion(filter, getDocResponse.getVersion()));
+                            listener.onResponse(new FilterWithVersion(filter, getDocResponse));
                         }
                     } else {
                         this.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.FILTER_NOT_FOUND, filterId)));
@@ -167,10 +178,15 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
 
         private final MlFilter filter;
         private final long version;
+        private final long seqNo;
+        private final long primaryTerm;
 
-        private FilterWithVersion(MlFilter filter, long version) {
+        private  FilterWithVersion(MlFilter filter, GetResponse getDocResponse) {
             this.filter = filter;
-            this.version = version;
+            this.version = getDocResponse.getVersion();
+            this.seqNo = getDocResponse.getSeqNo();
+            this.primaryTerm = getDocResponse.getPrimaryTerm();
+
         }
     }
 }

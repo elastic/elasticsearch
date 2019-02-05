@@ -234,6 +234,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         pauseFollow("follower-index");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37807")
     public void testReadRequestsReturnLatestMappingVersion() throws Exception {
         InternalTestCluster leaderCluster = getLeaderCluster();
         Settings nodeAttributes = Settings.builder().put("node.attr.box", "large").build();

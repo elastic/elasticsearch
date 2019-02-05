@@ -697,12 +697,12 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private void assertIfSeqNoAndTerm(DocWriteRequest<?>request, DocWriteRequest<?> parsedRequest) {
+    private static void assertIfSeqNoAndTerm(DocWriteRequest<?>request, DocWriteRequest<?> parsedRequest) {
         assertEquals(request.ifSeqNo(), parsedRequest.ifSeqNo());
         assertEquals(request.ifPrimaryTerm(), parsedRequest.ifPrimaryTerm());
     }
 
-    private void setRandomIfSeqNoAndTerm(DocWriteRequest<?> request, Map<String, String> expectedParams) {
+    private static void setRandomIfSeqNoAndTerm(DocWriteRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             final long seqNo = randomNonNegativeLong();
             request.setIfSeqNo(seqNo);

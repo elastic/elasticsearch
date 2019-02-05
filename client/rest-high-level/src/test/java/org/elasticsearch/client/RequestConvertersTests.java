@@ -768,8 +768,6 @@ public class RequestConvertersTests extends ESTestCase {
             }
         }
         setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
-        setRandomVersion(updateRequest, expectedParams);
-        setRandomVersionType(updateRequest::versionType, expectedParams);
         setRandomIfSeqNoAndTerm(updateRequest, new HashMap<>()); // if* params are passed in the body
         if (randomBoolean()) {
             int retryOnConflict = randomIntBetween(0, 5);
@@ -911,14 +909,7 @@ public class RequestConvertersTests extends ESTestCase {
             if (randomBoolean()) {
                 docWriteRequest.routing(randomAlphaOfLength(10));
             }
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    docWriteRequest.version(randomNonNegativeLong());
-                }
-                if (randomBoolean()) {
-                    docWriteRequest.versionType(randomFrom(VersionType.values()));
-                }
-            } else if (randomBoolean()) {
+            if (opType != DocWriteRequest.OpType.UPDATE && randomBoolean()) {
                 docWriteRequest.setIfSeqNo(randomNonNegativeLong());
                 docWriteRequest.setIfPrimaryTerm(randomLongBetween(1, 200));
             }

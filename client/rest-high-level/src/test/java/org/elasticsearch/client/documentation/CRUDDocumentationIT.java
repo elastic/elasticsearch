@@ -170,7 +170,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::index-response
             String index = indexResponse.getIndex();
             String id = indexResponse.getId();
-            long version = indexResponse.getVersion();
             if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                 // <1>
             } else if (indexResponse.getResult() == DocWriteResponse.Result.UPDATED) {
@@ -220,7 +219,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             IndexRequest request = new IndexRequest("posts")
                 .id("1")
                 .source("field", "value")
-                .version(1);
+                .setIfSeqNo(10L)
+                .setIfPrimaryTerm(20);
             try {
                 IndexResponse response = client.index(request, RequestOptions.DEFAULT);
             } catch(ElasticsearchException e) {
@@ -432,7 +432,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-conflict
             UpdateRequest request = new UpdateRequest("posts", "1")
                     .doc("field", "value")
-                    .version(1);
+                    .setIfSeqNo(101L)
+                    .setIfPrimaryTerm(200L);
             try {
                 UpdateResponse updateResponse = client.update(
                         request, RequestOptions.DEFAULT);
@@ -499,9 +500,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL); // <1>
             request.setRefreshPolicy("wait_for");                            // <2>
             // end::update-request-refresh
-            // tag::update-request-version
-            request.version(2); // <1>
-            // end::update-request-version
+            // tag::update-request-cas
+            request.setIfSeqNo(2L); // <1>
+            request.setIfPrimaryTerm(1L); // <2>
+            // end::update-request-request-cas
             // tag::update-request-detect-noop
             request.detectNoop(false); // <1>
             // end::update-request-detect-noop
@@ -630,7 +632,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-conflict
             try {
                 DeleteResponse deleteResponse = client.delete(
-                        new DeleteRequest("posts", "1").version(2),
+                    new DeleteRequest("posts", "1").setIfSeqNo(100).setIfPrimaryTerm(2),
                         RequestOptions.DEFAULT);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {

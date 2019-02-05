@@ -15,9 +15,9 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -29,7 +29,8 @@ import static org.hamcrest.Matchers.containsString;
 public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEvent> {
 
     public static ScheduledEvent createScheduledEvent(String calendarId) {
-        ZonedDateTime start = ZonedDateTime.ofInstant(Instant.ofEpochMilli(new DateTime(randomDateTimeZone()).getMillis()), ZoneOffset.UTC);
+        long millis = Clock.system(randomZone()).millis();// TODO we are converting to UTC anyway??
+        ZonedDateTime start = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC);
         return new ScheduledEvent(randomAlphaOfLength(10), start, start.plusSeconds(randomIntBetween(1, 10000)),
                 calendarId, null);
     }

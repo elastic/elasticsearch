@@ -54,11 +54,11 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.hamcrest.core.IsEqual;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -399,7 +399,7 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest(combinedIndices, source);
 
         final GroupConfig groupConfig =
-            new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID()));
+            new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId()));
         final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  groupConfig, emptyList(), null);
         Set<RollupJobCaps> caps = singleton(new RollupJobCaps(job));
 

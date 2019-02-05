@@ -20,32 +20,57 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class RetentionLeaseSyncIT extends ESIntegTestCase  {
+
+    public static final class RetentionLeaseSyncIntervalSettingPlugin extends Plugin {
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING);
+        }
+
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Stream.concat(
+                super.nodePlugins().stream(),
+                Stream.of(RetentionLeaseBackgroundSyncIT.RetentionLeaseSyncIntervalSettingPlugin.class))
+                .collect(Collectors.toList());
+    }
 
     public void testRetentionLeasesSyncedOnAdd() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
@@ -70,7 +95,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
             final String source = randomAlphaOfLength(8);
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
-            // simulate a peer-recovery which locks the soft-deletes policy on the primary.
+            // simulate a peer recovery which locks the soft deletes policy on the primary
             final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLockForPeerRecovery() : () -> {};
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
@@ -99,7 +124,6 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37963")
     public void testRetentionLeasesSyncOnExpiration() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
@@ -109,7 +133,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", numberOfReplicas)
-                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey(), retentionLeaseTimeToLive)
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
                 .build();
         createIndex("index", settings);
         ensureGreen("index");
@@ -121,6 +145,17 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
         // we will add multiple retention leases, wait for some to expire, and assert a consistent view between the primary and the replicas
         final int length = randomIntBetween(1, 8);
         for (int i = 0; i < length; i++) {
+            // update the index for retention leases to live a long time
+            final AcknowledgedResponse longTtlResponse = client().admin()
+                    .indices()
+                    .prepareUpdateSettings("index")
+                    .setSettings(
+                            Settings.builder()
+                                    .putNull(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey())
+                                    .build())
+                    .get();
+            assertTrue(longTtlResponse.isAcknowledged());
+
             final String id = randomAlphaOfLength(8);
             final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
             final String source = randomAlphaOfLength(8);
@@ -137,19 +172,26 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
                 final IndexShard replica = internalCluster()
                         .getInstance(IndicesService.class, replicaShardNodeName)
                         .getShardOrNull(new ShardId(resolveIndex("index"), 0));
-                assertThat(replica.getRetentionLeases().leases(), hasItem(currentRetentionLease));
+                assertThat(replica.getRetentionLeases().leases(), anyOf(empty(), contains(currentRetentionLease)));
             }
 
-            // sleep long enough that *possibly* the current retention lease has expired, and certainly that any previous have
+            // update the index for retention leases to short a long time, to force expiration
+            final AcknowledgedResponse shortTtlResponse = client().admin()
+                    .indices()
+                    .prepareUpdateSettings("index")
+                    .setSettings(
+                            Settings.builder()
+                                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING.getKey(), retentionLeaseTimeToLive)
+                                    .build())
+                    .get();
+            assertTrue(shortTtlResponse.isAcknowledged());
+
+            // sleep long enough that the current retention lease has expired
             final long later = System.nanoTime();
             Thread.sleep(Math.max(0, retentionLeaseTimeToLive.millis() - TimeUnit.NANOSECONDS.toMillis(later - now)));
-            final RetentionLeases currentRetentionLeases = primary.getRetentionLeases();
-            assertThat(currentRetentionLeases.leases(), anyOf(empty(), contains(currentRetentionLease)));
+            assertBusy(() -> assertThat(primary.getRetentionLeases().leases(), empty()));
 
-            /*
-             * Check that expiration of retention leases has been synced to all replicas. We have to assert busy since syncing happens in
-             * the background.
-             */
+            // now that all retention leases are expired should have been synced to all replicas
             assertBusy(() -> {
                 for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
                     final String replicaShardNodeId = replicaShard.currentNodeId();
@@ -157,15 +199,72 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
                     final IndexShard replica = internalCluster()
                             .getInstance(IndicesService.class, replicaShardNodeName)
                             .getShardOrNull(new ShardId(resolveIndex("index"), 0));
-                    if (currentRetentionLeases.leases().isEmpty()) {
-                        assertThat(replica.getRetentionLeases().leases(), empty());
-                    } else {
-                        assertThat(
-                                replica.getRetentionLeases().leases(),
-                                contains(currentRetentionLeases.leases().toArray(new RetentionLease[0])));
-                    }
+                    assertThat(replica.getRetentionLeases().leases(), empty());
                 }
             });
+        }
+    }
+
+    public void testRetentionLeasesSyncOnRecovery() throws Exception {
+        final int numberOfReplicas = 1;
+        /*
+         * We effectively disable the background sync to ensure that the retention leases are not synced in the background so that the only
+         * source of retention leases on the replicas would be from the commit point and recovery.
+         */
+        final Settings settings = Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(24))
+                .build();
+        createIndex("index", settings);
+        ensureYellow("index");
+        // exclude the replicas from being allocated
+        allowNodes("index", 1);
+        final AcknowledgedResponse response = client().admin()
+                .indices()
+                .prepareUpdateSettings("index").setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas).build())
+                .get();
+        assertTrue(response.isAcknowledged());
+        final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
+        final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();
+        final IndexShard primary = internalCluster()
+                .getInstance(IndicesService.class, primaryShardNodeName)
+                .getShardOrNull(new ShardId(resolveIndex("index"), 0));
+        final int length = randomIntBetween(1, 8);
+        final Map<String, RetentionLease> currentRetentionLeases = new HashMap<>();
+        for (int i = 0; i < length; i++) {
+            final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));
+            final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
+            final String source = randomAlphaOfLength(8);
+            final CountDownLatch latch = new CountDownLatch(1);
+            final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
+            latch.await();
+            /*
+             * Now renew the leases; since we do not flush immediately on renewal, this means that the latest retention leases will not be
+             * in the latest commit point and therefore not transferred during the file-copy phase of recovery.
+             */
+            currentRetentionLeases.put(id, primary.renewRetentionLease(id, retainingSequenceNumber, source));
+        }
+
+        // now allow the replicas to be allocated and wait for recovery to finalize
+        allowNodes("index", 1 + numberOfReplicas);
+        ensureGreen("index");
+
+        // check current retention leases have been synced to all replicas
+        for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
+            final String replicaShardNodeId = replicaShard.currentNodeId();
+            final String replicaShardNodeName = clusterService().state().nodes().get(replicaShardNodeId).getName();
+            final IndexShard replica = internalCluster()
+                    .getInstance(IndicesService.class, replicaShardNodeName)
+                    .getShardOrNull(new ShardId(resolveIndex("index"), 0));
+            final Map<String, RetentionLease> retentionLeasesOnReplica = RetentionLeases.toMap(replica.getRetentionLeases());
+            assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
+
+            // check retention leases have been committed on the replica
+            final RetentionLeases replicaCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
+                    replica.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
+            assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(replicaCommittedRetentionLeases)));
         }
     }
 

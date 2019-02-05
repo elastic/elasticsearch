@@ -639,7 +639,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-conflict
             try {
                 DeleteResponse deleteResponse = client.delete(
-                    new DeleteRequest("posts", "doc", "1").setIfSeqNo(100L).setIfPrimaryTerm(2L),
+                    new DeleteRequest("posts", "doc", "1")
+                        .setIfSeqNo(100L).setIfPrimaryTerm(2L),
                     RequestOptions.DEFAULT);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {

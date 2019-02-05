@@ -29,11 +29,11 @@ import com.microsoft.azure.management.network.PublicIPAddress;
 import com.microsoft.rest.RestClient;
 import com.microsoft.rest.ServiceResponseBuilder;
 import com.microsoft.rest.serializer.JacksonAdapter;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 
@@ -47,7 +47,7 @@ import java.util.List;
  */
 public class AzureManagementServiceImpl implements AzureManagementService, AutoCloseable {
 
-    private static final Logger logger = Loggers.getLogger(AzureManagementServiceImpl.class);
+    private static final Logger logger = LogManager.getLogger(AzureManagementServiceImpl.class);
 
     // Should it be final or should we able to reinitialize it sometimes?
     private final ComputeManager computeManager;

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.discovery.azure.arm;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +39,7 @@ public class AzureArmDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     private static final String AZURE_ARM = "azure-arm";
     private final Settings settings;
-    private static final Logger logger = Loggers.getLogger(AzureArmDiscoveryPlugin.class);
+    private static final Logger logger = LogManager.getLogger(AzureArmDiscoveryPlugin.class);
 
     public AzureArmDiscoveryPlugin(Settings settings) {
         this.settings = settings;

@@ -19,10 +19,9 @@
 
 package org.elasticsearch.discovery.azure.arm;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -36,9 +35,9 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AzureArmUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+public class AzureArmUnicastHostsProvider implements UnicastHostsProvider {
 
-    private static final Logger logger = Loggers.getLogger(AzureArmUnicastHostsProvider.class);
+    private static final Logger logger = LogManager.getLogger(AzureArmUnicastHostsProvider.class);
 
     private final AzureManagementService azureManagementService;
     private TransportService transportService;
@@ -50,7 +49,6 @@ public class AzureArmUnicastHostsProvider extends AbstractComponent implements U
 
     AzureArmUnicastHostsProvider(Settings settings, AzureManagementService azureManagementService,
                                  TransportService transportService) {
-        super(settings);
         this.settings = settings;
         this.azureManagementService = azureManagementService;
         this.transportService = transportService;

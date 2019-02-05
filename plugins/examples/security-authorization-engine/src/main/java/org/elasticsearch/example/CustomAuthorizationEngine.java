@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRespon
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse.Indices;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
@@ -35,6 +34,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -160,14 +160,14 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
         for (IndicesPrivileges check : hasPrivilegesRequest.indexPrivileges()) {
             for (String index : check.getIndices()) {
                 final Map<String, Boolean> privileges = new HashMap<>();
-                final HasPrivilegesResponse.ResourcePrivileges existing = indices.get(index);
+                final ResourcePrivileges existing = indices.get(index);
                 if (existing != null) {
                     privileges.putAll(existing.getPrivileges());
                 }
                 for (String privilege : check.getPrivileges()) {
                     privileges.put(privilege, authorized);
                 }
-                indices.put(index, new ResourcePrivileges(index, privileges));
+                indices.put(index, ResourcePrivileges.builder(index).addPrivileges(privileges).build());
             }
         }
         final Map<String, Collection<ResourcePrivileges>> privilegesByApplication = new HashMap<>();
@@ -175,19 +175,19 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
             .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
             .collect(Collectors.toSet());
         for (String applicationName : applicationNames) {
-            final Map<String, HasPrivilegesResponse.ResourcePrivileges> appPrivilegesByResource = new LinkedHashMap<>();
+            final Map<String, ResourcePrivileges> appPrivilegesByResource = new LinkedHashMap<>();
             for (RoleDescriptor.ApplicationResourcePrivileges p : hasPrivilegesRequest.applicationPrivileges()) {
                 if (applicationName.equals(p.getApplication())) {
                     for (String resource : p.getResources()) {
                         final Map<String, Boolean> privileges = new HashMap<>();
-                        final HasPrivilegesResponse.ResourcePrivileges existing = appPrivilegesByResource.get(resource);
+                        final ResourcePrivileges existing = appPrivilegesByResource.get(resource);
                         if (existing != null) {
                             privileges.putAll(existing.getPrivileges());
                         }
                         for (String privilege : p.getPrivileges()) {
                             privileges.put(privilege, authorized);
                         }
-                        appPrivilegesByResource.put(resource, new HasPrivilegesResponse.ResourcePrivileges(resource, privileges));
+                        appPrivilegesByResource.put(resource, ResourcePrivileges.builder(resource).addPrivileges(privileges).build());
                     }
                 }
             }

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -43,6 +42,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.Authoriza
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -445,22 +445,25 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(response.isCompleteMatch(), is(false));
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(8));
         assertThat(response.getIndexPrivileges(), containsInAnyOrder(
-            new ResourcePrivileges("logstash-2016-*", Collections.singletonMap("write", true)),
-            new ResourcePrivileges("logstash-*", Collections.singletonMap("read", true)),
-            new ResourcePrivileges("log*", Collections.singletonMap("manage", false)),
-            new ResourcePrivileges("foo?", Collections.singletonMap("read", true)),
-            new ResourcePrivileges("foo*", Collections.singletonMap("read", false)),
-            new ResourcePrivileges("abcd*", mapBuilder().put("read", true).put("write", false).map()),
-            new ResourcePrivileges("abc*xyz", mapBuilder().put("read", true).put("write", true).put("manage", false).map()),
-            new ResourcePrivileges("a*xyz", mapBuilder().put("read", false).put("write", true).put("manage", false).map())
+            ResourcePrivileges.builder("logstash-2016-*").addPrivileges(Collections.singletonMap("write", true)).build(),
+            ResourcePrivileges.builder("logstash-*").addPrivileges(Collections.singletonMap("read", true)).build(),
+            ResourcePrivileges.builder("log*").addPrivileges(Collections.singletonMap("manage", false)).build(),
+            ResourcePrivileges.builder("foo?").addPrivileges(Collections.singletonMap("read", true)).build(),
+            ResourcePrivileges.builder("foo*").addPrivileges(Collections.singletonMap("read", false)).build(),
+            ResourcePrivileges.builder("abcd*").addPrivileges(mapBuilder().put("read", true).put("write", false).map()).build(),
+            ResourcePrivileges.builder("abc*xyz")
+                .addPrivileges(mapBuilder().put("read", true).put("write", true).put("manage", false).map()).build(),
+            ResourcePrivileges.builder("a*xyz")
+                .addPrivileges(mapBuilder().put("read", false).put("write", true).put("manage", false).map()).build()
         ));
         assertThat(response.getApplicationPrivileges().entrySet(), Matchers.iterableWithSize(1));
         final Set<ResourcePrivileges> kibanaPrivileges = response.getApplicationPrivileges().get("kibana");
         assertThat(kibanaPrivileges, Matchers.iterableWithSize(3));
         assertThat(Strings.collectionToCommaDelimitedString(kibanaPrivileges), kibanaPrivileges, containsInAnyOrder(
-            new ResourcePrivileges("*", mapBuilder().put("read", true).put("write", false).map()),
-            new ResourcePrivileges("space/engineering/project-*", Collections.singletonMap("space:view/dashboard", true)),
-            new ResourcePrivileges("space/*", Collections.singletonMap("space:view/dashboard", false))
+            ResourcePrivileges.builder("*").addPrivileges(mapBuilder().put("read", true).put("write", false).map()).build(),
+            ResourcePrivileges.builder("space/engineering/project-*")
+                .addPrivileges(Collections.singletonMap("space:view/dashboard", true)).build(),
+            ResourcePrivileges.builder("space/*").addPrivileges(Collections.singletonMap("space:view/dashboard", false)).build()
         ));
     }
 
@@ -481,11 +484,11 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(response.isCompleteMatch(), is(false));
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(2));
         assertThat(response.getIndexPrivileges(), containsInAnyOrder(
-            new ResourcePrivileges("apache-2016-12",
-                MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                    .put("index", true).put("delete", true).map()),
-            new ResourcePrivileges("apache-2017-01",
-                MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+            ResourcePrivileges.builder("apache-2016-12")
+                .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                    .put("index", true).put("delete", true).map()).build(),
+            ResourcePrivileges.builder("apache-2017-01")
+                .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
                     .put("index", true).put("delete", false).map()
             )
         ));
@@ -531,26 +534,26 @@ public class RBACEngineTests extends ESTestCase {
         final Set<ResourcePrivileges> app1 = response.getApplicationPrivileges().get("app1");
         assertThat(app1, Matchers.iterableWithSize(4));
         assertThat(Strings.collectionToCommaDelimitedString(app1), app1, containsInAnyOrder(
-            new ResourcePrivileges("foo/1", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                .put("read", true).put("write", false).put("all", false).map()),
-            new ResourcePrivileges("foo/bar/2", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                .put("read", true).put("write", false).put("all", false).map()),
-            new ResourcePrivileges("foo/bar/baz", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                .put("read", true).put("write", true).put("all", true).map()),
-            new ResourcePrivileges("baz/bar/foo", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                .put("read", false).put("write", false).put("all", false).map())
+            ResourcePrivileges.builder("foo/1").addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                .put("read", true).put("write", false).put("all", false).map()).build(),
+            ResourcePrivileges.builder("foo/bar/2").addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                .put("read", true).put("write", false).put("all", false).map()).build(),
+            ResourcePrivileges.builder("foo/bar/baz").addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                .put("read", true).put("write", true).put("all", true).map()).build(),
+            ResourcePrivileges.builder("baz/bar/foo").addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                .put("read", false).put("write", false).put("all", false).map()).build()
         ));
         final Set<ResourcePrivileges> app2 = response.getApplicationPrivileges().get("app2");
         assertThat(app2, Matchers.iterableWithSize(4));
         assertThat(Strings.collectionToCommaDelimitedString(app2), app2, containsInAnyOrder(
-            new ResourcePrivileges("foo/1", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                .put("read", false).put("write", false).put("all", false).map()),
-            new ResourcePrivileges("foo/bar/2", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                .put("read", true).put("write", true).put("all", false).map()),
-            new ResourcePrivileges("foo/bar/baz", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                .put("read", true).put("write", true).put("all", false).map()),
-            new ResourcePrivileges("baz/bar/foo", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                .put("read", false).put("write", true).put("all", false).map())
+            ResourcePrivileges.builder("foo/1").addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                .put("read", false).put("write", false).put("all", false).map()).build(),
+            ResourcePrivileges.builder("foo/bar/2").addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                .put("read", true).put("write", true).put("all", false).map()).build(),
+            ResourcePrivileges.builder("foo/bar/baz").addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                .put("read", true).put("write", true).put("all", false).map()).build(),
+            ResourcePrivileges.builder("baz/bar/foo").addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                .put("read", false).put("write", true).put("all", false).map()).build()
         ));
     }
 
@@ -584,13 +587,13 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(response.getApplicationPrivileges().keySet(), containsInAnyOrder(appName));
         assertThat(response.getApplicationPrivileges().get(appName), iterableWithSize(1));
         assertThat(response.getApplicationPrivileges().get(appName), containsInAnyOrder(
-            new ResourcePrivileges("user/hawkeye/name", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+            ResourcePrivileges.builder("user/hawkeye/name").addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
                 .put("DATA:read/user/*", true)
                 .put("ACTION:" + action1, true)
                 .put("ACTION:" + action2, false)
                 .put(action1, true)
                 .put(action2, false)
-                .map())
+                .map()).build()
         ));
     }
 

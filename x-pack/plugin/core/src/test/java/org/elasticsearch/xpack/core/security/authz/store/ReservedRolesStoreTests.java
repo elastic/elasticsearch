@@ -853,6 +853,23 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(APMSystemRole, RestrictedIndicesNames.NAMES_SET);
     }
 
+    public void testAPMUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
+        final RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("apm_user");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.builder(roleDescriptor, null).build();
+
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
+
+        assertNoAccessAllowed(role, "foo");
+
+        assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
+    }
+
     public void testMachineLearningAdminRole() {
         final TransportRequest request = mock(TransportRequest.class);
 

@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -104,9 +105,9 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
-        getRoles(authentication.getUser(), ActionListener.wrap(role -> {
+        getRoles(authentication.getUser(), authentication, ActionListener.wrap(role -> {
             if (authentication.getUser().isRunAs()) {
-                getRoles(authentication.getUser().authenticatedUser(), ActionListener.wrap(
+                getRoles(authentication.getUser().authenticatedUser(), authentication, ActionListener.wrap(
                     authenticatedUserRole -> listener.onResponse(new RBACAuthorizationInfo(role, authenticatedUserRole)),
                     listener::onFailure));
             } else {
@@ -115,8 +116,8 @@ public class RBACEngine implements AuthorizationEngine {
         }, listener::onFailure));
     }
 
-    private void getRoles(User user, ActionListener<Role> listener) {
-        rolesStore.getRoles(user, fieldPermissionsCache, listener);
+    private void getRoles(User user, Authentication authentication, ActionListener<Role> listener) {
+        rolesStore.getRoles(user, authentication, listener);
     }
 
     @Override
@@ -368,11 +369,11 @@ public class RBACEngine implements AuthorizationEngine {
 
         final Map<IndicesPermission.Group, Automaton> predicateCache = new HashMap<>();
 
-        final Map<String, HasPrivilegesResponse.ResourcePrivileges> indices = new LinkedHashMap<>();
+        final Map<String, ResourcePrivileges> indices = new LinkedHashMap<>();
         for (RoleDescriptor.IndicesPrivileges check : request.indexPrivileges()) {
             for (String index : check.getIndices()) {
                 final Map<String, Boolean> privileges = new HashMap<>();
-                final HasPrivilegesResponse.ResourcePrivileges existing = indices.get(index);
+                final ResourcePrivileges existing = indices.get(index);
                 if (existing != null) {
                     privileges.putAll(existing.getPrivileges());
                 }
@@ -388,19 +389,19 @@ public class RBACEngine implements AuthorizationEngine {
                         allMatch = false;
                     }
                 }
-                indices.put(index, new HasPrivilegesResponse.ResourcePrivileges(index, privileges));
+                indices.put(index, ResourcePrivileges.builder(index).addPrivileges(privileges).build());
             }
         }
 
-        final Map<String, Collection<HasPrivilegesResponse.ResourcePrivileges>> privilegesByApplication = new HashMap<>();
+        final Map<String, Collection<ResourcePrivileges>> privilegesByApplication = new HashMap<>();
         for (String applicationName : getApplicationNames(request)) {
             logger.debug("Checking privileges for application {}", applicationName);
-            final Map<String, HasPrivilegesResponse.ResourcePrivileges> appPrivilegesByResource = new LinkedHashMap<>();
+            final Map<String, ResourcePrivileges> appPrivilegesByResource = new LinkedHashMap<>();
             for (RoleDescriptor.ApplicationResourcePrivileges p : request.applicationPrivileges()) {
                 if (applicationName.equals(p.getApplication())) {
                     for (String resource : p.getResources()) {
                         final Map<String, Boolean> privileges = new HashMap<>();
-                        final HasPrivilegesResponse.ResourcePrivileges existing = appPrivilegesByResource.get(resource);
+                        final ResourcePrivileges existing = appPrivilegesByResource.get(resource);
                         if (existing != null) {
                             privileges.putAll(existing.getPrivileges());
                         }
@@ -416,7 +417,7 @@ public class RBACEngine implements AuthorizationEngine {
                                 allMatch = false;
                             }
                         }
-                        appPrivilegesByResource.put(resource, new HasPrivilegesResponse.ResourcePrivileges(resource, privileges));
+                        appPrivilegesByResource.put(resource, ResourcePrivileges.builder(resource).addPrivileges(privileges).build());
                     }
                 }
             }

@@ -72,6 +72,7 @@ project.copyRestSpec.from(xpackResources) {
 }
 integTestCluster {
     setting 'xpack.security.enabled', 'true'
+    setting 'xpack.security.authc.api_key.enabled', 'true'
     setting 'xpack.security.authc.token.enabled', 'true'
     // Disable monitoring exporters for the docs tests
     setting 'xpack.monitoring.exporters._local.type', 'local'

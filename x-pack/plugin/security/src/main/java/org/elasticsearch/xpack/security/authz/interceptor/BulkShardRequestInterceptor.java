@@ -50,7 +50,7 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
                 boolean found = false;
                 if (indexAccessControl != null) {
                     boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                    boolean dls = indexAccessControl.getQueries() != null;
+                    boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                     if (fls || dls) {
                         if (bulkItemRequest.request() instanceof UpdateRequest) {
                             found = true;

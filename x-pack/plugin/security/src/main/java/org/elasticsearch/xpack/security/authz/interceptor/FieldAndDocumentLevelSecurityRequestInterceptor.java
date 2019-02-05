@@ -45,7 +45,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                     IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
                     if (indexAccessControl != null) {
                         boolean fieldLevelSecurityEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                        boolean documentLevelSecurityEnabled = indexAccessControl.getQueries() != null;
+                        boolean documentLevelSecurityEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                         if (fieldLevelSecurityEnabled || documentLevelSecurityEnabled) {
                             logger.trace("intercepted request for index [{}] with field level access controls [{}] " +
                                 "document level access controls [{}]. disabling conflicting features",

@@ -154,7 +154,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setLocal(true)
                     .execute().actionGet().getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
         internalCluster().stopRandomDataNode();
@@ -171,7 +171,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setLocal(true)
                     .execute().actionGet().getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
         internalCluster().stopRandomDataNode();
@@ -278,7 +278,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = internalCluster().client(dataNode).admin().cluster().prepareState().setLocal(true)
                     .execute().actionGet().getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
         logger.info("--> try to unsafely bootstrap 1st master-eligible node, while node lock is held");
@@ -310,7 +310,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = internalCluster().client(dataNode2).admin().cluster().prepareState().setLocal(true)
                     .execute().actionGet().getState();
-            assertFalse(state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID));
+            assertFalse(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
             assertTrue(state.metaData().persistentSettings().getAsBoolean(UnsafeBootstrapMasterCommand.UNSAFE_BOOTSTRAP.getKey(), false));
         });
 
@@ -386,12 +386,11 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
 
         ClusterState state = internalCluster().client().admin().cluster().prepareState().setLocal(true)
                 .execute().actionGet().getState();
-        assertTrue(state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID));
+        assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38267")
     public void testCanRunUnsafeBootstrapAfterErroneousDetachWithoutLoosingMetaData() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startMasterOnlyNode();
@@ -410,7 +409,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         unsafeBootstrap(environment);
 
         internalCluster().startMasterOnlyNode();
-        ensureStableCluster(1);
+        ensureGreen();
 
         state = internalCluster().client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.metaData().settings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),

@@ -52,7 +52,7 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
                         indicesAccessControl.getIndexPermissions(request.getSourceIndex());
                     if (indexAccessControl != null) {
                         final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                        final boolean dls = indexAccessControl.getQueries() != null;
+                        final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                         if (fls || dls) {
                             listener.onFailure(new ElasticsearchSecurityException("Resize requests are not allowed for users when " +
                                 "field or document level security is enabled on the source index", RestStatus.BAD_REQUEST));

@@ -20,6 +20,7 @@ import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -63,6 +64,17 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             null, null, null, null));
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
         assertEquals(singletonList(expected), issues);
+    }
+
+    private void assertNoIssue(Settings settings) {
+        Settings nodeSettings = Settings.builder()
+            .put(settings)
+            .put(CLUSTER_NAME_SETTING.getKey(), "elasticsearch")
+            .put(NODE_NAME_SETTING.getKey(), "node_check")
+            .put(DISCOVERY_TYPE_SETTING.getKey(), "single-node") // Needed due to NodeDeprecationChecks#discoveryConfigurationCheck
+            .build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(nodeSettings, pluginsAndModules));
+        assertThat(issues, Matchers.empty());
     }
 
     public void testHttpEnabledCheck() {
@@ -302,5 +314,19 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertSettingsAndIssue("xpack.ssl.truststore.password", randomAlphaOfLengthBetween(2, 12), expected);
         assertSettingsAndIssue("xpack.ssl.certificate_authorities",
             Strings.arrayToCommaDelimitedString(randomArray(1, 4, String[]::new, () -> randomAlphaOfLengthBetween(4, 16))), expected);
+    }
+
+    public void testTransportSslEnabledWithoutSecurityEnabled() {
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "TLS/SSL in use, but security not explicitly enabled",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#trial-explicit-security",
+            "security should be explicitly enabled (with [xpack.security.enabled])," +
+                " it will no longer be automatically enabled when transport SSL is enabled ([xpack.security.transport.ssl.enabled])");
+        assertSettingsAndIssue("xpack.security.transport.ssl.enabled", "true", expected);
+        assertNoIssue(Settings.builder()
+            .put("xpack.security.enabled", randomBoolean())
+            .put("xpack.security.transport.ssl.enabled", randomBoolean())
+            .build());
     }
 }

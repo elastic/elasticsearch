@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -82,13 +83,14 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
             int numTemplates = randomIntBetween(0, 32);
             for (int i = 0; i < numTemplates; i++) {
                 org.elasticsearch.cluster.metadata.IndexTemplateMetaData.Builder esIMD =
-                    new org.elasticsearch.cluster.metadata.IndexTemplateMetaData.Builder(String.format("%02d ", i) + randomAlphaOfLength(4));
+                    new org.elasticsearch.cluster.metadata.IndexTemplateMetaData.Builder(String.format(Locale.ROOT, "%02d ", i) +
+                        randomAlphaOfLength(4));
                 esIMD.patterns(Arrays.asList(generateRandomStringArray(32, 4, false, false)));
                 esIMD.settings(randomIndexSettings());
                 esIMD.putMapping("_doc", new CompressedXContent(BytesReference.bytes(randomMapping("_doc", xContentType))));
                 int numAliases = randomIntBetween(0, 8);
                 for (int j = 0; j < numAliases; j++) {
-                    esIMD.putAlias(randomAliasMetaData(String.format("%02d ", j) + randomAlphaOfLength(4)));
+                    esIMD.putAlias(randomAliasMetaData(String.format(Locale.ROOT, "%02d ", j) + randomAlphaOfLength(4)));
                 }
                 esIMD.order(randomIntBetween(0, Integer.MAX_VALUE));
                 esIMD.version(randomIntBetween(0, Integer.MAX_VALUE));
@@ -115,7 +117,8 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
 
                     assertThat(esIMD.mappings().size(), equalTo(1));
                     BytesArray mappingSource = new BytesArray(esIMD.mappings().valuesIt().next().uncompressed());
-                    Map<String, Object> expectedMapping = XContentHelper.convertToMap(mappingSource, true, xContentBuilder.contentType()).v2();
+                    Map<String, Object> expectedMapping =
+                        XContentHelper.convertToMap(mappingSource, true, xContentBuilder.contentType()).v2();
                     assertThat(result.mappings().sourceAsMap(), equalTo(expectedMapping.get("_doc")));
 
                     assertThat(result.aliases().size(), equalTo(esIMD.aliases().size()));

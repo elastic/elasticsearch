@@ -20,61 +20,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FOLLOWER_INDICES_FIELD;
-import static org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowParameters;
+
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import static org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.Status;
 
 public class FollowInfoResponseTests extends AbstractSerializingTestCase<FollowInfoAction.Response> {
 
-    static final ConstructingObjectParser<FollowParameters, Void> PARAMETERS_PARSER = new ConstructingObjectParser<>(
-        "parameters_parser",
-        args -> {
-            return new FollowParameters(
-                (Integer) args[0],
-                (ByteSizeValue) args[1],
-                (Integer) args[2],
-                (Integer) args[3],
-                (ByteSizeValue) args[4],
-                (Integer) args[5],
-                (Integer) args[6],
-                (ByteSizeValue) args[7],
-                (TimeValue) args[8],
-                (TimeValue) args[9]
-            );
-        });
-
-    static {
-        PARAMETERS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), ShardFollowTask.MAX_READ_REQUEST_OPERATION_COUNT);
-        PARAMETERS_PARSER.declareField(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), ShardFollowTask.MAX_READ_REQUEST_SIZE.getPreferredName()),
-            ShardFollowTask.MAX_READ_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
-        PARAMETERS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), ShardFollowTask.MAX_OUTSTANDING_READ_REQUESTS);
-        PARAMETERS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), ShardFollowTask.MAX_WRITE_REQUEST_OPERATION_COUNT);
-        PARAMETERS_PARSER.declareField(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), ShardFollowTask.MAX_WRITE_REQUEST_SIZE.getPreferredName()),
-            ShardFollowTask.MAX_WRITE_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
-        PARAMETERS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), ShardFollowTask.MAX_OUTSTANDING_WRITE_REQUESTS);
-        PARAMETERS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), ShardFollowTask.MAX_WRITE_BUFFER_COUNT);
-        PARAMETERS_PARSER.declareField(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), ShardFollowTask.MAX_WRITE_BUFFER_SIZE.getPreferredName()),
-            ShardFollowTask.MAX_WRITE_BUFFER_SIZE,
-            ObjectParser.ValueType.STRING);
-        PARAMETERS_PARSER.declareField(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), ShardFollowTask.MAX_RETRY_DELAY.getPreferredName()),
-            ShardFollowTask.MAX_RETRY_DELAY,
-            ObjectParser.ValueType.STRING);
-        PARAMETERS_PARSER.declareField(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), ShardFollowTask.READ_POLL_TIMEOUT.getPreferredName()),
-            ShardFollowTask.READ_POLL_TIMEOUT,
-            ObjectParser.ValueType.STRING);
-    }
-
+    static final ObjectParser<FollowParameters, Void> PARAMETERS_PARSER = new ObjectParser<>("parameters_parser", FollowParameters::new);
     static final ConstructingObjectParser<FollowerInfo, Void> INFO_PARSER = new ConstructingObjectParser<>(
         "info_parser",
         args -> {
@@ -88,6 +40,8 @@ public class FollowInfoResponseTests extends AbstractSerializingTestCase<FollowI
         });
 
     static {
+        FollowParameters.initParser(PARAMETERS_PARSER);
+
         INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), FollowerInfo.FOLLOWER_INDEX_FIELD);
         INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), FollowerInfo.REMOTE_CLUSTER_FIELD);
         INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), FollowerInfo.LEADER_INDEX_FIELD);
@@ -125,18 +79,17 @@ public class FollowInfoResponseTests extends AbstractSerializingTestCase<FollowI
         for (int i = 0; i < numInfos; i++) {
             FollowParameters followParameters = null;
             if (randomBoolean()) {
-                followParameters = new FollowParameters(
-                    randomIntBetween(0, Integer.MAX_VALUE),
-                    new ByteSizeValue(randomNonNegativeLong()),
-                    randomIntBetween(0, Integer.MAX_VALUE),
-                    randomIntBetween(0, Integer.MAX_VALUE),
-                    new ByteSizeValue(randomNonNegativeLong()),
-                    randomIntBetween(0, Integer.MAX_VALUE),
-                    randomIntBetween(0, Integer.MAX_VALUE),
-                    new ByteSizeValue(randomNonNegativeLong()),
-                    new TimeValue(randomNonNegativeLong()),
-                    new TimeValue(randomNonNegativeLong())
-                );
+                followParameters = new FollowParameters();
+                followParameters.setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));
+                followParameters.setMaxOutstandingWriteRequests(randomIntBetween(0, Integer.MAX_VALUE));
+                followParameters.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+                followParameters.setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+                followParameters.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+                followParameters.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+                followParameters.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
+                followParameters.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
+                followParameters.setMaxRetryDelay(new TimeValue(randomNonNegativeLong()));
+                followParameters.setReadPollTimeout(new TimeValue(randomNonNegativeLong()));
             }
 
             infos.add(new FollowerInfo(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4),

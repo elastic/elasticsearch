@@ -140,7 +140,6 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
@@ -195,8 +194,8 @@ import static org.elasticsearch.client.Requests.syncedFlushRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
@@ -1816,8 +1815,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS))
             // randomly enable low-level search cancellation to make sure it does not alter results
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
-            .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
-            .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file");
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
+            .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
         if (rarely()) {
             // Sometimes adjust the minimum search thread pool size, causing
             // QueueResizingEsThreadPoolExecutor to be used instead of a regular
@@ -1931,20 +1930,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
             initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
             initialTransportClientSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
         }
-        if (addTestZenDiscovery() && getUseZen2() == false) {
-            initialNodeSettings.put(TestZenDiscovery.USE_ZEN2.getKey(), false);
-        }
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
                     .put(initialNodeSettings.build())
                     .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
-            }
-
-            @Override
-            public List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-                return ESIntegTestCase.this.addExtraClusterBootstrapSettings(allNodesSettings);
             }
 
             @Override
@@ -1975,32 +1966,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
         };
     }
 
-    /**
-     * This method is called before starting a collection of nodes.
-     * At this point the test has a holistic view on all nodes settings and might perform settings adjustments as needed.
-     * For instance, the test could retrieve master node names and fill in
-     * {@link org.elasticsearch.cluster.coordination.ClusterBootstrapService#INITIAL_MASTER_NODES_SETTING} setting.
-     *
-     * @param allNodesSettings list of node settings before update
-     * @return list of node settings after update
-     */
-    protected List<Settings> addExtraClusterBootstrapSettings(List<Settings> allNodesSettings) {
-        return allNodesSettings;
-    }
 
     /**
      * Iff this returns true mock transport implementations are used for the test runs. Otherwise not mock transport impls are used.
      * The default is {@code true}.
      */
     protected boolean addMockTransportService() {
-        return true;
-    }
-
-    /**
-     * Iff this returns true test zen discovery implementations is used for the test runs.
-     * The default is {@code true}.
-     */
-    protected boolean addTestZenDiscovery() {
         return true;
     }
 
@@ -2044,9 +2015,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         if (addMockTransportService()) {
             mocks.add(getTestTransportPlugin());
-        }
-        if (addTestZenDiscovery()) {
-            mocks.add(TestZenDiscovery.TestPlugin.class);
         }
         if (addMockHttpTransport()) {
             mocks.add(MockHttpTransport.TestPlugin.class);
@@ -2214,6 +2182,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // Deleting indices is going to clear search contexts implicitly so we
         // need to check that there are no more in-flight search contexts before
         // we remove indices
+        if (isInternalCluster()) {
+            internalCluster().setBootstrapMasterNodeIndex(-1);
+        }
         super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {
             printTestMessage("cleaning up after");

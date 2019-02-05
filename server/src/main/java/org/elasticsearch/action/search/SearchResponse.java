@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
@@ -35,8 +36,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
@@ -47,6 +50,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -110,7 +114,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     public Aggregations getAggregations() {
         return internalResponse.aggregations();
     }
-
 
     public Suggest getSuggest() {
         return internalResponse.suggest();
@@ -349,7 +352,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         SearchResponseSections searchResponseSections = new SearchResponseSections(hits, aggs, suggest, timedOut, terminatedEarly,
                 profile, numReducePhases);
         return new SearchResponse(searchResponseSections, scrollId, totalShards, successfulShards, skippedShards, tookInMillis,
-                failures.toArray(new ShardSearchFailure[failures.size()]), clusters);
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY), clusters);
     }
 
     @Override
@@ -497,5 +500,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         public String toString() {
             return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
         }
+    }
+
+    static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
+        SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(searchHits,
+            InternalAggregations.EMPTY, null, null, false, null, 0);
+        return new SearchResponse(internalSearchResponse, null, 0, 0, 0, tookInMillisSupplier.get(),
+            ShardSearchFailure.EMPTY_ARRAY, clusters);
     }
 }

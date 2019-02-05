@@ -108,8 +108,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private FetchSourceContext fetchSourceContext;
 
-    private long version = Versions.MATCH_ANY;
-    private VersionType versionType = VersionType.INTERNAL;
     private int retryOnConflict = 0;
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
@@ -150,9 +148,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (version != Versions.MATCH_ANY && upsertRequest != null) {
-            validationException = addValidationError("can't provide both upsert request and a version", validationException);
-        }
         if(upsertRequest != null && upsertRequest.version() != Versions.MATCH_ANY) {
             validationException = addValidationError("can't provide version in upsert request", validationException);
         }
@@ -163,30 +158,20 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             validationException = addValidationError("id is missing", validationException);
         }
 
-        if (versionType != VersionType.INTERNAL) {
-            validationException = addValidationError("version type [" + versionType + "] is not supported by the update API",
-                    validationException);
-        } else {
-
-            if (version != Versions.MATCH_ANY && retryOnConflict > 0) {
-                validationException = addValidationError("can't provide both retry_on_conflict and a specific version",
-                    validationException);
-            }
-
-            if (!versionType.validateVersionForWrites(version)) {
-                validationException = addValidationError("illegal version value [" + version + "] for version type [" +
-                    versionType.name() + "]", validationException);
-            }
-        }
-
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
-        if (ifSeqNo != UNASSIGNED_SEQ_NO && retryOnConflict > 0) {
-            validationException = addValidationError("compare and write operations can not be retried", validationException);
-        }
+        if (ifSeqNo != UNASSIGNED_SEQ_NO) {
+            if (retryOnConflict > 0) {
+                validationException = addValidationError("compare and write operations can not be retried", validationException);
+            }
 
-        if (ifSeqNo != UNASSIGNED_SEQ_NO && docAsUpsert) {
-            validationException = addValidationError("compare and write operations can not be used with upsert", validationException);
+            if (docAsUpsert) {
+                validationException = addValidationError("compare and write operations can not be used with upsert", validationException);
+            }
+            if (upsertRequest != null) {
+                validationException =
+                    addValidationError("upsert requests don't support `if_seq_no` and `if_primary_term`", validationException);
+            }
         }
 
         if (script == null && doc == null) {
@@ -530,24 +515,22 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     @Override
     public UpdateRequest version(long version) {
-        this.version = version;
-        return this;
+        throw new UnsupportedOperationException("update requests do not support versioning");
     }
 
     @Override
     public long version() {
-        return this.version;
+        return Versions.MATCH_ANY;
     }
 
     @Override
     public UpdateRequest versionType(VersionType versionType) {
-        this.versionType = versionType;
-        return this;
+        throw new UnsupportedOperationException("update requests do not support versioning");
     }
 
     @Override
     public VersionType versionType() {
-        return this.versionType;
+        return VersionType.INTERNAL;
     }
 
     /**
@@ -877,12 +860,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             upsertRequest.readFrom(in);
         }
         docAsUpsert = in.readBoolean();
-        version = in.readLong();
-        versionType = VersionType.fromValue(in.readByte());
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            ifSeqNo = in.readZLong();
-            ifPrimaryTerm = in.readVLong();
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            long version = in.readLong();
+            VersionType versionType = VersionType.readFromStream(in);
+            if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
+                throw new UnsupportedOperationException(
+                    "versioned update requests have been removed in 7.0. Use if_seq_no and if_primary_term");
+            }
         }
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
     }
@@ -932,12 +919,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             upsertRequest.writeTo(out);
         }
         out.writeBoolean(docAsUpsert);
-        out.writeLong(version);
-        out.writeByte(versionType.getValue());
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeZLong(ifSeqNo);
-            out.writeVLong(ifPrimaryTerm);
+        if (out.getVersion().before(Version.V_7_0_0)) {
+            out.writeLong(Versions.MATCH_ANY);
+            out.writeByte(VersionType.INTERNAL.getValue());
         }
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
     }

@@ -22,7 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -36,7 +35,6 @@ import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.NoopDiscovery;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -75,18 +73,6 @@ public class DiscoveryModuleTests extends ESTestCase {
         }
     }
 
-    public interface DummyDiscoveryPlugin extends DiscoveryPlugin {
-        Map<String, Supplier<Discovery>> impl();
-        @Override
-        default Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
-                                                                   NamedWriteableRegistry namedWriteableRegistry,
-                                                                   MasterService masterService, ClusterApplier clusterApplier,
-                                                                   ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider,
-                                                                   AllocationService allocationService, GatewayMetaState gatewayMetaState) {
-            return impl();
-        }
-    }
-
     @Before
     public void setupDummyServices() {
         threadPool = mock(ThreadPool.class);
@@ -114,19 +100,6 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertTrue(module.getDiscovery() instanceof Coordinator);
     }
 
-    public void testLazyConstructionDiscovery() {
-        DummyDiscoveryPlugin plugin = () -> Collections.singletonMap("custom",
-            () -> { throw new AssertionError("created discovery type which was not selected"); });
-        newModule(Settings.EMPTY, Collections.singletonList(plugin));
-    }
-
-    public void testRegisterDiscovery() {
-        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "custom").build();
-        DummyDiscoveryPlugin plugin = () -> Collections.singletonMap("custom", NoopDiscovery::new);
-        DiscoveryModule module = newModule(settings, Collections.singletonList(plugin));
-        assertTrue(module.getDiscovery() instanceof NoopDiscovery);
-    }
-
     public void testUnknownDiscovery() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "dne").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
@@ -134,16 +107,8 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertEquals("Unknown discovery type [dne]", e.getMessage());
     }
 
-    public void testDuplicateDiscovery() {
-        DummyDiscoveryPlugin plugin1 = () -> Collections.singletonMap("dup", () -> null);
-        DummyDiscoveryPlugin plugin2 = () -> Collections.singletonMap("dup", () -> null);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            newModule(Settings.EMPTY, Arrays.asList(plugin1, plugin2)));
-        assertEquals("Cannot register discovery type [dup] twice", e.getMessage());
-    }
-
     public void testHostsProvider() {
-        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "custom").build();
+        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "custom").build();
         AtomicBoolean created = new AtomicBoolean(false);
         DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
             created.set(true);
@@ -153,11 +118,32 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertTrue(created.get());
     }
 
-    public void testUnknownHostsProvider() {
-        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "dne").build();
+    public void testLegacyHostsProvider() {
+        Settings settings = Settings.builder().put(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "custom").build();
+        AtomicBoolean created = new AtomicBoolean(false);
+        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
+            created.set(true);
+            return hostsResolver -> Collections.emptyList();
+        });
+        newModule(settings, Collections.singletonList(plugin));
+        assertTrue(created.get());
+        assertWarnings("[discovery.zen.hosts_provider] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "See the breaking changes documentation for the next major version.");
+    }
+
+    public void testLegacyAndNonLegacyProvidersRejected() {
+        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey())
+            .putList(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(settings, Collections.emptyList()));
-        assertEquals("Unknown zen hosts providers [dne]", e.getMessage());
+        assertEquals("it is forbidden to set both [discovery.seed_providers] and [discovery.zen.hosts_provider]", e.getMessage());
+    }
+
+    public void testUnknownHostsProvider() {
+        Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "dne").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            newModule(settings, Collections.emptyList()));
+        assertEquals("Unknown seed providers [dne]", e.getMessage());
     }
 
     public void testDuplicateHostsProvider() {
@@ -165,14 +151,14 @@ public class DiscoveryModuleTests extends ESTestCase {
         DummyHostsProviderPlugin plugin2 = () -> Collections.singletonMap("dup", () -> null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(Settings.EMPTY, Arrays.asList(plugin1, plugin2)));
-        assertEquals("Cannot register zen hosts provider [dup] twice", e.getMessage());
+        assertEquals("Cannot register seed provider [dup] twice", e.getMessage());
     }
 
     public void testSettingsHostsProvider() {
         DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("settings", () -> null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(Settings.EMPTY, Arrays.asList(plugin)));
-        assertEquals("Cannot register zen hosts provider [settings] twice", e.getMessage());
+        assertEquals("Cannot register seed provider [settings] twice", e.getMessage());
     }
 
     public void testMultiHostsProvider() {
@@ -191,7 +177,7 @@ public class DiscoveryModuleTests extends ESTestCase {
             created3.set(true);
             return hostsResolver -> Collections.emptyList();
         });
-        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(),
+        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(),
             "provider1", "provider3").build();
         newModule(settings, Arrays.asList(plugin1, plugin2, plugin3));
         assertTrue(created1.get());

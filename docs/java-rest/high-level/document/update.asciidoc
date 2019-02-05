@@ -140,9 +140,10 @@ include-tagged::{doc-tests-file}[{api}-request-source-exclude]
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-version]
+include-tagged::{doc-tests-file}[{api}-request-cas]
 --------------------------------------------------
-<1> Version
+<1> ifSeqNo
+<2> ifPrimaryTerm
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

@@ -18,8 +18,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,17 +27,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.FOLLOWER_INDEX_FIELD;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_READ_REQUESTS;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_WRITE_REQUESTS;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_OPERATION_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_SIZE;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_RETRY_DELAY_FIELD;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_SIZE;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_REQUEST_OPERATION_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_REQUEST_SIZE;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.READ_POLL_TIMEOUT;
 
 public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
@@ -65,70 +52,45 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
 
-        private static final ObjectParser<Request, String> PARSER = new ObjectParser<>(NAME, () -> {
-            Request request = new Request();
-            request.setFollowRequest(new ResumeFollowAction.Request());
-            return request;
-        });
+        // Note that Request should be the Value class here for this parser with a 'parameters' field that maps to
+        // PutFollowParameters class. But since two minor version are already released with duplicate follow parameters
+        // in several APIs, PutFollowParameters is now the Value class here.
+        private static final ObjectParser<PutFollowParameters, Void> PARSER = new ObjectParser<>(NAME, PutFollowParameters::new);
 
         static {
-            PARSER.declareString(Request::setRemoteCluster, REMOTE_CLUSTER_FIELD);
-            PARSER.declareString(Request::setLeaderIndex, LEADER_INDEX_FIELD);
-            PARSER.declareString((req, val) -> req.followRequest.setFollowerIndex(val), FOLLOWER_INDEX_FIELD);
-            PARSER.declareInt((req, val) -> req.followRequest.setMaxReadRequestOperationCount(val), MAX_READ_REQUEST_OPERATION_COUNT);
-            PARSER.declareField(
-                (req, val) -> req.followRequest.setMaxReadRequestSize(val),
-                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
-                MAX_READ_REQUEST_SIZE,
-                ObjectParser.ValueType.STRING);
-            PARSER.declareInt((req, val) -> req.followRequest.setMaxOutstandingReadRequests(val), MAX_OUTSTANDING_READ_REQUESTS);
-            PARSER.declareInt((req, val) -> req.followRequest.setMaxWriteRequestOperationCount(val), MAX_WRITE_REQUEST_OPERATION_COUNT);
-            PARSER.declareField(
-                    (req, val) -> req.followRequest.setMaxWriteRequestSize(val),
-                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
-                    MAX_WRITE_REQUEST_SIZE,
-                    ObjectParser.ValueType.STRING);
-            PARSER.declareInt((req, val) -> req.followRequest.setMaxOutstandingWriteRequests(val), MAX_OUTSTANDING_WRITE_REQUESTS);
-            PARSER.declareInt((req, val) -> req.followRequest.setMaxWriteBufferCount(val), MAX_WRITE_BUFFER_COUNT);
-            PARSER.declareField(
-                (req, val) -> req.followRequest.setMaxWriteBufferSize(val),
-                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
-                MAX_WRITE_BUFFER_SIZE,
-                ObjectParser.ValueType.STRING);
-            PARSER.declareField(
-                (req, val) -> req.followRequest.setMaxRetryDelay(val),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY_FIELD.getPreferredName()),
-                MAX_RETRY_DELAY_FIELD,
-                ObjectParser.ValueType.STRING);
-            PARSER.declareField(
-                (req, val) -> req.followRequest.setReadPollTimeout(val),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), READ_POLL_TIMEOUT.getPreferredName()),
-                READ_POLL_TIMEOUT,
-                ObjectParser.ValueType.STRING);
+            PARSER.declareString((putFollowParameters, value) -> putFollowParameters.remoteCluster = value, REMOTE_CLUSTER_FIELD);
+            PARSER.declareString((putFollowParameters, value) -> putFollowParameters.leaderIndex = value, LEADER_INDEX_FIELD);
+            FollowParameters.initParser(PARSER);
         }
 
         public static Request fromXContent(final XContentParser parser, final String followerIndex, ActiveShardCount waitForActiveShards)
             throws IOException {
-            Request request = PARSER.parse(parser, followerIndex);
-            if (followerIndex != null) {
-                if (request.getFollowRequest().getFollowerIndex() == null) {
-                    request.getFollowRequest().setFollowerIndex(followerIndex);
-                } else {
-                    if (request.getFollowRequest().getFollowerIndex().equals(followerIndex) == false) {
-                        throw new IllegalArgumentException("provided follower_index is not equal");
-                    }
-                }
-            }
+            PutFollowParameters parameters = PARSER.parse(parser, null);
+
+            Request request = new Request();
             request.waitForActiveShards(waitForActiveShards);
+            request.setFollowerIndex(followerIndex);
+            request.setRemoteCluster(parameters.remoteCluster);
+            request.setLeaderIndex(parameters.leaderIndex);
+            request.setParameters(parameters);
             return request;
         }
 
         private String remoteCluster;
         private String leaderIndex;
+        private String followerIndex;
+        private FollowParameters parameters = new FollowParameters();
         private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
-        private ResumeFollowAction.Request followRequest;
 
         public Request() {
+        }
+
+        public String getFollowerIndex() {
+            return followerIndex;
+        }
+
+        public void setFollowerIndex(String followerIndex) {
+            this.followerIndex = followerIndex;
         }
 
         public String getRemoteCluster() {
@@ -145,6 +107,14 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         public void setLeaderIndex(String leaderIndex) {
             this.leaderIndex = leaderIndex;
+        }
+
+        public FollowParameters getParameters() {
+            return parameters;
+        }
+
+        public void setParameters(FollowParameters parameters) {
+            this.parameters = parameters;
         }
 
         public ActiveShardCount waitForActiveShards() {
@@ -168,29 +138,24 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             }
         }
 
-        public ResumeFollowAction.Request getFollowRequest() {
-            return followRequest;
-        }
-
-        public void setFollowRequest(ResumeFollowAction.Request followRequest) {
-            this.followRequest = followRequest;
-        }
-
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException e = followRequest.validate();
+            ActionRequestValidationException e = parameters.validate();
             if (remoteCluster == null) {
                 e = addValidationError(REMOTE_CLUSTER_FIELD.getPreferredName() + " is missing", e);
             }
             if (leaderIndex == null) {
                 e = addValidationError(LEADER_INDEX_FIELD.getPreferredName() + " is missing", e);
             }
+            if (followerIndex == null) {
+                e = addValidationError("follower_index is missing", e);
+            }
             return e;
         }
 
         @Override
         public String[] indices() {
-            return new String[]{followRequest.getFollowerIndex()};
+            return new String[]{followerIndex};
         }
 
         @Override
@@ -200,13 +165,13 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            remoteCluster = in.readString();
-            leaderIndex = in.readString();
-            // TODO: Update after backport
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            this.remoteCluster = in.readString();
+            this.leaderIndex = in.readString();
+            this.followerIndex = in.readString();
+            this.parameters = new FollowParameters(in);
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
                 waitForActiveShards(ActiveShardCount.readFrom(in));
             }
-            followRequest = new ResumeFollowAction.Request(in);
         }
 
         @Override
@@ -214,11 +179,11 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             super.writeTo(out);
             out.writeString(remoteCluster);
             out.writeString(leaderIndex);
-            // TODO: Update after backport
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeString(followerIndex);
+            parameters.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
                 waitForActiveShards.writeTo(out);
             }
-            followRequest.writeTo(out);
         }
 
         @Override
@@ -227,7 +192,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             {
                 builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                 builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
-                followRequest.toXContentFragment(builder, params);
+                parameters.toXContentFragment(builder);
             }
             builder.endObject();
             return builder;
@@ -240,24 +205,23 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             Request request = (Request) o;
             return Objects.equals(remoteCluster, request.remoteCluster) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
-                Objects.equals(waitForActiveShards, request.waitForActiveShards) &&
-                Objects.equals(followRequest, request.followRequest);
+                Objects.equals(followerIndex, request.followerIndex) &&
+                Objects.equals(parameters, request.parameters) &&
+                Objects.equals(waitForActiveShards, request.waitForActiveShards);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(remoteCluster, leaderIndex, waitForActiveShards, followRequest);
+            return Objects.hash(remoteCluster, leaderIndex, followerIndex, parameters, waitForActiveShards);
         }
 
-        @Override
-        public String toString() {
-            return "PutFollowAction.Request{" +
-                "remoteCluster='" + remoteCluster + '\'' +
-                ", leaderIndex='" + leaderIndex + '\'' +
-                ", waitForActiveShards=" + waitForActiveShards +
-                ", followRequest=" + followRequest +
-                '}';
+        // This class only exists for reuse of the FollowParameters class, see comment above the parser field.
+        private static class PutFollowParameters extends FollowParameters {
+
+            private String remoteCluster;
+            private String leaderIndex;
         }
+
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

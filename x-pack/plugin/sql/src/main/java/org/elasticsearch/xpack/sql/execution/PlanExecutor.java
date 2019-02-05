@@ -27,8 +27,11 @@ import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
+import org.elasticsearch.xpack.sql.stats.QueryMetric;
 
 import java.util.List;
+
+import static org.elasticsearch.action.ActionListener.wrap;
 
 public class PlanExecutor {
     private final Client client;
@@ -64,7 +67,9 @@ public class PlanExecutor {
     }
 
     public void searchSource(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<SearchSourceBuilder> listener) {
-        newSession(cfg).sqlExecutable(sql, params, ActionListener.wrap(exec -> {
+        metrics.translate();
+
+        newSession(cfg).sqlExecutable(sql, params, wrap(exec -> {
             if (exec instanceof EsQueryExec) {
                 EsQueryExec e = (EsQueryExec) exec;
                 listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
@@ -87,11 +92,24 @@ public class PlanExecutor {
     }
 
     public void sql(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<SchemaRowSet> listener) {
-        newSession(cfg).sql(sql, params, listener);
+        QueryMetric metric = QueryMetric.from(cfg.mode(), cfg.clientId());
+        metrics.total(metric);
+
+        newSession(cfg).sql(sql, params, wrap(listener::onResponse, ex -> {
+            metrics.failed(metric);
+            listener.onFailure(ex);
+        }));
     }
 
     public void nextPage(Configuration cfg, Cursor cursor, ActionListener<RowSet> listener) {
-        cursor.nextPage(cfg, client, writableRegistry, listener);
+        QueryMetric metric = QueryMetric.from(cfg.mode(), cfg.clientId());
+        metrics.total(metric);
+        metrics.paging(metric);
+
+        cursor.nextPage(cfg, client, writableRegistry, wrap(listener::onResponse, ex -> {
+            metrics.failed(metric);
+            listener.onFailure(ex);
+        }));
     }
 
     public void cleanCursor(Configuration cfg, Cursor cursor, ActionListener<Boolean> listener) {

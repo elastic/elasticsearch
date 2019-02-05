@@ -971,9 +971,9 @@ class ClusterFormationTasks {
     /** Find the current OS */
     static String getOs() {
         String os = "linux"
-        if (Os.FAMILY_WINDOWS) {
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             os = "windows"
-        } else if (Os.FAMILY_MAC) {
+        } else if (Os.isFamily(Os.FAMILY_MAC)) {
             os = "darwin"
         }
         return os

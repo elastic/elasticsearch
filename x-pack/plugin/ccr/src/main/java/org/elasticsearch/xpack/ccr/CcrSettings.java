@@ -58,6 +58,12 @@ public final class CcrSettings {
             Setting.Property.NodeScope);
 
     /**
+     * Controls the maximum number of file chunk requests that are sent concurrently per recovery to the leader.
+     */
+    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING =
+        Setting.intSetting("ccr.indices.recovery.max_concurrent_file_chunks", 5, 1, 10, Property.Dynamic, Property.NodeScope);
+
+    /**
      * The leader must open resources for a ccr recovery. If there is no activity for this interval of time,
      * the leader will close the restore session.
      */
@@ -86,6 +92,7 @@ public final class CcrSettings {
                 INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
                 CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT,
                 RECOVERY_CHUNK_SIZE,
+                INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
                 CCR_WAIT_FOR_METADATA_TIMEOUT);
     }
 
@@ -93,20 +100,27 @@ public final class CcrSettings {
     private volatile TimeValue recoveryActivityTimeout;
     private volatile TimeValue recoveryActionTimeout;
     private volatile ByteSizeValue chunkSize;
+    private volatile int maxConcurrentFileChunks;
 
     public CcrSettings(Settings settings, ClusterSettings clusterSettings) {
         this.recoveryActivityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
         this.recoveryActionTimeout = INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.get(settings);
         this.ccrRateLimiter = new CombinedRateLimiter(RECOVERY_MAX_BYTES_PER_SECOND.get(settings));
         this.chunkSize = RECOVERY_MAX_BYTES_PER_SECOND.get(settings);
+        this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(RECOVERY_MAX_BYTES_PER_SECOND, this::setMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(RECOVERY_CHUNK_SIZE, this::setChunkSize);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setRecoveryActivityTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTION_TIMEOUT_SETTING, this::setRecoveryActionTimeout);
     }
 
     private void setChunkSize(ByteSizeValue chunkSize) {
         this.chunkSize = chunkSize;
+    }
+
+    private void setMaxConcurrentFileChunks(int maxConcurrentFileChunks) {
+        this.maxConcurrentFileChunks = maxConcurrentFileChunks;
     }
 
     private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
@@ -123,6 +137,10 @@ public final class CcrSettings {
 
     public ByteSizeValue getChunkSize() {
         return chunkSize;
+    }
+
+    public int getMaxConcurrentFileChunks() {
+        return maxConcurrentFileChunks;
     }
 
     public CombinedRateLimiter getRateLimiter() {

@@ -35,7 +35,6 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
@@ -53,6 +52,7 @@ import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
+import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -348,7 +348,7 @@ final class IndicesRequestConverters {
 
     static Request rollover(RolloverRequest rolloverRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPart(rolloverRequest.getAlias()).addPathPartAsIs("_rollover")
-                .addPathPart(rolloverRequest.getNewIndexName()).build();
+            .addPathPart(rolloverRequest.getNewIndexName()).build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request);
@@ -358,8 +358,28 @@ final class IndicesRequestConverters {
         if (rolloverRequest.isDryRun()) {
             params.putParam("dry_run", Boolean.TRUE.toString());
         }
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, "false");
 
         request.setEntity(RequestConverters.createEntity(rolloverRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    @Deprecated
+    static Request rollover(org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPart(rolloverRequest.getAlias()).addPathPartAsIs("_rollover")
+            .addPathPart(rolloverRequest.getNewIndexName()).build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withTimeout(rolloverRequest.timeout());
+        params.withMasterTimeout(rolloverRequest.masterNodeTimeout());
+        params.withWaitForActiveShards(rolloverRequest.getCreateIndexRequest().waitForActiveShards());
+        if (rolloverRequest.isDryRun()) {
+            params.putParam("dry_run", Boolean.TRUE.toString());
+        }
+        params.putParam(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        request.setEntity(RequestConverters.createEntity(rolloverRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
+
         return request;
     }
 

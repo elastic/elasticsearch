@@ -17,23 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.client.security;
+package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-/**
- * Response for a request which simply returns an empty object.
-   @deprecated Use a boolean instead of this class
- */
-@Deprecated
-public final class EmptyResponse {
+public class ParsedGeoTileGridBucket extends ParsedGeoGridBucket {
 
-    private static final ObjectParser<EmptyResponse, Void> PARSER = new ObjectParser<>("empty_response", false, EmptyResponse::new);
+    @Override
+    public GeoPoint getKey() {
+        return GeoTileUtils.keyToGeoPoint(hashAsString);
+    }
 
-    public static EmptyResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    @Override
+    public String getKeyAsString() {
+        return hashAsString;
+    }
+
+    static ParsedGeoTileGridBucket fromXContent(XContentParser parser) throws IOException {
+        return parseXContent(parser, false, ParsedGeoTileGridBucket::new, (p, bucket) -> bucket.hashAsString = p.text());
     }
 }

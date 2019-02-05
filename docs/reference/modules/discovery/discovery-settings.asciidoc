@@ -44,7 +44,7 @@ Discovery and cluster formation are affected by the following settings:
 `cluster.fault_detection.follower_check.timeout`::
 
     Sets how long the elected master waits for a response to a follower check
-    before considering it to have failed. Defaults to `30s`.
+    before considering it to have failed. Defaults to `10s`.
 
 `cluster.fault_detection.follower_check.retry_count`::
 
@@ -60,7 +60,7 @@ Discovery and cluster formation are affected by the following settings:
 `cluster.fault_detection.leader_check.timeout`::
 
     Sets how long each node waits for a response to a leader check from the
-    elected master before considering it to have failed. Defaults to `30s`.
+    elected master before considering it to have failed. Defaults to `10s`.
 
 `cluster.fault_detection.leader_check.retry_count`::
 

@@ -20,11 +20,11 @@ import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -124,15 +124,15 @@ public class GetWatchResponseTests extends
 
     private static WatchStatus randomWatchStatus() {
         long version = randomLongBetween(-1, Long.MAX_VALUE);
-        WatchStatus.State state = new WatchStatus.State(randomBoolean(), DateTime.now(DateTimeZone.UTC));
+        WatchStatus.State state = new WatchStatus.State(randomBoolean(), ZonedDateTime.now(ZoneOffset.UTC));
         ExecutionState executionState = randomFrom(ExecutionState.values());
-        DateTime lastChecked = rarely() ? null : DateTime.now(DateTimeZone.UTC);
-        DateTime lastMetCondition = rarely() ? null : DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime lastChecked = rarely() ? null : ZonedDateTime.now(ZoneOffset.UTC);
+        ZonedDateTime lastMetCondition = rarely() ? null : ZonedDateTime.now(ZoneOffset.UTC);
         int size = randomIntBetween(0, 5);
         Map<String, ActionStatus> actionMap = new HashMap<>();
         for (int i = 0; i < size; i++) {
             ActionStatus.AckStatus ack = new ActionStatus.AckStatus(
-                DateTime.now(DateTimeZone.UTC),
+                ZonedDateTime.now(ZoneOffset.UTC),
                 randomFrom(ActionStatus.AckStatus.State.values())
             );
             ActionStatus actionStatus = new ActionStatus(
@@ -152,16 +152,16 @@ public class GetWatchResponseTests extends
     }
 
     private static ActionStatus.Throttle randomThrottle() {
-        return new ActionStatus.Throttle(DateTime.now(DateTimeZone.UTC), randomAlphaOfLengthBetween(10, 20));
+        return new ActionStatus.Throttle(ZonedDateTime.now(ZoneOffset.UTC), randomAlphaOfLengthBetween(10, 20));
     }
 
     private static ActionStatus.Execution randomExecution() {
         if (randomBoolean()) {
             return null;
         } else if (randomBoolean()) {
-            return ActionStatus.Execution.failure(DateTime.now(DateTimeZone.UTC), randomAlphaOfLengthBetween(10, 20));
+            return ActionStatus.Execution.failure(ZonedDateTime.now(ZoneOffset.UTC), randomAlphaOfLengthBetween(10, 20));
         } else {
-            return ActionStatus.Execution.successful(DateTime.now(DateTimeZone.UTC));
+            return ActionStatus.Execution.successful(ZonedDateTime.now(ZoneOffset.UTC));
         }
     }
 

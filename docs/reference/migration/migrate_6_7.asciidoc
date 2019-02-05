@@ -17,6 +17,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 [[breaking_67_indexing_changes]]
 === Indexing changes
 
+[float]
 ==== Deprecated usage of `internal` versioning for optimistic concurrency control
 
 `internal` version may not uniquely identify a document's version if an indexed document

@@ -49,7 +49,7 @@ hardware.
 
 [IMPORTANT]
 ===========================
-{ilm} does not support mixed-cluster usage. Although it
+{ilm} does not support mixed-version cluster usage. Although it
 may be possible to create such new policies against
 newer-versioned nodes, there is no guarantee they will
 work as intended. New policies using new actions that

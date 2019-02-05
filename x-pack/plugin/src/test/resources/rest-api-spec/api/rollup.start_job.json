@@ -1,6 +1,7 @@
 {
   "rollup.start_job": {
     "documentation": "",
+    "state" : "experimental",
     "methods": [ "POST" ],
     "url": {
       "path": "/_rollup/job/{id}/_start",

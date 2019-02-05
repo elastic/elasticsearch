@@ -10,6 +10,7 @@ Example for the ["Create Index"](http://www.elastic.co/guide/en/elasticsearch/re
 {
   "indices.create": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html",
+    "state": "stable",
     "methods": ["PUT", "POST"],
     "url": {
       "path": "/{index}",
@@ -39,9 +40,16 @@ The specification contains:
 
 * The _name_ of the API (`indices.create`), which usually corresponds to the client calls
 * Link to the documentation at <http://elastic.co>
+* `state` indicating the state of the API, defaults to `stable`
+    * `private` this API should not be be implemented by clients
+    * `experimental` highly likely to break in the near future (minor/path), no bwc guarantees. 
+    Possibly removed in the future.
+    * `beta` less likely to break or be removed but still reserve the right to do so
+    * `stable` No backwards breaking changes in a minor (default if not specified)
 * List of HTTP methods for the endpoint
 * URL specification: path, parts, parameters
 * Whether body is allowed for the endpoint or not and its description
+
 
 The `methods` and `url.paths` elements list all possible HTTP methods and URLs for the endpoint;
 it is the responsibility of the developer to use this information for a sensible API on the target platform.

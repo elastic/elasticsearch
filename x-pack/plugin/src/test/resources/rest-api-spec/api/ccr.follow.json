@@ -1,6 +1,7 @@
 {
   "ccr.follow": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-put-follow.html",
+    "state" : "beta",
     "methods": [ "PUT" ],
     "url": {
       "path": "/{index}/_ccr/follow",

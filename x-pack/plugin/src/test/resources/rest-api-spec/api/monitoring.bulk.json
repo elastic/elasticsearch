@@ -1,6 +1,7 @@
 {
   "monitoring.bulk": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/es-monitoring.html",
+    "state" : "private",
     "methods": ["POST", "PUT"],
     "url": {
       "path": "/_monitoring/bulk",

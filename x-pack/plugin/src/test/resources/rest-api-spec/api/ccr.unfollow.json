@@ -1,6 +1,7 @@
 {
   "ccr.unfollow": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
+    "state" : "beta",
     "methods": [ "POST" ],
     "url": {
       "path": "/{index}/_ccr/unfollow",

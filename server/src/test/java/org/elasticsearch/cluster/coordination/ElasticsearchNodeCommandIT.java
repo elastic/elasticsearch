@@ -409,7 +409,7 @@ public class ElasticsearchNodeCommandIT extends ESIntegTestCase {
         unsafeBootstrap(environment);
 
         internalCluster().startMasterOnlyNode();
-        ensureStableCluster(1);
+        ensureGreen();
 
         state = internalCluster().client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.metaData().settings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()),

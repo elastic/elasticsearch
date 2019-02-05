@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
-import java.io.IOException;
 
 public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<VectorDVAtomicFieldData> {
 
@@ -49,11 +47,7 @@ public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements I
 
     @Override
     public VectorDVAtomicFieldData load(LeafReaderContext context) {
-        try {
-            return new VectorDVAtomicFieldData(DocValues.getBinary(context.reader(), fieldName));
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot load doc values", e);
-        }
+        return new VectorDVAtomicFieldData(context.reader(), fieldName);
     }
 
     @Override

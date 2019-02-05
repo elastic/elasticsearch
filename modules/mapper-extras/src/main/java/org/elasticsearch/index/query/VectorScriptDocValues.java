@@ -47,7 +47,7 @@ public final class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
     }
 
     // package private access only for {@link ScoreScriptUtils}
-    BytesRef getValue() {
+    BytesRef getEncodedValue() {
         return value;
     }
 

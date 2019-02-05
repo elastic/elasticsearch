@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.VectorEncoderDecoder;
 
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.VectorEncoderDecoder.sortSparseDimsValues;
+import static org.elasticsearch.index.mapper.VectorEncoderDecoder.sortSparseDimsDoubleValues;
 
 public class ScoreScriptUtils {
 
@@ -38,8 +39,9 @@ public class ScoreScriptUtils {
      * @param dvs VectorScriptDocValues representing encoded documents' vectors
      */
     public static double dotProduct(List<Number> queryVector, VectorScriptDocValues dvs){
-        if (dvs.getValue() == null) return 0;
-        float[] docVector = VectorEncoderDecoder.decodeDenseVector(dvs.getValue());
+        BytesRef value = dvs.getEncodedValue();
+        if (value == null) return 0;
+        float[] docVector = VectorEncoderDecoder.decodeDenseVector(value);
         return intDotProduct(queryVector, docVector);
     }
 
@@ -58,23 +60,24 @@ public class ScoreScriptUtils {
         // calculate queryVectorMagnitude once per query execution
         public CosineSimilarity(List<Number> queryVector) {
             this.queryVector = queryVector;
-            float floatValue;
+            double doubleValue;
             double dotProduct = 0;
             for (Number value : queryVector) {
-                floatValue = value.floatValue();
-                dotProduct += floatValue * floatValue;
+                doubleValue = value.doubleValue();
+                dotProduct += doubleValue * doubleValue;
             }
             this.queryVectorMagnitude = Math.sqrt(dotProduct);
         }
 
         public double cosineSimilarity(VectorScriptDocValues dvs) {
-            if (dvs.getValue() == null) return 0;
-            float[] docVector = VectorEncoderDecoder.decodeDenseVector(dvs.getValue());
+            BytesRef value = dvs.getEncodedValue();
+            if (value == null) return 0;
+            float[] docVector = VectorEncoderDecoder.decodeDenseVector(value);
 
             // calculate docVector magnitude
             double dotProduct = 0f;
             for (int dim = 0; dim < docVector.length; dim++) {
-                dotProduct += docVector[dim] * docVector[dim];
+                dotProduct += (double) docVector[dim] * docVector[dim];
             }
             final double docVectorMagnitude = Math.sqrt(dotProduct);
 
@@ -89,7 +92,7 @@ public class ScoreScriptUtils {
         int dim = 0;
         Iterator<Number> v1Iter = v1.iterator();
         while(dim < dims) {
-            v1v2DotProduct += v1Iter.next().floatValue() * v2[dim];
+            v1v2DotProduct += v1Iter.next().doubleValue() * v2[dim];
             dim++;
         }
         return v1v2DotProduct;
@@ -107,7 +110,7 @@ public class ScoreScriptUtils {
      * A user will call `dotProductSparse(params.queryVector, doc['my_vector'])`
      */
     public static final class DotProductSparse {
-        float[] queryValues;
+        double[] queryValues;
         int[] queryDims;
 
         // prepare queryVector once per script execution
@@ -116,21 +119,26 @@ public class ScoreScriptUtils {
             //break vector into two arrays dims and values
             int n = queryVector.size();
             queryDims = new int[n];
-            queryValues = new float[n];
+            queryValues = new double[n];
             int i = 0;
             for (Map.Entry<String, Number> dimValue : queryVector.entrySet()) {
-                queryDims[i] = Integer.parseInt(dimValue.getKey());
-                queryValues[i] = dimValue.getValue().floatValue();
+                try {
+                    queryDims[i] = Integer.parseInt(dimValue.getKey());
+                } catch (final NumberFormatException e) {
+                    throw new IllegalArgumentException("Failed to parse a query vector dimension, it must be an integer!", e);
+                }
+                queryValues[i] = dimValue.getValue().doubleValue();
                 i++;
             }
             // Sort dimensions in the ascending order and sort values in the same order as their corresponding dimensions
-            sortSparseDimsValues(queryDims, queryValues, n);
+            sortSparseDimsDoubleValues(queryDims, queryValues, n);
         }
 
         public double dotProductSparse(VectorScriptDocValues dvs) {
-            if (dvs.getValue() == null) return 0;
-            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(dvs.getValue());
-            float[] docValues = VectorEncoderDecoder.decodeSparseVector(dvs.getValue());
+            BytesRef value = dvs.getEncodedValue();
+            if (value == null) return 0;
+            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(value);
+            float[] docValues = VectorEncoderDecoder.decodeSparseVector(value);
             return intDotProductSparse(queryValues, queryDims, docValues, docDims);
         }
     }
@@ -144,7 +152,7 @@ public class ScoreScriptUtils {
      * A user will call `cosineSimilaritySparse(params.queryVector, doc['my_vector'])`
      */
     public static final class CosineSimilaritySparse {
-        float[] queryValues;
+        double[] queryValues;
         int[] queryDims;
         double queryVectorMagnitude;
 
@@ -152,30 +160,35 @@ public class ScoreScriptUtils {
         public CosineSimilaritySparse(Map<String, Number> queryVector) {
             //break vector into two arrays dims and values
             int n = queryVector.size();
-            queryValues = new float[n];
+            queryValues = new double[n];
             queryDims = new int[n];
             double dotProduct = 0;
             int i = 0;
             for (Map.Entry<String, Number> dimValue : queryVector.entrySet()) {
-                queryDims[i] = Integer.parseInt(dimValue.getKey());
-                queryValues[i] = dimValue.getValue().floatValue();
+                try {
+                    queryDims[i] = Integer.parseInt(dimValue.getKey());
+                } catch (final NumberFormatException e) {
+                    throw new IllegalArgumentException("Failed to parse a query vector dimension, it must be an integer!", e);
+                }
+                queryValues[i] = dimValue.getValue().doubleValue();
                 dotProduct +=  queryValues[i] *  queryValues[i];
                 i++;
             }
             this.queryVectorMagnitude = Math.sqrt(dotProduct);
             // Sort dimensions in the ascending order and sort values in the same order as their corresponding dimensions
-            sortSparseDimsValues(queryDims, queryValues, n);
+            sortSparseDimsDoubleValues(queryDims, queryValues, n);
         }
 
         public double cosineSimilaritySparse(VectorScriptDocValues dvs) {
-            if (dvs.getValue() == null) return 0;
-            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(dvs.getValue());
-            float[] docValues = VectorEncoderDecoder.decodeSparseVector(dvs.getValue());
+            BytesRef value = dvs.getEncodedValue();
+            if (value == null) return 0;
+            int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(value);
+            float[] docValues = VectorEncoderDecoder.decodeSparseVector(value);
 
             // calculate docVector magnitude
             double dotProduct = 0;
-            for (float value : docValues) {
-                dotProduct += value * value;
+            for (float docValue : docValues) {
+                dotProduct += (double) docValue * docValue;
             }
             final double docVectorMagnitude = Math.sqrt(dotProduct);
 
@@ -184,7 +197,7 @@ public class ScoreScriptUtils {
         }
     }
 
-    private static double intDotProductSparse(float[] v1Values, int[] v1Dims, float[] v2Values, int[] v2Dims) {
+    private static double intDotProductSparse(double[] v1Values, int[] v1Dims, float[] v2Values, int[] v2Dims) {
         double v1v2DotProduct = 0;
         int v1Index = 0;
         int v2Index = 0;

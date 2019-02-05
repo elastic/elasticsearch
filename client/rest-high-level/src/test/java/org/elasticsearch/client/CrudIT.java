@@ -436,7 +436,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/38451 contains a fix. sliencing for now")
     public void testIndex() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
         highLevelClient().indices().create(

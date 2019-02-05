@@ -124,10 +124,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private final Map<Snapshot, List<ActionListener<SnapshotInfo>>> snapshotCompletionListeners = new ConcurrentHashMap<>();
 
     // Set of snapshots that are currently being initialized by this node
-    private final Set<Snapshot> initializingSnapshots = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<Snapshot> initializingSnapshots = Collections.synchronizedSet(new HashSet<>());
 
     // Set of snapshots that are currently being ended by this node
-    private final Set<Snapshot> endingSnapshots = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<Snapshot> endingSnapshots = Collections.synchronizedSet(new HashSet<>());
 
     @Inject
     public SnapshotsService(Settings settings, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,

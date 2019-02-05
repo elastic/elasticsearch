@@ -311,12 +311,16 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         };
         CcrRequests.getIndexMetadata(leaderClient, leaderIndex, leaderMappingVersion, 0L, timeout, indexMetadataFuture);
         final IndexMetaData leaderIndexMetadata = indexMetadataFuture.actionGet(ccrSettings.getRecoveryActionTimeout());
-        assert leaderIndexMetadata.getMappings().size() == 1 : "expected exactly one mapping, but got [" +
-            leaderIndexMetadata.getMappings().size() + "]";
-        MappingMetaData mappingMetaData = leaderIndexMetadata.getMappings().iterator().next().value;
-        if (mappingMetaData != null) {
-            final PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
-            followerClient.admin().indices().putMapping(putMappingRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
+        if (leaderIndexMetadata.getMappings().isEmpty()) {
+            assert leaderIndexMetadata.getMappingVersion() == 1;
+        } else {
+            assert leaderIndexMetadata.getMappings().size() == 1 : "expected exactly one mapping, but got [" +
+                leaderIndexMetadata.getMappings().size() + "]";
+            MappingMetaData mappingMetaData = leaderIndexMetadata.getMappings().iterator().next().value;
+            if (mappingMetaData != null) {
+                final PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
+                followerClient.admin().indices().putMapping(putMappingRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
+            }
         }
     }
 

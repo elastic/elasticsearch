@@ -828,7 +828,7 @@ public final class TokenService {
                                     updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
                                     UpdateRequestBuilder updateRequest =
                                         client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
-                                            .setDoc("refresh_token", Collections.singletonMap("refreshed", true))
+                                            .setDoc("refresh_token", updateMap)
                                             .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
                                     if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0)) {
                                         updateRequest.setIfSeqNo(response.getSeqNo());

@@ -38,6 +38,9 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
+        // Note that Request should be the Value class here for this parser with a 'parameters' field that maps to FollowParameters class
+        // But since two minor version are already released with duplicate follow parameters in several APIs, FollowParameters
+        // is now the Value class here.
         static final ObjectParser<FollowParameters, Void> PARSER = new ObjectParser<>(NAME, FollowParameters::new);
 
         static {

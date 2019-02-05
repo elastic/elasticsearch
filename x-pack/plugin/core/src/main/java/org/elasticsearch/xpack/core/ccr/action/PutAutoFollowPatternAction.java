@@ -44,6 +44,9 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
+        // Note that Request should be the Value class here for this parser with a 'parameters' field that maps to
+        // PutAutoFollowPatternParameters class. But since two minor version are already released with duplicate
+        // follow parameters in several APIs, PutAutoFollowPatternParameters is now the Value class here.
         private static final ObjectParser<PutAutoFollowPatternParameters, Void> PARSER =
             new ObjectParser<>("put_auto_follow_pattern_request", PutAutoFollowPatternParameters::new);
 
@@ -222,6 +225,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             return Objects.hash(name, remoteCluster, leaderIndexPatterns, followIndexNamePattern, parameters);
         }
 
+        // This class only exists for reuse of the FollowParameters class, see comment above the parser field.
         private static class PutAutoFollowPatternParameters extends FollowParameters {
 
             private String remoteCluster;

@@ -51,6 +51,10 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
         private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
+
+        // Note that Request should be the Value class here for this parser with a 'parameters' field that maps to
+        // PutFollowParameters class. But since two minor version are already released with duplicate follow parameters
+        // in several APIs, PutFollowParameters is now the Value class here.
         private static final ObjectParser<PutFollowParameters, Void> PARSER = new ObjectParser<>(NAME, PutFollowParameters::new);
 
         static {
@@ -211,6 +215,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             return Objects.hash(remoteCluster, leaderIndex, followerIndex, parameters, waitForActiveShards);
         }
 
+        // This class only exists for reuse of the FollowParameters class, see comment above the parser field.
         private static class PutFollowParameters extends FollowParameters {
 
             private String remoteCluster;

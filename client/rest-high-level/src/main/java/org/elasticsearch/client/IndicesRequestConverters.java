@@ -43,6 +43,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.indices.CreateIndexRequest;
@@ -50,11 +51,9 @@ import org.elasticsearch.client.indices.FreezeIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
-import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.BaseRestHandler;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -389,7 +388,7 @@ final class IndicesRequestConverters {
         params.withHuman(getIndexRequest.humanReadable());
         params.withMasterTimeout(getIndexRequest.masterNodeTimeout());
         // Force "include_type_name" parameter since responses need to be compatible when coming from 7.0 nodes
-        params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.TRUE.toString());
+        params.withIncludeTypeName(true);
 
         return request;
     }
@@ -424,38 +423,12 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    /**
-     * @deprecated This uses the old form of PutIndexTemplateRequest which uses types. 
-     * Use (@link {@link #putTemplate(PutIndexTemplateRequest)} instead
-     */
-    @Deprecated
-    static Request putTemplate(org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putIndexTemplateRequest) 
-            throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_template")
-            .addPathPart(putIndexTemplateRequest.name()).build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
-        params.withMasterTimeout(putIndexTemplateRequest.masterNodeTimeout());
-        params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.TRUE.toString());
-        if (putIndexTemplateRequest.create()) {
-            params.putParam("create", Boolean.TRUE.toString());
-        }
-        if (Strings.hasText(putIndexTemplateRequest.cause())) {
-            params.putParam("cause", putIndexTemplateRequest.cause());
-        }
-        request.setEntity(RequestConverters.createEntity(putIndexTemplateRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
     static Request putTemplate(PutIndexTemplateRequest putIndexTemplateRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_template")
             .addPathPart(putIndexTemplateRequest.name()).build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withMasterTimeout(putIndexTemplateRequest.masterNodeTimeout());
-        if (putIndexTemplateRequest.mappings() != null) {
-            params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.FALSE.toString());
-        }
         if (putIndexTemplateRequest.create()) {
             params.putParam("create", Boolean.TRUE.toString());
         }
@@ -491,16 +464,7 @@ final class IndicesRequestConverters {
         return request;
     }
 
-    @Deprecated
-    static Request getTemplatesWithDocumentTypes(GetIndexTemplatesRequest getIndexTemplatesRequest) {
-        return getTemplates(getIndexTemplatesRequest, true);
-    }
-    
     static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest) {
-        return getTemplates(getIndexTemplatesRequest, false);
-    }
-    
-    private static Request getTemplates(GetIndexTemplatesRequest getIndexTemplatesRequest, boolean includeTypeName) {
         final String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_template")
             .addCommaSeparatedPathParts(getIndexTemplatesRequest.names())
@@ -509,9 +473,8 @@ final class IndicesRequestConverters {
         final RequestConverters.Params params = new RequestConverters.Params(request);
         params.withLocal(getIndexTemplatesRequest.isLocal());
         params.withMasterTimeout(getIndexTemplatesRequest.getMasterNodeTimeout());
-        params.putParam(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, Boolean.toString(includeTypeName));
         return request;
-    }    
+    }
 
     static Request templatesExist(IndexTemplatesExistRequest indexTemplatesExistRequest) {
         final String endpoint = new RequestConverters.EndpointBuilder()

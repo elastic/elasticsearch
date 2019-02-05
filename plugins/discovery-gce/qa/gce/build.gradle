@@ -51,7 +51,7 @@ integTestCluster {
     dependsOn gceFixture
     numNodes = gceNumberOfNodes
     plugin ':plugins:discovery-gce'
-    setting 'discovery.zen.hosts_provider', 'gce'
+    setting 'discovery.seed_providers', 'gce'
 
     // use gce fixture for Auth calls instead of http://metadata.google.internal
     integTestCluster.environment 'GCE_METADATA_HOST', "http://${-> gceFixture.addressAndPort}"

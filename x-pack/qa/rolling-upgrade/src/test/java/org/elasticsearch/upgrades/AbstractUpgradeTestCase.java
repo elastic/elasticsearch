@@ -86,7 +86,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
             boolean success = true;
             for (String template : templatesToWaitFor()) {
                 try {
-                    final Request headRequest = new Request("HEAD", "_template/" + template);
+                    Request headRequest = new Request("HEAD", "_template/" + template);
                     headRequest.setOptions(allowTypeRemovalWarnings());
                     final boolean exists = adminClient()
                         .performRequest(headRequest)

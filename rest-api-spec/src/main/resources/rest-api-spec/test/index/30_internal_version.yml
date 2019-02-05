@@ -1,7 +1,9 @@
 ---
 "Internal version":
  - skip:
-      features: warnings
+     version: " - 6.6.99"
+     reason:  versioned operations were deprecated in 6.7
+     features: warnings
 
  - do:
       index:

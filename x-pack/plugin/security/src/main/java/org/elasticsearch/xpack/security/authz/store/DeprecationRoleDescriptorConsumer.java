@@ -24,15 +24,17 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public final class DeprecationRoleDescriptorConsumer implements Consumer<Collection<RoleDescriptor>> {
 
-    // package-private for testing
-    static final String DEPRECATION_STANZA = "Role [{}] grants index privileges over the [{}] alias and not over the [{}] index."
-            + " Granting privileges over an alias and hence granting privileges over all the indices that it points to is deprecated and"
-            + " will be removed in a future version of Elasticsearch. Instead define permissions exclusively on indices or index patterns.";
+    private static final String ROLE_PERMISSION_DEPRECATION_STANZA = "Role [%s] contains index privileges covering the [%s] alias but"
+            + " which do not cover some of the indices that it points to [%s]. Granting privileges over an alias and hence granting"
+            + " privileges over all the indices that the alias points to is deprecated and will be removed in a future version of"
+            + " Elasticsearch. Instead define permissions exclusively on index names or index name patterns.";
 
     private final DeprecationLogger deprecationLogger;
     private final ClusterService clusterService;
@@ -62,35 +64,41 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
 
     private void logDeprecatedPermission(Collection<RoleDescriptor> effectiveRoleDescriptors,
                                          SortedMap<String, AliasOrIndex> aliasOrIndexMap) {
-        // iterate on indices privileges of all effective role descriptors
         for (final RoleDescriptor roleDescriptor : effectiveRoleDescriptors) {
-            for (final IndicesPrivileges indicesPrivilege : roleDescriptor.getIndicesPrivileges()) {
-                // build predicate lazily, only if the role-alias pair has not been checked today
-                Predicate<String> namePatternPredicate = null;
-                // iterate over all current aliases
-                for (final Map.Entry<String, AliasOrIndex> aliasOrIndex : aliasOrIndexMap.entrySet()) {
-                    if (aliasOrIndex.getValue().isAlias()) {
-                        final String aliasName = aliasOrIndex.getKey();
-                        final String cacheKey = buildCacheKey(aliasName, roleDescriptor.getName());
-                        // role-alias pair has already been logged today!
-                        if (false == isCached(cacheKey)) {
+            final String cacheKey = buildCacheKey(roleDescriptor.getName());
+            if (false == isCached(cacheKey)) {
+                // the aliases and their associated indices that are, respectively, matched and not matched by the permission
+                final Map<String, Set<String>> indicesNotCoveredByAlias = new TreeMap<>();
+                for (final IndicesPrivileges indicesPrivilege : roleDescriptor.getIndicesPrivileges()) {
+                    Predicate<String> namePatternPredicate = null;
+                    for (final Map.Entry<String, AliasOrIndex> aliasOrIndex : aliasOrIndexMap.entrySet()) {
+                        if (aliasOrIndex.getValue().isAlias()) {
                             if (namePatternPredicate == null) {
                                 namePatternPredicate = IndicesPermission.indexMatcher(Arrays.asList(indicesPrivilege.getIndices()));
                             }
+                            final String aliasName = aliasOrIndex.getKey();
                             // the privilege name pattern matches the alias name
                             if (namePatternPredicate.test(aliasName)) {
                                 for (final IndexMetaData indexMeta : aliasOrIndex.getValue().getIndices()) {
+                                    final String indexName = indexMeta.getIndex().getName();
                                     // but it does not match the name of an index pointed to by the alias
-                                    if (false == namePatternPredicate.test(indexMeta.getIndex().getName())) {
-                                        deprecationLogger.deprecated(DEPRECATION_STANZA, roleDescriptor.getName(), aliasName,
-                                                indexMeta.getIndex().getName());
-                                        addToCache(cacheKey);
+                                    if (false == namePatternPredicate.test(indexName)) {
+                                        final Set<String> indicesNotMatchedForAlias = indicesNotCoveredByAlias.computeIfAbsent(aliasName,
+                                                k -> new TreeSet<String>());
+                                        indicesNotMatchedForAlias.add(indexName);
                                     }
                                 }
                             }
                         }
                     }
                 }
+                for (Map.Entry<String, Set<String>> grantedAliasNoIndex : indicesNotCoveredByAlias.entrySet()) {
+                    final String logMessage = String.format(ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
+                            grantedAliasNoIndex.getKey(), String.join(", ", grantedAliasNoIndex.getValue()));
+                    deprecationLogger.deprecated(logMessage);
+                }
+                // mark role as checked for "today"
+                addToCache(cacheKey);
             }
         }
     }
@@ -103,9 +111,10 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
         return cacheKeys.add(cacheKey);
     }
 
-    private String buildCacheKey(String aliasName, String roleName) {
+    // package-private for testing
+    static String buildCacheKey(String roleName) {
         final String daysSinceEpoch = Long.toString(ZonedDateTime.now(ZoneId.of("UTC")).toEpochSecond() / 86400000L);
         final StringBuilder sb = new StringBuilder();
-        return sb.append(aliasName).append('-').append(roleName).append('-').append(daysSinceEpoch).toString();
+        return sb.append(roleName).append('-').append(daysSinceEpoch).toString();
     }
 }

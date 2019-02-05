@@ -20,7 +20,7 @@ provider for Zen discovery to `ec2`:
 
 [source,yaml]
 ----
-discovery.zen.hosts_provider: ec2
+discovery.seed_providers: ec2
 ----
 
 ==== Settings

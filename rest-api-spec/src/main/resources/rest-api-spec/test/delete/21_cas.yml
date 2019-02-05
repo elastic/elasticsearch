@@ -1,8 +1,8 @@
 ---
 "Compare and set with sequence numbers":
   - skip:
-    version: " - 6.5.99"
-    reason: sequence numbers can be used for cas as of 6.6.0
+      version: " - 6.5.99"
+      reason: sequence numbers can be used for cas as of 6.6.0
 
   - do:
       index:

@@ -16,6 +16,8 @@
                { "doc": { "f1": "v2" } }
        warnings:
            - "Deprecated field [_version] used, expected [version] instead"
+           - "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test_index], type [test_type], id [test_id_1]"
+           - "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test_index], type [test_type], id [test_id_2]"
 
    - do:
        bulk:

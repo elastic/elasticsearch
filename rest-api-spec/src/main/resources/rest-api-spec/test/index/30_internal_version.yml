@@ -1,5 +1,7 @@
 ---
 "Internal version":
+ - skip:
+      features: warnings
 
  - do:
       index:
@@ -15,6 +17,9 @@
           type:   test
           id:     1
           body:   { foo: bar }
+      warnings:
+        - "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test_1], type [test], id [1]"
+
  - match:   { _version: 2}
 
  - do:
@@ -25,6 +30,9 @@
           id:      1
           body:    { foo: bar }
           version: 1
+      warnings:
+        - "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test_1], type [test], id [1]"
+
  - do:
       index:
           index:   test_1
@@ -32,5 +40,7 @@
           id:      1
           body:    { foo: bar }
           version: 2
+      warnings:
+        - "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test_1], type [test], id [1]"
 
  - match: { _version: 3 }

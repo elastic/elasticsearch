@@ -89,8 +89,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Master block setting renamed",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
-                "_new_name_for_literal_no_maaster_block_literal_setting",
-            "The settings discovery.zen.no_master_block has been renamed to cluster.no_master_block");
+                "_new_name_for_literal_no_master_block_literal_setting",
+            "The setting discovery.zen.no_master_block will be renamed to cluster.no_master_block in 7.0. " +
+                "Please unset discovery.zen.no_master_block and set cluster.no_master_block after upgrading to 7.0.");
 
         assertSettingsAndIssue(NO_MASTER_BLOCK_SETTING.getKey(), randomFrom("all", "write"), expected);
     }

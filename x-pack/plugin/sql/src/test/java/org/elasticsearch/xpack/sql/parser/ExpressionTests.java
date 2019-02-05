@@ -150,7 +150,7 @@ public class ExpressionTests extends ESTestCase {
         int randomHour = randomInt(23);
         int randomMinute = randomInt(59);
         int randomSecond = randomInt(59);
-        int randomMilli = randomInt(999999999);
+        int randomMilli = randomInt(999);
 
         String value = format(Locale.ROOT, "INTERVAL '%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
                 randomMilli);
@@ -163,7 +163,7 @@ public class ExpressionTests extends ESTestCase {
         int randomHour = randomInt(23);
         int randomMinute = randomInt(59);
         int randomSecond = randomInt(59);
-        int randomMilli = randomInt(999999999);
+        int randomMilli = randomInt(999);
 
         String value = format(Locale.ROOT, "INTERVAL -'%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
                 randomMilli);

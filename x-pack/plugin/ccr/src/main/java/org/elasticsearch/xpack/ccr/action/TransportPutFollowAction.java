@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
@@ -136,8 +137,8 @@ public final class TransportPutFollowAction
             return;
         }
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetaData.getSettings()) == false) {
-            listener.onFailure(
-                new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled. " +
+            listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
+                "] does not have soft deletes enabled. " +
                     "soft deletes must be enabled when the index is created by setting " + IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey()
                     + " to true"));
             return;
@@ -148,17 +149,17 @@ public final class TransportPutFollowAction
 
         if (pre67CompatibilityMode) {
             logger.debug("Pre-6.7 nodes present in local/remote cluster. Cannot bootstrap from remote. Creating empty follower index " +
-                "[{}] and initiating following [{}, {}].", request.getFollowRequest().getFollowerIndex(), request.getRemoteCluster(),
+                "[{}] and initiating following [{}, {}].", request.getFollowerIndex(), request.getRemoteCluster(),
                 request.getLeaderIndex());
             pre67PutFollow.doPre67PutFollow(request, leaderIndexMetaData, historyUUID, listener);
         } else {
             final Settings.Builder settingsBuilder = Settings.builder()
-                .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowRequest().getFollowerIndex())
+                .put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getFollowerIndex())
                 .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
             final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
             final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
                 .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
-                .renameReplacement(request.getFollowRequest().getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
+                .renameReplacement(request.getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
                 .indexSettings(settingsBuilder);
 
             final Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
@@ -239,10 +240,14 @@ public final class TransportPutFollowAction
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
         assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "PutFollowAction does not support DEFAULT.";
-        activeShardsObserver.waitForActiveShards(new String[]{request.getFollowRequest().getFollowerIndex()},
+        activeShardsObserver.waitForActiveShards(new String[]{request.getFollowerIndex()},
             request.waitForActiveShards(), request.timeout(), result -> {
                 if (result) {
-                    client.execute(ResumeFollowAction.INSTANCE, request.getFollowRequest(), ActionListener.wrap(
+                    FollowParameters parameters = request.getParameters();
+                    ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
+                        resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
+                        resumeFollowRequest.setParameters(new FollowParameters(parameters));
+                        client.execute(ResumeFollowAction.INSTANCE, resumeFollowRequest, ActionListener.wrap(
                         r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
                         listener::onFailure
                     ));
@@ -254,6 +259,6 @@ public final class TransportPutFollowAction
 
     @Override
     protected ClusterBlockException checkBlock(final PutFollowAction.Request request, final ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowRequest().getFollowerIndex());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowerIndex());
     }
 }

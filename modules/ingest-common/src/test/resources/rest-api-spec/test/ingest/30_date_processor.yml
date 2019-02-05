@@ -39,3 +39,58 @@ teardown:
         id: 1
   - match: { _source.date_source_field: "12/06/2010" }
   - match: { _source.date_target_field: "2010-06-12T00:00:00.000+02:00" }
+
+---
+"Test date processor with no timezone configured":
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        # sample formats from beats, featuring mongodb, icinga, apache
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "date" : {
+                  "field" : "date_source_1",
+                  "target_field" : "date_target_1",
+                  "formats" : ["yyyy-MM-dd'T'HH:mm:ss.SSSZZ" ]
+                }
+              },
+              {
+                "date" : {
+                  "field" : "date_source_2",
+                  "target_field" : "date_target_2",
+                  "formats" : ["yyyy-MM-dd HH:mm:ss Z" ]
+                }
+              },
+              {
+                "date" : {
+                  "field" : "date_source_3",
+                  "target_field" : "date_target_3",
+                  "formats" : [ "dd/MMM/yyyy:H:m:s Z" ]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { date_source_1: "2018-02-05T13:44:56.657+0100", date_source_2: "2017-04-04 13:43:09 +0200", date_source_3: "10/Aug/2018:09:45:56 +0200" }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.date_source_1: "2018-02-05T13:44:56.657+0100" }
+  - match: { _source.date_target_1: "2018-02-05T12:44:56.657Z" }
+  - match: { _source.date_source_2: "2017-04-04 13:43:09 +0200" }
+  - match: { _source.date_target_2: "2017-04-04T11:43:09.000Z" }
+  - match: { _source.date_source_3: "10/Aug/2018:09:45:56 +0200" }
+  - match: { _source.date_target_3: "2018-08-10T07:45:56.000Z" }
+

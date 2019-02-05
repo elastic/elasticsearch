@@ -45,7 +45,10 @@ enum DateFormat {
     Iso8601 {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
-            return (date) -> DateFormatters.from(DateFormatter.forPattern("strict_date_time").parse(date)).withZoneSameInstant(timezone);
+            return (date) -> {
+                ZonedDateTime zonedDateTime = DateFormatters.from(DateFormatter.forPattern("strict_date_time").parse(date));
+                return timezone == null ? zonedDateTime : zonedDateTime.withZoneSameInstant(timezone);
+            };
         }
     },
     Unix {
@@ -88,9 +91,12 @@ enum DateFormat {
             }
 
             int year = LocalDate.now(ZoneOffset.UTC).getYear();
-            DateFormatter formatter = DateFormatter.forPattern(format)
-                .withLocale(locale)
-                .withZone(zoneId);
+            DateFormatter dateFormatter = DateFormatter.forPattern(format)
+                .withLocale(locale);
+            if (zoneId != null) {
+                dateFormatter = dateFormatter.withZone(zoneId);
+            }
+            final DateFormatter formatter = dateFormatter;
             return text -> {
                 TemporalAccessor accessor = formatter.parse(text);
                 // if there is no year, we fall back to the current one and
@@ -103,7 +109,15 @@ enum DateFormat {
                         }
                     }
 
-                    accessor = newTime.withZoneSameLocal(zoneId);
+                    if (zoneId != null) {
+                        accessor = newTime.withZoneSameLocal(zoneId);
+                    } else {
+                        accessor = newTime;
+                    }
+                }
+
+                if (zoneId == null) {
+                    return DateFormatters.from(accessor).withZoneSameInstant(ZoneOffset.UTC);
                 }
 
                 return DateFormatters.from(accessor);

@@ -112,7 +112,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Does any node in the cluster being tested have x-pack installed?
      */
-    public static boolean hasXPack() throws IOException {
+    public static boolean hasXPack() {
         if (hasXPack == null) {
             throw new IllegalStateException("must be called inside of a rest test case test");
         }
@@ -257,6 +257,28 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static RequestOptions expectWarnings(String... warnings) {
         return expectVersionSpecificWarnings(consumer -> consumer.current(warnings));
     }
+    
+    /**
+     * Creates RequestOptions designed to ignore [types removal] warnings but nothing else 
+     * @deprecated this method is only required while we deprecate types and can be removed in 8.0
+     */
+    @Deprecated
+    public static RequestOptions allowTypeRemovalWarnings() {
+        Builder builder = RequestOptions.DEFAULT.toBuilder();
+        builder.setWarningsHandler(new WarningsHandler() {
+                @Override
+                public boolean warningsShouldFailRequest(List<String> warnings) {
+                    for (String warning : warnings) {
+                        if(warning.startsWith("[types removal]") == false) {
+                            //Something other than a types removal message - return true
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            });
+        return builder.build();
+    }    
 
     /**
      * Construct an HttpHost from the given host and port
@@ -554,7 +576,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    private void wipeRollupJobs() throws IOException, InterruptedException {
+    private void wipeRollupJobs() throws IOException {
         Response response = adminClient().performRequest(new Request("GET", "/_rollup/job/_all"));
         Map<String, Object> jobs = entityAsMap(response);
         @SuppressWarnings("unchecked")
@@ -617,7 +639,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Logs a message if there are still running tasks. The reasoning is that any tasks still running are state the is trying to bleed into
      * other tests.
      */
-    private void logIfThereAreRunningTasks() throws InterruptedException, IOException {
+    private void logIfThereAreRunningTasks() throws IOException {
         Set<String> runningTasks = runningTasks(adminClient().performRequest(new Request("GET", "/_tasks")));
         // Ignore the task list API - it doesn't count against us
         runningTasks.remove(ListTasksAction.NAME);
@@ -692,20 +714,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
-        builder.setStrictDeprecationMode(getStrictDeprecationMode());
+        builder.setStrictDeprecationMode(true);
         return builder.build();
-    }
-
-    /**
-     * Whether the used REST client should return any response containing at
-     * least one warning header as a failure.
-     * @deprecated always run in strict mode and use
-     *   {@link RequestOptions.Builder#setWarningsHandler} to override this
-     *   behavior on individual requests
-     */
-    @Deprecated
-    protected boolean getStrictDeprecationMode() {
-        return true;
     }
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
@@ -720,7 +730,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
-                KeyStore keyStore = KeyStore.getInstance("jks");
+                final String keyStoreType = keystorePath.endsWith(".p12") ? "PKCS12" : "jks";
+                KeyStore keyStore = KeyStore.getInstance(keyStoreType);
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
                 }
@@ -801,7 +812,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void createIndex(String name, Settings settings) throws IOException {
-        createIndex(name, settings, "");
+        Request request = new Request("PUT", "/" + name);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings) + "}");
+        client().performRequest(request);
     }
 
     protected static void createIndex(String name, Settings settings, String mapping) throws IOException {

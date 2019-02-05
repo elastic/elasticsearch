@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -40,7 +41,6 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
-import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -113,8 +113,8 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                 waitForMetadataTimeOut = newWaitForTimeOut;
             }
         };
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT, updater);
-        waitForMetadataTimeOut = CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT, updater);
+        waitForMetadataTimeOut = CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT.get(settings);
     }
 
     public synchronized AutoFollowStats getStats() {
@@ -258,6 +258,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                 .anyMatch(pattern -> pattern.getRemoteCluster().equals(remoteCluster));
             if (exist == false) {
                 LOGGER.info("removing auto follower for remote cluster [{}]", remoteCluster);
+                autoFollower.removed = true;
                 removedRemoteClusters.add(remoteCluster);
             } else if (autoFollower.remoteClusterConnectionMissing) {
                 LOGGER.info("retrying auto follower [{}] after remote cluster connection was missing", remoteCluster);
@@ -265,9 +266,23 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                 autoFollower.start();
             }
         }
+        assert assertNoOtherActiveAutoFollower(newAutoFollowers);
         this.autoFollowers = autoFollowers
             .copyAndPutAll(newAutoFollowers)
             .copyAndRemoveAll(removedRemoteClusters);
+    }
+
+    private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {
+        for (AutoFollower newAutoFollower : newAutoFollowers.values()) {
+            AutoFollower previousInstance = autoFollowers.get(newAutoFollower.remoteCluster);
+            assert previousInstance == null || previousInstance.removed;
+        }
+        return true;
+    }
+
+
+    Map<String, AutoFollower> getAutoFollowers() {
+        return autoFollowers;
     }
 
     @Override
@@ -295,6 +310,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         private volatile long lastAutoFollowTimeInMillis = -1;
         private volatile long metadataVersion = 0;
         private volatile boolean remoteClusterConnectionMissing = false;
+        volatile boolean removed = false;
         private volatile CountDown autoFollowPatternsCountDown;
         private volatile AtomicArray<AutoFollowResult> autoFollowResults;
 
@@ -309,6 +325,17 @@ public class AutoFollowCoordinator implements ClusterStateListener {
         }
 
         void start() {
+            if (removed) {
+                // This check exists to avoid two AutoFollower instances a single remote cluster.
+                // (If an auto follow pattern is deleted and then added back quickly enough then
+                // the old AutoFollower instance still sees that there is an auto follow pattern
+                // for the remote cluster it is tracking and will continue to operate, while in
+                // the meantime in updateAutoFollowers() method another AutoFollower instance has been
+                // started for the same remote cluster.)
+                LOGGER.info("AutoFollower instance for cluster [{}] has been removed", remoteCluster);
+                return;
+            }
+
             lastAutoFollowTimeInMillis = relativeTimeProvider.getAsLong();
             final ClusterState clusterState = followerClusterStateSupplier.get();
             final AutoFollowMetadata autoFollowMetadata = clusterState.metaData().custom(AutoFollowMetadata.TYPE);
@@ -330,6 +357,12 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             this.autoFollowResults = new AtomicArray<>(patterns.size());
 
             getRemoteClusterState(remoteCluster, metadataVersion + 1, (remoteClusterStateResponse, remoteError) -> {
+                // Also check removed flag here, as it may take a while for this remote cluster state api call to return:
+                if (removed) {
+                    LOGGER.info("AutoFollower instance for cluster [{}] has been removed", remoteCluster);
+                    return;
+                }
+
                 if (remoteClusterStateResponse != null) {
                     assert remoteError == null;
                     if (remoteClusterStateResponse.isWaitForTimedOut()) {
@@ -341,9 +374,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
                     autoFollowIndices(autoFollowMetadata, clusterState, remoteClusterState, patterns);
                 } else {
                     assert remoteError != null;
-                    String expectedErrorMessage = "unknown cluster alias [" + remoteCluster + "]";
-                    if (remoteError instanceof IllegalArgumentException &&
-                        expectedErrorMessage.equals(remoteError.getMessage())) {
+                    if (remoteError instanceof NoSuchRemoteClusterException) {
                         LOGGER.info("AutoFollower for cluster [{}] has stopped, because remote connection is gone", remoteCluster);
                         remoteClusterConnectionMissing = true;
                         return;
@@ -482,23 +513,20 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             final String leaderIndexName = indexToFollow.getName();
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
-            ResumeFollowAction.Request followRequest = new ResumeFollowAction.Request();
-            followRequest.setFollowerIndex(followIndexName);
-            followRequest.setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
-            followRequest.setMaxReadRequestSize(pattern.getMaxReadRequestSize());
-            followRequest.setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
-            followRequest.setMaxWriteRequestOperationCount(pattern.getMaxWriteRequestOperationCount());
-            followRequest.setMaxWriteRequestSize(pattern.getMaxWriteRequestSize());
-            followRequest.setMaxOutstandingWriteRequests(pattern.getMaxOutstandingWriteRequests());
-            followRequest.setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
-            followRequest.setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
-            followRequest.setMaxRetryDelay(pattern.getMaxRetryDelay());
-            followRequest.setReadPollTimeout(pattern.getPollTimeout());
-
             PutFollowAction.Request request = new PutFollowAction.Request();
             request.setRemoteCluster(remoteCluster);
             request.setLeaderIndex(indexToFollow.getName());
-            request.setFollowRequest(followRequest);
+            request.setFollowerIndex(followIndexName);
+            request.getParameters().setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
+            request.getParameters().setMaxReadRequestSize(pattern.getMaxReadRequestSize());
+            request.getParameters().setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
+            request.getParameters().setMaxWriteRequestOperationCount(pattern.getMaxWriteRequestOperationCount());
+            request.getParameters().setMaxWriteRequestSize(pattern.getMaxWriteRequestSize());
+            request.getParameters().setMaxOutstandingWriteRequests(pattern.getMaxOutstandingWriteRequests());
+            request.getParameters().setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
+            request.getParameters().setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
+            request.getParameters().setMaxRetryDelay(pattern.getMaxRetryDelay());
+            request.getParameters().setReadPollTimeout(pattern.getPollTimeout());
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {

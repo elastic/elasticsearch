@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.xpack.sql.analysis.AnalysisException;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
@@ -51,6 +52,8 @@ import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.InvalidMappedField;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
+import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -105,7 +108,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveFunctions(),
                 new ResolveAliases(),
                 new ProjectedAggregations(),
-                new ResolveAggsInHaving()
+                new ResolveAggsInHaving(),
+                new ResolveAggsInOrderBy()
                 //new ImplicitCasting()
                 );
         Batch finish = new Batch("Finish Analysis",
@@ -512,6 +516,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 int max = ordinalReference.size();
 
                 for (Order order : orderBy.order()) {
+                    Expression child = order.child();
                     Integer ordinal = findOrdinal(order.child());
                     if (ordinal != null) {
                         changed = true;
@@ -520,7 +525,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                                     order.nullsPosition()));
                         }
                         else {
-                            throw new AnalysisException(order, "Invalid %d specified in OrderBy (valid range is [1, %d])", ordinal, max);
+                            // report error
+                            String message = LoggerMessageFormat.format("Invalid ordinal [{}] specified in [{}] (valid range is [1, {}])",
+                                    ordinal, orderBy.sourceText(), max);
+                            UnresolvedAttribute ua = new UnresolvedAttribute(child.source(), orderBy.sourceText(), null, message);
+                            newOrder.add(new Order(order.source(), ua, order.direction(), order.nullsPosition()));
                         }
                     }
                     else {
@@ -547,17 +556,24 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     Integer ordinal = findOrdinal(exp);
                     if (ordinal != null) {
                         changed = true;
+                        String errorMessage = null;
                         if (ordinal > 0 && ordinal <= max) {
                             NamedExpression reference = aggregates.get(ordinal - 1);
                             if (containsAggregate(reference)) {
-                                throw new AnalysisException(exp, "Group ordinal " + ordinal + " refers to an aggregate function "
-                                        + reference.nodeName() + " which is not compatible/allowed with GROUP BY");
+                                errorMessage = LoggerMessageFormat.format(
+                                        "Ordinal [{}] in [{}] refers to an invalid argument, aggregate function [{}]",
+                                        ordinal, agg.sourceText(), reference.sourceText());
+
+                            } else {
+                                newGroupings.add(reference);
                             }
-                            newGroupings.add(reference);
                         }
                         else {
-                            throw new AnalysisException(exp, "Invalid ordinal " + ordinal
-                                    + " specified in Aggregate (valid range is [1, " + max + "])");
+                            errorMessage = LoggerMessageFormat.format("Invalid ordinal [{}] specified in [{}] (valid range is [1, {}])",
+                                    ordinal, agg.sourceText(), max);
+                        }
+                        if (errorMessage != null) {
+                            newGroupings.add(new UnresolvedAttribute(exp.source(), agg.sourceText(), null, errorMessage));
                         }
                     }
                     else {
@@ -572,10 +588,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         private Integer findOrdinal(Expression expression) {
-            if (expression instanceof Literal) {
-                Literal l = (Literal) expression;
-                if (l.dataType().isInteger()) {
-                    Object v = l.value();
+            if (expression.foldable()) {
+                if (expression.dataType().isInteger()) {
+                    Object v = Foldables.valueOf(expression);
                     if (v instanceof Number) {
                         return Integer.valueOf(((Number) v).intValue());
                     }
@@ -744,7 +759,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             }
             return ua;
-        };
+        }
     }
 
     // to avoid creating duplicate functions
@@ -770,7 +785,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 List<Function> list = getList(seen, fName);
                 for (Function seenFunction : list) {
                     if (seenFunction != f && f.arguments().equals(seenFunction.arguments())) {
-                        return seenFunction;
+                        // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
+                        // matches the one from the unresolved function to be checked.
+                        if (seenFunction instanceof Count) {
+                            if (seenFunction.equals(f)){
+                                return seenFunction;
+                            }
+                        } else {
+                            return seenFunction;
+                        }
                     }
                 }
                 list.add(f);
@@ -808,7 +831,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (!list.isEmpty()) {
                         for (Function seenFunction : list) {
                             if (uf.arguments().equals(seenFunction.arguments())) {
-                                return seenFunction;
+                                // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
+                                // matches the one from the unresolved function to be checked.
+                                if (seenFunction instanceof Count) {
+                                    if (uf.sameAs((Count) seenFunction)) {
+                                        return seenFunction;
+                                    }
+                                } else {
+                                    return seenFunction;
+                                }
                             }
                         }
                     }
@@ -882,8 +913,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                             return new Alias(c.source(), ((NamedExpression) c.field()).name(), c);
                         }
                     }
-                    //TODO: maybe add something closer to SQL
-                    return new Alias(child.source(), child.toString(), child);
+                    return new Alias(child.source(), child.sourceText(), child);
                 }, UnresolvedAlias.class);
                 newExpr.add(expr.equals(transformed) ? expr : transformed);
             }
@@ -904,13 +934,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             }
             return p;
         }
-    };
+    }
 
     //
     // Handle aggs in HAVING. To help folding any aggs not found in Aggregation
     // will be pushed down to the Aggregate and then projected. This also simplifies the Verifier's job.
     //
-    private class ResolveAggsInHaving extends AnalyzeRule<LogicalPlan> {
+    private class ResolveAggsInHaving extends AnalyzeRule<Filter> {
 
         @Override
         protected boolean skipResolved() {
@@ -918,54 +948,49 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
+        protected LogicalPlan rule(Filter f) {
             // HAVING = Filter followed by an Agg
-            if (plan instanceof Filter) {
-                Filter f = (Filter) plan;
-                if (f.child() instanceof Aggregate && f.child().resolved()) {
-                    Aggregate agg = (Aggregate) f.child();
+            if (f.child() instanceof Aggregate && f.child().resolved()) {
+                Aggregate agg = (Aggregate) f.child();
 
-                    Set<NamedExpression> missing = null;
-                    Expression condition = f.condition();
+                Set<NamedExpression> missing = null;
+                Expression condition = f.condition();
 
-                    // the condition might contain an agg (AVG(salary)) that could have been resolved
-                    // (salary cannot be pushed down to Aggregate since there's no grouping and thus the function wasn't resolved either)
+                // the condition might contain an agg (AVG(salary)) that could have been resolved
+                // (salary cannot be pushed down to Aggregate since there's no grouping and thus the function wasn't resolved either)
 
-                    // so try resolving the condition in one go through a 'dummy' aggregate
-                    if (!condition.resolved()) {
-                        // that's why try to resolve the condition
-                        Aggregate tryResolvingCondition = new Aggregate(agg.source(), agg.child(), agg.groupings(),
-                                combine(agg.aggregates(), new Alias(f.source(), ".having", condition)));
+                // so try resolving the condition in one go through a 'dummy' aggregate
+                if (!condition.resolved()) {
+                    // that's why try to resolve the condition
+                    Aggregate tryResolvingCondition = new Aggregate(agg.source(), agg.child(), agg.groupings(),
+                            combine(agg.aggregates(), new Alias(f.source(), ".having", condition)));
 
-                        tryResolvingCondition = (Aggregate) analyze(tryResolvingCondition, false);
+                    tryResolvingCondition = (Aggregate) analyze(tryResolvingCondition, false);
 
-                        // if it got resolved
-                        if (tryResolvingCondition.resolved()) {
-                            // replace the condition with the resolved one
-                            condition = ((Alias) tryResolvingCondition.aggregates()
-                                .get(tryResolvingCondition.aggregates().size() - 1)).child();
-                        } else {
-                            // else bail out
-                            return plan;
-                        }
+                    // if it got resolved
+                    if (tryResolvingCondition.resolved()) {
+                        // replace the condition with the resolved one
+                        condition = ((Alias) tryResolvingCondition.aggregates()
+                            .get(tryResolvingCondition.aggregates().size() - 1)).child();
+                    } else {
+                        // else bail out
+                        return f;
                     }
-
-                    missing = findMissingAggregate(agg, condition);
-
-                    if (!missing.isEmpty()) {
-                        Aggregate newAgg = new Aggregate(agg.source(), agg.child(), agg.groupings(),
-                                combine(agg.aggregates(), missing));
-                        Filter newFilter = new Filter(f.source(), newAgg, condition);
-                        // preserve old output
-                        return new Project(f.source(), newFilter, f.output());
-                    }
-
-                    return new Filter(f.source(), f.child(), condition);
                 }
-                return plan;
-            }
 
-            return plan;
+                missing = findMissingAggregate(agg, condition);
+
+                if (!missing.isEmpty()) {
+                    Aggregate newAgg = new Aggregate(agg.source(), agg.child(), agg.groupings(),
+                            combine(agg.aggregates(), missing));
+                    Filter newFilter = new Filter(f.source(), newAgg, condition);
+                    // preserve old output
+                    return new Project(f.source(), newFilter, f.output());
+                }
+
+                return new Filter(f.source(), f.child(), condition);
+            }
+            return f;
         }
 
         private Set<NamedExpression> findMissingAggregate(Aggregate target, Expression from) {
@@ -982,6 +1007,66 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             }
 
             return missing;
+        }
+    }
+
+
+    //
+    // Handle aggs in ORDER BY. To help folding any aggs not found in Aggregation
+    // will be pushed down to the Aggregate and then projected. This also simplifies the Verifier's job.
+    // Similar to Having however using a different matching pattern since HAVING is always Filter with Agg,
+    // while an OrderBy can have multiple intermediate nodes (Filter,Project, etc...)
+    //
+    private static class ResolveAggsInOrderBy extends AnalyzeRule<OrderBy> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(OrderBy ob) {
+            List<Order> orders = ob.order();
+
+            // 1. collect aggs inside an order by
+            List<NamedExpression> aggs = new ArrayList<>();
+            for (Order order : orders) {
+                if (Functions.isAggregate(order.child())) {
+                    aggs.add(Expressions.wrapAsNamed(order.child()));
+                }
+            }
+            if (aggs.isEmpty()) {
+                return ob;
+            }
+
+            // 2. find first Aggregate child and update it
+            final Holder<Boolean> found = new Holder<>(Boolean.FALSE);
+
+            LogicalPlan plan = ob.transformDown(a -> {
+                if (found.get() == Boolean.FALSE) {
+                    found.set(Boolean.TRUE);
+
+                    List<NamedExpression> missing = new ArrayList<>();
+
+                    for (NamedExpression orderedAgg : aggs) {
+                        if (Expressions.anyMatch(a.aggregates(), e -> Expressions.equalsAsAttribute(e, orderedAgg)) == false) {
+                            missing.add(orderedAgg);
+                        }
+                    }
+                    // agg already contains all aggs
+                    if (missing.isEmpty() == false) {
+                        // save aggregates
+                        return new Aggregate(a.source(), a.child(), a.groupings(), CollectionUtils.combine(a.aggregates(), missing));
+                    }
+                }
+                return a;
+            }, Aggregate.class);
+
+            // if the plan was updated, project the initial aggregates
+            if (plan != ob) {
+                return new Project(ob.source(), plan, ob.output());
+            }
+            return ob;
         }
     }
 
@@ -1014,7 +1099,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         private boolean functionsEquals(Function f, Function seenFunction) {
-            return f.name().equals(seenFunction.name()) && f.arguments().equals(seenFunction.arguments());
+            return f.sourceText().equals(seenFunction.sourceText()) && f.arguments().equals(seenFunction.arguments());
         }
     }
 

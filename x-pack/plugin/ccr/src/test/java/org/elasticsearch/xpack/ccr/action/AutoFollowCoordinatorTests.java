@@ -109,7 +109,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
-                assertThat(followRequest.getFollowRequest().getFollowerIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 successHandler.run();
             }
 
@@ -227,7 +227,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                  Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
-                assertThat(followRequest.getFollowRequest().getFollowerIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 successHandler.run();
             }
 
@@ -284,7 +284,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                  Consumer<Exception> failureHandler) {
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
                 assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
-                assertThat(followRequest.getFollowRequest().getFollowerIndex(), equalTo("logs-20190101"));
+                assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 failureHandler.accept(failure);
             }
 
@@ -620,6 +620,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(2));
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote1"), notNullValue());
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote2"), notNullValue());
+        // Get a reference to auto follower that will get removed, so that we can assert that it has been marked as removed,
+        // when pattern 1 and 3 are moved. (To avoid a edge case where multiple auto follow coordinators for the same remote cluster)
+        AutoFollowCoordinator.AutoFollower removedAutoFollower1 = autoFollowCoordinator.getAutoFollowers().get("remote1");
+        assertThat(removedAutoFollower1.removed, is(false));
         // Remove patterns 1 and 3:
         patterns.remove("pattern1");
         patterns.remove("pattern3");
@@ -630,6 +634,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         autoFollowCoordinator.updateAutoFollowers(clusterState);
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(1));
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote2"), notNullValue());
+        assertThat(removedAutoFollower1.removed, is(true));
         // Add pattern 4:
         patterns.put("pattern4", new AutoFollowPattern("remote1", Collections.singletonList("metrics-*"), null, null, null,
             null, null, null, null, null, null, null, null));
@@ -641,7 +646,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(2));
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote1"), notNullValue());
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().get("remote2"), notNullValue());
+        // Get references to auto followers that will get removed, so that we can assert that those have been marked as removed,
+        // when pattern 2 and 4 are moved. (To avoid a edge case where multiple auto follow coordinators for the same remote cluster)
+        removedAutoFollower1 = autoFollowCoordinator.getAutoFollowers().get("remote1");
+        AutoFollower removedAutoFollower2 = autoFollowCoordinator.getAutoFollowers().get("remote2");
         // Remove patterns 2 and 4:
+        assertThat(removedAutoFollower1.removed, is(false));
+        assertThat(removedAutoFollower2.removed, is(false));
         patterns.remove("pattern2");
         patterns.remove("pattern4");
         clusterState = ClusterState.builder(new ClusterName("remote"))
@@ -650,6 +661,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
         autoFollowCoordinator.updateAutoFollowers(clusterState);
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
+        assertThat(removedAutoFollower1.removed, is(true));
+        assertThat(removedAutoFollower2.removed, is(true));
     }
 
     public void testUpdateAutoFollowersNoPatterns() {
@@ -1003,7 +1016,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     private ClusterService mockClusterService() {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings =
-            new ClusterSettings(Settings.EMPTY, Collections.singleton(CcrSettings.CCR_AUTO_FOLLOW_WAIT_FOR_METADATA_TIMEOUT));
+            new ClusterSettings(Settings.EMPTY, Collections.singleton(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
     }

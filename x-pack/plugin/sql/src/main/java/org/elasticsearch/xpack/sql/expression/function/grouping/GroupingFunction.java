@@ -51,21 +51,11 @@ public abstract class GroupingFunction extends Function {
     @Override
     public GroupingFunctionAttribute toAttribute() {
         if (lazyAttribute == null) {
-            // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
+            // this is highly correlated with QueryFolder$FoldAggregate#addAggFunction (regarding the function name within the querydsl)
             lazyAttribute = new GroupingFunctionAttribute(source(), name(), dataType(), id(), functionId());
         }
         return lazyAttribute;
     }
-
-    @Override
-    public final GroupingFunction replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
-        return replaceChild(newChildren.get(0));
-    }
-
-    protected abstract GroupingFunction replaceChild(Expression newChild);
 
     @Override
     protected Pipe makePipe() {

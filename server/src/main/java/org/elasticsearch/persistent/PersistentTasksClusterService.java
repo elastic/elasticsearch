@@ -248,6 +248,45 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     }
 
     /**
+     * This unassigns a task from any node, i.e. it is assigned to a {@code null} node with the provided reason.
+     *
+     * Since the assignment executor node is null, the {@link PersistentTasksClusterService} will attempt to reassign it to a valid
+     * node quickly.
+     *
+     * @param taskId           the id of a persistent task
+     * @param taskAllocationId the expected allocation id of the persistent task
+     * @param reason           the reason for unassigning the task from any node
+     * @param listener         the listener that will be called when task is unassigned
+     */
+    public void unassignPersistentTask(final String taskId,
+                                       final long taskAllocationId,
+                                       final String reason,
+                                       final ActionListener<PersistentTask<?>> listener) {
+        clusterService.submitStateUpdateTask("unassign persistent task from any node", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
+                if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
+                    logger.trace("Unassigning task {} with allocation id {}", taskId, taskAllocationId);
+                    return update(currentState, tasksInProgress.reassignTask(taskId, unassignedAssignment(reason)));
+                } else {
+                    throw new ResourceNotFoundException("the task with id {} and allocation id {} doesn't exist", taskId, taskAllocationId);
+                }
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                listener.onResponse(PersistentTasksCustomMetaData.getTaskWithId(newState, taskId));
+            }
+        });
+    }
+
+    /**
      * Creates a new {@link Assignment} for the given persistent task.
      *
      * @param taskName the task's name
@@ -263,7 +302,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
         AssignmentDecision decision = decider.canAssign();
         if (decision.getType() == AssignmentDecision.Type.NO) {
-            return new Assignment(null, "persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
+            return unassignedAssignment("persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
         }
 
         return persistentTasksExecutor.getAssignment(taskParams, currentState);
@@ -402,6 +441,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         } else {
             return currentState;
         }
+    }
+
+    private static Assignment unassignedAssignment(String reason) {
+        return new Assignment(null, reason);
     }
 
     /**

@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.joda.time.DateTime;
 
@@ -50,7 +49,7 @@ import java.util.Objects;
  * A wrapper around ZonedDateTime that exposes joda methods for backcompat.
  */
 public class JodaCompatibleZonedDateTime {
-    private static final DateFormatter DATE_FORMATTER = DateFormatters.forPattern("strict_date_time");
+    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));
 
@@ -149,6 +148,10 @@ public class JodaCompatibleZonedDateTime {
 
     public int getYear() {
         return dt.getYear();
+    }
+
+    public ZoneId getZone() {
+        return dt.getZone();
     }
 
     public ZonedDateTime minus(TemporalAmount delta) {

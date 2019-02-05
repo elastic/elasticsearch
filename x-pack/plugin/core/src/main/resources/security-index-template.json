@@ -88,6 +88,9 @@
             },
             "query" : {
               "type" : "keyword"
+            },
+            "allow_restricted_indices" : {
+              "type" : "boolean"
             }
           }
         },
@@ -148,6 +151,40 @@
         "creation_time" : {
           "type" : "date",
           "format" : "epoch_millis"
+        },
+        "api_key_hash" : {
+          "type" : "keyword",
+          "index": false,
+          "doc_values": false
+        },
+        "api_key_invalidated" : {
+          "type" : "boolean"
+        },
+        "role_descriptors" : {
+          "type" : "object",
+          "enabled": false
+        },
+        "limited_by_role_descriptors" : {
+          "type" : "object",
+          "enabled": false
+        },
+        "version" : {
+          "type" : "integer"
+        },
+        "creator" : {
+          "type" : "object",
+          "properties" : {
+            "principal" : {
+              "type": "keyword"
+            },
+            "metadata" : {
+              "type" : "object",
+              "dynamic" : true
+            },
+            "realm" : {
+              "type" : "keyword"
+            }
+          }
         },
         "rules" : {
           "type" : "object",

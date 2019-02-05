@@ -34,7 +34,7 @@ By default the cluster formation module offers two hosts providers to configure
 the list of seed nodes: a _settings_-based and a _file_-based hosts provider.
 It can be extended to support cloud environments and other forms of hosts
 providers via {plugins}/discovery.html[discovery plugins]. Hosts providers are
-configured using the `discovery.zen.hosts_provider` setting, which defaults to
+configured using the `discovery.seed_providers` setting, which defaults to
 the _settings_-based hosts provider. Multiple hosts providers can be specified
 as a list.
 
@@ -49,12 +49,12 @@ round of discovery. Note that if you are in an environment where DNS resolutions
 vary with time, you might need to adjust your <<networkaddress-cache-ttl,JVM
 security settings>>.
 
-The list of hosts is set using the <<unicast.hosts,`discovery.zen.ping.unicast.hosts`>> static
+The list of hosts is set using the <<unicast.hosts,`discovery.seed_hosts`>> static
 setting.  For example:
 
 [source,yaml]
 --------------------------------------------------
-discovery.zen.ping.unicast.hosts:
+discovery.seed_hosts:
    - 192.168.1.10:9300
    - 192.168.1.11 <1>
    - seeds.mydomain.com <2>
@@ -64,9 +64,9 @@ discovery.zen.ping.unicast.hosts:
 <2> A hostname that resolves to multiple IP addresses will try all resolved
     addresses.
 
-Additionally, the `discovery.zen.ping.unicast.hosts.resolve_timeout` configures
-the amount of time to wait for DNS lookups on each round of discovery. This is
-specified as a <<time-units, time unit>> and defaults to 5s.
+Additionally, the `discovery.seed_resolver.timeout` configures the amount of
+time to wait for DNS lookups on each round of discovery. This is specified as a
+<<time-units, time unit>> and defaults to 5s.
 
 Unicast discovery uses the <<modules-transport,transport>> module to perform the
 discovery.
@@ -87,7 +87,7 @@ in the `elasticsearch.yml` file:
 
 [source,yml]
 ----------------------------------------------------------------
-discovery.zen.hosts_provider: file
+discovery.seed_providers: file
 ----------------------------------------------------------------
 
 Then create a file at `$ES_PATH_CONF/unicast_hosts.txt` in the format described
@@ -95,13 +95,13 @@ below. Any time a change is made to the `unicast_hosts.txt` file the new changes
 will be picked up by Elasticsearch and the new hosts list will be used.
 
 Note that the file-based discovery plugin augments the unicast hosts list in
-`elasticsearch.yml`. If there are valid unicast host entries in
-`discovery.zen.ping.unicast.hosts`, they are used in addition to those
-supplied in `unicast_hosts.txt`.
+`elasticsearch.yml`. If there are valid seed addresses in
+`discovery.seed_hosts` then they are used in addition to those supplied in
+`unicast_hosts.txt`.
 
-The `discovery.zen.ping.unicast.hosts.resolve_timeout` setting also applies to
-DNS lookups for nodes specified by address via file-based discovery. This is
-specified as a <<time-units, time unit>> and defaults to 5s.
+The `discovery.seed_resolver.timeout` setting also applies to DNS lookups for
+seed addresses given via file-based discovery. This is specified as a
+<<time-units, time unit>> and defaults to 5s.
 
 The format of the file is to specify one node entry per line.  Each node entry
 consists of the host (host name or IP address) and an optional transport port
@@ -123,7 +123,7 @@ the default port:
 ----------------------------------------------------------------
 
 Host names are allowed instead of IP addresses (similar to
-`discovery.zen.ping.unicast.hosts`), and IPv6 addresses must be specified in
+`discovery.seed_hosts`), and IPv6 addresses must be specified in
 brackets with the port coming after the brackets.
 
 You can also add comments to this file. All comments must appear on

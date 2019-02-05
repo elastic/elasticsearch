@@ -5,13 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import java.util.List;
+import java.util.Objects;
 
 /**
  * Count the number of documents matched ({@code COUNT})
@@ -53,17 +55,48 @@ public class Count extends AggregateFunction {
     public String functionId() {
         String functionId = id().toString();
         // if count works against a given expression, use its id (to identify the group)
-        if (field() instanceof NamedExpression) {
+        // in case of COUNT DISTINCT don't use the expression id to avoid possible duplicate IDs when COUNT and COUNT DISTINCT is used
+        // in the same query
+        if (!distinct() && field() instanceof NamedExpression) {
             functionId = ((NamedExpression) field()).id().toString();
         }
         return functionId;
     }
 
     @Override
+    public String name() {
+        if (distinct()) {
+            StringBuilder sb = new StringBuilder(super.name());
+            sb.insert(sb.indexOf("(") + 1, "DISTINCT ");
+            return sb.toString();
+        }
+        return super.name();
+    }
+
+    @Override
     public AggregateFunctionAttribute toAttribute() {
+        // COUNT(*) gets its value from the parent aggregation on which _count is called
+        if (field() instanceof Literal) {
+            return new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), id(), "_count");
+        }
+        // COUNT(column) gets its value from a sibling aggregation (an exists filter agg) by calling its id and then _count on it
         if (!distinct()) {
-            return new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), "_count");
+            return new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), id(), functionId() + "._count");
         }
         return super.toAttribute();
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (false == super.equals(obj)) {
+            return false;
+        }
+        Count other = (Count) obj;
+        return Objects.equals(other.distinct(), distinct());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), distinct());
     }
 }

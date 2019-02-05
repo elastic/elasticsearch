@@ -19,10 +19,12 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -37,6 +39,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutMappingAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestPutMappingAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in put " +
+        "mapping requests is deprecated. The parameter will be removed in the next major version.";
+
     public RestPutMappingAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(PUT, "/{index}/_mapping/", this);
@@ -68,12 +75,19 @@ public class RestPutMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, true);
-        PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            deprecationLogger.deprecatedAndMaybeLog("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
+
         final String type = request.param("type");
         if (type != null && includeTypeName == false) {
-            throw new IllegalArgumentException("Cannot set include_type_name=false and provide a type at the same time");
+            throw new IllegalArgumentException("Types cannot be provided in put mapping requests, unless " +
+                "the include_type_name parameter is set to true.");
         }
+
+        PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.type(includeTypeName ? type : MapperService.SINGLE_MAPPING_NAME);
         putMappingRequest.source(request.requiredContent(), request.getXContentType());
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));

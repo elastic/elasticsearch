@@ -39,11 +39,11 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.hamcrest.Matchers;
@@ -178,37 +178,6 @@ public class SecurityTests extends ESTestCase {
         Collection<Object> components = createComponents(Settings.EMPTY);
         AuditTrailService auditTrailService = findComponent(AuditTrailService.class, components);
         assertEquals(0, auditTrailService.getAuditTrails().size());
-    }
-
-    public void testIndexAuditTrail() throws Exception {
-        Settings settings = Settings.builder()
-            .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
-            .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "index").build();
-        Collection<Object> components = createComponents(settings);
-        AuditTrailService service = findComponent(AuditTrailService.class, components);
-        assertNotNull(service);
-        assertEquals(1, service.getAuditTrails().size());
-        assertEquals(IndexAuditTrail.NAME, service.getAuditTrails().get(0).name());
-    }
-
-    public void testIndexAndLoggingAuditTrail() throws Exception {
-        Settings settings = Settings.builder()
-            .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
-            .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "index,logfile").build();
-        Collection<Object> components = createComponents(settings);
-        AuditTrailService service = findComponent(AuditTrailService.class, components);
-        assertNotNull(service);
-        assertEquals(2, service.getAuditTrails().size());
-        assertEquals(IndexAuditTrail.NAME, service.getAuditTrails().get(0).name());
-        assertEquals(LoggingAuditTrail.NAME, service.getAuditTrails().get(1).name());
-    }
-
-    public void testUnknownOutput() {
-        Settings settings = Settings.builder()
-            .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
-            .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "foo").build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createComponents(settings));
-        assertEquals("Unknown audit trail output [foo]", e.getMessage());
     }
 
     public void testHttpSettingDefaults() throws Exception {
@@ -412,13 +381,13 @@ public class SecurityTests extends ESTestCase {
         FieldPermissions permissions = new FieldPermissions(
             new FieldPermissionsDefinition(new String[] { "field_granted" }, Strings.EMPTY_ARRAY));
         IndicesAccessControl.IndexAccessControl indexGrantedAccessControl = new IndicesAccessControl.IndexAccessControl(true, permissions,
-            Collections.emptySet());
+                DocumentPermissions.allowAll());
         permissionsMap.put("index_granted", indexGrantedAccessControl);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(false,
-            FieldPermissions.DEFAULT, Collections.emptySet());
+                FieldPermissions.DEFAULT, DocumentPermissions.allowAll());
         permissionsMap.put("index_not_granted", indexAccessControl);
         IndicesAccessControl.IndexAccessControl nullFieldPermissions =
-            new IndicesAccessControl.IndexAccessControl(true, null, Collections.emptySet());
+                new IndicesAccessControl.IndexAccessControl(true, null, DocumentPermissions.allowAll());
         permissionsMap.put("index_null", nullFieldPermissions);
         IndicesAccessControl index = new IndicesAccessControl(true, permissionsMap);
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, index);

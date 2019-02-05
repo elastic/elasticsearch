@@ -22,7 +22,7 @@ package org.elasticsearch.client.documentation;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -39,17 +39,18 @@ import org.elasticsearch.client.indexlifecycle.LifecycleAction;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.client.indexlifecycle.OperationMode;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicyMetadata;
+import org.elasticsearch.client.indexlifecycle.OperationMode;
 import org.elasticsearch.client.indexlifecycle.Phase;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyResponse;
 import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
+import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
-import org.elasticsearch.client.indexlifecycle.ShrinkAction;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -337,14 +338,16 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
                 new PutLifecyclePolicyRequest(policy);
             client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
 
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index",
-                Settings.builder()
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index-1")
+                .settings(Settings.builder()
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put("index.lifecycle.name", "my_policy")
+                    .put("index.lifecycle.rollover_alias", "my_alias")
                     .build());
+            createIndexRequest.alias(new Alias("my_alias").writeIndex(true));
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
-            CreateIndexRequest createOtherIndexRequest = new CreateIndexRequest("other_index",
-                Settings.builder()
+            CreateIndexRequest createOtherIndexRequest = new CreateIndexRequest("other_index")
+                .settings(Settings.builder()
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .build());
             client.indices().create(createOtherIndexRequest, RequestOptions.DEFAULT);
@@ -352,58 +355,62 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // wait for the policy to become active
             assertBusy(() -> assertNotNull(client.indexLifecycle()
-                .explainLifecycle(new ExplainLifecycleRequest("my_index"), RequestOptions.DEFAULT)
-                .getIndexResponses().get("my_index").getAction()));
+                .explainLifecycle(new ExplainLifecycleRequest("my_index-1"), RequestOptions.DEFAULT)
+                .getIndexResponses().get("my_index-1").getAction()));
         }
 
         // tag::ilm-explain-lifecycle-request
         ExplainLifecycleRequest request =
-            new ExplainLifecycleRequest("my_index", "other_index"); // <1>
+            new ExplainLifecycleRequest("my_index-1", "other_index"); // <1>
         // end::ilm-explain-lifecycle-request
 
-        // tag::ilm-explain-lifecycle-execute
-        ExplainLifecycleResponse response = client.indexLifecycle()
-            .explainLifecycle(request, RequestOptions.DEFAULT);
-        // end::ilm-explain-lifecycle-execute
-        assertNotNull(response);
 
-        // tag::ilm-explain-lifecycle-response
-        Map<String, IndexLifecycleExplainResponse> indices =
-            response.getIndexResponses();
-        IndexLifecycleExplainResponse myIndex = indices.get("my_index");
-        String policyName = myIndex.getPolicyName(); // <1>
-        boolean isManaged = myIndex.managedByILM(); // <2>
+        assertBusy(() -> {
+            // tag::ilm-explain-lifecycle-execute
+            ExplainLifecycleResponse response = client.indexLifecycle()
+                .explainLifecycle(request, RequestOptions.DEFAULT);
+            // end::ilm-explain-lifecycle-execute
+            assertNotNull(response);
 
-        String phase = myIndex.getPhase(); // <3>
-        long phaseTime = myIndex.getPhaseTime(); // <4>
-        String action = myIndex.getAction(); // <5>
-        long actionTime = myIndex.getActionTime();
-        String step = myIndex.getStep(); // <6>
-        long stepTime = myIndex.getStepTime();
+            // tag::ilm-explain-lifecycle-response
+            Map<String, IndexLifecycleExplainResponse> indices =
+                response.getIndexResponses();
+            IndexLifecycleExplainResponse myIndex = indices.get("my_index-1");
+            String policyName = myIndex.getPolicyName(); // <1>
+            boolean isManaged = myIndex.managedByILM(); // <2>
 
-        String failedStep = myIndex.getFailedStep(); // <7>
-        // end::ilm-explain-lifecycle-response
-        assertEquals("my_policy", policyName);
-        assertTrue(isManaged);
+            String phase = myIndex.getPhase(); // <3>
+            long phaseTime = myIndex.getPhaseTime(); // <4>
+            String action = myIndex.getAction(); // <5>
+            long actionTime = myIndex.getActionTime();
+            String step = myIndex.getStep(); // <6>
+            long stepTime = myIndex.getStepTime();
 
-        assertEquals("hot", phase);
-        assertNotEquals(0, phaseTime);
-        assertEquals("rollover", action);
-        assertNotEquals(0, actionTime);
-        assertEquals("check-rollover-ready", step);
-        assertNotEquals(0, stepTime);
+            String failedStep = myIndex.getFailedStep(); // <7>
+            // end::ilm-explain-lifecycle-response
 
-        assertNull(failedStep);
+            assertEquals("my_policy", policyName);
+            assertTrue(isManaged);
 
-        IndexLifecycleExplainResponse otherIndex = indices.get("other_index");
-        assertFalse(otherIndex.managedByILM());
-        assertNull(otherIndex.getPolicyName());
-        assertNull(otherIndex.getPhase());
-        assertNull(otherIndex.getAction());
-        assertNull(otherIndex.getStep());
-        assertNull(otherIndex.getFailedStep());
-        assertNull(otherIndex.getPhaseExecutionInfo());
-        assertNull(otherIndex.getStepInfo());
+            assertEquals("hot", phase);
+            assertNotEquals(0, phaseTime);
+            assertEquals("rollover", action);
+            assertNotEquals(0, actionTime);
+            assertEquals("check-rollover-ready", step);
+            assertNotEquals(0, stepTime);
+
+            assertNull(failedStep);
+
+            IndexLifecycleExplainResponse otherIndex = indices.get("other_index");
+            assertFalse(otherIndex.managedByILM());
+            assertNull(otherIndex.getPolicyName());
+            assertNull(otherIndex.getPhase());
+            assertNull(otherIndex.getAction());
+            assertNull(otherIndex.getStep());
+            assertNull(otherIndex.getFailedStep());
+            assertNull(otherIndex.getPhaseExecutionInfo());
+            assertNull(otherIndex.getStepInfo());
+        });
 
         // tag::ilm-explain-lifecycle-execute-listener
         ActionListener<ExplainLifecycleResponse> listener =
@@ -584,7 +591,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> warmActions = new HashMap<>();
-            warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+            warmActions.put(ShrinkAction.NAME, new ShrinkAction(3));
             phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
 
             LifecyclePolicy policy = new LifecyclePolicy("my_policy",
@@ -593,9 +600,9 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
                 new PutLifecyclePolicyRequest(policy);
             client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
 
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index",
-                Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
+                .settings(Settings.builder()
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
                     .put("index.lifecycle.name", "my_policy")
                     .build());
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
@@ -658,8 +665,8 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         LifecyclePolicy policy = new LifecyclePolicy("my_policy", phases);
         PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(policy);
         client.indexLifecycle().putLifecyclePolicy(putRequest, RequestOptions.DEFAULT);
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index",
-            Settings.builder()
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
+            .settings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put("index.lifecycle.name", "my_policy")
                 .build());

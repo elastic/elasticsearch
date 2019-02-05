@@ -51,7 +51,7 @@ public class CcrStatsResponseTests extends ESTestCase {
             CcrStatsResponseTests::createTestInstance,
             CcrStatsResponseTests::toXContent,
             CcrStatsResponse::fromXContent)
-            .supportsUnknownFields(false)
+            .supportsUnknownFields(true)
             .assertEqualsConsumer(CcrStatsResponseTests::assertEqualInstances)
             .assertToXContentEquivalence(false)
             .test();

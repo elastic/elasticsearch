@@ -95,7 +95,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                           final ThreadPool threadPool,
                           final TransportNodesListGatewayMetaState listGatewayMetaState,
                           final IndicesService indicesService, final Discovery discovery) {
-        super(settings);
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -207,12 +206,12 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         if (enforceRecoverAfterTime && recoverAfterTime != null) {
             if (scheduledRecovery.compareAndSet(false, true)) {
                 logger.info("delaying initial state recovery for [{}]. {}", recoverAfterTime, reason);
-                threadPool.schedule(recoverAfterTime, ThreadPool.Names.GENERIC, () -> {
+                threadPool.schedule(() -> {
                     if (recovered.compareAndSet(false, true)) {
                         logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
                         recoveryRunnable.run();
                     }
-                });
+                }, recoverAfterTime, ThreadPool.Names.GENERIC);
             }
         } else {
             if (recovered.compareAndSet(false, true)) {

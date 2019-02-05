@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.client.indexlifecycle.LifecyclePolicyTests.createRandomPolicy;
 
@@ -54,7 +55,23 @@ public class GetLifecyclePolicyResponseTests extends AbstractXContentTestCase<Ge
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return (field) ->
+            // phases is a list of Phase parsable entries only
+            field.endsWith(".phases")
+            // these are all meant to be maps of strings, so complex objects will confuse the parser
+            || field.endsWith(".include")
+            || field.endsWith(".exclude")
+            || field.endsWith(".require")
+            // actions are meant to be a list of LifecycleAction parsable entries only
+            || field.endsWith(".actions")
+            // field.isEmpty() means do not insert an object at the root of the json. This parser expects
+            // every root level named object to be parsable as a specific type
+            || field.isEmpty();
     }
 
     @Override
@@ -67,7 +84,9 @@ public class GetLifecyclePolicyResponseTests extends AbstractXContentTestCase<Ge
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse)
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
+            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse)
         ));
         return new NamedXContentRegistry(entries);
     }

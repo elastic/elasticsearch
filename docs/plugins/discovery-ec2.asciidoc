@@ -20,7 +20,7 @@ provider for Zen discovery to `ec2`:
 
 [source,yaml]
 ----
-discovery.zen.hosts_provider: ec2
+discovery.seed_providers: ec2
 ----
 
 ==== Settings
@@ -185,9 +185,9 @@ Management Console. It should look similar to this.
 ===== Filtering by Tags
 
 The ec2 discovery can also filter machines to include in the cluster based on tags (and not just groups). The settings
-to use include the `discovery.ec2.tag.` prefix. For example, setting `discovery.ec2.tag.stage` to `dev` will only
-filter instances with a tag key set to `stage`, and a value of `dev`. Several tags set will require all of those tags
-to be set for the instance to be included.
+to use include the `discovery.ec2.tag.` prefix. For example, if you defined a tag `stage` in EC2 and set it to `dev`,
+setting `discovery.ec2.tag.stage` to `dev` will only filter instances with a tag key set to `stage`, and a value
+of `dev`. Adding multiple `discovery.ec2.tag` settings will require all of those tags to be set for the instance to be included.
 
 One practical use for tag filtering is when an ec2 cluster contains many nodes that are not running Elasticsearch. In
 this case (particularly with high `discovery.zen.ping_timeout` values) there is a risk that a new node's discovery phase

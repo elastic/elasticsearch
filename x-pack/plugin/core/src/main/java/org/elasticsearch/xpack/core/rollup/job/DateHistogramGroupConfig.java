@@ -9,12 +9,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.rounding.DateTimeUnit;
-import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -85,7 +84,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      *     The {@code field} and {@code interval} are required to compute the date histogram for the rolled up documents.
      *     The {@code delay} is optional and can be set to {@code null}. It defines how long to wait before rolling up new documents.
      *     The {@code timeZone} is optional and can be set to {@code null}. When configured, the time zone value  is resolved using
-     *     ({@link DateTimeZone#forID(String)} and must match a time zone identifier provided by the Joda Time library.
+     *     ({@link ZoneId#of(String)} and must match a time zone identifier.
      * </p>
      * @param field the name of the date field to use for the date histogram (required)
      * @param interval the interval to use for the date histogram (required)
@@ -232,14 +231,14 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     }
 
     private static Rounding createRounding(final String expr, final String timeZone) {
-        DateTimeUnit timeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expr);
+        Rounding.DateTimeUnit timeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expr);
         final Rounding.Builder rounding;
         if (timeUnit != null) {
             rounding = new Rounding.Builder(timeUnit);
         } else {
             rounding = new Rounding.Builder(TimeValue.parseTimeValue(expr, "createRounding"));
         }
-        rounding.timeZone(toDateTimeZone(timeZone));
+        rounding.timeZone(ZoneId.of(timeZone));
         return rounding.build();
     }
 

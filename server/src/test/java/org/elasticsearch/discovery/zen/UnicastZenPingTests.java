@@ -90,6 +90,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -172,7 +173,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final ClusterState stateMismatch = ClusterState.builder(new ClusterName("mismatch")).version(randomNonNegativeLong()).build();
 
         final Settings hostsSettings = Settings.builder()
-            .putList("discovery.zen.ping.unicast.hosts",
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(),
                 NetworkAddress.format(new InetSocketAddress(handleA.address.address().getAddress(), handleA.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleC.address.address().getAddress(), handleC.address.address().getPort())),
@@ -306,7 +307,7 @@ public class UnicastZenPingTests extends ESTestCase {
                     new InetSocketAddress(handleC.address.address().getAddress(), handleC.address.address().getPort()))});
 
         final Settings hostsSettings = Settings.builder()
-            .putList("discovery.zen.ping.unicast.hosts", "UZP_A", "UZP_B", "UZP_C")
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), "UZP_A", "UZP_B", "UZP_C")
             .put("cluster.name", "test")
             .build();
 
@@ -401,7 +402,7 @@ public class UnicastZenPingTests extends ESTestCase {
             Collections.singletonList("127.0.0.1"),
             limitPortCounts,
             transportService,
-            TimeValue.timeValueSeconds(1));
+            TimeValue.timeValueSeconds(30));
         assertThat(transportAddresses, hasSize(limitPortCounts));
         final Set<Integer> ports = new HashSet<>();
         for (final TransportAddress address : transportAddresses) {
@@ -445,7 +446,7 @@ public class UnicastZenPingTests extends ESTestCase {
             Collections.singletonList(NetworkAddress.format(loopbackAddress)),
             10,
             transportService,
-            TimeValue.timeValueSeconds(1));
+            TimeValue.timeValueSeconds(30));
         assertThat(transportAddresses, hasSize(7));
         final Set<Integer> ports = new HashSet<>();
         for (final TransportAddress address : transportAddresses) {
@@ -496,7 +497,7 @@ public class UnicastZenPingTests extends ESTestCase {
             Arrays.asList(hostname),
             1,
             transportService,
-            TimeValue.timeValueSeconds(1)
+            TimeValue.timeValueSeconds(30)
         );
 
         assertThat(transportAddresses, empty());
@@ -547,7 +548,7 @@ public class UnicastZenPingTests extends ESTestCase {
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null,
                 Collections.emptySet());
         closeables.push(transportService);
-        final TimeValue resolveTimeout = TimeValue.timeValueSeconds(randomIntBetween(1, 3));
+        final TimeValue resolveTimeout = TimeValue.timeValueSeconds(randomIntBetween(3, 5));
         try {
             final List<TransportAddress> transportAddresses = UnicastZenPing.resolveHostsLists(
                 executorService,
@@ -590,11 +591,11 @@ public class UnicastZenPingTests extends ESTestCase {
         final boolean useHosts = randomBoolean();
         final Settings.Builder hostsSettingsBuilder = Settings.builder().put("cluster.name", "test");
         if (useHosts) {
-            hostsSettingsBuilder.putList("discovery.zen.ping.unicast.hosts",
+            hostsSettingsBuilder.putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(),
                 NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort()))
             );
         } else {
-            hostsSettingsBuilder.put("discovery.zen.ping.unicast.hosts", (String) null);
+            hostsSettingsBuilder.put(DISCOVERY_SEED_HOSTS_SETTING.getKey(), (String) null);
         }
         final Settings hostsSettings = hostsSettingsBuilder.build();
 
@@ -655,7 +656,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
         final Settings hostsSettings = Settings.builder()
             .put("cluster.name", "test")
-            .put("discovery.zen.ping.unicast.hosts", (String) null) // use nodes for simplicity
+            .put(DISCOVERY_SEED_HOSTS_SETTING.getKey(), (String) null) // use nodes for simplicity
             .build();
 
         final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
@@ -722,7 +723,7 @@ public class UnicastZenPingTests extends ESTestCase {
             Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301"),
             1,
             transportService,
-            TimeValue.timeValueSeconds(1));
+            TimeValue.timeValueSeconds(30));
         assertThat(transportAddresses, hasSize(1)); // only one of the two is valid and will be used
         assertThat(transportAddresses.get(0).getAddress(), equalTo("127.0.0.1"));
         assertThat(transportAddresses.get(0).getPort(), equalTo(9301));

@@ -27,7 +27,6 @@
   - do:
       index:
         index: queries
-        type: doc
         id: q4
         refresh: true
         body:
@@ -125,3 +124,18 @@
         wait_for_completion: true
         task_id: $task_id
   - match: { task.headers.X-Opaque-Id: "Reindexing Again" }
+
+---
+"Index with _all is available":
+  - do:
+      indices.get:
+        index: all-index
+
+  - do:
+      indices.get_mapping:
+        include_type_name: false
+        index: all-index
+
+  - is_true: all-index.mappings._all
+  - match: { all-index.mappings._all.enabled: false}
+

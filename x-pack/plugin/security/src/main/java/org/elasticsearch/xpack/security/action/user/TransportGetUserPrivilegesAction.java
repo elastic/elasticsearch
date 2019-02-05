@@ -60,13 +60,14 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
     protected void doExecute(Task task, GetUserPrivilegesRequest request, ActionListener<GetUserPrivilegesResponse> listener) {
         final String username = request.username();
 
-        final User user = Authentication.getAuthentication(threadPool.getThreadContext()).getUser();
+        final Authentication authentication = Authentication.getAuthentication(threadPool.getThreadContext());
+        final User user = authentication.getUser();
         if (user.principal().equals(username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only list the privileges of their own account"));
             return;
         }
 
-        authorizationService.roles(user, ActionListener.wrap(
+        authorizationService.roles(user, authentication, ActionListener.wrap(
             role -> listener.onResponse(buildResponseObject(role)),
             listener::onFailure));
     }
@@ -90,7 +91,7 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
         }
 
         final Set<GetUserPrivilegesResponse.Indices> indices = new LinkedHashSet<>();
-        for (IndicesPermission.Group group : userRole.indices()) {
+        for (IndicesPermission.Group group : userRole.indices().groups()) {
             final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
             final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity = group.getFieldPermissions().hasFieldLevelSecurity()
                 ? group.getFieldPermissions().getFieldPermissionsDefinition().getFieldGrantExcludeGroups() : Collections.emptySet();
@@ -98,7 +99,8 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
                 Arrays.asList(group.indices()),
                 group.privilege().name(),
                 fieldSecurity,
-                queries
+                queries,
+                group.allowRestrictedIndices()
             ));
         }
 

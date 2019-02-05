@@ -32,7 +32,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRe
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -50,7 +49,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -283,6 +281,7 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomRefreshPolicy(deleteRequest::setRefreshPolicy, expectedParams);
         setRandomVersion(deleteRequest, expectedParams);
         setRandomVersionType(deleteRequest::versionType, expectedParams);
+        setRandomIfSeqNoAndTerm(deleteRequest, expectedParams);
 
         if (frequently()) {
             if (randomBoolean()) {
@@ -633,6 +632,7 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             setRandomVersion(indexRequest, expectedParams);
             setRandomVersionType(indexRequest::versionType, expectedParams);
+            setRandomIfSeqNoAndTerm(indexRequest, expectedParams);
         }
 
         if (frequently()) {
@@ -770,6 +770,7 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
         setRandomVersion(updateRequest, expectedParams);
         setRandomVersionType(updateRequest::versionType, expectedParams);
+        setRandomIfSeqNoAndTerm(updateRequest, new HashMap<>()); // if* params are passed in the body
         if (randomBoolean()) {
             int retryOnConflict = randomIntBetween(0, 5);
             updateRequest.retryOnConflict(retryOnConflict);
@@ -800,6 +801,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(updateRequest.docAsUpsert(), parsedUpdateRequest.docAsUpsert());
         assertEquals(updateRequest.detectNoop(), parsedUpdateRequest.detectNoop());
         assertEquals(updateRequest.fetchSource(), parsedUpdateRequest.fetchSource());
+        assertIfSeqNoAndTerm(updateRequest, parsedUpdateRequest);
         assertEquals(updateRequest.script(), parsedUpdateRequest.script());
         if (updateRequest.doc() != null) {
             assertToXContentEquivalent(updateRequest.doc().source(), parsedUpdateRequest.doc().source(), xContentType);
@@ -810,6 +812,22 @@ public class RequestConvertersTests extends ESTestCase {
             assertToXContentEquivalent(updateRequest.upsertRequest().source(), parsedUpdateRequest.upsertRequest().source(), xContentType);
         } else {
             assertNull(parsedUpdateRequest.upsertRequest());
+        }
+    }
+
+    private static void assertIfSeqNoAndTerm(DocWriteRequest<?>request, DocWriteRequest<?> parsedRequest) {
+        assertEquals(request.ifSeqNo(), parsedRequest.ifSeqNo());
+        assertEquals(request.ifPrimaryTerm(), parsedRequest.ifPrimaryTerm());
+    }
+
+    private static void setRandomIfSeqNoAndTerm(DocWriteRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            final long seqNo = randomNonNegativeLong();
+            request.setIfSeqNo(seqNo);
+            expectedParams.put("if_seq_no", Long.toString(seqNo));
+            final long primaryTerm = randomLongBetween(1, 200);
+            request.setIfPrimaryTerm(primaryTerm);
+            expectedParams.put("if_primary_term", Long.toString(primaryTerm));
         }
     }
 
@@ -860,7 +878,6 @@ public class RequestConvertersTests extends ESTestCase {
         int nbItems = randomIntBetween(10, 100);
         for (int i = 0; i < nbItems; i++) {
             String index = randomAlphaOfLength(5);
-            String type = randomAlphaOfLength(5);
             String id = randomAlphaOfLength(5);
 
             BytesReference source = RandomObjects.randomSource(random(), xContentType);
@@ -868,16 +885,16 @@ public class RequestConvertersTests extends ESTestCase {
 
             DocWriteRequest<?> docWriteRequest;
             if (opType == DocWriteRequest.OpType.INDEX) {
-                IndexRequest indexRequest = new IndexRequest(index, type, id).source(source, xContentType);
+                IndexRequest indexRequest = new IndexRequest(index).id(id).source(source, xContentType);
                 docWriteRequest = indexRequest;
                 if (randomBoolean()) {
                     indexRequest.setPipeline(randomAlphaOfLength(5));
                 }
             } else if (opType == DocWriteRequest.OpType.CREATE) {
-                IndexRequest createRequest = new IndexRequest(index, type, id).source(source, xContentType).create(true);
+                IndexRequest createRequest = new IndexRequest(index).id(id).source(source, xContentType).create(true);
                 docWriteRequest = createRequest;
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
-                final UpdateRequest updateRequest = new UpdateRequest(index, type, id).doc(new IndexRequest().source(source, xContentType));
+                final UpdateRequest updateRequest = new UpdateRequest(index, id).doc(new IndexRequest().source(source, xContentType));
                 docWriteRequest = updateRequest;
                 if (randomBoolean()) {
                     updateRequest.retryOnConflict(randomIntBetween(1, 5));
@@ -886,7 +903,7 @@ public class RequestConvertersTests extends ESTestCase {
                     randomizeFetchSourceContextParams(updateRequest::fetchSource, new HashMap<>());
                 }
             } else if (opType == DocWriteRequest.OpType.DELETE) {
-                docWriteRequest = new DeleteRequest(index, type, id);
+                docWriteRequest = new DeleteRequest(index, id);
             } else {
                 throw new UnsupportedOperationException("optype [" + opType + "] not supported");
             }
@@ -895,10 +912,15 @@ public class RequestConvertersTests extends ESTestCase {
                 docWriteRequest.routing(randomAlphaOfLength(10));
             }
             if (randomBoolean()) {
-                docWriteRequest.version(randomNonNegativeLong());
-            }
-            if (randomBoolean()) {
-                docWriteRequest.versionType(randomFrom(VersionType.values()));
+                if (randomBoolean()) {
+                    docWriteRequest.version(randomNonNegativeLong());
+                }
+                if (randomBoolean()) {
+                    docWriteRequest.versionType(randomFrom(VersionType.values()));
+                }
+            } else if (randomBoolean()) {
+                docWriteRequest.setIfSeqNo(randomNonNegativeLong());
+                docWriteRequest.setIfPrimaryTerm(randomLongBetween(1, 200));
             }
             bulkRequest.add(docWriteRequest);
         }
@@ -928,6 +950,8 @@ public class RequestConvertersTests extends ESTestCase {
             assertEquals(originalRequest.routing(), parsedRequest.routing());
             assertEquals(originalRequest.version(), parsedRequest.version());
             assertEquals(originalRequest.versionType(), parsedRequest.versionType());
+            assertEquals(originalRequest.ifSeqNo(), parsedRequest.ifSeqNo());
+            assertEquals(originalRequest.ifPrimaryTerm(), parsedRequest.ifPrimaryTerm());
 
             DocWriteRequest.OpType opType = originalRequest.opType();
             if (opType == DocWriteRequest.OpType.INDEX) {
@@ -954,9 +978,9 @@ public class RequestConvertersTests extends ESTestCase {
     public void testBulkWithDifferentContentTypes() throws IOException {
         {
             BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(new DeleteRequest("index", "type", "0"));
-            bulkRequest.add(new UpdateRequest("index", "type", "1").script(mockScript("test")));
-            bulkRequest.add(new DeleteRequest("index", "type", "2"));
+            bulkRequest.add(new DeleteRequest("index", "0"));
+            bulkRequest.add(new UpdateRequest("index", "1").script(mockScript("test")));
+            bulkRequest.add(new DeleteRequest("index", "2"));
 
             Request request = RequestConverters.bulk(bulkRequest);
             assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
@@ -964,16 +988,16 @@ public class RequestConvertersTests extends ESTestCase {
         {
             XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
             BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(new DeleteRequest("index", "type", "0"));
-            bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), xContentType));
-            bulkRequest.add(new DeleteRequest("index", "type", "2"));
+            bulkRequest.add(new DeleteRequest("index", "0"));
+            bulkRequest.add(new IndexRequest("index").id("0").source(singletonMap("field", "value"), xContentType));
+            bulkRequest.add(new DeleteRequest("index", "2"));
 
             Request request = RequestConverters.bulk(bulkRequest);
             assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         }
         {
             XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
-            UpdateRequest updateRequest = new UpdateRequest("index", "type", "0");
+            UpdateRequest updateRequest = new UpdateRequest("index", "0");
             if (randomBoolean()) {
                 updateRequest.doc(new IndexRequest().source(singletonMap("field", "value"), xContentType));
             } else {
@@ -985,8 +1009,8 @@ public class RequestConvertersTests extends ESTestCase {
         }
         {
             BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), XContentType.SMILE));
-            bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new IndexRequest("index").id("0").source(singletonMap("field", "value"), XContentType.SMILE));
+            bulkRequest.add(new IndexRequest("index").id("1").source(singletonMap("field", "value"), XContentType.JSON));
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.bulk(bulkRequest));
             assertEquals(
                     "Mismatching content-type found for request with content-type [JSON], " + "previous requests have content-type [SMILE]",
@@ -994,9 +1018,9 @@ public class RequestConvertersTests extends ESTestCase {
         }
         {
             BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), XContentType.JSON));
-            bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), XContentType.JSON));
-            bulkRequest.add(new UpdateRequest("index", "type", "2")
+            bulkRequest.add(new IndexRequest("index").id("0").source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new IndexRequest("index").id("1").source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new UpdateRequest("index", "2")
                     .doc(new IndexRequest().source(singletonMap("field", "value"), XContentType.JSON))
                     .upsert(new IndexRequest().source(singletonMap("field", "value"), XContentType.SMILE)));
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.bulk(bulkRequest));
@@ -1007,12 +1031,12 @@ public class RequestConvertersTests extends ESTestCase {
         {
             XContentType xContentType = randomFrom(XContentType.CBOR, XContentType.YAML);
             BulkRequest bulkRequest = new BulkRequest();
-            bulkRequest.add(new DeleteRequest("index", "type", "0"));
-            bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), XContentType.JSON));
-            bulkRequest.add(new DeleteRequest("index", "type", "2"));
-            bulkRequest.add(new DeleteRequest("index", "type", "3"));
-            bulkRequest.add(new IndexRequest("index", "type", "4").source(singletonMap("field", "value"), XContentType.JSON));
-            bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), xContentType));
+            bulkRequest.add(new DeleteRequest("index", "0"));
+            bulkRequest.add(new IndexRequest("index").id("1").source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new DeleteRequest("index", "2"));
+            bulkRequest.add(new DeleteRequest("index", "3"));
+            bulkRequest.add(new IndexRequest("index").id("4").source(singletonMap("field", "value"), XContentType.JSON));
+            bulkRequest.add(new IndexRequest("index").id("1").source(singletonMap("field", "value"), xContentType));
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.bulk(bulkRequest));
             assertEquals("Unsupported content-type found for request with content-type [" + xContentType
                     + "], only JSON and SMILE are supported", exception.getMessage());
@@ -1022,11 +1046,11 @@ public class RequestConvertersTests extends ESTestCase {
     public void testGlobalPipelineOnBulkRequest() throws IOException {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.pipeline("xyz");
-        bulkRequest.add(new IndexRequest("test", "doc", "11")
+        bulkRequest.add(new IndexRequest("test").id("11")
             .source(XContentType.JSON, "field", "bulk1"));
-        bulkRequest.add(new IndexRequest("test", "doc", "12")
+        bulkRequest.add(new IndexRequest("test").id("12")
             .source(XContentType.JSON, "field", "bulk2"));
-        bulkRequest.add(new IndexRequest("test", "doc", "13")
+        bulkRequest.add(new IndexRequest("test").id("13")
             .source(XContentType.JSON, "field", "bulk3"));
 
         Request request = RequestConverters.bulk(bulkRequest);
@@ -1240,7 +1264,7 @@ public class RequestConvertersTests extends ESTestCase {
             requests.add(searchRequest);
         };
         MultiSearchRequest.readMultiLineFormat(new BytesArray(EntityUtils.toByteArray(request.getEntity())),
-                REQUEST_BODY_CONTENT_TYPE.xContent(), consumer, null, multiSearchRequest.indicesOptions(), null, null, null,
+                REQUEST_BODY_CONTENT_TYPE.xContent(), consumer, null, multiSearchRequest.indicesOptions(), null, null, null, null,
                 xContentRegistry(), true);
         assertEquals(requests, multiSearchRequest.requests());
     }
@@ -1863,6 +1887,10 @@ public class RequestConvertersTests extends ESTestCase {
             searchRequest.scroll(randomTimeValue());
             expectedParams.put("scroll", searchRequest.scroll().keepAlive().getStringRep());
         }
+        if (randomBoolean()) {
+            searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+        }
+        expectedParams.put("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
     }
 
     static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
@@ -1902,20 +1930,20 @@ public class RequestConvertersTests extends ESTestCase {
         return indicesOptions;
     }
 
-    static void setRandomIncludeDefaults(GetIndexRequest request, Map<String, String> expectedParams) {
+    static void setRandomIncludeDefaults(Consumer<Boolean> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean includeDefaults = randomBoolean();
-            request.includeDefaults(includeDefaults);
+            setter.accept(includeDefaults);
             if (includeDefaults) {
                 expectedParams.put("include_defaults", String.valueOf(includeDefaults));
             }
         }
     }
 
-    static void setRandomHumanReadable(GetIndexRequest request, Map<String, String> expectedParams) {
+    static void setRandomHumanReadable(Consumer<Boolean> setter, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean humanReadable = randomBoolean();
-            request.humanReadable(humanReadable);
+            setter.accept(humanReadable);
             if (humanReadable) {
                 expectedParams.put("human", String.valueOf(humanReadable));
             }
@@ -1930,10 +1958,6 @@ public class RequestConvertersTests extends ESTestCase {
                 expectedParams.put("local", String.valueOf(local));
             }
         }
-    }
-
-    static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
-        setRandomLocal(request::local, expectedParams);
     }
 
     static void setRandomTimeout(TimedRequest request, TimeValue defaultTimeout, Map<String, String> expectedParams) {

@@ -281,6 +281,7 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomRefreshPolicy(deleteRequest::setRefreshPolicy, expectedParams);
         setRandomVersion(deleteRequest, expectedParams);
         setRandomVersionType(deleteRequest::versionType, expectedParams);
+        setRandomIfSeqNoAndTerm(deleteRequest, expectedParams);
 
         if (frequently()) {
             if (randomBoolean()) {
@@ -631,6 +632,7 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             setRandomVersion(indexRequest, expectedParams);
             setRandomVersionType(indexRequest::versionType, expectedParams);
+            setRandomIfSeqNoAndTerm(indexRequest, expectedParams);
         }
 
         if (frequently()) {
@@ -768,6 +770,7 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
         setRandomVersion(updateRequest, expectedParams);
         setRandomVersionType(updateRequest::versionType, expectedParams);
+        setRandomIfSeqNoAndTerm(updateRequest, new HashMap<>()); // if* params are passed in the body
         if (randomBoolean()) {
             int retryOnConflict = randomIntBetween(0, 5);
             updateRequest.retryOnConflict(retryOnConflict);
@@ -798,6 +801,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(updateRequest.docAsUpsert(), parsedUpdateRequest.docAsUpsert());
         assertEquals(updateRequest.detectNoop(), parsedUpdateRequest.detectNoop());
         assertEquals(updateRequest.fetchSource(), parsedUpdateRequest.fetchSource());
+        assertIfSeqNoAndTerm(updateRequest, parsedUpdateRequest);
         assertEquals(updateRequest.script(), parsedUpdateRequest.script());
         if (updateRequest.doc() != null) {
             assertToXContentEquivalent(updateRequest.doc().source(), parsedUpdateRequest.doc().source(), xContentType);
@@ -808,6 +812,22 @@ public class RequestConvertersTests extends ESTestCase {
             assertToXContentEquivalent(updateRequest.upsertRequest().source(), parsedUpdateRequest.upsertRequest().source(), xContentType);
         } else {
             assertNull(parsedUpdateRequest.upsertRequest());
+        }
+    }
+
+    private static void assertIfSeqNoAndTerm(DocWriteRequest<?>request, DocWriteRequest<?> parsedRequest) {
+        assertEquals(request.ifSeqNo(), parsedRequest.ifSeqNo());
+        assertEquals(request.ifPrimaryTerm(), parsedRequest.ifPrimaryTerm());
+    }
+
+    private static void setRandomIfSeqNoAndTerm(DocWriteRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            final long seqNo = randomNonNegativeLong();
+            request.setIfSeqNo(seqNo);
+            expectedParams.put("if_seq_no", Long.toString(seqNo));
+            final long primaryTerm = randomLongBetween(1, 200);
+            request.setIfPrimaryTerm(primaryTerm);
+            expectedParams.put("if_primary_term", Long.toString(primaryTerm));
         }
     }
 
@@ -892,10 +912,15 @@ public class RequestConvertersTests extends ESTestCase {
                 docWriteRequest.routing(randomAlphaOfLength(10));
             }
             if (randomBoolean()) {
-                docWriteRequest.version(randomNonNegativeLong());
-            }
-            if (randomBoolean()) {
-                docWriteRequest.versionType(randomFrom(VersionType.values()));
+                if (randomBoolean()) {
+                    docWriteRequest.version(randomNonNegativeLong());
+                }
+                if (randomBoolean()) {
+                    docWriteRequest.versionType(randomFrom(VersionType.values()));
+                }
+            } else if (randomBoolean()) {
+                docWriteRequest.setIfSeqNo(randomNonNegativeLong());
+                docWriteRequest.setIfPrimaryTerm(randomLongBetween(1, 200));
             }
             bulkRequest.add(docWriteRequest);
         }
@@ -925,6 +950,8 @@ public class RequestConvertersTests extends ESTestCase {
             assertEquals(originalRequest.routing(), parsedRequest.routing());
             assertEquals(originalRequest.version(), parsedRequest.version());
             assertEquals(originalRequest.versionType(), parsedRequest.versionType());
+            assertEquals(originalRequest.ifSeqNo(), parsedRequest.ifSeqNo());
+            assertEquals(originalRequest.ifPrimaryTerm(), parsedRequest.ifPrimaryTerm());
 
             DocWriteRequest.OpType opType = originalRequest.opType();
             if (opType == DocWriteRequest.OpType.INDEX) {

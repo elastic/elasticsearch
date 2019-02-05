@@ -128,8 +128,6 @@ public class GetWatchResponseTests extends
         long version = randomLongBetween(-1, Long.MAX_VALUE);
         WatchStatus.State state = new WatchStatus.State(randomBoolean(), nowWithMillisResolution());
         ExecutionState executionState = randomFrom(ExecutionState.values());
-
-//Instant.ofEpochMilli(fixedClock.millis()).atZone(ZoneOffset.UTC);
         ZonedDateTime lastChecked = rarely() ? null : nowWithMillisResolution();
         ZonedDateTime lastMetCondition = rarely() ? null : nowWithMillisResolution();
         int size = randomIntBetween(0, 5);

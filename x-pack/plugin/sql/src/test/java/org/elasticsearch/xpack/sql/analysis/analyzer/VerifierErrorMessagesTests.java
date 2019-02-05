@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
@@ -29,6 +30,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 
+@TestLogging("org.elasticsearch.xpack.sql:TRACE")
 public class VerifierErrorMessagesTests extends ESTestCase {
 
     private SqlParser parser = new SqlParser();
@@ -638,5 +640,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:52: HAVING filter is unsupported for function [MAX(keyword)]",
             error("SELECT MAX(keyword) FROM test GROUP BY text HAVING MAX(keyword) > 10"));
     }
-}
 
+    public void testProjectAliasInFilter() {
+        accept("SELECT int AS i FROM test WHERE i > 10");
+    }
+
+    public void testAggregateAliasInFilter() {
+        accept("SELECT int AS i FROM test WHERE i > 10 GROUP BY i  HAVING MAX(i) > 10 ");
+    }
+}

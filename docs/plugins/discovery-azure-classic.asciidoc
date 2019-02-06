@@ -1,7 +1,8 @@
 [[discovery-azure-classic]]
 === Azure Classic Discovery Plugin
 
-The Azure Classic Discovery plugin uses the Azure Classic API for unicast discovery.
+The Azure Classic Discovery plugin uses the Azure Classic API to identify the
+addresses of seed hosts.
 
 // TODO: Link to ARM plugin when ready
 // See issue https://github.com/elastic/elasticsearch/issues/19146
@@ -14,8 +15,8 @@ include::install_remove.asciidoc[]
 [[discovery-azure-classic-usage]]
 ==== Azure Virtual Machine Discovery
 
-Azure VM discovery allows to use the azure APIs to perform automatic discovery (similar to multicast in non hostile
-multicast environments). Here is a simple sample configuration:
+Azure VM discovery allows to use the Azure APIs to perform automatic discovery.
+Here is a simple sample configuration:
 
 [source,yaml]
 ----

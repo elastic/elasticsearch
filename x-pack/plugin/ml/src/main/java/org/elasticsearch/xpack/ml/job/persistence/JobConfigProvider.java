@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -227,11 +226,9 @@ public class JobConfigProvider {
      * @param maxModelMemoryLimit The maximum model memory allowed. This can be {@code null}
      *                            if the job's {@link org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits}
      *                            are not changed.
-     * @param minClusterNodeVersion the minimum version of nodes in the cluster
      * @param updatedJobListener Updated job listener
      */
     public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit,
-                          Version minClusterNodeVersion,
                           ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
@@ -266,7 +263,7 @@ public class JobConfigProvider {
                     return;
                 }
 
-                indexUpdatedJob(updatedJob, version, seqNo, primaryTerm, minClusterNodeVersion, updatedJobListener);
+                indexUpdatedJob(updatedJob, seqNo, primaryTerm, updatedJobListener);
             }
 
             @Override
@@ -287,18 +284,17 @@ public class JobConfigProvider {
     }
 
     /**
-     * Similar to {@link #updateJob(String, JobUpdate, ByteSizeValue, Version, ActionListener)} but
+     * Similar to {@link #updateJob(String, JobUpdate, ByteSizeValue, ActionListener)} but
      * with an extra validation step which is called before the updated is applied.
      *
      * @param jobId The Id of the job to update
      * @param update The job update
      * @param maxModelMemoryLimit The maximum model memory allowed
      * @param validator The job update validator
-     * @param minClusterNodeVersion the minimum version of a node ifn the cluster
      * @param updatedJobListener Updated job listener
      */
     public void updateJobWithValidation(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit,
-                                        UpdateValidator validator, Version minClusterNodeVersion, ActionListener<Job> updatedJobListener) {
+                                        UpdateValidator validator, ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
 
@@ -334,7 +330,7 @@ public class JobConfigProvider {
                                 return;
                             }
 
-                            indexUpdatedJob(updatedJob, version, seqNo, primaryTerm, minClusterNodeVersion, updatedJobListener);
+                            indexUpdatedJob(updatedJob, seqNo, primaryTerm, updatedJobListener);
                         },
                         updatedJobListener::onFailure
                 ));
@@ -347,7 +343,7 @@ public class JobConfigProvider {
         });
     }
 
-    private void indexUpdatedJob(Job updatedJob, long version, long seqNo, long primaryTerm, Version minClusterNodeVersion,
+    private void indexUpdatedJob(Job updatedJob, long seqNo, long primaryTerm,
                                  ActionListener<Job> updatedJobListener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedJob.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -355,12 +351,8 @@ public class JobConfigProvider {
                     ElasticsearchMappings.DOC_TYPE, Job.documentId(updatedJob.getId()))
                     .setSource(updatedSource)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            if (minClusterNodeVersion.onOrAfter(Version.V_6_7_0)) {
-                indexRequest.setIfSeqNo(seqNo);
-                indexRequest.setIfPrimaryTerm(primaryTerm);
-            } else {
-                indexRequest.setVersion(version);
-            }
+            indexRequest.setIfSeqNo(seqNo);
+            indexRequest.setIfPrimaryTerm(primaryTerm);
 
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest.request(), ActionListener.wrap(
                     indexResponse -> {

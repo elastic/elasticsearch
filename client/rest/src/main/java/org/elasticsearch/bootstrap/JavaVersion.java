@@ -97,7 +97,7 @@ public class JavaVersion implements Comparable<JavaVersion> {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
-        final Iterator<Integer> it =  version.iterator();
+        final Iterator<Integer> it = version.iterator();
         sb.append(it.next());
         while (it.hasNext()) {
             sb.append(".").append(it.next());

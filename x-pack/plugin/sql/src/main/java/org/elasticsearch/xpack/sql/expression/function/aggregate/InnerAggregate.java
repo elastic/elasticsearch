@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
@@ -17,19 +17,19 @@ public class InnerAggregate extends AggregateFunction {
 
     private final AggregateFunction inner;
     private final CompoundNumericAggregate outer;
-    private final String innerId;
+    private final String innerName;
     // used when the result needs to be extracted from a map (like in MatrixAggs or Percentiles)
     private final Expression innerKey;
 
     public InnerAggregate(AggregateFunction inner, CompoundNumericAggregate outer) {
-        this(inner.location(), inner, outer, null);
+        this(inner.source(), inner, outer, null);
     }
 
-    public InnerAggregate(Location location, AggregateFunction inner, CompoundNumericAggregate outer, Expression innerKey) {
-        super(location, outer.field(), outer.arguments());
+    public InnerAggregate(Source source, AggregateFunction inner, CompoundNumericAggregate outer, Expression innerKey) {
+        super(source, outer.field(), outer.arguments());
         this.inner = inner;
         this.outer = outer;
-        this.innerId = ((EnclosedAgg) inner).innerName();
+        this.innerName = ((EnclosedAgg) inner).innerName();
         this.innerKey = innerKey;
     }
 
@@ -55,8 +55,8 @@ public class InnerAggregate extends AggregateFunction {
         return outer;
     }
 
-    public String innerId() {
-        return innerId;
+    public String innerName() {
+        return innerName;
     }
 
     public Expression innerKey() {
@@ -76,11 +76,11 @@ public class InnerAggregate extends AggregateFunction {
     @Override
     public AggregateFunctionAttribute toAttribute() {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-        return new AggregateFunctionAttribute(location(), name(), dataType(), outer.id(), functionId(),
-                aggMetricValue(functionId(), innerId));
+        return new AggregateFunctionAttribute(source(), name(), dataType(), outer.id(), functionId(),
+                inner.id(), aggMetricValue(functionId(), innerName));
     }
 
-    public static String aggMetricValue(String aggPath, String valueName) {
+    private static String aggMetricValue(String aggPath, String valueName) {
         // handle aggPath inconsistency (for percentiles and percentileRanks) percentile[99.9] (valid) vs percentile.99.9 (invalid)
         return aggPath + "[" + valueName + "]";
     }
@@ -97,5 +97,10 @@ public class InnerAggregate extends AggregateFunction {
     @Override
     public String name() {
         return inner.name();
+    }
+
+    @Override
+    public String toString() {
+        return nodeName() + "[" + outer + ">" + inner.nodeName() + "#" + inner.id() + "]";
     }
 }

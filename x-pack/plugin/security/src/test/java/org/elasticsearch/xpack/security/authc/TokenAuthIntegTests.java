@@ -54,7 +54,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 // crank up the deletion interval and set timeout for delete requests
-                .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueSeconds(1L))
+                .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(200L))
                 .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
                 .build();
@@ -151,7 +151,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                     .setSource(SearchSourceBuilder.searchSource()
-                            .query(QueryBuilders.termQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE)))
+                        .query(QueryBuilders.termQuery("doc_type", "token")))
                     .setSize(1)
                     .setTerminateAfter(1)
                     .get();
@@ -159,11 +159,11 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             docId.set(searchResponse.getHits().getAt(0).getId());
         });
 
-        // hack doc to modify the time to the day before
-        Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
-        assertTrue(Instant.now().isAfter(dayBefore));
+        // hack doc to modify the creation time to the day before
+        Instant yesterday = created.minus(36L, ChronoUnit.HOURS);
+        assertTrue(Instant.now().isAfter(yesterday));
         client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
-                .setDoc("expiration_time", dayBefore.toEpochMilli())
+            .setDoc("creation_time", yesterday.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
@@ -183,8 +183,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             client.admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
             SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
                     .setSource(SearchSourceBuilder.searchSource()
-                            .query(QueryBuilders.termQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE)))
-                    .setSize(0)
+                        .query(QueryBuilders.termQuery("doc_type", "token")))
                     .setTerminateAfter(1)
                     .get();
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));

@@ -5,14 +5,12 @@
         index: test
         body:
           mappings:
-            place:
-              properties:
-                name:
-                  type: keyword
+            properties:
+              name:
+                type: keyword
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         refresh: true
         body:    { "name": "bob! house" }
@@ -20,7 +18,6 @@
   - do:
       indices.put_mapping:
         index: test
-        type:  _doc
         body:
           properties:
             name:

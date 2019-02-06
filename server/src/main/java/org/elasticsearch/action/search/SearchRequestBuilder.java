@@ -224,6 +224,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         sourceBuilder().version(version);
         return this;
     }
+    
+    /**
+     * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
+     * sequence number and primary term of the last modification of the document.
+     */
+    public SearchRequestBuilder seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        sourceBuilder().seqNoAndPrimaryTerm(seqNoAndPrimaryTerm);
+        return this;
+    }
 
     /**
      * Sets the boost a specific index will receive when the query is executed against it.
@@ -373,6 +382,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setTrackTotalHits(boolean trackTotalHits) {
         sourceBuilder().trackTotalHits(trackTotalHits);
+        return this;
+    }
+
+    /**
+     * Indicates if the total hit count for the query should be tracked. Defaults to {@code true}
+     */
+    public SearchRequestBuilder setTrackTotalHitsUpTo(int trackTotalHitsUpTo) {
+        sourceBuilder().trackTotalHitsUpTo(trackTotalHitsUpTo);
         return this;
     }
 

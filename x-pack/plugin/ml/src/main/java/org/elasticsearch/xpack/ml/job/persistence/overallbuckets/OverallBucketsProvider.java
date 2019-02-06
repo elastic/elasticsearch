@@ -14,8 +14,8 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.joda.time.DateTime;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -64,8 +64,8 @@ public class OverallBucketsProvider {
     }
 
     private static Date getHistogramBucketTimestamp(Histogram.Bucket bucket) {
-        DateTime bucketTimestamp = (DateTime) bucket.getKey();
-        return new Date(bucketTimestamp.getMillis());
+        ZonedDateTime bucketTimestamp = (ZonedDateTime) bucket.getKey();
+        return new Date(bucketTimestamp.toInstant().toEpochMilli());
     }
 
     static class TopNScores extends PriorityQueue<Double> {

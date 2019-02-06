@@ -7,19 +7,13 @@ more of the master-eligible nodes in the cluster. This is known as _cluster
 bootstrapping_.  This is only required the very first time the cluster starts
 up: nodes that have already joined a cluster store this information in their
 data folder and freshly-started nodes that are joining an existing cluster
-obtain this information from the cluster's elected master. This information is
-given using this setting:
+obtain this information from the cluster's elected master. 
 
-`cluster.initial_master_nodes`::
-
-    Sets a list of the <<node.name,node names>> or transport addresses of the
-    initial set of master-eligible nodes in a brand-new cluster. By default
-    this list is empty, meaning that this node expects to join a cluster that
-    has already been bootstrapped.
-
-This setting can be given on the command line or in the `elasticsearch.yml`
-configuration file when starting up a master-eligible node. Once the cluster
-has formed this setting is no longer required and is ignored. It need not be set
+The initial set of master-eligible nodes is defined in the 
+<<initial_master_nodes,`cluster.initial_master_nodes` setting>>. When you
+start a master-eligible node, you can provide this setting on the command line
+or in the `elasticsearch.yml` file. After the cluster has formed, this setting
+is no longer required and is ignored. It need not be set
 on master-ineligible nodes, nor on master-eligible nodes that are started to
 join an existing cluster. Note that master-eligible nodes should use storage
 that persists across restarts. If they do not, and
@@ -100,6 +94,6 @@ If any of the following settings are configured then auto-bootstrapping will not
 take place, and you must configure `cluster.initial_master_nodes` as described
 in the <<modules-discovery-bootstrap-cluster,section on cluster bootstrapping>>:
 
-* `discovery.zen.hosts_provider`
-* `discovery.zen.ping.unicast.hosts`
+* `discovery.seed_providers`
+* `discovery.seed_hosts`
 * `cluster.initial_master_nodes`

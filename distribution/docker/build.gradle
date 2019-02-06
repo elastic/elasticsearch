@@ -4,6 +4,7 @@ import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
 
 apply plugin: 'base'
+apply plugin: 'elasticsearch.test.fixtures'
 
 configurations {
   dockerPlugins
@@ -12,20 +13,17 @@ configurations {
 }
 
 dependencies {
-  dockerPlugins project(path: ":plugins:ingest-geoip", configuration: 'zip')
-  dockerPlugins project(path: ":plugins:ingest-user-agent", configuration: 'zip')
-  dockerSource project(path: ":distribution:archives:tar")
-  ossDockerSource project(path: ":distribution:archives:oss-tar")
+  dockerSource project(path: ":distribution:archives:linux-tar")
+  ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
 }
 
 ext.expansions = { oss ->
+  String classifier = 'linux-x86_64'
   return [
-    'elasticsearch' : oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}.tar.gz",
-    'jdkUrl' : 'https://download.java.net/java/GA/jdk11/13/GPL/openjdk-11.0.1_linux-x64_bin.tar.gz',
-    'jdkVersion' : '11.0.1',
+    'elasticsearch' : oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz",
+    'jdkUrl' : 'https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz',
+    'jdkVersion' : '11.0.2',
     'license': oss ? 'Apache-2.0' : 'Elastic License',
-    'ingest-geoip' : "ingest-geoip-${VersionProperties.elasticsearch}.zip",
-    'ingest-user-agent' : "ingest-user-agent-${VersionProperties.elasticsearch}.zip",
     'version' : VersionProperties.elasticsearch
   ]
 }
@@ -62,6 +60,7 @@ void addCopyDockerContextTask(final boolean oss) {
 
 void addCopyDockerfileTask(final boolean oss) {
   task(taskName("copy", oss, "Dockerfile"), type: Copy) {
+    inputs.properties(expansions(oss)) // ensure task is run when ext.expansions is changed
     mustRunAfter(taskName("copy", oss, "DockerContext"))
     into files(oss)
 
@@ -70,6 +69,22 @@ void addCopyDockerfileTask(final boolean oss) {
     }
   }
 }
+
+
+preProcessFixture {
+  dependsOn taskName("copy", true, "DockerContext")
+  dependsOn taskName("copy", true, "Dockerfile")
+  dependsOn taskName("copy", false, "DockerContext")
+  dependsOn taskName("copy", false, "Dockerfile")
+}
+
+postProcessFixture.doLast {
+  println "docker default distro is on port: ${ext."test.fixtures.elasticsearch-default.tcp.9200"}, " +
+          "oss is on: ${ext."test.fixtures.elasticsearch-oss.tcp.9200"}"
+}
+
+// TODO: Add some actual tests, this will just check that the TPC port in the container is up
+check.dependsOn postProcessFixture
 
 void addBuildDockerImage(final boolean oss) {
   final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
@@ -86,7 +101,7 @@ void addBuildDockerImage(final boolean oss) {
       ]
     }
     executable 'docker'
-    final List<String> dockerArgs = ['build', files(oss), '--pull']
+    final List<String> dockerArgs = ['build', files(oss), '--pull', '--no-cache']
     for (final String tag : tags) {
       dockerArgs.add('--tag')
       dockerArgs.add(tag)

@@ -14,17 +14,15 @@
                   tokenizer: standard
                   filter: [type_as_payload]
           mappings:
-            doc:
-              properties:
-                text:
-                  type: text
-                  term_vector: with_positions_offsets_payloads
-                  analyzer: has_payloads
+            properties:
+              text:
+                type: text
+                term_vector: with_positions_offsets_payloads
+                analyzer: has_payloads
 
   - do:
       index:
         index: test
-        type:  doc
         id:    1
         refresh: true
         body:
@@ -33,7 +31,6 @@
   - do:
       termvectors:
         index: test
-        type:  doc
         id:    1
         payloads: true
   - match: {term_vectors.text.field_statistics.sum_doc_freq: 5}

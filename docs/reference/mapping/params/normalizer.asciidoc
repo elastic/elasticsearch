@@ -26,12 +26,10 @@ PUT index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "foo": {
-          "type": "keyword",
-          "normalizer": "my_normalizer"
-        }
+    "properties": {
+      "foo": {
+        "type": "keyword",
+        "normalizer": "my_normalizer"
       }
     }
   }

@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.jdbc.EsType;
-import org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.JdbcPreparedStatement;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -31,7 +29,7 @@ import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BINARY;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BYTE;
-import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DOUBLE;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.FLOAT;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.HALF_FLOAT;
@@ -287,12 +285,12 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         Float floatNotInt =  5_155_000_000f;
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, floatNotInt, Types.INTEGER));
-        assertEquals(String.format(Locale.ROOT, "Numeric %s out of range",
-                Long.toString(Math.round(floatNotInt.doubleValue()))), sqle.getMessage());
+        assertEquals(LoggerMessageFormat.format("Numeric {} out of range",
+            Math.round(floatNotInt.doubleValue())), sqle.getMessage());
 
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, floatNotInt, Types.SMALLINT));
-        assertEquals(String.format(Locale.ROOT, "Numeric %s out of range",
-                Long.toString(Math.round(floatNotInt.doubleValue()))), sqle.getMessage());
+        assertEquals(LoggerMessageFormat.format("Numeric {} out of range",
+                Math.round(floatNotInt.doubleValue())), sqle.getMessage());
     }
 
     public void testSettingDoubleValues() throws SQLException {
@@ -328,8 +326,8 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         Double doubleNotInt = 5_155_000_000d;
         sqle = expectThrows(SQLException.class, () -> jps.setObject(1, doubleNotInt, Types.INTEGER));
-        assertEquals(String.format(Locale.ROOT, "Numeric %s out of range",
-                Long.toString(((Number) doubleNotInt).longValue())), sqle.getMessage());
+        assertEquals(LoggerMessageFormat.format("Numeric {} out of range",
+                ((Number) doubleNotInt).longValue()), sqle.getMessage());
     }
 
     public void testUnsupportedClasses() throws SQLException {
@@ -373,13 +371,13 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         Timestamp someTimestamp = new Timestamp(randomLong());
         jps.setTimestamp(1, someTimestamp);
         assertEquals(someTimestamp.getTime(), ((Date)value(jps)).getTime());
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
 
         Calendar nonDefaultCal = randomCalendar();
         // February 29th, 2016. 01:17:55 GMT = 1456708675000 millis since epoch
         jps.setTimestamp(1, new Timestamp(1456708675000L), nonDefaultCal);
         assertEquals(1456708675000L, convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
 
         long beforeEpochTime = randomLongBetween(Long.MIN_VALUE, 0);
         jps.setTimestamp(1, new Timestamp(beforeEpochTime), nonDefaultCal);
@@ -406,7 +404,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         Calendar nonDefaultCal = randomCalendar();
         jps.setTime(1, time, nonDefaultCal);
         assertEquals(4675000, convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, time, Types.VARCHAR);
@@ -428,13 +426,13 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         java.sql.Date someSqlDate = new java.sql.Date(randomLong());
         jps.setDate(1, someSqlDate);
         assertEquals(someSqlDate.getTime(), ((Date)value(jps)).getTime());
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
 
         someSqlDate = new java.sql.Date(randomLong());
         Calendar nonDefaultCal = randomCalendar();
         jps.setDate(1, someSqlDate, nonDefaultCal);
         assertEquals(someSqlDate.getTime(), convertFromUTCtoCalendar(((Date)value(jps)), nonDefaultCal));
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, someSqlDate, Types.VARCHAR);
@@ -458,7 +456,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, someCalendar);
         assertEquals(someCalendar.getTime(), value(jps));
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, someCalendar, Types.VARCHAR);
@@ -468,7 +466,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         Calendar nonDefaultCal = randomCalendar();
         jps.setObject(1, nonDefaultCal);
         assertEquals(nonDefaultCal.getTime(), value(jps));
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
     }
 
     public void testThrownExceptionsWhenSettingCalendarValues() throws SQLException {
@@ -485,7 +483,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, someDate);
         assertEquals(someDate, value(jps));
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, someDate, Types.VARCHAR);
@@ -507,7 +505,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         jps.setObject(1, ldt);
         assertEquals(Date.class, value(jps).getClass());
-        assertEquals(DATE, jdbcType(jps));
+        assertEquals(DATETIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
         jps.setObject(1, ldt, Types.VARCHAR);

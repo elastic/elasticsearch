@@ -42,3 +42,9 @@ integTestCluster {
 integTestRunner {
   systemProperty 'external.address', "${ -> exampleFixture.addressAndPort }"
 }
+
+testingConventions.naming {
+  IT {
+    baseClass 'org.elasticsearch.test.ESTestCase'
+  }
+}

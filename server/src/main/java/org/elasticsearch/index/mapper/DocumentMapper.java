@@ -27,6 +27,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -73,7 +74,9 @@ public class DocumentMapper implements ToXContentFragment {
 
             final String type = rootObjectMapper.name();
             final DocumentMapper existingMapper = mapperService.documentMapper(type);
-            final Map<String, TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers();
+            final Version indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
+            final Map<String, TypeParser> metadataMapperParsers =
+                mapperService.mapperRegistry.getMetadataMapperParsers(indexCreatedVersion);
             for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : metadataMapperParsers.entrySet()) {
                 final String name = entry.getKey();
                 final MetadataFieldMapper existingMetadataMapper = existingMapper == null
@@ -265,13 +268,13 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public ParsedDocument createDeleteTombstoneDoc(String index, String type, String id) throws MapperParsingException {
-        final SourceToParse emptySource = SourceToParse.source(index, type, id, new BytesArray("{}"), XContentType.JSON);
+        final SourceToParse emptySource = new SourceToParse(index, type, id, new BytesArray("{}"), XContentType.JSON);
         return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers).toTombstone();
     }
 
     public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
         final String id = ""; // _id won't be used.
-        final SourceToParse sourceToParse = SourceToParse.source(index, type, id, new BytesArray("{}"), XContentType.JSON);
+        final SourceToParse sourceToParse = new SourceToParse(index, type, id, new BytesArray("{}"), XContentType.JSON);
         final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers).toTombstone();
         // Store the reason of a noop as a raw string in the _source field
         final BytesRef byteRef = new BytesRef(reason);

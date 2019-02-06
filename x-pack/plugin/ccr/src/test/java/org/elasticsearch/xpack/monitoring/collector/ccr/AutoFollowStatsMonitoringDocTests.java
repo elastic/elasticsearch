@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.monitoring.collector.ccr;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -18,11 +20,10 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<AutoFollowStatsMonitoringDoc> {
-
+    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
     private AutoFollowStats autoFollowStats;
 
     @Before
@@ -72,10 +73,10 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
         final long nodeTimestamp = System.currentTimeMillis();
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", nodeTimestamp);
 
-        final NavigableMap<String, ElasticsearchException> recentAutoFollowExceptions =
+        final NavigableMap<String, Tuple<Long, ElasticsearchException>> recentAutoFollowExceptions =
             new TreeMap<>(Collections.singletonMap(
                 randomAlphaOfLength(4),
-                new ElasticsearchException("cannot follow index")));
+                Tuple.tuple(1L, new ElasticsearchException("cannot follow index"))));
 
         final NavigableMap<String, AutoFollowedCluster> trackingClusters =
             new TreeMap<>(Collections.singletonMap(
@@ -93,7 +94,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
             equalTo(
                 "{"
                     + "\"cluster_uuid\":\"_cluster\","
-                    + "\"timestamp\":\"" + new DateTime(timestamp, DateTimeZone.UTC).toString() + "\","
+                    + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(timestamp) + "\","
                     + "\"interval_ms\":" + intervalMillis + ","
                     + "\"type\":\"ccr_auto_follow_stats\","
                     + "\"source_node\":{"
@@ -102,7 +103,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                         + "\"transport_address\":\"_addr\","
                         + "\"ip\":\"_ip\","
                         + "\"name\":\"_name\","
-                        + "\"timestamp\":\"" + new DateTime(nodeTimestamp, DateTimeZone.UTC).toString() +  "\""
+                        + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp) +  "\""
                     + "},"
                     + "\"ccr_auto_follow_stats\":{"
                         + "\"number_of_failed_follow_indices\":" + autoFollowStats.getNumberOfFailedFollowIndices() + ","
@@ -112,6 +113,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                         + "\"recent_auto_follow_errors\":["
                             + "{"
                                 + "\"leader_index\":\"" + recentAutoFollowExceptions.keySet().iterator().next() + "\","
+                                + "\"timestamp\":1,"
                                 + "\"auto_follow_exception\":{"
                                     + "\"type\":\"exception\","
                                     + "\"reason\":\"cannot follow index\""
@@ -132,8 +134,8 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
     }
 
     public void testShardFollowNodeTaskStatusFieldsMapped() throws IOException {
-        final NavigableMap<String, ElasticsearchException> fetchExceptions =
-            new TreeMap<>(Collections.singletonMap("leader_index", new ElasticsearchException("cannot follow index")));
+        final NavigableMap<String, Tuple<Long, ElasticsearchException>> fetchExceptions =
+            new TreeMap<>(Collections.singletonMap("leader_index", Tuple.tuple(1L, new ElasticsearchException("cannot follow index"))));
         final NavigableMap<String, AutoFollowedCluster> trackingClusters =
             new TreeMap<>(Collections.singletonMap(
                 randomAlphaOfLength(4),
@@ -169,6 +171,7 @@ public class AutoFollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase
                     assertThat(fieldType, equalTo("nested"));
                     assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(innerFieldValue.size()));
                     assertThat(XContentMapValues.extractValue("properties.leader_index.type", fieldMapping), equalTo("keyword"));
+                    assertThat(XContentMapValues.extractValue("properties.timestamp.type", fieldMapping), equalTo("long"));
                     assertThat(XContentMapValues.extractValue("properties.auto_follow_exception.type", fieldMapping), equalTo("object"));
 
                     innerFieldValue = (Map<?, ?>) innerFieldValue.get("auto_follow_exception");

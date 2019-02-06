@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -69,6 +71,8 @@ public class IngestService implements ClusterStateApplier {
 
     public static final String NOOP_PIPELINE_NAME = "_none";
 
+    private static final Logger logger = LogManager.getLogger(IngestService.class);
+
     private final ClusterService clusterService;
     private final ScriptService scriptService;
     private final Map<String, Processor.Factory> processorFactories;
@@ -91,7 +95,7 @@ public class IngestService implements ClusterStateApplier {
                 env, scriptService, analysisRegistry,
                 threadPool.getThreadContext(), threadPool::relativeTimeInMillis,
                 (delay, command) -> threadPool.schedule(
-                    TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC, command
+                    command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC
                 ), this
             )
         );
@@ -256,7 +260,11 @@ public class IngestService implements ClusterStateApplier {
     public void applyClusterState(final ClusterChangedEvent event) {
         ClusterState state = event.state();
         Map<String, Pipeline> originalPipelines = pipelines;
-        innerUpdatePipelines(event.previousState(), state);
+        try {
+            innerUpdatePipelines(event.previousState(), state);
+        } catch (ElasticsearchParseException e) {
+            logger.warn("failed to update ingest pipelines", e);
+        }
         //pipelines changed, so add the old metrics to the new metrics
         if (originalPipelines != pipelines) {
             pipelines.forEach((id, pipeline) -> {

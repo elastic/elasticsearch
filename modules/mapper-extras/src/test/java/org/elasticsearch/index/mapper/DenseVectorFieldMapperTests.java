@@ -58,7 +58,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(mapping, mapper.mappingSource().toString());
 
         float[] expectedArray = {-12.1f, 100.7f, -4};
-        ParsedDocument doc1 = mapper.parse(SourceToParse.source("test-index", "_doc", "1", BytesReference
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .startArray("my-dense-vector").value(expectedArray[0]).value(expectedArray[1]).value(expectedArray[2]).endArray()

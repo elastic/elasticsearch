@@ -91,7 +91,7 @@ public class RestClientDocumentation {
     // end::rest-client-options-singleton
 
     @SuppressWarnings("unused")
-    public void testUsage() throws IOException, InterruptedException {
+    public void usage() throws IOException, InterruptedException {
 
         //tag::rest-client-init
         RestClient restClient = RestClient.builder(
@@ -110,13 +110,6 @@ public class RestClientDocumentation {
             Header[] defaultHeaders = new Header[]{new BasicHeader("header", "value")};
             builder.setDefaultHeaders(defaultHeaders); // <1>
             //end::rest-client-init-default-headers
-        }
-        {
-            //tag::rest-client-init-max-retry-timeout
-            RestClientBuilder builder = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"));
-            builder.setMaxRetryTimeoutMillis(10000); // <1>
-            //end::rest-client-init-max-retry-timeout
         }
         {
             //tag::rest-client-init-node-selector
@@ -291,7 +284,7 @@ public class RestClientDocumentation {
     }
 
     @SuppressWarnings("unused")
-    public void testCommonConfiguration() throws Exception {
+    public void commonConfiguration() throws Exception {
         {
             //tag::rest-client-config-timeouts
             RestClientBuilder builder = RestClient.builder(
@@ -305,8 +298,7 @@ public class RestClientDocumentation {
                                 .setConnectTimeout(5000)
                                 .setSocketTimeout(60000);
                         }
-                    })
-                .setMaxRetryTimeoutMillis(60000);
+                    });
             //end::rest-client-config-timeouts
         }
         {

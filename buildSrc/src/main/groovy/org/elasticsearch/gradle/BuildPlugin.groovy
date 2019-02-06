@@ -150,7 +150,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
-            boolean inFipsJvm = Boolean.parseBoolean(runJavascript(project, runtimeJavaHome, inFipsJvmScript))
+            boolean inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript))
 
             // Build debugging info
             println '======================================='
@@ -392,7 +392,7 @@ class BuildPlugin implements Plugin<Project> {
     static void requireJavaHome(Task task, int version) {
         Project rootProject = task.project.rootProject // use root project for global accounting
         if (rootProject.hasProperty('requiredJavaVersions') == false) {
-            rootProject.rootProject.ext.requiredJavaVersions = [:].withDefault{key -> return []}
+            rootProject.rootProject.ext.requiredJavaVersions = [:]
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
                 List<String> messages = []
                 for (entry in rootProject.requiredJavaVersions) {
@@ -407,9 +407,16 @@ class BuildPlugin implements Plugin<Project> {
                 if (messages.isEmpty() == false) {
                     throw new GradleException(messages.join('\n'))
                 }
+                rootProject.rootProject.ext.requiredJavaVersions = null // reset to null to indicate the pre-execution checks have executed
             }
+        } else if (rootProject.rootProject.requiredJavaVersions == null) {
+            // check directly if the version is present since we are already executing
+            if (rootProject.javaVersions.get(version) == null) {
+                throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
+            }
+        } else {
+            rootProject.requiredJavaVersions.getOrDefault(version, []).add(task)
         }
-        rootProject.requiredJavaVersions.get(version).add(task)
     }
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
@@ -431,28 +438,28 @@ class BuildPlugin implements Plugin<Project> {
         String versionInfoScript = 'print(' +
             'java.lang.System.getProperty("java.vendor") + " " + java.lang.System.getProperty("java.version") + ' +
             '" [" + java.lang.System.getProperty("java.vm.name") + " " + java.lang.System.getProperty("java.vm.version") + "]");'
-        return runJavascript(project, javaHome, versionInfoScript).trim()
+        return runJavaAsScript(project, javaHome, versionInfoScript).trim()
     }
 
     /** Finds the parsable java specification version */
     private static String findJavaSpecificationVersion(Project project, String javaHome) {
         String versionScript = 'print(java.lang.System.getProperty("java.specification.version"));'
-        return runJavascript(project, javaHome, versionScript)
+        return runJavaAsScript(project, javaHome, versionScript)
     }
 
     private static String findJavaVendor(Project project, String javaHome) {
         String vendorScript = 'print(java.lang.System.getProperty("java.vendor"));'
-        return runJavascript(project, javaHome, vendorScript)
+        return runJavaAsScript(project, javaHome, vendorScript)
     }
 
     /** Finds the parsable java specification version */
     private static String findJavaVersion(Project project, String javaHome) {
         String versionScript = 'print(java.lang.System.getProperty("java.version"));'
-        return runJavascript(project, javaHome, versionScript)
+        return runJavaAsScript(project, javaHome, versionScript)
     }
 
     /** Runs the given javascript using jjs from the jdk, and returns the output */
-    private static String runJavascript(Project project, String javaHome, String script) {
+    private static String runJavaAsScript(Project project, String javaHome, String script) {
         ByteArrayOutputStream stdout = new ByteArrayOutputStream()
         ByteArrayOutputStream stderr = new ByteArrayOutputStream()
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -558,6 +565,12 @@ class BuildPlugin implements Plugin<Project> {
             repos.mavenLocal()
         }
         repos.jcenter()
+        repos.ivy {
+            url "https://artifacts.elastic.co/downloads"
+            patternLayout {
+                artifact "elasticsearch/[module]-[revision](-[classifier]).[ext]"
+            }
+        }
         repos.maven {
             name "elastic"
             url "https://artifacts.elastic.co/maven"
@@ -891,6 +904,7 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.withType(RandomizedTestingTask) {task ->
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
+            ifNoTests 'fail'
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
             project.sourceSets.matching { it.name == "test" }.all { test ->

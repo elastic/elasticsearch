@@ -13,6 +13,16 @@ module. This module is divided into the following sections:
     unknown, such as when a node has just started up or when the previous
     master has failed.
 
+<<modules-discovery-quorums>>::
+
+    This section describes how {es} uses a quorum-based voting mechanism to
+    make decisions even if some nodes are unavailable.
+
+<<modules-discovery-voting>>::
+
+    This section describes the concept of voting configurations, which {es}
+    automatically updates as nodes leave and join the cluster.
+
 <<modules-discovery-bootstrap-cluster>>::
 
     Bootstrapping a cluster is required when an Elasticsearch cluster starts up
@@ -40,24 +50,20 @@ module. This module is divided into the following sections:
     Cluster state publishing is the process by which the elected master node
     updates the cluster state on all the other nodes in the cluster.
 
-<<no-master-block>>::
+<<cluster-fault-detection>>::
 
-    The no-master block is put in place when there is no known elected master,
-    and can be configured to determine which operations should be rejected when
-    it is in place.
+    {es} performs health checks to detect and remove faulty nodes.
 
-Advanced settings::
+<<modules-discovery-settings,Settings>>::
 
-    There are settings that allow advanced users to influence the
-    <<master-election-settings,master election>> and
-    <<fault-detection-settings,fault detection>> processes.
-
-<<modules-discovery-quorums>>::
-
-    This section describes the detailed design behind the master election and
-    auto-reconfiguration logic.
+    There are settings that enable users to influence the discovery, cluster
+    formation, master election and fault detection processes.    
 
 include::discovery/discovery.asciidoc[]
+
+include::discovery/quorums.asciidoc[]
+
+include::discovery/voting.asciidoc[]
 
 include::discovery/bootstrapping.asciidoc[]
 
@@ -65,11 +71,6 @@ include::discovery/adding-removing-nodes.asciidoc[]
 
 include::discovery/publishing.asciidoc[]
 
-include::discovery/no-master-block.asciidoc[]
-
-include::discovery/master-election.asciidoc[]
-
 include::discovery/fault-detection.asciidoc[]
 
-include::discovery/quorums.asciidoc[]
-
+include::discovery/discovery-settings.asciidoc[]

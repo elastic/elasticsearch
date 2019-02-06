@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.l;
 
 public class InsertProcessorTests extends AbstractWireSerializingTestCase<InsertFunctionProcessor> {

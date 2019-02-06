@@ -108,8 +108,10 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
@@ -240,6 +242,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.subphase.MatchedQueriesFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ScoreFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.SeqNoPrimaryTermFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.VersionFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
@@ -419,8 +422,10 @@ public class SearchModule {
                 AutoDateHistogramAggregationBuilder::parse).addResultReader(InternalAutoDateHistogram::new));
         registerAggregation(new AggregationSpec(GeoDistanceAggregationBuilder.NAME, GeoDistanceAggregationBuilder::new,
                 GeoDistanceAggregationBuilder::parse).addResultReader(InternalGeoDistance::new));
-        registerAggregation(new AggregationSpec(GeoGridAggregationBuilder.NAME, GeoGridAggregationBuilder::new,
-                GeoGridAggregationBuilder::parse).addResultReader(InternalGeoHashGrid::new));
+        registerAggregation(new AggregationSpec(GeoHashGridAggregationBuilder.NAME, GeoHashGridAggregationBuilder::new,
+                GeoHashGridAggregationBuilder::parse).addResultReader(InternalGeoHashGrid::new));
+        registerAggregation(new AggregationSpec(GeoTileGridAggregationBuilder.NAME, GeoTileGridAggregationBuilder::new,
+                GeoTileGridAggregationBuilder::parse).addResultReader(InternalGeoTileGrid::new));
         registerAggregation(new AggregationSpec(NestedAggregationBuilder.NAME, NestedAggregationBuilder::new,
                 NestedAggregationBuilder::parse).addResultReader(InternalNested::new));
         registerAggregation(new AggregationSpec(ReverseNestedAggregationBuilder.NAME, ReverseNestedAggregationBuilder::new,
@@ -727,6 +732,7 @@ public class SearchModule {
         registerFetchSubPhase(new ScriptFieldsFetchSubPhase());
         registerFetchSubPhase(new FetchSourceSubPhase());
         registerFetchSubPhase(new VersionFetchSubPhase());
+        registerFetchSubPhase(new SeqNoPrimaryTermFetchSubPhase());
         registerFetchSubPhase(new MatchedQueriesFetchSubPhase());
         registerFetchSubPhase(new HighlightPhase(highlighters));
         registerFetchSubPhase(new ScoreFetchSubPhase());

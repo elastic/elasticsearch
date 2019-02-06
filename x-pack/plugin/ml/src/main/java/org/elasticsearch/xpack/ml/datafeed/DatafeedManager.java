@@ -16,20 +16,22 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.ArrayList;
@@ -39,7 +41,6 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -62,16 +63,18 @@ public class DatafeedManager {
     private final ConcurrentMap<Long, Holder> runningDatafeedsOnThisNode = new ConcurrentHashMap<>();
     private final DatafeedJobBuilder datafeedJobBuilder;
     private final TaskRunner taskRunner = new TaskRunner();
+    private final AutodetectProcessManager autodetectProcessManager;
     private volatile boolean isolated;
 
     public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
-                           Supplier<Long> currentTimeSupplier, Auditor auditor) {
+                           Supplier<Long> currentTimeSupplier, Auditor auditor, AutodetectProcessManager autodetectProcessManager) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = threadPool;
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
         this.auditor = Objects.requireNonNull(auditor);
         this.datafeedJobBuilder = Objects.requireNonNull(datafeedJobBuilder);
+        this.autodetectProcessManager = autodetectProcessManager;
         clusterService.addListener(taskRunner);
     }
 
@@ -149,7 +152,8 @@ public class DatafeedManager {
     // otherwise if a stop datafeed call is made immediately after the start datafeed call we could cancel
     // the DatafeedTask without stopping datafeed, which causes the datafeed to keep on running.
     private void innerRun(Holder holder, long startTime, Long endTime) {
-        holder.future = threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME).submit(new AbstractRunnable() {
+        holder.cancellable =
+            Scheduler.wrapAsCancellable(threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME).submit(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
@@ -161,7 +165,7 @@ public class DatafeedManager {
             protected void doRun() {
                 Long next = null;
                 try {
-                    next = holder.executeLoopBack(startTime, endTime);
+                    next = holder.executeLookBack(startTime, endTime);
                 } catch (DatafeedJob.ExtractionProblemException e) {
                     if (endTime == null) {
                         next = e.nextDelayInMsSinceEpoch;
@@ -200,14 +204,14 @@ public class DatafeedManager {
                     }
                 }
             }
-        });
+        }));
     }
 
     void doDatafeedRealtime(long delayInMsSinceEpoch, String jobId, Holder holder) {
         if (holder.isRunning() && !holder.isIsolated()) {
             TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
             logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
-            holder.future = threadPool.schedule(delay, MachineLearning.DATAFEED_THREAD_POOL_NAME, new AbstractRunnable() {
+            holder.cancellable = threadPool.schedule(new AbstractRunnable() {
 
                 @Override
                 public void onFailure(Exception e) {
@@ -244,7 +248,7 @@ public class DatafeedManager {
                         doDatafeedRealtime(nextDelayInMsSinceEpoch, jobId, holder);
                     }
                 }
-            });
+            }, delay, MachineLearning.DATAFEED_THREAD_POOL_NAME);
         }
     }
 
@@ -253,7 +257,22 @@ public class DatafeedManager {
     }
 
     private JobState getJobState(PersistentTasksCustomMetaData tasks, TransportStartDatafeedAction.DatafeedTask datafeedTask) {
-        return MlTasks.getJobState(getJobId(datafeedTask), tasks);
+        return MlTasks.getJobStateModifiedForReassignments(getJobId(datafeedTask), tasks);
+    }
+
+    private boolean jobHasOpenAutodetectCommunicator(PersistentTasksCustomMetaData tasks,
+                                                     TransportStartDatafeedAction.DatafeedTask datafeedTask) {
+        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(getJobId(datafeedTask), tasks);
+        if (jobTask == null) {
+            return false;
+        }
+
+        JobTaskState state = (JobTaskState) jobTask.getState();
+        if (state == null || state.isStatusStale(jobTask)) {
+            return false;
+        }
+
+        return autodetectProcessManager.hasOpenAutodetectCommunicator(jobTask.getAllocationId());
     }
 
     private TimeValue computeNextDelay(long next) {
@@ -272,13 +291,13 @@ public class DatafeedManager {
         private final TransportStartDatafeedAction.DatafeedTask task;
         private final long allocationId;
         private final String datafeedId;
-        // To ensure that we wait until loopback / realtime search has completed before we stop the datafeed
+        // To ensure that we wait until lookback / realtime search has completed before we stop the datafeed
         private final ReentrantLock datafeedJobLock = new ReentrantLock(true);
         private final DatafeedJob datafeedJob;
         private final boolean autoCloseJob;
         private final ProblemTracker problemTracker;
         private final Consumer<Exception> finishHandler;
-        volatile Future<?> future;
+        volatile Scheduler.Cancellable cancellable;
         private volatile boolean isRelocating;
 
         Holder(TransportStartDatafeedAction.DatafeedTask task, String datafeedId, DatafeedJob datafeedJob,
@@ -322,7 +341,9 @@ public class DatafeedManager {
                     logger.info("[{}] stopping datafeed [{}] for job [{}], acquired [{}]...", source, datafeedId,
                             datafeedJob.getJobId(), acquired);
                     runningDatafeedsOnThisNode.remove(allocationId);
-                    FutureUtils.cancel(future);
+                    if (cancellable != null) {
+                        cancellable.cancel();
+                    }
                     auditor.info(datafeedJob.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
                     finishHandler.accept(e);
                     logger.info("[{}] datafeed [{}] for job [{}] has been stopped{}", source, datafeedId, datafeedJob.getJobId(),
@@ -352,7 +373,7 @@ public class DatafeedManager {
             isRelocating = true;
         }
 
-        private Long executeLoopBack(long startTime, Long endTime) throws Exception {
+        private Long executeLookBack(long startTime, Long endTime) throws Exception {
             datafeedJobLock.lock();
             try {
                 if (isRunning() && !isIsolated()) {
@@ -446,7 +467,7 @@ public class DatafeedManager {
         private void runWhenJobIsOpened(TransportStartDatafeedAction.DatafeedTask datafeedTask) {
             ClusterState clusterState = clusterService.state();
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            if (getJobState(tasks, datafeedTask) == JobState.OPENED) {
+            if (getJobState(tasks, datafeedTask) == JobState.OPENED && jobHasOpenAutodetectCommunicator(tasks, datafeedTask)) {
                 runTask(datafeedTask);
             } else {
                 logger.info("Datafeed [{}] is waiting for job [{}] to be opened",
@@ -485,10 +506,10 @@ public class DatafeedManager {
                     continue;
                 }
                 JobState jobState = getJobState(currentTasks, datafeedTask);
-                if (jobState == JobState.OPENED) {
-                    runTask(datafeedTask);
-                } else if (jobState == JobState.OPENING) {
+                if (jobState == JobState.OPENING || jobHasOpenAutodetectCommunicator(currentTasks, datafeedTask) == false) {
                     remainingTasks.add(datafeedTask);
+                } else if (jobState == JobState.OPENED) {
+                    runTask(datafeedTask);
                 } else {
                     logger.warn("Datafeed [{}] is stopping because job [{}] state is [{}]",
                             datafeedTask.getDatafeedId(), getJobId(datafeedTask), jobState);

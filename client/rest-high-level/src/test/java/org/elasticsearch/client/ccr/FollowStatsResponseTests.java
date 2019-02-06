@@ -48,7 +48,7 @@ public class FollowStatsResponseTests extends ESTestCase {
             FollowStatsResponseTests::createTestInstance,
             FollowStatsResponseTests::toXContent,
             FollowStatsResponse::fromXContent)
-            .supportsUnknownFields(false)
+            .supportsUnknownFields(true)
             .assertEqualsConsumer(FollowStatsResponseTests::assertEqualInstances)
             .assertToXContentEquivalence(false)
             .test();

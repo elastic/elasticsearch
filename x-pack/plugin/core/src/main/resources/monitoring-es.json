@@ -1028,6 +1028,17 @@
             },
             "time_since_last_read_millis": {
               "type": "long"
+            },
+            "fatal_exception": {
+              "type": "object",
+              "properties": {
+                "type" : {
+                  "type": "keyword"
+                },
+                "reason": {
+                  "type": "text"
+                }
+              }
             }
           }
         },
@@ -1047,6 +1058,9 @@
               "properties": {
                 "leader_index": {
                   "type": "keyword"
+                },
+                "timestamp": {
+                  "type": "long"
                 },
                 "auto_follow_exception": {
                   "type": "object",

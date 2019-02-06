@@ -9,7 +9,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -17,7 +16,6 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
-import org.joda.time.DateTime;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -62,13 +60,6 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
         assertThat(extractedFields.getDocValueFields().stream().map(ExtractedField::getName).toArray(String[]::new),
             equalTo(new String[] {"time", "doc1", "doc2"}));
         assertThat(extractedFields.getSourceFields(), equalTo(new String[] {"src1", "src2"}));
-    }
-
-    public void testTimeFieldValue() {
-        long millis = randomLong();
-        SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new DateTime(millis)).build();
-        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Collections.singletonList(timeField));
-        assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
     }
 
     public void testStringTimeFieldValue() {
@@ -120,7 +111,6 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
         datafeedBuilder.setIndices(Collections.singletonList("foo"));
-        datafeedBuilder.setTypes(Collections.singletonList("doc"));
         datafeedBuilder.setScriptFields(Collections.singletonList(new SearchSourceBuilder.ScriptField("airport", null, false)));
 
         Map<String, FieldCapabilities> timeCaps = new HashMap<>();
@@ -143,7 +133,7 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
         assertThat(extractedFields.getDocValueFields().get(0).getName(), equalTo("time"));
         assertThat(extractedFields.getDocValueFields().get(0).getDocValueFormat(), equalTo("epoch_millis"));
         assertThat(extractedFields.getDocValueFields().get(1).getName(), equalTo("value"));
-        assertThat(extractedFields.getDocValueFields().get(1).getDocValueFormat(), equalTo(DocValueFieldsContext.USE_DEFAULT_FORMAT));
+        assertThat(extractedFields.getDocValueFields().get(1).getDocValueFormat(), equalTo(null));
         assertThat(extractedFields.getSourceFields().length, equalTo(1));
         assertThat(extractedFields.getSourceFields()[0], equalTo("airline"));
         assertThat(extractedFields.getAllFields().size(), equalTo(4));
@@ -200,7 +190,6 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
         datafeedBuilder.setIndices(Collections.singletonList("foo"));
-        datafeedBuilder.setTypes(Collections.singletonList("doc"));
 
         Map<String, FieldCapabilities> timeCaps = new HashMap<>();
         timeCaps.put("date", createFieldCaps(false));
@@ -220,7 +209,6 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
         datafeedBuilder.setIndices(Collections.singletonList("foo"));
-        datafeedBuilder.setTypes(Collections.singletonList("doc"));
 
         Map<String, FieldCapabilities> timeCaps = new HashMap<>();
         timeCaps.put("date", createFieldCaps(true));
@@ -241,7 +229,6 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
         datafeedBuilder.setIndices(Collections.singletonList("foo"));
-        datafeedBuilder.setTypes(Collections.singletonList("doc"));
 
         Map<String, FieldCapabilities> timeCaps = new HashMap<>();
         timeCaps.put("date", createFieldCaps(true));

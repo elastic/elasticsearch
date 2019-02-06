@@ -12,12 +12,20 @@ cluster, and to scale the cluster up and down by adding and removing
 master-ineligible nodes only. However there are situations in which it may be
 desirable to add or remove some master-eligible nodes to or from a cluster.
 
+[[modules-discovery-adding-nodes]]
 ==== Adding master-eligible nodes
 
-If you wish to add some master-eligible nodes to your cluster, simply configure
-the new nodes to find the existing cluster and start them up. Elasticsearch will
-add the new nodes to the voting configuration if it is appropriate to do so.
+If you wish to add some nodes to your cluster, simply configure the new nodes
+to find the existing cluster and start them up. Elasticsearch adds the new nodes
+to the voting configuration if it is appropriate to do so.
 
+During master election or when joining an existing formed cluster, a node
+sends a join request to the master in order to be officially added to the
+cluster. You can use the `cluster.join.timeout` setting to configure how long a
+node waits after sending a request to join a cluster. Its default value is `30s`.
+See <<modules-discovery-settings>>.
+
+[[modules-discovery-removing-nodes]]
 ==== Removing master-eligible nodes
 
 When removing master-eligible nodes, it is important not to remove too many all
@@ -44,7 +52,7 @@ will never automatically move a node on the voting exclusions list back into the
 voting configuration. Once an excluded node has been successfully
 auto-reconfigured out of the voting configuration, it is safe to shut it down
 without affecting the cluster's master-level availability. A node can be added
-to the voting configuration exclusion list using the following API:
+to the voting configuration exclusion list using the <<voting-config-exclusions>> API. For example:
 
 [source,js]
 --------------------------------------------------
@@ -64,7 +72,10 @@ The node that should be added to the exclusions list is specified using
 <<cluster-nodes,node filters>> in place of `node_name` here. If a call to the
 voting configuration exclusions API fails, you can safely retry it.  Only a
 successful response guarantees that the node has actually been removed from the
-voting configuration and will not be reinstated.
+voting configuration and will not be reinstated. If it's the active master that
+was removed from the voting configuration, then it will abdicate to another
+master-eligible node that's still in the voting configuration, if such a node
+is available.
 
 Although the voting configuration exclusions API is most useful for down-scaling
 a two-node to a one-node cluster, it is also possible to use it to remove
@@ -93,18 +104,13 @@ GET /_cluster/state?filter_path=metadata.cluster_coordination.voting_config_excl
 --------------------------------------------------
 // CONSOLE
 
-This list is limited in size by the following setting:
-
-`cluster.max_voting_config_exclusions`::
-
-    Sets a limits on the number of voting configuration exclusions at any one
-    time.  Defaults to `10`.
-
-Since voting configuration exclusions are persistent and limited in number, they
-must be cleaned up. Normally an exclusion is added when performing some
-maintenance on the cluster, and the exclusions should be cleaned up when the
-maintenance is complete. Clusters should have no voting configuration exclusions
-in normal operation.
+This list is limited in size by the `cluster.max_voting_config_exclusions` 
+setting, which defaults to `10`. See <<modules-discovery-settings>>. Since
+voting configuration exclusions are persistent and limited in number, they must
+be cleaned up. Normally an exclusion is added when performing some maintenance
+on the cluster, and the exclusions should be cleaned up when the maintenance is
+complete. Clusters should have no voting configuration exclusions in normal
+operation.
 
 If a node is excluded from the voting configuration because it is to be shut
 down permanently, its exclusion can be removed after it is shut down and removed

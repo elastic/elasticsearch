@@ -22,9 +22,12 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningFailureException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
@@ -33,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
@@ -59,9 +63,11 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -121,6 +127,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            RequestOptions.Builder options = createIndex.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            createIndex.setOptions(options);
             client().performRequest(createIndex);
 
             count = randomIntBetween(2000, 3000);
@@ -176,6 +185,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            RequestOptions.Builder options = createIndex.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            createIndex.setOptions(options);
             client().performRequest(createIndex);
 
             int numDocs = randomIntBetween(2000, 3000);
@@ -350,6 +362,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            RequestOptions.Builder options = createIndex.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            createIndex.setOptions(options);
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
@@ -418,6 +433,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
+            RequestOptions.Builder options = createIndex.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            createIndex.setOptions(options);
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
@@ -495,10 +513,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request bulkRequest = new Request("POST", "/" + index + "_write/doc/_bulk");
         bulkRequest.setJsonEntity(bulk.toString());
         bulkRequest.addParameter("refresh", "");
+        bulkRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(EntityUtils.toString(client().performRequest(bulkRequest).getEntity()), containsString("\"errors\":false"));
 
         if (isRunningAgainstOldCluster()) {
             Request rolloverRequest = new Request("POST", "/" + index + "_write/_rollover");
+            rolloverRequest.setOptions(allowTypeRemovalWarnings());
             rolloverRequest.setJsonEntity("{"
                     + "  \"conditions\": {"
                     + "    \"max_docs\": 5"
@@ -899,6 +919,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         templateBuilder.endObject().endObject();
         Request createTemplateRequest = new Request("PUT", "/_template/test_template");
         createTemplateRequest.setJsonEntity(Strings.toString(templateBuilder));
+
+        // In 7.0, type names are no longer expected by default in put index template requests.
+        // We therefore use the deprecated typed APIs when running against the current version.
+        if (isRunningAgainstOldCluster() == false) {
+            createTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        }
+        createTemplateRequest.setOptions(allowTypeRemovalWarnings());
+
         client().performRequest(createTemplateRequest);
 
         if (isRunningAgainstOldCluster()) {
@@ -943,10 +971,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
             client().performRequest(createIndex);
         } else {
+            ensureGreenLongWait(index);
+
             Request statsRequest = new Request("GET", index + "/_stats");
             statsRequest.addParameter("level", "shards");
             Response response = client().performRequest(statsRequest);
             List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
+            assertThat(shardStats, notNullValue());
+            assertThat("Expected stats for 2 shards", shardStats, hasSize(2));
             String globalHistoryUUID = null;
             for (Object shard : shardStats) {
                 final String nodeId = ObjectPath.evaluate(shard, "routing.node");
@@ -1027,15 +1059,19 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
             clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
             client().performRequest(clearRoutingFromSettings);
-        } catch (ResponseException e) {
-            if (e.getResponse().hasWarnings()
-                    && (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_6_5_0))) {
-                e.getResponse().getWarnings().stream().forEach(warning -> {
+        } catch (WarningFailureException e) {
+            /*
+             * If this test is executed on the upgraded mode before testRemoteClusterSettingsUpgraded,
+             * we will hit a warning exception because we put some deprecated settings in that test.
+             */
+            if (isRunningAgainstOldCluster() == false
+                && getOldClusterVersion().onOrAfter(Version.V_6_1_0) && getOldClusterVersion().before(Version.V_6_5_0)) {
+                for (String warning : e.getResponse().getWarnings()) {
                     assertThat(warning, containsString(
-                            "setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        "setting was deprecated in Elasticsearch and will be removed in a future release! "
                             + "See the breaking changes documentation for the next major version."));
                     assertThat(warning, startsWith("[search.remote."));
-                });
+                }
             } else {
                 throw e;
             }
@@ -1070,6 +1106,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/doc/_bulk");
         writeToRestoredRequest.addParameter("refresh", "true");
         writeToRestoredRequest.setJsonEntity(bulk.toString());
+        writeToRestoredRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(EntityUtils.toString(client().performRequest(writeToRestoredRequest).getEntity()), containsString("\"errors\":false"));
 
         // And count to make sure the add worked
@@ -1091,7 +1128,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(persistentSettings.get("cluster.routing.allocation.exclude.test_attr"), equalTo(getOldClusterVersion().toString()));
 
         // Check that the template was restored successfully
-        Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(new Request("GET", "/_template/test_template")));
+        Request getTemplateRequest = new Request("GET", "/_template/test_template");
+
+        // In 7.0, type names are no longer returned by default in get index template requests.
+        // We therefore use the deprecated typed APIs when running against the current version.
+        if (isRunningAgainstOldCluster() == false) {
+            getTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        }
+        getTemplateRequest.setOptions(allowTypeRemovalWarnings());
+
+        Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(getTemplateRequest));
         Map<String, Object> expectedTemplate = new HashMap<>();
         if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_0_0_beta1)) {
             expectedTemplate.put("template", "evil_*");

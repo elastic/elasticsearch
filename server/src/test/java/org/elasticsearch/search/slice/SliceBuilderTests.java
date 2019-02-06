@@ -163,8 +163,8 @@ public class SliceBuilderTests extends ESTestCase {
         }
 
         @Override
-        public Boolean allowPartialSearchResults() {
-            return null;
+        public boolean allowPartialSearchResults() {
+            return true;
         }
 
         @Override

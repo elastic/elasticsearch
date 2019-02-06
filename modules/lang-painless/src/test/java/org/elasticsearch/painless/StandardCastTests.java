@@ -545,4 +545,254 @@ public class StandardCastTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> exec("Number o = new ArrayList(); ArrayList b = o;"));
         expectScriptThrows(ClassCastException.class, () -> exec("Number o = new ArrayList(); ArrayList b = (ArrayList)o;"));
     }
+
+    public void testStringCasts() {
+        exec("String o = 'string'; Object n = o;");
+        exec("String o = null; Object n = o;");
+        exec("String o = 'string'; Object n = (Object)o;");
+        exec("String o = null; Object n = (Object)o;");
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Number n = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Number n = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Number n = (String)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Number n = (String)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; boolean b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; boolean b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; boolean b = (boolean)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; boolean b = (boolean)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; byte b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; byte b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; byte b = (byte)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; byte b = (byte)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; short b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; short b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; short b = (short)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; short b = (short)o;"));
+
+        assertEquals('s', exec("String s = 's'; (char)s"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; char b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; char b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; char b = (char)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; char b = (char)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; int b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; int b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; int b = (int)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; int b = (int)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; long b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; long b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; long b = (long)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; long b = (long)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; float b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; float b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; float b = (float)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; float b = (float)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; double b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; double b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; double b = (double)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; double b = (double)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Boolean b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Boolean b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Boolean b = (Boolean)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Boolean b = (Boolean)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Byte b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Byte b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Byte b = (Byte)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Byte b = (Byte)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Short b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Short b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Short b = (Short)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Short b = (Short)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Character b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Character b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Character b = (Character)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Character b = (Character)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Integer b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Integer b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Integer b = (Integer)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Integer b = (Integer)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Long b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Long b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Long b = (Long)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Long b = (Long)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Float b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Float b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Float b = (Float)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Float b = (Float)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Double b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Double b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; Double b = (Double)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = null; Double b = (Double)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; ArrayList b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("String o = 'string'; ArrayList b = (ArrayList)o;"));
+    }
+
+    public void testPrimitiveBooleanCasts() {
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Object n = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Object n = (Object)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Number n = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Number n = (boolean)o;"));
+
+        exec("boolean o = true; boolean b = o;");
+        exec("boolean o = true; boolean b = (boolean)o;");
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; byte b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; byte b = (byte)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; short b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; short b = (short)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; char b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; char b = (char)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; int b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; int b = (int)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; long b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; long b = (long)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; float b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; float b = (float)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; double b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; double b = (double)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Boolean b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Boolean b = (Boolean)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Byte b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Byte b = (Byte)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Short b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Short b = (Short)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Character b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Character b = (Character)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Integer b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Integer b = (Integer)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Long b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Long b = (Long)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Float b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Float b = (Float)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Double b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; Double b = (Double)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; ArrayList b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("boolean o = true; ArrayList b = (ArrayList)o;"));
+    }
+
+    public void testBoxedBooleanCasts() {
+        exec("Boolean o = Boolean.valueOf(true); Object n = o;");
+        exec("Boolean o = null; Object n = o;");
+        exec("Boolean o = Boolean.valueOf(true); Object n = (Object)o;");
+        exec("Boolean o = null; Object n = (Object)o;");
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Number n = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Number n = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Number n = (Boolean)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Number n = (Boolean)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); boolean b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; boolean b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); boolean b = (boolean)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; boolean b = (boolean)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); byte b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; byte b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); byte b = (byte)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; byte b = (byte)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); short b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; short b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); short b = (short)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; short b = (short)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); char b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; char b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); char b = (char)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; char b = (char)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); int b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; int b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); int b = (int)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; int b = (int)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); long b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; long b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); long b = (long)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; long b = (long)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); float b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; float b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); float b = (float)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; float b = (float)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); double b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; double b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); double b = (double)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; double b = (double)o;"));
+
+        exec("Boolean o = Boolean.valueOf(true); Boolean b = o;");
+        exec("Boolean o = null; Boolean b = o;");
+        exec("Boolean o = Boolean.valueOf(true); Boolean b = (Boolean)o;");
+        exec("Boolean o = null; Boolean b = (Boolean)o;");
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Byte b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Byte b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Byte b = (Byte)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Byte b = (Byte)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Short b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Short b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Short b = (Short)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Short b = (Short)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Character b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Character b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Character b = (Character)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Character b = (Character)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Integer b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Integer b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Integer b = (Integer)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Integer b = (Integer)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Long b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Long b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Long b = (Long)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Long b = (Long)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Float b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Float b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Float b = (Float)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Float b = (Float)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Double b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Double b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); Double b = (Double)o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = null; Double b = (Double)o;"));
+
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); ArrayList b = o;"));
+        expectScriptThrows(ClassCastException.class, () -> exec("Boolean o = Boolean.valueOf(true); ArrayList b = (ArrayList)o;"));
+    }
 }

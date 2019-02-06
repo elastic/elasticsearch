@@ -91,7 +91,12 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
         // sets other parameters of the multi match query
         if (randomBoolean()) {
-            query.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
+            if (fieldName.equals(STRING_FIELD_NAME)) {
+                query.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
+            } else {
+                query.type(randomValueOtherThan(MultiMatchQueryBuilder.Type.PHRASE_PREFIX,
+                    () -> randomFrom(MultiMatchQueryBuilder.Type.values())));
+            }
         }
         if (randomBoolean()) {
             query.operator(randomFrom(Operator.values()));
@@ -384,6 +389,11 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             ), 0.0f
         );
         assertEquals(expected, query);
+
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index", context.getIndexSettings().getSettings(),
+                Settings.builder().putNull("index.query.default_field").build())
+        );
     }
 
     public void testWithStopWords() throws Exception {
@@ -448,6 +458,15 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 0f), BooleanClause.Occur.SHOULD)
             .build();
         assertEquals(expected, query);
+    }
+
+    public void testNegativeFieldBoost() {
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> new MultiMatchQueryBuilder("the quick fox")
+                .field(STRING_FIELD_NAME, -1.0f)
+                .field(STRING_FIELD_NAME_2)
+                .toQuery(createShardContext()));
+        assertThat(exc.getMessage(), containsString("negative [boost]"));
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

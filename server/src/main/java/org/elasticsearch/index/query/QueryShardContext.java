@@ -75,8 +75,8 @@ import static java.util.Collections.unmodifiableMap;
 public class QueryShardContext extends QueryRewriteContext {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(QueryShardContext.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
-        "in queries is deprecated, prefer to filter on a field instead.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
+        "in queries and aggregations is deprecated, prefer to use a field instead.";
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
@@ -86,9 +86,8 @@ public class QueryShardContext extends QueryRewriteContext {
     private final BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
     private final IndexReader reader;
-    private final String clusterAlias;
     private String[] types = Strings.EMPTY_ARRAY;
-    private boolean cachable = true;
+    private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private final Index fullyQualifiedIndex;
 
@@ -110,6 +109,23 @@ public class QueryShardContext extends QueryRewriteContext {
                              SimilarityService similarityService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
                              NamedWriteableRegistry namedWriteableRegistry, Client client, IndexReader reader, LongSupplier nowInMillis,
                              String clusterAlias) {
+        this(shardId, indexSettings, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService, scriptService,
+            xContentRegistry, namedWriteableRegistry, client, reader, nowInMillis, new Index(RemoteClusterAware.buildRemoteIndexName(
+                clusterAlias, indexSettings.getIndex().getName()), indexSettings.getIndex().getUUID()));
+    }
+
+    public QueryShardContext(QueryShardContext source) {
+        this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
+                source.similarityService, source.scriptService, source.getXContentRegistry(), source.getWriteableRegistry(),
+                source.client, source.reader, source.nowInMillis, source.fullyQualifiedIndex);
+        this.types = source.getTypes();
+    }
+
+    private QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
+                             BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup, MapperService mapperService,
+                             SimilarityService similarityService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
+                             NamedWriteableRegistry namedWriteableRegistry, Client client, IndexReader reader, LongSupplier nowInMillis,
+                             Index fullyQualifiedIndex) {
         super(xContentRegistry, namedWriteableRegistry,client, nowInMillis);
         this.shardId = shardId;
         this.similarityService = similarityService;
@@ -121,16 +137,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
         this.reader = reader;
-        this.clusterAlias = clusterAlias;
-        this.fullyQualifiedIndex = new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
-            indexSettings.getIndex().getUUID());
-    }
-
-    public QueryShardContext(QueryShardContext source) {
-        this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
-                source.similarityService, source.scriptService, source.getXContentRegistry(), source.getWriteableRegistry(),
-                source.client, source.reader, source.nowInMillis, source.clusterAlias);
-        this.types = source.getTypes();
+        this.fullyQualifiedIndex = fullyQualifiedIndex;
     }
 
     private void reset() {
@@ -333,7 +340,7 @@ public class QueryShardContext extends QueryRewriteContext {
      * class says a request can be cached.
      */
     protected final void failIfFrozen() {
-        this.cachable = false;
+        this.cacheable = false;
         if (frozen.get() == Boolean.TRUE) {
             throw new IllegalArgumentException("features that prevent cachability are disabled on this context");
         } else {
@@ -354,10 +361,10 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns <code>true</code> iff the result of the processed search request is cachable. Otherwise <code>false</code>
+     * Returns <code>true</code> iff the result of the processed search request is cacheable. Otherwise <code>false</code>
      */
-    public final boolean isCachable() {
-        return cachable;
+    public final boolean isCacheable() {
+        return cacheable;
     }
 
     /**

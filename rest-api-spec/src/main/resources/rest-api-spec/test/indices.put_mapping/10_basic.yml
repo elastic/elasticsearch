@@ -1,17 +1,14 @@
 ---
 "Test Create and update mapping":
-
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      reason: include_type_name defaults to true before 7.0
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
 
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: test_index
         body:
           properties:
@@ -26,9 +23,8 @@
 
   - do:
       indices.get_mapping:
-        include_type_name: false
         index: test_index
-  
+
   - match: {test_index.mappings.properties.text1.type:     text}
   - match: {test_index.mappings.properties.text1.analyzer: whitespace}
   - match: {test_index.mappings.properties.text2.type:     text}
@@ -36,7 +32,6 @@
 
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: test_index
         body:
           properties:
@@ -50,9 +45,8 @@
 
   - do:
       indices.get_mapping:
-        include_type_name: false
         index: test_index
-  
+
   - match: {test_index.mappings.properties.text1.type:     text}
   - match: {test_index.mappings.properties.subfield.properties.text3.type:     text}
   - match: {test_index.mappings.properties.text1.fields.text_raw.type: keyword}
@@ -62,15 +56,13 @@
 
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+      reason: include_type_name defaults to true before 7.0
   - do:
       indices.create:
-        include_type_name: false
         index: test_index
   - do:
       catch: /illegal_argument_exception/
       indices.put_mapping:
-        include_type_name: false
         index: test_index
         body:
           properties:
@@ -78,23 +70,24 @@
               type:     keyword
 
 ---
-"PUT mapping with a type and include_type_name: false":
-
+"Put mappings with explicit _doc type":
   - skip:
       version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
-  - do:
-      indices.create:
-        index: index
-        include_type_name: false
+      reason: include_type_name defaults to true before 7.0
 
   - do:
-      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_index
+
+  - do:
+      catch: bad_request
       indices.put_mapping:
-        index: index
-        type: _doc
-        include_type_name: false
+        index: test_index
         body:
-          properties:
-            bar:
-              type: float
+          _doc:
+            properties:
+              field:
+                type: keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Types cannot be provided in put mapping requests, unless the include_type_name parameter is set to true." }

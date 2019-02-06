@@ -310,32 +310,26 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(((TermQueryBuilder) filter1.get(1)).fieldName(), equalTo("refresh_token.token"));
         assertThat(((TermQueryBuilder) filter1.get(1)).value(), equalTo(tokenToInvalidate1.v2()));
 
-        assertThat(bulkRequests.size(), equalTo(6)); // 4 updates (refresh-token + access-token) plus 2 indexes (bwc-invalidate * 2)
+        assertThat(bulkRequests.size(), equalTo(4)); // 4 updates (refresh-token + access-token)
         // Invalidate refresh token 1
         assertThat(bulkRequests.get(0).requests().get(0), instanceOf(UpdateRequest.class));
         assertThat(bulkRequests.get(0).requests().get(0).id(), equalTo("token_" + tokenToInvalidate1.v1().getId()));
         UpdateRequest updateRequest1 = (UpdateRequest) bulkRequests.get(0).requests().get(0);
         assertThat(updateRequest1.toString().contains("refresh_token"), equalTo(true));
-        // BWC incalidate access token 1
-        assertThat(bulkRequests.get(1).requests().get(0), instanceOf(IndexRequest.class));
-        assertThat(bulkRequests.get(1).requests().get(0).id(), equalTo("invalidated-token_" + tokenToInvalidate1.v1().getId()));
         // Invalidate access token 1
-        assertThat(bulkRequests.get(2).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(2).requests().get(0).id(), equalTo("token_" + tokenToInvalidate1.v1().getId()));
-        UpdateRequest updateRequest2 = (UpdateRequest) bulkRequests.get(2).requests().get(0);
+        assertThat(bulkRequests.get(1).requests().get(0), instanceOf(UpdateRequest.class));
+        assertThat(bulkRequests.get(1).requests().get(0).id(), equalTo("token_" + tokenToInvalidate1.v1().getId()));
+        UpdateRequest updateRequest2 = (UpdateRequest) bulkRequests.get(1).requests().get(0);
         assertThat(updateRequest2.toString().contains("access_token"), equalTo(true));
         // Invalidate refresh token 2
+        assertThat(bulkRequests.get(2).requests().get(0), instanceOf(UpdateRequest.class));
+        assertThat(bulkRequests.get(2).requests().get(0).id(), equalTo("token_" + tokenToInvalidate2.v1().getId()));
+        UpdateRequest updateRequest3 = (UpdateRequest) bulkRequests.get(2).requests().get(0);
+        assertThat(updateRequest3.toString().contains("refresh_token"), equalTo(true));
+        // Invalidate access token 2
         assertThat(bulkRequests.get(3).requests().get(0), instanceOf(UpdateRequest.class));
         assertThat(bulkRequests.get(3).requests().get(0).id(), equalTo("token_" + tokenToInvalidate2.v1().getId()));
-        UpdateRequest updateRequest3 = (UpdateRequest) bulkRequests.get(3).requests().get(0);
-        assertThat(updateRequest3.toString().contains("refresh_token"), equalTo(true));
-        // BWC incalidate access token 2
-        assertThat(bulkRequests.get(4).requests().get(0), instanceOf(IndexRequest.class));
-        assertThat(bulkRequests.get(4).requests().get(0).id(), equalTo("invalidated-token_" + tokenToInvalidate2.v1().getId()));
-        // Invalidate access token 2
-        assertThat(bulkRequests.get(5).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(5).requests().get(0).id(), equalTo("token_" + tokenToInvalidate2.v1().getId()));
-        UpdateRequest updateRequest4 = (UpdateRequest) bulkRequests.get(5).requests().get(0);
+        UpdateRequest updateRequest4 = (UpdateRequest) bulkRequests.get(3).requests().get(0);
         assertThat(updateRequest4.toString().contains("access_token"), equalTo(true));
     }
 

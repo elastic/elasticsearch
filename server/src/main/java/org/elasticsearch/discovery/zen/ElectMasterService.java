@@ -42,7 +42,7 @@ public class ElectMasterService {
     private static final Logger logger = LogManager.getLogger(ElectMasterService.class);
 
     public static final Setting<Integer> DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING =
-        Setting.intSetting("discovery.zen.minimum_master_nodes", -1, Property.Dynamic, Property.NodeScope);
+        Setting.intSetting("discovery.zen.minimum_master_nodes", -1, Property.Dynamic, Property.NodeScope, Property.Deprecated);
 
     private volatile int minimumMasterNodes;
 

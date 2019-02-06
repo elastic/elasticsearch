@@ -14,11 +14,16 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
@@ -74,7 +79,9 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer.FoldNull;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PropagateEquals;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceMinMaxWithTopHits;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyConditional;
+import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -83,8 +90,8 @@ import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
@@ -99,7 +106,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.contains;
 
@@ -118,8 +125,8 @@ public class OptimizerTests extends ESTestCase {
 
         private final int id;
 
-        public DummyBooleanExpression(Location location, int id) {
-            super(location, Collections.emptyList());
+        public DummyBooleanExpression(Source source, int id) {
+            super(source, Collections.emptyList());
             this.id = id;
         }
 
@@ -134,8 +141,8 @@ public class OptimizerTests extends ESTestCase {
         }
 
         @Override
-        public boolean nullable() {
-            return false;
+        public Nullability nullable() {
+            return Nullability.FALSE;
         }
 
         @Override
@@ -329,7 +336,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testConstantFoldingDatetime() {
-        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATE);
+        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATETIME);
         assertEquals(2018, foldFunction(new Year(EMPTY, cast, UTC)));
         assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, UTC)));
         assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, UTC)));
@@ -393,6 +400,8 @@ public class OptimizerTests extends ESTestCase {
         return ((Literal) new ConstantFolding().rule(b)).value();
     }
 
+    // Null folding
+
     public void testNullFoldingIsNull() {
         FoldNull foldNull = new FoldNull();
         assertEquals(true, foldNull.rule(new IsNull(EMPTY, Literal.NULL)).fold());
@@ -420,6 +429,34 @@ public class OptimizerTests extends ESTestCase {
         assertNullLiteral(rule.rule(new GreaterThan(EMPTY, getFieldAttribute(), Literal.NULL)));
         // regex
         assertNullLiteral(rule.rule(new RLike(EMPTY, Literal.NULL, "123")));
+    }
+
+    public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
+        FoldNull rule = new FoldNull();
+
+        Or or = new Or(EMPTY, Literal.NULL, Literal.TRUE);
+        assertEquals(or, rule.rule(or));
+        or = new Or(EMPTY, Literal.NULL, Literal.NULL);
+        assertEquals(or, rule.rule(or));
+
+        And and = new And(EMPTY, Literal.NULL, Literal.TRUE);
+        assertEquals(and, rule.rule(and));
+        and = new And(EMPTY, Literal.NULL, Literal.NULL);
+        assertEquals(and, rule.rule(and));
+    }
+
+    public void testNullFoldingDoesNotApplyOnConditionals() {
+        FoldNull rule = new FoldNull();
+
+        Coalesce coalesce = new Coalesce(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(coalesce, rule.rule(coalesce));
+        coalesce = new Coalesce(EMPTY, Arrays.asList(Literal.NULL, NULL, NULL));
+        assertEquals(coalesce, rule.rule(coalesce));
+
+        Greatest greatest = new Greatest(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(greatest, rule.rule(greatest));
+        greatest = new Greatest(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(greatest, rule.rule(greatest));
     }
 
     public void testSimplifyCoalesceNulls() {
@@ -554,18 +591,18 @@ public class OptimizerTests extends ESTestCase {
         BooleanLiteralsOnTheRight swapLiteralsToRight = new BooleanLiteralsOnTheRight();
         BinaryComparisonSimplification bcSimpl = new BinaryComparisonSimplification();
         FieldAttribute fa = getFieldAttribute();
-        Location loc = new Location(1, 10);
+        Source source = new Source(1, 10, "IS_NULL(a)");
 
-        Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(loc, fa, NULL)));
+        Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, fa, NULL)));
         assertEquals(IsNull.class, e.getClass());
         IsNull isNull = (IsNull) e;
-        assertEquals(loc, isNull.location());
+        assertEquals(source, isNull.source());
         assertEquals("IS_NULL(a)", isNull.name());
 
-        e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(loc, NULL, fa)));
+        e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, NULL, fa)));
         assertEquals(IsNull.class, e.getClass());
         isNull = (IsNull) e;
-        assertEquals(loc, isNull.location());
+        assertEquals(source, isNull.source());
         assertEquals("IS_NULL(a)", isNull.name());
     }
 
@@ -1174,5 +1211,52 @@ public class OptimizerTests extends ESTestCase {
         PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq1, r));
         assertEquals(Literal.FALSE, rule.rule(exp));
+    }
+
+    public void testTranslateMinToFirst() {
+        Min min1 =  new Min(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
+        Min min2 =  new Min(EMPTY, getFieldAttribute());
+
+        OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(min1, min2)),
+            Arrays.asList(
+                new Order(EMPTY, min1, OrderDirection.ASC, Order.NullsPosition.LAST),
+                new Order(EMPTY, min2, OrderDirection.ASC, Order.NullsPosition.LAST)));
+        LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(plan);
+        assertTrue(result instanceof OrderBy);
+        List<Order> order = ((OrderBy) result).order();
+        assertEquals(2, order.size());
+        assertEquals(First.class, order.get(0).child().getClass());
+        assertEquals(min2, order.get(1).child());;
+        First first = (First) order.get(0).child();
+
+        assertTrue(((OrderBy) result).child() instanceof Aggregate);
+        List<? extends NamedExpression> aggregates = ((Aggregate) ((OrderBy) result).child()).aggregates();
+        assertEquals(2, aggregates.size());
+        assertEquals(First.class, aggregates.get(0).getClass());
+        assertSame(first, aggregates.get(0));
+        assertEquals(min2, aggregates.get(1));
+    }
+
+    public void testTranslateMaxToLast() {
+        Max max1 =  new Max(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
+        Max max2 =  new Max(EMPTY, getFieldAttribute());
+
+        OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(max1, max2)),
+            Arrays.asList(
+                new Order(EMPTY, max1, OrderDirection.ASC, Order.NullsPosition.LAST),
+                new Order(EMPTY, max2, OrderDirection.ASC, Order.NullsPosition.LAST)));
+        LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(plan);
+        assertTrue(result instanceof OrderBy);
+        List<Order> order = ((OrderBy) result).order();
+        assertEquals(Last.class, order.get(0).child().getClass());
+        assertEquals(max2, order.get(1).child());;
+        Last last = (Last) order.get(0).child();
+
+        assertTrue(((OrderBy) result).child() instanceof Aggregate);
+        List<? extends NamedExpression> aggregates = ((Aggregate) ((OrderBy) result).child()).aggregates();
+        assertEquals(2, aggregates.size());
+        assertEquals(Last.class, aggregates.get(0).getClass());
+        assertSame(last, aggregates.get(0));
+        assertEquals(max2, aggregates.get(1));
     }
 }

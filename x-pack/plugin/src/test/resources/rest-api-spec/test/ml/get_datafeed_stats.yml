@@ -11,10 +11,9 @@ setup:
             index:
               number_of_replicas: 1
           mappings:
-            type-1:
-              properties:
-                time:
-                  type: date
+            properties:
+              time:
+                type: date
 
   - do:
       headers:
@@ -26,10 +25,9 @@ setup:
             index:
               number_of_replicas: 1
           mappings:
-            type-2:
-              properties:
-                time:
-                  type: date
+            properties:
+              time:
+                type: date
 
   - do:
       headers:
@@ -81,8 +79,7 @@ setup:
         body: >
           {
             "job_id":"get-datafeed-stats-1",
-            "indexes":["index-1"],
-            "types":["type-1"]
+            "indexes":["index-1"]
           }
 
   - do:
@@ -93,8 +90,7 @@ setup:
         body: >
           {
             "job_id":"get-datafeed-stats-2",
-            "indexes":["index-2"],
-            "types":["type-2"]
+            "indexes":["index-2"]
           }
 
 ---

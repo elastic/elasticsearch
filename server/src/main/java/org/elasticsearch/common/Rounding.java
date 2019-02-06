@@ -19,14 +19,16 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
-import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -37,7 +39,9 @@ import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalField;
+import java.time.temporal.TemporalQueries;
 import java.time.zone.ZoneOffsetTransition;
+import java.time.zone.ZoneRules;
 import java.util.List;
 import java.util.Objects;
 
@@ -183,13 +187,11 @@ public abstract class Rounding implements Writeable {
         TimeUnitRounding(DateTimeUnit unit, ZoneId timeZone) {
             this.unit = unit;
             this.timeZone = timeZone;
-            this.unitRoundsToMidnight = this.unit.field.getBaseUnit().getDuration().toMillis() > 60L * 60L * 1000L;
+            this.unitRoundsToMidnight = this.unit.field.getBaseUnit().getDuration().toMillis() > 3600000L;
         }
 
         TimeUnitRounding(StreamInput in) throws IOException {
-            unit = DateTimeUnit.resolve(in.readByte());
-            timeZone = ZoneId.of(in.readString());
-            unitRoundsToMidnight = unit.getField().getBaseUnit().getDuration().toMillis() > 60L * 60L * 1000L;
+            this(DateTimeUnit.resolve(in.readByte()), DateUtils.of(in.readString()));
         }
 
         @Override
@@ -198,85 +200,67 @@ public abstract class Rounding implements Writeable {
         }
 
         private LocalDateTime truncateLocalDateTime(LocalDateTime localDateTime) {
-            localDateTime = localDateTime.withNano(0);
-            assert localDateTime.getNano() == 0;
-            if (unit.equals(DateTimeUnit.SECOND_OF_MINUTE)) {
-                return localDateTime;
-            }
+            switch (unit) {
+                case SECOND_OF_MINUTE:
+                    return localDateTime.withNano(0);
 
-            localDateTime = localDateTime.withSecond(0);
-            assert localDateTime.getSecond() == 0;
-            if (unit.equals(DateTimeUnit.MINUTES_OF_HOUR)) {
-                return localDateTime;
-            }
+                case MINUTES_OF_HOUR:
+                    return LocalDateTime.of(localDateTime.getYear(), localDateTime.getMonthValue(), localDateTime.getDayOfMonth(),
+                        localDateTime.getHour(), localDateTime.getMinute(), 0, 0);
 
-            localDateTime = localDateTime.withMinute(0);
-            assert localDateTime.getMinute() == 0;
-            if (unit.equals(DateTimeUnit.HOUR_OF_DAY)) {
-                return localDateTime;
-            }
+                case HOUR_OF_DAY:
+                    return LocalDateTime.of(localDateTime.getYear(), localDateTime.getMonth(), localDateTime.getDayOfMonth(),
+                        localDateTime.getHour(), 0, 0);
 
-            localDateTime = localDateTime.withHour(0);
-            assert localDateTime.getHour() == 0;
-            if (unit.equals(DateTimeUnit.DAY_OF_MONTH)) {
-                return localDateTime;
-            }
+                case DAY_OF_MONTH:
+                    LocalDate localDate = localDateTime.query(TemporalQueries.localDate());
+                    return localDate.atStartOfDay();
 
-            if (unit.equals(DateTimeUnit.WEEK_OF_WEEKYEAR)) {
-                localDateTime = localDateTime.with(ChronoField.DAY_OF_WEEK, 1);
-                assert localDateTime.getDayOfWeek() == DayOfWeek.MONDAY;
-                return localDateTime;
-            }
+                case WEEK_OF_WEEKYEAR:
+                    return LocalDateTime.of(localDateTime.toLocalDate(), LocalTime.MIDNIGHT).with(ChronoField.DAY_OF_WEEK, 1);
 
-            localDateTime = localDateTime.withDayOfMonth(1);
-            assert localDateTime.getDayOfMonth() == 1;
-            if (unit.equals(DateTimeUnit.MONTH_OF_YEAR)) {
-                return localDateTime;
-            }
+                case MONTH_OF_YEAR:
+                    return LocalDateTime.of(localDateTime.getYear(), localDateTime.getMonthValue(), 1, 0, 0);
 
-            if (unit.equals(DateTimeUnit.QUARTER_OF_YEAR)) {
-                int quarter = (int) IsoFields.QUARTER_OF_YEAR.getFrom(localDateTime);
-                int month = ((quarter - 1) * 3) + 1;
-                localDateTime = localDateTime.withMonth(month);
-                assert localDateTime.getMonthValue() % 3 == 1;
-                return localDateTime;
-            }
+                case QUARTER_OF_YEAR:
+                    int quarter = (int) IsoFields.QUARTER_OF_YEAR.getFrom(localDateTime);
+                    int month = ((quarter - 1) * 3) + 1;
+                    return LocalDateTime.of(localDateTime.getYear(), month, 1, 0, 0);
 
-            if (unit.equals(DateTimeUnit.YEAR_OF_CENTURY)) {
-                localDateTime = localDateTime.withMonth(1);
-                assert localDateTime.getMonthValue() == 1;
-                return localDateTime;
-            }
+                case YEAR_OF_CENTURY:
+                    return LocalDateTime.of(LocalDate.of(localDateTime.getYear(), 1, 1), LocalTime.MIDNIGHT);
 
-            throw new IllegalArgumentException("NOT YET IMPLEMENTED for unit " + unit);
+                default:
+                    throw new IllegalArgumentException("NOT YET IMPLEMENTED for unit " + unit);
+            }
         }
 
         @Override
-        public long round(long utcMillis) {
+        public long round(final long utcMillis) {
+            Instant instant = Instant.ofEpochMilli(utcMillis);
             if (unitRoundsToMidnight) {
-                final ZonedDateTime zonedDateTime = Instant.ofEpochMilli(utcMillis).atZone(timeZone);
-                final LocalDateTime localDateTime = zonedDateTime.toLocalDateTime();
+                final LocalDateTime localDateTime = LocalDateTime.ofInstant(instant, timeZone);
                 final LocalDateTime localMidnight = truncateLocalDateTime(localDateTime);
                 return firstTimeOnDay(localMidnight);
             } else {
+                final ZoneRules rules = timeZone.getRules();
                 while (true) {
-                    final Instant truncatedTime = truncateAsLocalTime(utcMillis);
-                    final ZoneOffsetTransition previousTransition = timeZone.getRules().previousTransition(Instant.ofEpochMilli(utcMillis));
+                    final Instant truncatedTime = truncateAsLocalTime(instant, rules);
+                    final ZoneOffsetTransition previousTransition = rules.previousTransition(instant);
 
                     if (previousTransition == null) {
                         // truncateAsLocalTime cannot have failed if there were no previous transitions
                         return truncatedTime.toEpochMilli();
                     }
 
-                    final long previousTransitionMillis = previousTransition.getInstant().toEpochMilli();
-
-                    if (truncatedTime != null && previousTransitionMillis <= truncatedTime.toEpochMilli()) {
+                    Instant previousTransitionInstant = previousTransition.getInstant();
+                    if (truncatedTime != null && previousTransitionInstant.compareTo(truncatedTime) < 1) {
                         return truncatedTime.toEpochMilli();
                     }
 
                     // There was a transition in between the input time and the truncated time. Return to the transition time and
                     // round that down instead.
-                    utcMillis = previousTransitionMillis - 1;
+                    instant = previousTransitionInstant.minusNanos(1_000_000);
                 }
             }
         }
@@ -287,7 +271,7 @@ public abstract class Rounding implements Writeable {
 
             // Now work out what localMidnight actually means
             final List<ZoneOffset> currentOffsets = timeZone.getRules().getValidOffsets(localMidnight);
-            if (currentOffsets.size() >= 1) {
+            if (currentOffsets.isEmpty() == false) {
                 // There is at least one midnight on this day, so choose the first
                 final ZoneOffset firstOffset = currentOffsets.get(0);
                 final OffsetDateTime offsetMidnight = localMidnight.atOffset(firstOffset);
@@ -300,23 +284,23 @@ public abstract class Rounding implements Writeable {
             }
         }
 
-        private Instant truncateAsLocalTime(long utcMillis) {
+        private Instant truncateAsLocalTime(Instant instant, final ZoneRules rules) {
             assert unitRoundsToMidnight == false : "truncateAsLocalTime should not be called if unitRoundsToMidnight";
 
-            final LocalDateTime truncatedLocalDateTime
-                = truncateLocalDateTime(Instant.ofEpochMilli(utcMillis).atZone(timeZone).toLocalDateTime());
-            final List<ZoneOffset> currentOffsets = timeZone.getRules().getValidOffsets(truncatedLocalDateTime);
+            LocalDateTime localDateTime = LocalDateTime.ofInstant(instant, timeZone);
+            final LocalDateTime truncatedLocalDateTime = truncateLocalDateTime(localDateTime);
+            final List<ZoneOffset> currentOffsets = rules.getValidOffsets(truncatedLocalDateTime);
 
-            if (currentOffsets.size() >= 1) {
+            if (currentOffsets.isEmpty() == false) {
                 // at least one possibilities - choose the latest one that's still no later than the input time
                 for (int offsetIndex = currentOffsets.size() - 1; offsetIndex >= 0; offsetIndex--) {
                     final Instant result = truncatedLocalDateTime.atOffset(currentOffsets.get(offsetIndex)).toInstant();
-                    if (result.toEpochMilli() <= utcMillis) {
+                    if (result.isAfter(instant) == false) {
                         return result;
                     }
                 }
 
-                assert false : "rounded time not found for " + utcMillis + " with " + this;
+                assert false : "rounded time not found for " + instant + " with " + this;
                 return null;
             } else {
                 // The chosen local time didn't happen. This means we were given a time in an hour (or a minute) whose start
@@ -326,7 +310,7 @@ public abstract class Rounding implements Writeable {
         }
 
         private LocalDateTime nextRelevantMidnight(LocalDateTime localMidnight) {
-            assert localMidnight.toLocalTime().equals(LocalTime.of(0, 0, 0)) : "nextRelevantMidnight should only be called at midnight";
+            assert localMidnight.toLocalTime().equals(LocalTime.MIDNIGHT) : "nextRelevantMidnight should only be called at midnight";
             assert unitRoundsToMidnight : "firstTimeOnDay should only be called if unitRoundsToMidnight";
 
             switch (unit) {
@@ -348,8 +332,7 @@ public abstract class Rounding implements Writeable {
         @Override
         public long nextRoundingValue(long utcMillis) {
             if (unitRoundsToMidnight) {
-                final ZonedDateTime zonedDateTime = Instant.ofEpochMilli(utcMillis).atZone(timeZone);
-                final LocalDateTime localDateTime = zonedDateTime.toLocalDateTime();
+                final LocalDateTime localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(utcMillis), timeZone);
                 final LocalDateTime earlierLocalMidnight = truncateLocalDateTime(localDateTime);
                 final LocalDateTime localMidnight = nextRelevantMidnight(earlierLocalMidnight);
                 return firstTimeOnDay(localMidnight);
@@ -367,8 +350,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeByte(unit.getId());
-            String tz = ZoneOffset.UTC.equals(timeZone) ? "UTC" : timeZone.getId(); // stay joda compatible
-            out.writeString(tz);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                out.writeString(timeZone.getId());
+            } else {
+                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
+            }
         }
 
         @Override
@@ -417,7 +403,7 @@ public abstract class Rounding implements Writeable {
 
         TimeIntervalRounding(StreamInput in) throws IOException {
             interval = in.readVLong();
-            timeZone = ZoneId.of(in.readString());
+            timeZone = DateUtils.of(in.readString());
         }
 
         @Override
@@ -428,14 +414,14 @@ public abstract class Rounding implements Writeable {
         @Override
         public long round(final long utcMillis) {
             final Instant utcInstant = Instant.ofEpochMilli(utcMillis);
-            final LocalDateTime rawLocalDateTime = Instant.ofEpochMilli(utcMillis).atZone(timeZone).toLocalDateTime();
+            final LocalDateTime rawLocalDateTime = LocalDateTime.ofInstant(utcInstant, timeZone);
 
             // a millisecond value with the same local time, in UTC, as `utcMillis` has in `timeZone`
             final long localMillis = utcMillis + timeZone.getRules().getOffset(utcInstant).getTotalSeconds() * 1000;
             assert localMillis == rawLocalDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
 
             final long roundedMillis = roundKey(localMillis, interval) * interval;
-            final LocalDateTime roundedLocalDateTime = Instant.ofEpochMilli(roundedMillis).atZone(ZoneOffset.UTC).toLocalDateTime();
+            final LocalDateTime roundedLocalDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(roundedMillis), ZoneOffset.UTC);
 
             // Now work out what roundedLocalDateTime actually means
             final List<ZoneOffset> currentOffsets = timeZone.getRules().getValidOffsets(roundedLocalDateTime);
@@ -480,9 +466,8 @@ public abstract class Rounding implements Writeable {
         @Override
         public long nextRoundingValue(long time) {
             int offsetSeconds = timeZone.getRules().getOffset(Instant.ofEpochMilli(time)).getTotalSeconds();
-            return ZonedDateTime.ofInstant(Instant.ofEpochMilli(time), ZoneOffset.UTC)
-                .plusSeconds(offsetSeconds)
-                .plusNanos(interval * 1_000_000)
+            long millis = time + interval + offsetSeconds * 1000;
+            return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC)
                 .withZoneSameLocal(timeZone)
                 .toInstant().toEpochMilli();
         }
@@ -490,8 +475,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            String tz = ZoneOffset.UTC.equals(timeZone) ? "UTC" : timeZone.getId(); // stay joda compatible
-            out.writeString(tz);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                out.writeString(timeZone.getId());
+            } else {
+                out.writeString(DateUtils.zoneIdToDateTimeZone(timeZone).getID());
+            }
         }
 
         @Override

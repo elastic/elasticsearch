@@ -115,8 +115,6 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 
 `ssl.truststore.pass`:: trust store password
 
-`ssl.cert.allow.self.signed` (default `false`):: Whether or not to allow self signed certificates
-
 `ssl.protocol`(default `TLS`):: SSL protocol to be used
 
 [float]
@@ -137,6 +135,8 @@ jdbc:es://http://server:3456/?timezone=UTC&page.size=250
 Opens up a {es-sql} connection to `server` on port `3456`, setting the JDBC connection timezone to `UTC` and its pagesize to `250` entries.
 
 === API usage
+
+beta[]
 
 One can use JDBC through the official `java.sql` and `javax.sql` packages:
 

@@ -18,27 +18,42 @@ a composite bucket.
 --------------------------------------------------
 PUT /sales
 {
-    "mappings": {
-        "_doc": {
-            "properties": {
-                "product": {
-                    "type": "keyword"
-                },
-                "timestamp": {
-                    "type": "date"
-                },
-                "price": {
-                    "type": "long"
-                },
-                "shop": {
-                    "type": "keyword"
-                }
+  "mappings": {
+    "properties": {
+      "product": {
+          "type": "keyword"
+      },
+      "timestamp": {
+          "type": "date"
+      },
+      "price": {
+          "type": "long"
+      },
+      "shop": {
+          "type": "keyword"
+      },
+      "nested": {
+          "type": "nested",
+          "properties": {
+            "product": {
+                "type": "keyword"
+            },
+            "timestamp": {
+                "type": "date"
+            },
+            "price": {
+                "type": "long"
+            },
+            "shop": {
+                "type": "keyword"
             }
-        }
+          }
+       }
     }
+  }
 }
 
-POST /sales/_doc/_bulk?refresh
+POST /sales/_bulk?refresh
 {"index":{"_id":0}}
 {"product": "mad max", "price": "20", "timestamp": "2017-05-09T14:35"}
 {"index":{"_id":1}}
@@ -288,7 +303,6 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
-
 
 This will create composite buckets from the values created by two values source, a `date_histogram` and a `terms`.
 Each bucket is composed of two values, one for each value source defined in the aggregation.

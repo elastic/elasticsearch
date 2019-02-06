@@ -47,7 +47,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
@@ -86,12 +85,6 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // disruption tests need MockTransportService
         return Arrays.asList(MockTransportService.TestPlugin.class);
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
     }
 
     public void testBulkWeirdScenario() throws Exception {

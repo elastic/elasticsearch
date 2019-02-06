@@ -114,6 +114,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
@@ -134,12 +135,6 @@ import org.elasticsearch.xpack.security.action.TransportCreateApiKeyAction;
 import org.elasticsearch.xpack.security.action.TransportGetApiKeyAction;
 import org.elasticsearch.xpack.security.action.TransportInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
-import org.elasticsearch.xpack.security.action.interceptor.BulkShardRequestInterceptor;
-import org.elasticsearch.xpack.security.action.interceptor.IndicesAliasesRequestInterceptor;
-import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
-import org.elasticsearch.xpack.security.action.interceptor.ResizeRequestInterceptor;
-import org.elasticsearch.xpack.security.action.interceptor.SearchRequestInterceptor;
-import org.elasticsearch.xpack.security.action.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.action.privilege.TransportDeletePrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
@@ -180,6 +175,12 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
+import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
@@ -436,35 +437,22 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         for (SecurityExtension extension : securityExtensions) {
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
-        final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
-            reservedRolesStore, privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache);
+
+        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService,
+            threadPool);
+        components.add(apiKeyService);
+        final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
+            privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService);
         securityIndex.get().addIndexStateListener(allRolesStore::onSecurityIndexStateChange);
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
-
-        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService,
-                allRolesStore);
-        components.add(apiKeyService);
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
                 anonymousUser, tokenService, apiKeyService));
         components.add(authcService.get());
         securityIndex.get().addIndexStateListener(authcService.get()::onSecurityIndexStateChange);
-
-        final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
-            auditTrailService, failureHandler, threadPool, anonymousUser, apiKeyService, fieldPermissionsCache);
-        components.add(nativeRolesStore); // used by roles actions
-        components.add(reservedRolesStore); // used by roles actions
-        components.add(allRolesStore); // for SecurityFeatureSet and clear roles cache
-        components.add(authzService);
-
-        ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
-        components.add(ipFilter.get());
-        DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(),
-                authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
 
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
             new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
@@ -478,10 +466,44 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
+        final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
+            auditTrailService, failureHandler, threadPool, anonymousUser, getAuthorizationEngine(), requestInterceptors,
+            getLicenseState());
+
+        components.add(nativeRolesStore); // used by roles actions
+        components.add(reservedRolesStore); // used by roles actions
+        components.add(allRolesStore); // for SecurityFeatureSet and clear roles cache
+        components.add(authzService);
+
+        ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
+        components.add(ipFilter.get());
+        DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
+        securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(),
+                authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
+
         securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, getLicenseState(),
-                requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
+            threadPool, securityContext.get(), destructiveOperations));
 
         return components;
+    }
+
+    private AuthorizationEngine getAuthorizationEngine() {
+        AuthorizationEngine authorizationEngine = null;
+        String extensionName = null;
+        for (SecurityExtension extension : securityExtensions) {
+            final AuthorizationEngine extensionEngine = extension.getAuthorizationEngine(settings);
+            if (extensionEngine != null && authorizationEngine != null) {
+                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] "
+                    + "both set an authorization engine");
+            }
+            authorizationEngine = extensionEngine;
+            extensionName = extension.toString();
+        }
+
+        if (authorizationEngine != null) {
+            logger.debug("Using authorization engine from extension [" + extensionName + "]");
+        }
+        return authorizationEngine;
     }
 
     private AuthenticationFailureHandler createAuthenticationFailureHandler(final Realms realms) {
@@ -610,6 +632,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         settingsList.add(ApiKeyService.PASSWORD_HASHING_ALGORITHM);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);
         settingsList.add(ApiKeyService.DELETE_INTERVAL);
+        settingsList.add(ApiKeyService.CACHE_HASH_ALGO_SETTING);
+        settingsList.add(ApiKeyService.CACHE_MAX_KEYS_SETTING);
+        settingsList.add(ApiKeyService.CACHE_TTL_SETTING);
 
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),

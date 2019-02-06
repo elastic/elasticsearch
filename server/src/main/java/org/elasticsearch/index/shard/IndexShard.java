@@ -132,6 +132,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
@@ -1892,13 +1893,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Get all non-expired retention leases tracked on this shard.
+     * Get all retention leases tracked on this shard.
      *
      * @return the retention leases
      */
     public RetentionLeases getRetentionLeases() {
+        return getRetentionLeases(false).v2();
+    }
+
+    /**
+     * If the expire leases parameter is false, gets all retention leases tracked on this shard and otherwise first calculates
+     * expiration of existing retention leases, and then gets all non-expired retention leases tracked on this shard. Note that only the
+     * primary shard calculates which leases are expired, and if any have expired, syncs the retention leases to any replicas. If the
+     * expire leases parameter is true, this replication tracker must be in primary mode.
+     *
+     * @return a tuple indicating whether or not any retention leases were expired, and the non-expired retention leases
+     */
+    public Tuple<Boolean, RetentionLeases> getRetentionLeases(final boolean expireLeases) {
+        assert expireLeases == false || assertPrimaryMode();
         verifyNotClosed();
-        return replicationTracker.getRetentionLeases();
+        return replicationTracker.getRetentionLeases(expireLeases);
     }
 
     public RetentionLeaseStats getRetentionLeaseStats() {
@@ -1956,10 +1970,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Syncs the current retention leases to all replicas.
      */
-    public void backgroundSyncRetentionLeases() {
+    public void syncRetentionLeases() {
         assert assertPrimaryMode();
         verifyNotClosed();
-        retentionLeaseSyncer.backgroundSync(shardId, getRetentionLeases());
+        final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
+        if (retentionLeases.v1()) {
+            retentionLeaseSyncer.sync(shardId, retentionLeases.v2(), ActionListener.wrap(() -> {}));
+        } else {
+            retentionLeaseSyncer.backgroundSync(shardId, retentionLeases.v2());
+        }
     }
 
     /**
@@ -3064,7 +3083,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * which is at least the value of the max_seq_no_of_updates marker on the primary after that operation was executed on the primary.
      *
      * @see #acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)
-     * @see org.elasticsearch.indices.recovery.RecoveryTarget#indexTranslogOperations(List, int, long, long, ActionListener)
+     * @see RecoveryTarget#indexTranslogOperations(List, int, long, long, RetentionLeases, ActionListener)
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
         assert seqNo != UNASSIGNED_SEQ_NO

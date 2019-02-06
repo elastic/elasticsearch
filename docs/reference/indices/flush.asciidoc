@@ -1,13 +1,16 @@
 [[indices-flush]]
 == Flush
 
-The flush API allows to flush one or more indices through an API. The
-flush process of an index makes sure that any data that is currently only
-persisted in the <<index-modules-translog,transaction log>> is also permanently
-persisted in Lucene. This reduces recovery times as that data doesn't need to be
-reindexed from the transaction logs after the Lucene indexed is opened. By
-default, Elasticsearch uses heuristics in order to automatically
-trigger flushes as required. It is rare for users to need to call the API directly.
+The flush process of an index makes sure that any data that is currently only
+stored in the <<index-modules-translog,transaction log>> is also permanently
+stored in Lucene. When restarting, {es} replays any unflushed operations from
+the transaction log into Lucene to ensure that searches do not return stale
+results. {es} automatically triggers flushes using heuristics that trade off
+the size of the unflushed transaction log against the cost of performing each
+flush.
+
+It is also possible to trigger a flush on one or more indices using the flush
+API, although it is rare for users to need to call this API directly.
 
 [source,js]
 --------------------------------------------------
@@ -24,21 +27,21 @@ The flush API accepts the following request parameters:
 
 [horizontal]
 `wait_if_ongoing`::  If set to `true` the flush operation will block until the
-flush can be executed if another flush operation is already executing.
-The default is `false` and will cause an exception to be thrown on
-the shard level if another flush operation is already running.
+flush can be executed if another flush operation is already executing. The
+default is `false` and will cause an exception to be thrown on the shard level
+if another flush operation is already running.
 
-`force`:: Whether a flush should be forced even if it is not necessarily needed i.e.
-if no changes will be committed to the index. This is useful if transaction log IDs
-should be incremented even if no uncommitted changes are present.
-(This setting can be considered as internal)
+`force`:: Whether a flush should be forced even if it is not necessarily needed
+i.e.  if no changes will be committed to the index. This is useful if
+transaction log IDs should be incremented even if no uncommitted changes are
+present. (This setting can be considered as internal)
 
 [float]
 [[flush-multi-index]]
 === Multi Index
 
-The flush API can be applied to more than one index with a single call,
-or even on `_all` the indices.
+The flush API can be applied to more than one index with a single call, or even
+on `_all` the indices.
 
 [source,js]
 --------------------------------------------------
@@ -52,26 +55,27 @@ POST _flush
 [[indices-synced-flush]]
 === Synced Flush
 
-Elasticsearch tracks the indexing activity of each shard. Shards that have not
-received any indexing operations for 5 minutes are automatically marked as inactive. This presents
-an opportunity for Elasticsearch to reduce shard resources and also perform
-a special kind of flush, called `synced flush`. A synced flush performs a normal flush, then adds
-a generated unique marker (sync_id) to all shards.
+{es} keeps track of which shards have received indexing activity recently, and
+considers shards that have not received any indexing operations for 5 minutes
+to be inactive. When a shard is inactive {es} performs a special kind of flush
+known as a _synced flush_. A synced flush performs a normal
+<<indices-flush,flush>> on each copy of the shard, and then adds a unique
+marker known as the `sync_id` to each copy to indicate that these copies have
+identical Lucene indices.
 
-Since the sync id marker was added when there were no ongoing indexing operations, it can
-be used as a quick way to check if the two shards' lucene indices are identical. This quick sync id
-comparison (if present) is used during recovery or restarts to skip the first and
-most costly phase of the process. In that case, no segment files need to be copied and
-the transaction log replay phase of the recovery can start immediately. Note that since the sync id
-marker was applied together with a flush, it is very likely that the transaction log will be empty,
-speeding up recoveries even more.
+When allocating shard copies, {es} must ensure that each replica contains the
+same data as the primary. If the shard copies have been synced-flushed and the
+replica shares a `sync_id` with the primary then {es} knows that the two copies
+have identical Lucene indices. This means there is no need to copy any segment
+files from the primary to the replica, which saves a good deal of time during
+recovery or restarts.
 
-This is particularly useful for use cases having lots of indices which are
-never or very rarely updated, such as time based data. This use case typically generates lots of indices whose
-recovery without the synced flush marker would take a long time.
+This is particularly useful for clusters having lots of indices which are very
+rarely updated, such as with time-based indices. Without the synced flush
+marker, recovery of this kind of cluster would be much slower.
 
-To check whether a shard has a marker or not, look for the `commit` section of shard stats returned by
-the <<indices-stats,indices stats>> API:
+To check whether a shard has a marker or not, look for the `commit` section of
+shard stats returned by the <<indices-stats,indices stats>> API:
 
 [source,sh]
 --------------------------------------------------
@@ -122,26 +126,25 @@ which returns something similar to:
 // TESTRESPONSE[s/"retention_leases" : "primary_term:1;version:1;id:replica-0;retaining_seq_no:0;timestamp:1547235588;source:replica"/"retention_leases": $body.indices.twitter.shards.0.0.commit.user_data.retention_leases/]
 <1> the `sync id` marker
 
+NOTE: The `sync_id` marker is removed as soon as the shard is flushed again,
+and {es} may trigger a flush at any time. In practice this means that one
+should consider any indexing operation on an index as having removed the
+`sync_id` markers.
+
 [float]
 === Synced Flush API
 
-The Synced Flush API allows an administrator to initiate a synced flush manually. This can be particularly useful for
-a planned (rolling) cluster restart where you can stop indexing and don't want to wait the default 5 minutes for
-idle indices to be sync-flushed automatically.
+The Synced Flush API allows an administrator to initiate a synced flush
+manually. This can be particularly useful for a planned cluster restart where
+you can stop indexing but don't want to wait for 5 minutes until all indices
+are marked as inactive and automatically sync-flushed.
 
-While handy, there are a couple of caveats for this API:
-
-1. Synced flush is a best effort operation. Any ongoing indexing operations will cause
-the synced flush to fail on that shard. This means that some shards may be synced flushed while others aren't. See below for more.
-2. The `sync_id` marker is removed as soon as the shard is flushed again. That is because a flush replaces the low level
-lucene commit point where the marker is stored. Uncommitted operations in the transaction log do not remove the marker.
-In practice, one should consider any indexing operation on an index as removing the marker as a flush can be triggered by Elasticsearch
-at any time.
-
-
-NOTE: It is harmless to request a synced flush while there is ongoing indexing. Shards that are idle will succeed and shards
- that are not will fail. Any shards that succeeded will have faster recovery times.
-
+You can request a synced flush even if there is ongoing indexing activity, and
+{es} will perform the synced flush on a "best-effort" basis: shards that do not
+have any ongoing indexing activity will be successfully sync-flushed, and other
+shards will fail. The successfully sync-flushed shards will have faster
+recovery times as long as the `sync_id` marker is not removed by a subsequent
+flush.
 
 [source,sh]
 --------------------------------------------------
@@ -150,10 +153,11 @@ POST twitter/_flush/synced
 // CONSOLE
 // TEST[setup:twitter]
 
-The response contains details about how many shards were successfully sync-flushed and information about any failure.
+The response contains details about how many shards were successfully
+sync-flushed and information about any failure.
 
-Here is what it looks like when all shards of a two shards and one replica index successfully
-sync-flushed:
+Here is what it looks like when all shards of a two shards and one replica
+index successfully sync-flushed:
 
 [source,js]
 --------------------------------------------------
@@ -172,7 +176,8 @@ sync-flushed:
 --------------------------------------------------
 // TESTRESPONSE[s/"successful": 2/"successful": 1/]
 
-Here is what it looks like when one shard group failed due to pending operations:
+Here is what it looks like when one shard group failed due to pending
+operations:
 
 [source,js]
 --------------------------------------------------
@@ -197,11 +202,12 @@ Here is what it looks like when one shard group failed due to pending operations
 --------------------------------------------------
 // NOTCONSOLE
 
-NOTE: The above error is shown when the synced flush fails due to concurrent indexing operations. The HTTP
-status code in that case will be `409 CONFLICT`.
+NOTE: The above error is shown when the synced flush fails due to concurrent
+indexing operations. The HTTP status code in that case will be `409 Conflict`.
 
-Sometimes the failures are specific to a shard copy. The copies that failed will not be eligible for
-fast recovery but those that succeeded still will be. This case is reported as follows:
+Sometimes the failures are specific to a shard copy. The copies that failed
+will not be eligible for fast recovery but those that succeeded still will be.
+This case is reported as follows:
 
 [source,js]
 --------------------------------------------------
@@ -234,7 +240,8 @@ fast recovery but those that succeeded still will be. This case is reported as f
 --------------------------------------------------
 // NOTCONSOLE
 
-NOTE: When a shard copy fails to sync-flush, the HTTP status code returned will be `409 CONFLICT`.
+NOTE: When a shard copy fails to sync-flush, the HTTP status code returned will
+be `409 Conflict`.
 
 The synced flush API can be applied to more than one index with a single call,
 or even on `_all` the indices.

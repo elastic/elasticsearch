@@ -20,8 +20,10 @@ package org.elasticsearch.cluster.routing;
  */
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -44,7 +47,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
@@ -85,10 +87,32 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
+    public void testBulkWeirdScenario() throws Exception {
+        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNodes(2);
+
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
+            .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get());
+        ensureGreen();
+
+        BulkResponse bulkResponse = client().prepareBulk()
+            .add(client().prepareIndex().setIndex("test").setType("_doc").setId("1").setSource("field1", "value1"))
+            .add(client().prepareUpdate().setIndex("test").setType("_doc").setId("1").setDoc("field2", "value2"))
+            .execute().actionGet();
+
+        assertThat(bulkResponse.hasFailures(), equalTo(false));
+        assertThat(bulkResponse.getItems().length, equalTo(2));
+
+        logger.info(Strings.toString(bulkResponse, true, true));
+
+        internalCluster().assertSeqNos();
+
+        assertThat(bulkResponse.getItems()[0].getResponse().getId(), equalTo("1"));
+        assertThat(bulkResponse.getItems()[0].getResponse().getVersion(), equalTo(1L));
+        assertThat(bulkResponse.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+        assertThat(bulkResponse.getItems()[1].getResponse().getId(), equalTo("1"));
+        assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(2L));
+        assertThat(bulkResponse.getItems()[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
     }
 
     private void createStaleReplicaScenario(String master) throws Exception {

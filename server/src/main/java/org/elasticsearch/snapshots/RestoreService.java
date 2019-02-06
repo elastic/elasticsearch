@@ -27,7 +27,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -78,7 +78,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -100,7 +99,7 @@ import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
  * <p>
  * Restore operation is performed in several stages.
  * <p>
- * First {@link #restoreSnapshot(RestoreRequest, org.elasticsearch.action.ActionListener)}
+ * First {@link #restoreSnapshot(RestoreSnapshotRequest, org.elasticsearch.action.ActionListener)}
  * method reads information about snapshot and metadata from repository. In update cluster state task it checks restore
  * preconditions, restores global state if needed, creates {@link RestoreInProgress} record with list of shards that needs
  * to be restored and adds this shard to the routing table using
@@ -172,28 +171,30 @@ public class RestoreService implements ClusterStateApplier {
      * @param request  restore request
      * @param listener restore listener
      */
-    public void restoreSnapshot(final RestoreRequest request, final ActionListener<RestoreCompletionResponse> listener) {
+    public void restoreSnapshot(final RestoreSnapshotRequest request, final ActionListener<RestoreCompletionResponse> listener) {
         try {
             // Read snapshot info and metadata from the repository
-            Repository repository = repositoriesService.repository(request.repositoryName);
+            final String repositoryName = request.repository();
+            Repository repository = repositoriesService.repository(repositoryName);
             final RepositoryData repositoryData = repository.getRepositoryData();
+            final String snapshotName = request.snapshot();
             final Optional<SnapshotId> incompatibleSnapshotId =
-                repositoryData.getIncompatibleSnapshotIds().stream().filter(s -> request.snapshotName.equals(s.getName())).findFirst();
+                repositoryData.getIncompatibleSnapshotIds().stream().filter(s -> snapshotName.equals(s.getName())).findFirst();
             if (incompatibleSnapshotId.isPresent()) {
-                throw new SnapshotRestoreException(request.repositoryName, request.snapshotName, "cannot restore incompatible snapshot");
+                throw new SnapshotRestoreException(repositoryName, snapshotName, "cannot restore incompatible snapshot");
             }
             final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
-                .filter(s -> request.snapshotName.equals(s.getName())).findFirst();
+                .filter(s -> snapshotName.equals(s.getName())).findFirst();
             if (matchingSnapshotId.isPresent() == false) {
-                throw new SnapshotRestoreException(request.repositoryName, request.snapshotName, "snapshot does not exist");
+                throw new SnapshotRestoreException(repositoryName, snapshotName, "snapshot does not exist");
             }
 
             final SnapshotId snapshotId = matchingSnapshotId.get();
             final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
-            final Snapshot snapshot = new Snapshot(request.repositoryName, snapshotId);
+            final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
             // Make sure that we can restore from this snapshot
-            validateSnapshotRestorable(request.repositoryName, snapshotInfo);
+            validateSnapshotRestorable(repositoryName, snapshotInfo);
 
             // Resolve the indices from the snapshot that need to be restored
             final List<String> indicesInSnapshot = filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
@@ -218,7 +219,7 @@ public class RestoreService implements ClusterStateApplier {
 
             // Now we can start the actual restore process by adding shards to be recovered in the cluster state
             // and updating cluster metadata (global and index) as needed
-            clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("restore_snapshot[" + snapshotName + ']', new ClusterStateUpdateTask() {
                 String restoreUUID = UUIDs.randomBase64UUID();
                 RestoreInfo restoreInfo = null;
 
@@ -261,7 +262,7 @@ public class RestoreService implements ClusterStateApplier {
                             String renamedIndexName = indexEntry.getKey();
                             IndexMetaData snapshotIndexMetaData = metaData.index(index);
                             snapshotIndexMetaData = updateIndexSettings(snapshotIndexMetaData,
-                                                                        request.indexSettings, request.ignoreIndexSettings);
+                                                                        request.indexSettings(), request.ignoreIndexSettings());
                             try {
                                 snapshotIndexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(snapshotIndexMetaData,
                                     minIndexCompatibilityVersion);
@@ -313,6 +314,12 @@ public class RestoreService implements ClusterStateApplier {
                                                                         currentIndexMetaData.getMappingVersion() + 1));
                                 indexMdBuilder.settingsVersion(Math.max(snapshotIndexMetaData.getSettingsVersion(),
                                                                         currentIndexMetaData.getSettingsVersion() + 1));
+
+                                for (int shard = 0; shard < snapshotIndexMetaData.getNumberOfShards(); shard++) {
+                                    indexMdBuilder.primaryTerm(shard,
+                                        Math.max(snapshotIndexMetaData.primaryTerm(shard), currentIndexMetaData.primaryTerm(shard)));
+                                }
+
                                 if (!request.includeAliases()) {
                                     // Remove all snapshot aliases
                                     if (!snapshotIndexMetaData.getAliases().isEmpty()) {
@@ -535,7 +542,7 @@ public class RestoreService implements ClusterStateApplier {
 
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot",
-                request.repositoryName + ":" + request.snapshotName), e);
+                request.repository() + ":" + request.snapshot()), e);
             listener.onFailure(e);
         }
     }
@@ -820,7 +827,7 @@ public class RestoreService implements ClusterStateApplier {
         return failedShards;
     }
 
-    private Map<String, String> renamedIndices(RestoreRequest request, List<String> filteredIndices) {
+    private Map<String, String> renamedIndices(RestoreSnapshotRequest request, List<String> filteredIndices) {
         Map<String, String> renamedIndices = new HashMap<>();
         for (String index : filteredIndices) {
             String renamedIndex = index;
@@ -829,7 +836,7 @@ public class RestoreService implements ClusterStateApplier {
             }
             String previousIndex = renamedIndices.put(renamedIndex, index);
             if (previousIndex != null) {
-                throw new SnapshotRestoreException(request.repositoryName, request.snapshotName,
+                throw new SnapshotRestoreException(request.repository(), request.snapshot(),
                         "indices [" + index + "] and [" + previousIndex + "] are renamed into the same index [" + renamedIndex + "]");
             }
         }
@@ -918,204 +925,5 @@ public class RestoreService implements ClusterStateApplier {
             }
         }
         return false;
-    }
-
-    /**
-     * Restore snapshot request
-     */
-    public static class RestoreRequest {
-
-        private final String cause;
-
-        private final String repositoryName;
-
-        private final String snapshotName;
-
-        private final String[] indices;
-
-        private final String renamePattern;
-
-        private final String renameReplacement;
-
-        private final IndicesOptions indicesOptions;
-
-        private final Settings settings;
-
-        private final TimeValue masterNodeTimeout;
-
-        private final boolean includeGlobalState;
-
-        private final boolean partial;
-
-        private final boolean includeAliases;
-
-        private final Settings indexSettings;
-
-        private final String[] ignoreIndexSettings;
-
-        /**
-         * Constructs new restore request
-         *
-         * @param repositoryName     repositoryName
-         * @param snapshotName       snapshotName
-         * @param indices            list of indices to restore
-         * @param indicesOptions     indices options
-         * @param renamePattern      pattern to rename indices
-         * @param renameReplacement  replacement for renamed indices
-         * @param settings           repository specific restore settings
-         * @param masterNodeTimeout  master node timeout
-         * @param includeGlobalState include global state into restore
-         * @param partial            allow partial restore
-         * @param indexSettings      index settings that should be changed on restore
-         * @param ignoreIndexSettings index settings that shouldn't be restored
-         * @param cause              cause for restoring the snapshot
-         */
-        public RestoreRequest(String repositoryName, String snapshotName, String[] indices, IndicesOptions indicesOptions,
-                              String renamePattern, String renameReplacement, Settings settings,
-                              TimeValue masterNodeTimeout, boolean includeGlobalState, boolean partial, boolean includeAliases,
-                              Settings indexSettings, String[] ignoreIndexSettings, String cause) {
-            this.repositoryName = Objects.requireNonNull(repositoryName);
-            this.snapshotName = Objects.requireNonNull(snapshotName);
-            this.indices = indices;
-            this.renamePattern = renamePattern;
-            this.renameReplacement = renameReplacement;
-            this.indicesOptions = indicesOptions;
-            this.settings = settings;
-            this.masterNodeTimeout = masterNodeTimeout;
-            this.includeGlobalState = includeGlobalState;
-            this.partial = partial;
-            this.includeAliases = includeAliases;
-            this.indexSettings = indexSettings;
-            this.ignoreIndexSettings = ignoreIndexSettings;
-            this.cause = cause;
-        }
-
-        /**
-         * Returns restore operation cause
-         *
-         * @return restore operation cause
-         */
-        public String cause() {
-            return cause;
-        }
-
-        /**
-         * Returns repository name
-         *
-         * @return repository name
-         */
-        public String repositoryName() {
-            return repositoryName;
-        }
-
-        /**
-         * Returns snapshot name
-         *
-         * @return snapshot name
-         */
-        public String snapshotName() {
-            return snapshotName;
-        }
-
-        /**
-         * Return the list of indices to be restored
-         *
-         * @return the list of indices
-         */
-        public String[] indices() {
-            return indices;
-        }
-
-        /**
-         * Returns indices option flags
-         *
-         * @return indices options flags
-         */
-        public IndicesOptions indicesOptions() {
-            return indicesOptions;
-        }
-
-        /**
-         * Returns rename pattern
-         *
-         * @return rename pattern
-         */
-        public String renamePattern() {
-            return renamePattern;
-        }
-
-        /**
-         * Returns replacement pattern
-         *
-         * @return replacement pattern
-         */
-        public String renameReplacement() {
-            return renameReplacement;
-        }
-
-        /**
-         * Returns repository-specific restore settings
-         *
-         * @return restore settings
-         */
-        public Settings settings() {
-            return settings;
-        }
-
-        /**
-         * Returns true if global state should be restore during this restore operation
-         *
-         * @return restore global state flag
-         */
-        public boolean includeGlobalState() {
-            return includeGlobalState;
-        }
-
-        /**
-         * Returns true if incomplete indices will be restored
-         *
-         * @return partial indices restore flag
-         */
-        public boolean partial() {
-            return partial;
-        }
-
-        /**
-         * Returns true if aliases should be restore during this restore operation
-         *
-         * @return restore aliases state flag
-         */
-        public boolean includeAliases() {
-            return includeAliases;
-        }
-
-        /**
-         * Returns index settings that should be changed on restore
-         *
-         * @return restore aliases state flag
-         */
-        public Settings indexSettings() {
-            return indexSettings;
-        }
-
-        /**
-         * Returns index settings that that shouldn't be restored
-         *
-         * @return restore aliases state flag
-         */
-        public String[] ignoreIndexSettings() {
-            return ignoreIndexSettings;
-        }
-
-
-        /**
-         * Return master node timeout
-         *
-         * @return master node timeout
-         */
-        public TimeValue masterNodeTimeout() {
-            return masterNodeTimeout;
-        }
-
     }
 }

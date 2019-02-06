@@ -41,7 +41,7 @@ renamed to `requiresAnalysisSettings`
 * This plugin has been removed since its functionality is now part of
 Elasticsearch and requires no plugin. The location of the hosts file has moved
 from `$ES_PATH_CONF/file-discovery/unicast_hosts.txt` to
-`$ES_PATH_CONF/unicast_hosts.txt`. See <<file-based-hosts-provider, the
+`$ES_PATH_CONF/unicast_hosts.txt`. See <<file-based-hosts-provider,the
 file-based hosts provider documentation>> for further information.
 
 [float]
@@ -70,3 +70,8 @@ The `RealmSettings.simpleString` method can be used as a convenience for the abo
 Tribe node functionality has been removed in favor of
 <<modules-cross-cluster-search,Cross Cluster Search>>.
 
+[float]
+==== Discovery implementations are no longer pluggable
+
+* The method `DiscoveryPlugin#getDiscoveryTypes()` was removed, so that plugins
+  can no longer provide their own discovery implementations.

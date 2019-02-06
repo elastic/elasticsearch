@@ -262,7 +262,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, clusterState, new Listener() {
+        step.performAction(indexMetaData, clusterState, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -320,7 +320,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         SetSingleNodeAllocateStep step = createRandomInstance();
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, clusterState, new Listener() {
+        step.performAction(indexMetaData, clusterState, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -375,7 +375,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
-        step.performAction(indexMetaData, clusterState, new Listener() {
+        step.performAction(indexMetaData, clusterState, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -407,7 +407,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
-        step.performAction(indexMetaData, clusterState, new Listener() {
+        step.performAction(indexMetaData, clusterState, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {

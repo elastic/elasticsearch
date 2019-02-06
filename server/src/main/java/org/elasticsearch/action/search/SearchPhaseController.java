@@ -170,7 +170,7 @@ public final class SearchPhaseController {
             if (queryResult.hasConsumedTopDocs() == false) { // already consumed?
                 final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
                 assert td != null;
-                topDocsStats.add(td);
+                topDocsStats.add(td, queryResult.searchTimedOut(), queryResult.terminatedEarly());
                 // make sure we set the shard index before we add it - the consumer didn't do that yet
                 if (td.topDocs.scoreDocs.length > 0) {
                     setShardIndex(td.topDocs, queryResult.getShardIndex());
@@ -439,12 +439,10 @@ public final class SearchPhaseController {
                                                 boolean performFinalReduce) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
-        boolean timedOut = false;
-        Boolean terminatedEarly = null;
         if (queryResults.isEmpty()) { // early terminate we have nothing to reduce
             final TotalHits totalHits = topDocsStats.getTotalHits();
-            return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
-                timedOut, terminatedEarly, null, null, null, SortedTopDocs.EMPTY, null, numReducePhases, 0, 0, true);
+            return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
+                false, null, null, null, null, SortedTopDocs.EMPTY, null, numReducePhases, 0, 0, true);
         }
         final QuerySearchResult firstResult = queryResults.stream().findFirst().get().queryResult();
         final boolean hasSuggest = firstResult.suggest() != null;
@@ -476,16 +474,6 @@ public final class SearchPhaseController {
             QuerySearchResult result = entry.queryResult();
             from = result.from();
             size = result.size();
-            if (result.searchTimedOut()) {
-                timedOut = true;
-            }
-            if (result.terminatedEarly() != null) {
-                if (terminatedEarly == null) {
-                    terminatedEarly = result.terminatedEarly();
-                } else if (result.terminatedEarly()) {
-                    terminatedEarly = true;
-                }
-            }
             if (hasSuggest) {
                 assert result.suggest() != null;
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
@@ -508,8 +496,8 @@ public final class SearchPhaseController {
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size);
         final TotalHits totalHits = topDocsStats.getTotalHits();
-        return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.maxScore,
-            timedOut, terminatedEarly, suggest, aggregations, shardResults, sortedTopDocs,
+        return new ReducedQueryPhase(totalHits, topDocsStats.fetchHits, topDocsStats.getMaxScore(),
+            topDocsStats.timedOut, topDocsStats.terminatedEarly, suggest, aggregations, shardResults, sortedTopDocs,
             firstResult.sortValueFormats(), numReducePhases, size, from, false);
     }
 
@@ -524,7 +512,7 @@ public final class SearchPhaseController {
     }
 
     private static InternalAggregations reduceAggs(List<InternalAggregations> aggregationsList,
-                                            List<SiblingPipelineAggregator> pipelineAggregators, ReduceContext reduceContext) {
+                                               List<SiblingPipelineAggregator> pipelineAggregators, ReduceContext reduceContext) {
         InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, reduceContext);
         if (pipelineAggregators != null) {
             List<InternalAggregation> newAggs = StreamSupport.stream(aggregations.spliterator(), false)
@@ -577,11 +565,7 @@ public final class SearchPhaseController {
             }
             this.totalHits = totalHits;
             this.fetchHits = fetchHits;
-            if (Float.isInfinite(maxScore)) {
-                this.maxScore = Float.NaN;
-            } else {
-                this.maxScore = maxScore;
-            }
+            this.maxScore = maxScore;
             this.timedOut = timedOut;
             this.terminatedEarly = terminatedEarly;
             this.suggest = suggest;
@@ -682,7 +666,7 @@ public final class SearchPhaseController {
             }
             if (hasTopDocs) {
                 final TopDocsAndMaxScore topDocs = querySearchResult.consumeTopDocs(); // can't be null
-                topDocsStats.add(topDocs);
+                topDocsStats.add(topDocs, querySearchResult.searchTimedOut(), querySearchResult.terminatedEarly());
                 setShardIndex(topDocs.topDocs, querySearchResult.getShardIndex());
                 topDocsBuffer[i] = topDocs.topDocs;
             }
@@ -712,6 +696,15 @@ public final class SearchPhaseController {
         int getNumReducePhases() { return numReducePhases; }
     }
 
+    private int resolveTrackTotalHits(SearchRequest request) {
+        if (request.scroll() != null) {
+            // no matter what the value of track_total_hits is
+            return SearchContext.TRACK_TOTAL_HITS_ACCURATE;
+        }
+        return request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : request.source().trackTotalHitsUpTo() == null ?
+                SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : request.source().trackTotalHitsUpTo();
+    }
+
     /**
      * Returns a new ArraySearchPhaseResults instance. This might return an instance that reduces search responses incrementally.
      */
@@ -720,21 +713,19 @@ public final class SearchPhaseController {
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
-        final int trackTotalHitsUpTo = source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO : source.trackTotalHitsUpTo();
-        final boolean finalReduce = request.getLocalClusterAlias() == null;
-
+        final int trackTotalHitsUpTo = resolveTrackTotalHits(request);
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
             if (request.getBatchedReduceSize() < numShards) {
                 // only use this if there are aggs and if there are more shards than we should reduce at once
                 return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs,
-                    trackTotalHitsUpTo, finalReduce);
+                    trackTotalHitsUpTo, request.isFinalReduce());
             }
         }
         return new InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
             @Override
             ReducedQueryPhase reduce() {
-                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHitsUpTo, finalReduce);
+                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHitsUpTo, request.isFinalReduce());
             }
         };
     }
@@ -744,16 +735,18 @@ public final class SearchPhaseController {
         private long totalHits;
         private TotalHits.Relation totalHitsRelation;
         long fetchHits;
-        float maxScore = Float.NEGATIVE_INFINITY;
-
-        TopDocsStats() {
-            this(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-        }
+        private float maxScore = Float.NEGATIVE_INFINITY;
+        boolean timedOut;
+        Boolean terminatedEarly;
 
         TopDocsStats(int trackTotalHitsUpTo) {
             this.trackTotalHitsUpTo = trackTotalHitsUpTo;
             this.totalHits = 0;
             this.totalHitsRelation = Relation.EQUAL_TO;
+        }
+
+        float getMaxScore() {
+            return Float.isInfinite(maxScore) ? Float.NaN : maxScore;
         }
 
         TotalHits getTotalHits() {
@@ -766,7 +759,7 @@ public final class SearchPhaseController {
                 if (totalHits < trackTotalHitsUpTo) {
                     return new TotalHits(totalHits, totalHitsRelation);
                 } else {
-                    /**
+                    /*
                      * The user requested to count the total hits up to <code>trackTotalHitsUpTo</code>
                      * so we return this lower bound when the total hits is greater than this value.
                      * This can happen when multiple shards are merged since the limit to track total hits
@@ -777,7 +770,7 @@ public final class SearchPhaseController {
             }
         }
 
-        void add(TopDocsAndMaxScore topDocs) {
+        void add(TopDocsAndMaxScore topDocs, boolean timedOut, Boolean terminatedEarly) {
             if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 totalHits += topDocs.topDocs.totalHits.value;
                 if (topDocs.topDocs.totalHits.relation == Relation.GREATER_THAN_OR_EQUAL_TO) {
@@ -787,6 +780,16 @@ public final class SearchPhaseController {
             fetchHits += topDocs.topDocs.scoreDocs.length;
             if (!Float.isNaN(topDocs.maxScore)) {
                 maxScore = Math.max(maxScore, topDocs.maxScore);
+            }
+            if (timedOut) {
+                this.timedOut = true;
+            }
+            if (terminatedEarly != null) {
+                if (this.terminatedEarly == null) {
+                    this.terminatedEarly = terminatedEarly;
+                } else if (terminatedEarly) {
+                    this.terminatedEarly = true;
+                }
             }
         }
     }

@@ -13,7 +13,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/security/authentication/user-cache.asciidoc',
         'en/security/authorization/run-as-privilege.asciidoc',
         'en/security/ccs-clients-integrations/http.asciidoc',
-        'en/security/authorization/custom-roles-provider.asciidoc',
         'en/rest-api/watcher/stats.asciidoc',
         'en/watcher/example-watches/watching-time-series-data.asciidoc',
 ]
@@ -73,6 +72,7 @@ project.copyRestSpec.from(xpackResources) {
 }
 integTestCluster {
     setting 'xpack.security.enabled', 'true'
+    setting 'xpack.security.authc.api_key.enabled', 'true'
     setting 'xpack.security.authc.token.enabled', 'true'
     // Disable monitoring exporters for the docs tests
     setting 'xpack.monitoring.exporters._local.type', 'local'
@@ -122,8 +122,7 @@ setups['my_inactive_watch'] = '''
             "actions": {
               "test_index": {
                 "index": {
-                  "index": "test",
-                  "doc_type": "test2"
+                  "index": "test"
                 }
               }
             }
@@ -464,16 +463,15 @@ setups['sensor_rollup_job'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                temperature:
-                  type: long
-                voltage:
-                  type: float
-                node:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
   - do:
       xpack.rollup.put_job:
         id: "sensor"
@@ -514,21 +512,19 @@ setups['sensor_started_rollup_job'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                temperature:
-                  type: long
-                voltage:
-                  type: float
-                node:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
 
   - do:
       bulk:
         index: sensor-1
-        type: _doc
         refresh: true
         body: |
           {"index":{}}
@@ -588,26 +584,25 @@ setups['sensor_index'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                temperature:
-                  type: long
-                voltage:
-                  type: float
-                node:
-                  type: keyword
-                load:
-                  type: double
-                net_in:
-                  type: long
-                net_out:
-                  type: long
-                hostname:
-                  type: keyword
-                datacenter:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+              load:
+                type: double
+              net_in:
+                type: long
+              net_out:
+                type: long
+              hostname:
+                type: keyword
+              datacenter:
+                type: keyword
 '''
 
 setups['sensor_prefab_data'] = '''
@@ -619,16 +614,15 @@ setups['sensor_prefab_data'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                temperature:
-                  type: long
-                voltage:
-                  type: float
-                node:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
   - do:
       indices.create:
         index: sensor_rollup
@@ -637,63 +631,61 @@ setups['sensor_prefab_data'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                node.terms.value:
-                  type: keyword
-                temperature.sum.value:
-                  type: double
-                temperature.max.value:
-                  type: double
-                temperature.min.value:
-                  type: double
-                timestamp.date_histogram.time_zone:
-                  type: keyword
-                timestamp.date_histogram.interval:
-                  type: keyword
-                timestamp.date_histogram.timestamp:
-                  type: date
-                timestamp.date_histogram._count:
-                  type: long
-                voltage.avg.value:
-                  type: double
-                voltage.avg._count:
-                  type: long
-                _rollup.id:
-                  type: keyword
-                _rollup.version:
-                  type: long
-              _meta:
-                _rollup:
-                  sensor:
-                    cron: "* * * * * ?"
-                    rollup_index: "sensor_rollup"
-                    index_pattern: "sensor-*"
-                    timeout: "20s"
-                    page_size: 1000
-                    groups:
-                      date_histogram:
-                        field: "timestamp"
-                        interval: "7d"
-                        time_zone: "UTC"
-                      terms:
-                        fields:
-                          - "node"
-                    id: sensor
-                    metrics:
-                      - field: "temperature"
-                        metrics:
-                          - min
-                          - max
-                          - sum
-                      - field: "voltage"
-                        metrics:
-                          - avg
+            properties:
+              node.terms.value:
+                type: keyword
+              temperature.sum.value:
+                type: double
+              temperature.max.value:
+                type: double
+              temperature.min.value:
+                type: double
+              timestamp.date_histogram.time_zone:
+                type: keyword
+              timestamp.date_histogram.interval:
+                type: keyword
+              timestamp.date_histogram.timestamp:
+                type: date
+              timestamp.date_histogram._count:
+                type: long
+              voltage.avg.value:
+                type: double
+              voltage.avg._count:
+                type: long
+              _rollup.id:
+                type: keyword
+              _rollup.version:
+                type: long
+            _meta:
+              _rollup:
+                sensor:
+                  cron: "* * * * * ?"
+                  rollup_index: "sensor_rollup"
+                  index_pattern: "sensor-*"
+                  timeout: "20s"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      field: "timestamp"
+                      interval: "7d"
+                      time_zone: "UTC"
+                    terms:
+                      fields:
+                        - "node"
+                  id: sensor
+                  metrics:
+                    - field: "temperature"
+                      metrics:
+                        - min
+                        - max
+                        - sum
+                    - field: "voltage"
+                      metrics:
+                        - avg
 
   - do:
       bulk:
         index: sensor_rollup
-        type: _doc
         refresh: true
         body: |
           {"index":{}}

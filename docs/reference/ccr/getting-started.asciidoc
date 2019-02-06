@@ -174,7 +174,7 @@ In the following example, we will create a leader index in the remote cluster:
 
 [source,js]
 --------------------------------------------------
-PUT /server-metrics?include_type_name=true
+PUT /server-metrics
 {
   "settings" : {
     "index" : {
@@ -188,29 +188,27 @@ PUT /server-metrics?include_type_name=true
     }
   },
   "mappings" : {
-    "metric" : {
-      "properties" : {
-        "@timestamp" : {
-          "type" : "date"
-        },
-        "accept" : {
-          "type" : "long"
-        },
-        "deny" : {
-          "type" : "long"
-        },
-        "host" : {
-          "type" : "keyword"
-        },
-        "response" : {
-          "type" : "float"
-        },
-        "service" : {
-          "type" : "keyword"
-        },
-        "total" : {
-          "type" : "long"
-        }
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "accept" : {
+        "type" : "long"
+      },
+      "deny" : {
+        "type" : "long"
+      },
+      "host" : {
+        "type" : "keyword"
+      },
+      "response" : {
+        "type" : "float"
+      },
+      "service" : {
+        "type" : "keyword"
+      },
+      "total" : {
+        "type" : "long"
       }
     }
   }
@@ -232,7 +230,7 @@ cluster.
 
 [source,js]
 --------------------------------------------------
-PUT /server-metrics-copy/_ccr/follow
+PUT /server-metrics-copy/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "leader",
   "leader_index" : "server-metrics"

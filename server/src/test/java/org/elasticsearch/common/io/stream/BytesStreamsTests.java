@@ -570,7 +570,7 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testReadWriteGeoPoint() throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
             GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
             out.writeGenericValue(geoPoint);
             StreamInput wrap = out.bytes().streamInput();
@@ -813,7 +813,7 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(0, input.available());
     }
 
-    private void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
+    private static void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeTimeValue(value);
         assertEquals(expectedSize, out.size());

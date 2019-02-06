@@ -13,9 +13,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.TestUtils;
-import org.elasticsearch.xpack.sql.action.CliFormatter;
+import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
+import org.elasticsearch.xpack.sql.plugin.TextFormatterCursor;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Cursor;
@@ -23,11 +23,14 @@ import org.elasticsearch.xpack.sql.session.Cursors;
 import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
+import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
+import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -49,7 +52,7 @@ public class CursorTests extends ESTestCase {
         Client clientMock = mock(Client.class);
         ActionListener<Boolean> listenerMock = mock(ActionListener.class);
         String cursorString = randomAlphaOfLength(10);
-        Cursor cursor = new ScrollCursor(cursorString, Collections.emptyList(), randomInt());
+        Cursor cursor = new ScrollCursor(cursorString, Collections.emptyList(), new BitSet(0), randomInt());
 
         cursor.clear(TestUtils.TEST_CFG, clientMock, listenerMock);
 
@@ -79,12 +82,20 @@ public class CursorTests extends ESTestCase {
                 () -> {
                     SqlQueryResponse response = createRandomSqlResponse();
                     if (response.columns() != null && response.rows() != null) {
-                        return CliFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(),
-                            new CliFormatter(response.columns(), response.rows()));
+                        return TextFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(),
+                            new BasicFormatter(response.columns(), response.rows(), CLI));
                     } else {
                         return ScrollCursorTests.randomScrollCursor();
                     }
-
+                },
+                () -> {
+                    SqlQueryResponse response = createRandomSqlResponse();
+                    if (response.columns() != null && response.rows() != null) {
+                        return TextFormatterCursor.wrap(ScrollCursorTests.randomScrollCursor(),
+                            new BasicFormatter(response.columns(), response.rows(), TEXT));
+                    } else {
+                        return ScrollCursorTests.randomScrollCursor();
+                    }
                 }
         );
         return cursorSupplier.get();

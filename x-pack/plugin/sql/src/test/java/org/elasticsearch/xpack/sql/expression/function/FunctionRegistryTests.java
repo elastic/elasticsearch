@@ -239,6 +239,7 @@ public class FunctionRegistryTests extends ESTestCase {
                 null,
                 randomFrom(Mode.values()),
                 randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
                 randomAlphaOfLength(10));
     }
     
@@ -249,6 +250,7 @@ public class FunctionRegistryTests extends ESTestCase {
                 new TimeValue(randomNonNegativeLong()),
                 null,
                 randomFrom(Mode.values()),
+                randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10));
     }

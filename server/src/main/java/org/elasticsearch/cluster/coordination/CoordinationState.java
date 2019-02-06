@@ -422,7 +422,7 @@ public class CoordinationState {
         logger.trace("handleCommit: applying commit request for term [{}] and version [{}]", applyCommit.getTerm(),
             applyCommit.getVersion());
 
-        persistedState.markLastAcceptedConfigAsCommitted();
+        persistedState.markLastAcceptedStateAsCommitted();
         assert getLastCommittedConfiguration().equals(getLastAcceptedConfiguration());
     }
 
@@ -471,16 +471,32 @@ public class CoordinationState {
         /**
          * Marks the last accepted cluster state as committed.
          * After a successful call to this method, {@link #getLastAcceptedState()} should return the last cluster state that was set,
-         * with the last committed configuration now corresponding to the last accepted configuration.
+         * with the last committed configuration now corresponding to the last accepted configuration, and the cluster uuid, if set,
+         * marked as committed.
          */
-        default void markLastAcceptedConfigAsCommitted() {
+        default void markLastAcceptedStateAsCommitted() {
             final ClusterState lastAcceptedState = getLastAcceptedState();
+            MetaData.Builder metaDataBuilder = null;
             if (lastAcceptedState.getLastAcceptedConfiguration().equals(lastAcceptedState.getLastCommittedConfiguration()) == false) {
                 final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder(lastAcceptedState.coordinationMetaData())
                         .lastCommittedConfiguration(lastAcceptedState.getLastAcceptedConfiguration())
                         .build();
-                final MetaData metaData = MetaData.builder(lastAcceptedState.metaData()).coordinationMetaData(coordinationMetaData).build();
-                setLastAcceptedState(ClusterState.builder(lastAcceptedState).metaData(metaData).build());
+                metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
+                metaDataBuilder.coordinationMetaData(coordinationMetaData);
+            }
+            // if we receive a commit from a Zen1 master that has not recovered its state yet, the cluster uuid might not been known yet.
+            assert lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false ||
+                lastAcceptedState.term() == ZEN1_BWC_TERM :
+                "received cluster state with empty cluster uuid but not Zen1 BWC term: " + lastAcceptedState;
+            if (lastAcceptedState.metaData().clusterUUID().equals(MetaData.UNKNOWN_CLUSTER_UUID) == false &&
+                lastAcceptedState.metaData().clusterUUIDCommitted() == false) {
+                if (metaDataBuilder == null) {
+                    metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
+                }
+                metaDataBuilder.clusterUUIDCommitted(true);
+            }
+            if (metaDataBuilder != null) {
+                setLastAcceptedState(ClusterState.builder(lastAcceptedState).metaData(metaDataBuilder).build());
             }
         }
     }

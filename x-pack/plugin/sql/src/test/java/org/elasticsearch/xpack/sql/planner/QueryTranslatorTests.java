@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
@@ -180,7 +182,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(query instanceof RangeQuery);
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
-        assertEquals(DateUtils.of("1969-05-13T12:34:56Z"), rq.lower());
+        assertEquals(DateUtils.asDateTime("1969-05-13T12:34:56Z"), rq.lower());
     }
     
     public void testLikeConstructsNotSupported() {
@@ -307,6 +309,20 @@ public class QueryTranslatorTests extends ESTestCase {
             tq.asBuilder().toString().replaceAll("\\s", ""));
     }
 
+    public void testTranslateInExpression_WhereClause_TextFieldWithKeyword() {
+        LogicalPlan p = plan("SELECT * FROM test WHERE some.string IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'))");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof TermsQuery);
+        TermsQuery tq = (TermsQuery) query;
+        assertEquals("{\"terms\":{\"some.string.typical\":[\"foo\",\"bar\",\"lala\"],\"boost\":1.0}}",
+            tq.asBuilder().toString().replaceAll("\\s", ""));
+    }
+
     public void testTranslateInExpression_WhereClauseAndNullHandling() {
         LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', null, 'lala', null, 'foo', concat('la', 'la'))");
         assertTrue(p instanceof Project);
@@ -319,19 +335,6 @@ public class QueryTranslatorTests extends ESTestCase {
         TermsQuery tq = (TermsQuery) query;
         assertEquals("{\"terms\":{\"keyword\":[\"foo\",\"lala\"],\"boost\":1.0}}",
             tq.asBuilder().toString().replaceAll("\\s", ""));
-    }
-
-    public void testTranslateInExpressionInvalidValues_WhereClause() {
-        LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', 'bar', keyword)");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
-        assertEquals(
-                "Line 1:52: Comparisons against variables are not (currently) supported; "
-                        + "offender [keyword] in [keyword IN ('foo', 'bar', keyword)]",
-                ex.getMessage());
     }
 
     public void testTranslateInExpression_WhereClause_Painless() {
@@ -482,6 +485,52 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(FieldAttribute.class, field.getClass());
         assertEquals(DataType.DATETIME, field.dataType());
     }
+
+    public void testGroupByHistogramWithDate() {
+        LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(CAST(date AS DATE), INTERVAL 2 MONTHS)");
+        assertTrue(p instanceof Aggregate);
+        Aggregate a = (Aggregate) p;
+        List<Expression> groupings = a.groupings();
+        assertEquals(1, groupings.size());
+        Expression exp = groupings.get(0);
+        assertEquals(Histogram.class, exp.getClass());
+        Histogram h = (Histogram) exp;
+        assertEquals("+0-2", h.interval().fold().toString());
+        Expression field = h.field();
+        assertEquals(Cast.class, field.getClass());
+        assertEquals(DataType.DATE, field.dataType());
+    }
+
+    public void testGroupByHistogramWithDateAndSmallInterval() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
+            "HISTOGRAM(CAST(date AS DATE), INTERVAL 5 MINUTES)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertEquals(1, eqe.queryContainer().aggs().groups().size());
+        assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
+        assertEquals(86400000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+    }
+
+    public void testGroupByHistogramWithDateTruncateIntervalToDayMultiples() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
+                "HISTOGRAM(CAST(date AS DATE), INTERVAL '2 3:04' DAY TO MINUTE)");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.queryContainer().aggs().groups().size());
+            assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
+            assertEquals(172800000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test GROUP BY " +
+                "HISTOGRAM(CAST(date AS DATE), INTERVAL 4409 MINUTES)");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.queryContainer().aggs().groups().size());
+            assertEquals(GroupByDateHistogram.class, eqe.queryContainer().aggs().groups().get(0).getClass());
+            assertEquals(259200000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
+        }
+    }
     
     public void testCountAndCountDistinctFolding() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT keyword) dkey, COUNT(keyword) key FROM test");
@@ -568,5 +617,62 @@ public class QueryTranslatorTests extends ESTestCase {
                         +   "InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a5,params.v5))))\","
                         + "\"lang\":\"painless\",\"params\":{\"v0\":3,\"v1\":32,\"v2\":1,\"v3\":2,\"v4\":5,\"v5\":50000}},"
                         + "\"gap_policy\":\"skip\"}}}}}"));
+    }
+
+    public void testTopHitsAggregationWithOneArg() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT FIRST(keyword) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("FIRST(keyword)", eqe.output().get(0).qualifiedName());
+            assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                        "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
+                        "\"sort\":[{\"keyword\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT LAST(date) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("LAST(date)", eqe.output().get(0).qualifiedName());
+            assertTrue(eqe.output().get(0).dataType() == DataType.DATETIME);
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
+                    "\"sort\":[{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
+        }
+    }
+
+    public void testTopHitsAggregationWithTwoArgs() {
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT FIRST(keyword, int) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("FIRST(keyword, int)", eqe.output().get(0).qualifiedName());
+            assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
+                    "\"sort\":[{\"int\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
+                    "{\"keyword\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT LAST(date, int) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("LAST(date, int)", eqe.output().get(0).qualifiedName());
+            assertTrue(eqe.output().get(0).dataType() == DataType.DATETIME);
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
+                    "\"sort\":[{\"int\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
+                    "{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
+        }
     }
 }

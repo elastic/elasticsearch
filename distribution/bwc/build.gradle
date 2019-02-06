@@ -120,89 +120,129 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
         }
     }
 
-    List<File> artifactFiles = []
+    Map<String, File> artifactFiles = [:]
     List<String> projectDirs = []
-    for (String project : ['zip', 'deb', 'rpm']) {
-        String baseDir = "distribution"
-        if (bwcVersion.onOrAfter('6.3.0')) {
-            baseDir += project == 'zip' ? '/archives' : '/packages'
-            // add oss variant first
-            projectDirs.add("${baseDir}/oss-${project}")
-            artifactFiles.add(file("${checkoutDir}/${baseDir}/oss-${project}/build/distributions/elasticsearch-oss-${bwcVersion}-SNAPSHOT.${project}"))
-        }
-        projectDirs.add("${baseDir}/${project}")
-        artifactFiles.add(file("${checkoutDir}/${baseDir}/${project}/build/distributions/elasticsearch-${bwcVersion}-SNAPSHOT.${project}"))
+    List<String> projects = ['deb', 'rpm']
+    if (bwcVersion.onOrAfter('7.0.0')) {
+      projects.addAll(['windows-zip', 'darwin-tar', 'linux-tar'])
+    } else {
+      projects.add('zip')
     }
 
-    task buildBwcVersion(type: Exec) {
-        dependsOn checkoutBwcBranch, writeBuildMetadata
-        workingDir = checkoutDir
-        doFirst {
-            // Execution time so that the checkouts are available
-            List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
-            environment(
-                    'JAVA_HOME',
-                    getJavaHome(it, Integer.parseInt(
-                            lines
-                                    .findAll({ it.startsWith("ES_BUILD_JAVA=java") })
-                                    .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
-                                    .join("!!")
-                    ))
-            )
-            environment(
-                    'RUNTIME_JAVA_HOME',
-                    getJavaHome(it, Integer.parseInt(
-                            lines
-                                    .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
-                                    .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })
-                                    .join("!!")
-                    ))
-            )
+    for (String projectName : projects) {
+        String baseDir = "distribution"
+        String classifier = ""
+        String extension = projectName
+        if (bwcVersion.onOrAfter('7.0.0') && (projectName.contains('zip') || projectName.contains('tar'))) {
+          int index = projectName.indexOf('-')
+          classifier = "-${projectName.substring(0, index)}-x86_64"
+          extension = projectName.substring(index + 1)
+          if (extension.equals('tar')) {
+            extension += '.gz'
+          }
         }
+        if (bwcVersion.onOrAfter('6.3.0')) {
+            baseDir += projectName.endsWith('zip') || projectName.endsWith('tar') ? '/archives' : '/packages'
+            // add oss variant first
+            projectDirs.add("${baseDir}/oss-${projectName}")
+            artifactFiles.put("oss-" + projectName, file("${checkoutDir}/${baseDir}/oss-${projectName}/build/distributions/elasticsearch-oss-${bwcVersion}-SNAPSHOT${classifier}.${extension}"))
+        }
+        projectDirs.add("${baseDir}/${projectName}")
+        artifactFiles.put(projectName,
+                file("${checkoutDir}/${baseDir}/${projectName}/build/distributions/elasticsearch-${bwcVersion}-SNAPSHOT${classifier}.${extension}"))
+    }
+    
+    Closure createRunBwcGradleTask = { name, extraConfig ->
+        task "$name"(type: Exec) {
+            dependsOn checkoutBwcBranch, writeBuildMetadata
+            workingDir = checkoutDir
+            doFirst {
+                // Execution time so that the checkouts are available
+                List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
+                environment(
+                        'JAVA_HOME',
+                        getJavaHome(it, Integer.parseInt(
+                                lines
+                                        .findAll({ it.startsWith("ES_BUILD_JAVA=java") })
+                                        .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
+                                        .join("!!")
+                        ))
+                )
+                environment(
+                        'RUNTIME_JAVA_HOME',
+                        getJavaHome(it, Integer.parseInt(
+                                lines
+                                        .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
+                                        .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })
+                                        .join("!!")
+                        ))
+                )
+            }
 
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            executable 'cmd'
-            args '/C', 'call', new File(checkoutDir, 'gradlew').toString()
-        } else {
-            executable new File(checkoutDir, 'gradlew').toString()
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                executable 'cmd'
+                args '/C', 'call', new File(checkoutDir, 'gradlew').toString()
+            } else {
+                executable new File(checkoutDir, 'gradlew').toString()
+            }
+            if (gradle.startParameter.isOffline()) {
+                args "--offline"
+            }
+
+            args "-Dbuild.snapshot=true"
+            final LogLevel logLevel = gradle.startParameter.logLevel
+            if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
+                args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
+            }
+            final String showStacktraceName = gradle.startParameter.showStacktrace.name()
+            assert ["INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL"].contains(showStacktraceName)
+            if (showStacktraceName.equals("ALWAYS")) {
+                args "--stacktrace"
+            } else if (showStacktraceName.equals("ALWAYS_FULL")) {
+                args "--full-stacktrace"
+            }
+            standardOutput = new IndentingOutputStream(System.out, bwcVersion)
+            errorOutput = new IndentingOutputStream(System.err, bwcVersion)
+            configure extraConfig
         }
-        if (gradle.startParameter.isOffline()) {
-            args "--offline"
-        }
+    }
+
+    createRunBwcGradleTask("buildBwcVersion") {
         for (String dir : projectDirs) {
             args ":${dir.replace('/', ':')}:assemble"
         }
-        args "-Dbuild.snapshot=true"
-        final LogLevel logLevel = gradle.startParameter.logLevel
-        if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
-            args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
-        }
-        final String showStacktraceName = gradle.startParameter.showStacktrace.name()
-        assert ["INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL"].contains(showStacktraceName)
-        if (showStacktraceName.equals("ALWAYS")) {
-            args "--stacktrace"
-        } else if (showStacktraceName.equals("ALWAYS_FULL")) {
-            args "--full-stacktrace"
-        }
-        standardOutput = new IndentingOutputStream(System.out, bwcVersion)
-        errorOutput = new IndentingOutputStream(System.err, bwcVersion)
         doLast {
-            List missing = artifactFiles.grep { file ->
+            List missing = artifactFiles.values().grep { file ->
                 false == file.exists()
             }
             if (false == missing.empty) {
-                throw new InvalidUserDataException(
-                        "Building ${bwcVersion} didn't generate expected files ${missing}")
+                throw new InvalidUserDataException("Building ${bwcVersion} didn't generate expected files ${missing}")
             }
         }
     }
 
-    artifacts {
-      for (File artifactFile : artifactFiles) {
-        String artifactName = artifactFile.name.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
+    createRunBwcGradleTask("resolveAllBwcDependencies") {
+        args 'resolveAllDependencies'
+    }
+
+    resolveAllDependencies.dependsOn resolveAllBwcDependencies
+
+    for (e in artifactFiles) {
+        String projectName = e.key
+        File artifactFile = e.value
+        String artifactFileName = artifactFile.name
+        String artifactName = artifactFileName.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
         String suffix = artifactFile.toString()[-3..-1]
-        'default' file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion
-      }
+        int archIndex = artifactFileName.indexOf('x86_64')
+        String classifier = ''
+        if (archIndex != -1) {
+            int osIndex = artifactFileName.lastIndexOf('-', archIndex - 2)
+            classifier = "${artifactFileName.substring(osIndex + 1, archIndex - 1)}-x86_64"
+        }
+        configurations.create(projectName)
+        artifacts {
+            it.add(projectName, [file: artifactFile, name: artifactName, classifier: classifier, type: suffix, builtBy: buildBwcVersion])
+        }
     }
     // make sure no dependencies were added to assemble; we want it to be a no-op
     assemble.dependsOn = []

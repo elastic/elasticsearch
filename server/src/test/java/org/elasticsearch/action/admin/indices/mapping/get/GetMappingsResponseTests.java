@@ -20,12 +20,13 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -37,8 +38,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase<GetMappingsResponse> {
 
@@ -86,12 +85,6 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
         return mutate(instance);
     }
 
-    public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex() {
-        // rarely have no types
-        int typeCount = rarely() ? 0 : scaledRandomIntBetween(1, 3);
-        return createMappingsForIndex(typeCount, true);
-    }
-
     public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex(int typeCount, boolean randomTypeName) {
         List<MappingMetaData> typeMappings = new ArrayList<>(typeCount);
 
@@ -120,22 +113,23 @@ public class GetMappingsResponseTests extends AbstractStreamableXContentTestCase
         return typeBuilder.build();
     }
 
+    /**
+     * For xContent roundtrip testing we force the xContent output to still contain types because the parser
+     * still expects them. The new typeless parsing is implemented in the client side GetMappingsResponse.
+     */
+    @Override
+    protected Params getToXContentParams() {
+        return new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "true"));
+    }
+
     @Override
     protected GetMappingsResponse createTestInstance() {
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexBuilder = ImmutableOpenMap.builder();
-        indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex());
+        int typeCount = rarely() ? 0 : 1;
+        indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex(typeCount, randomBoolean()));
         GetMappingsResponse resp = new GetMappingsResponse(indexBuilder.build());
         logger.debug("--> created: {}", resp);
         return resp;
-    }
-
-    /**
-     * For now, we only unit test the legacy typed responses. This will soon no longer be the
-     * case, as we introduce support for typeless xContent parsing in {@link GetMappingsResponse}.
-     */
-    @Override
-    protected ToXContent.Params getToXContentParams() {
-        return new ToXContent.MapParams(Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true"));
     }
 
     // Not meant to be exhaustive

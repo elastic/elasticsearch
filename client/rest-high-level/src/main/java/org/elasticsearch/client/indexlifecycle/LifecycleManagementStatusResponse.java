@@ -34,7 +34,7 @@ public class LifecycleManagementStatusResponse {
     private static final String OPERATION_MODE = "operation_mode";
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<LifecycleManagementStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
-        OPERATION_MODE, a -> new LifecycleManagementStatusResponse((String) a[0]));
+        OPERATION_MODE, true, a -> new LifecycleManagementStatusResponse((String) a[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(OPERATION_MODE));

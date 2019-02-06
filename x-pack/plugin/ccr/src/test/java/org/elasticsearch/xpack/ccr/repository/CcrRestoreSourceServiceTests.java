@@ -8,28 +8,42 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Set;
+
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
 public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
     private CcrRestoreSourceService restoreSourceService;
+    private DeterministicTaskQueue taskQueue;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        restoreSourceService = new CcrRestoreSourceService();
+        Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
+        taskQueue = new DeterministicTaskQueue(settings, random());
+        Set<Setting<?>> registeredSettings = Sets.newHashSet(CcrSettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
+            CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND, CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING,
+            CcrSettings.RECOVERY_CHUNK_SIZE);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, registeredSettings);
+        restoreSourceService = new CcrRestoreSourceService(taskQueue.getThreadPool(), new CcrSettings(Settings.EMPTY, clusterSettings));
     }
 
     public void testOpenSession() throws IOException {
@@ -39,22 +53,21 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         final String sessionUUID2 = UUIDs.randomBase64UUID();
         final String sessionUUID3 = UUIDs.randomBase64UUID();
 
-        assertNull(restoreSourceService.getSessionsForShard(indexShard1));
+        restoreSourceService.openSession(sessionUUID1, indexShard1);
+        restoreSourceService.openSession(sessionUUID2, indexShard1);
 
-        assertNotNull(restoreSourceService.openSession(sessionUUID1, indexShard1));
-        HashSet<String> sessionsForShard = restoreSourceService.getSessionsForShard(indexShard1);
-        assertEquals(1, sessionsForShard.size());
-        assertTrue(sessionsForShard.contains(sessionUUID1));
-        assertNotNull(restoreSourceService.openSession(sessionUUID2, indexShard1));
-        sessionsForShard = restoreSourceService.getSessionsForShard(indexShard1);
-        assertEquals(2, sessionsForShard.size());
-        assertTrue(sessionsForShard.contains(sessionUUID2));
+        try (CcrRestoreSourceService.SessionReader reader1 = restoreSourceService.getSessionReader(sessionUUID1);
+             CcrRestoreSourceService.SessionReader reader2 = restoreSourceService.getSessionReader(sessionUUID2)) {
+            // Would throw exception if missing
+        }
 
-        assertNull(restoreSourceService.getSessionsForShard(indexShard2));
-        assertNotNull(restoreSourceService.openSession(sessionUUID3, indexShard2));
-        sessionsForShard = restoreSourceService.getSessionsForShard(indexShard2);
-        assertEquals(1, sessionsForShard.size());
-        assertTrue(sessionsForShard.contains(sessionUUID3));
+        restoreSourceService.openSession(sessionUUID3, indexShard2);
+
+        try (CcrRestoreSourceService.SessionReader reader1 = restoreSourceService.getSessionReader(sessionUUID1);
+             CcrRestoreSourceService.SessionReader reader2 = restoreSourceService.getSessionReader(sessionUUID2);
+             CcrRestoreSourceService.SessionReader reader3 = restoreSourceService.getSessionReader(sessionUUID3)) {
+            // Would throw exception if missing
+        }
 
         restoreSourceService.closeSession(sessionUUID1);
         restoreSourceService.closeSession(sessionUUID2);
@@ -68,7 +81,6 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         closeShards(indexShard);
         String sessionUUID = UUIDs.randomBase64UUID();
         expectThrows(IllegalIndexShardStateException.class, () -> restoreSourceService.openSession(sessionUUID, indexShard));
-        assertNull(restoreSourceService.getOngoingRestore(sessionUUID));
     }
 
     public void testCloseSession() throws IOException {
@@ -82,25 +94,26 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         restoreSourceService.openSession(sessionUUID2, indexShard1);
         restoreSourceService.openSession(sessionUUID3, indexShard2);
 
-        assertEquals(2, restoreSourceService.getSessionsForShard(indexShard1).size());
-        assertEquals(1, restoreSourceService.getSessionsForShard(indexShard2).size());
-        assertNotNull(restoreSourceService.getOngoingRestore(sessionUUID1));
-        assertNotNull(restoreSourceService.getOngoingRestore(sessionUUID2));
-        assertNotNull(restoreSourceService.getOngoingRestore(sessionUUID3));
+        try (CcrRestoreSourceService.SessionReader reader1 = restoreSourceService.getSessionReader(sessionUUID1);
+             CcrRestoreSourceService.SessionReader reader2 = restoreSourceService.getSessionReader(sessionUUID2);
+             CcrRestoreSourceService.SessionReader reader3 = restoreSourceService.getSessionReader(sessionUUID3)) {
+            // Would throw exception if missing
+        }
+
+        assertTrue(taskQueue.hasDeferredTasks());
 
         restoreSourceService.closeSession(sessionUUID1);
-        assertEquals(1, restoreSourceService.getSessionsForShard(indexShard1).size());
-        assertNull(restoreSourceService.getOngoingRestore(sessionUUID1));
-        assertFalse(restoreSourceService.getSessionsForShard(indexShard1).contains(sessionUUID1));
-        assertTrue(restoreSourceService.getSessionsForShard(indexShard1).contains(sessionUUID2));
+        expectThrows(IllegalArgumentException.class, () -> restoreSourceService.getSessionReader(sessionUUID1));
 
         restoreSourceService.closeSession(sessionUUID2);
-        assertNull(restoreSourceService.getSessionsForShard(indexShard1));
-        assertNull(restoreSourceService.getOngoingRestore(sessionUUID2));
+        expectThrows(IllegalArgumentException.class, () -> restoreSourceService.getSessionReader(sessionUUID2));
 
         restoreSourceService.closeSession(sessionUUID3);
-        assertNull(restoreSourceService.getSessionsForShard(indexShard2));
-        assertNull(restoreSourceService.getOngoingRestore(sessionUUID3));
+        expectThrows(IllegalArgumentException.class, () -> restoreSourceService.getSessionReader(sessionUUID3));
+
+        taskQueue.runAllTasks();
+        // The tasks will not be rescheduled as the sessions are closed.
+        assertFalse(taskQueue.hasDeferredTasks());
 
         closeShards(indexShard1, indexShard2);
     }
@@ -116,14 +129,20 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         restoreSourceService.openSession(sessionUUID2, indexShard1);
         restoreSourceService.openSession(sessionUUID3, indexShard2);
 
-        assertEquals(2, restoreSourceService.getSessionsForShard(indexShard1).size());
-        assertEquals(1, restoreSourceService.getSessionsForShard(indexShard2).size());
+        try (CcrRestoreSourceService.SessionReader reader1 = restoreSourceService.getSessionReader(sessionUUID1);
+             CcrRestoreSourceService.SessionReader reader2 = restoreSourceService.getSessionReader(sessionUUID2);
+             CcrRestoreSourceService.SessionReader reader3 = restoreSourceService.getSessionReader(sessionUUID3)) {
+            // Would throw exception if missing
+        }
 
         restoreSourceService.afterIndexShardClosed(indexShard1.shardId(), indexShard1, Settings.EMPTY);
 
-        assertNull(restoreSourceService.getSessionsForShard(indexShard1));
-        assertNull(restoreSourceService.getOngoingRestore(sessionUUID1));
-        assertNull(restoreSourceService.getOngoingRestore(sessionUUID2));
+        expectThrows(IllegalArgumentException.class, () -> restoreSourceService.getSessionReader(sessionUUID1));
+        expectThrows(IllegalArgumentException.class, () -> restoreSourceService.getSessionReader(sessionUUID2));
+
+        try (CcrRestoreSourceService.SessionReader reader3 = restoreSourceService.getSessionReader(sessionUUID3)) {
+            // Would throw exception if missing
+        }
 
         restoreSourceService.closeSession(sessionUUID3);
         closeShards(indexShard1, indexShard2);
@@ -167,24 +186,59 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
             indexDoc(indexShard, "_doc", Integer.toString(i));
             flushShard(indexShard, true);
         }
-        final String sessionUUID1 = UUIDs.randomBase64UUID();
+        final String sessionUUID = UUIDs.randomBase64UUID();
 
-        restoreSourceService.openSession(sessionUUID1, indexShard);
+        restoreSourceService.openSession(sessionUUID, indexShard);
 
         ArrayList<StoreFileMetaData> files = new ArrayList<>();
         indexShard.snapshotStoreMetadata().forEach(files::add);
 
-        try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID1)) {
+        try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
             sessionReader.readFileBytes(files.get(0).name(), new BytesArray(new byte[10]));
         }
 
         // Request a second file to ensure that original file is not leaked
-        try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID1)) {
+        try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
             sessionReader.readFileBytes(files.get(1).name(), new BytesArray(new byte[10]));
         }
 
-        restoreSourceService.closeSession(sessionUUID1);
+        restoreSourceService.closeSession(sessionUUID);
         closeShards(indexShard);
         // Exception will be thrown if file is not closed.
+    }
+
+    public void testSessionCanTimeout() throws Exception {
+        IndexShard indexShard = newStartedShard(true);
+
+        final String sessionUUID = UUIDs.randomBase64UUID();
+
+        restoreSourceService.openSession(sessionUUID, indexShard);
+
+        // Session starts as not idle. First task will mark it as idle
+        assertTrue(taskQueue.hasDeferredTasks());
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        // Task is still scheduled
+        assertTrue(taskQueue.hasDeferredTasks());
+
+        // Accessing session marks it as not-idle
+        try (CcrRestoreSourceService.SessionReader reader = restoreSourceService.getSessionReader(sessionUUID)) {
+            // Check session exists
+        }
+
+        assertTrue(taskQueue.hasDeferredTasks());
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        // Task is still scheduled
+        assertTrue(taskQueue.hasDeferredTasks());
+
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+        // Task is cancelled when the session times out
+        assertFalse(taskQueue.hasDeferredTasks());
+
+        expectThrows(IllegalArgumentException.class, () -> restoreSourceService.getSessionReader(sessionUUID));
+
+        closeShards(indexShard);
     }
 }

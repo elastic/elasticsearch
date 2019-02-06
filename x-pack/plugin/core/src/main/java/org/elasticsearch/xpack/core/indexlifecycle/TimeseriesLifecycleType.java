@@ -6,14 +6,12 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,17 +32,16 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     public static final String TYPE = "timeseries";
     static final List<String> VALID_PHASES = Arrays.asList("hot", "warm", "cold", "delete");
-    static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, RolloverAction.NAME);
-    static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, ReadOnlyAction.NAME, AllocateAction.NAME,
-        ShrinkAction.NAME, ForceMergeAction.NAME);
-    static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, AllocateAction.NAME, FreezeAction.NAME);
+    static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME);
+    static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
+        AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
+    static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
+        FreezeAction.NAME);
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(DeleteAction.NAME);
     static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
     static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
     static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
-    private static final Phase EMPTY_WARM_PHASE = new Phase("warm", TimeValue.ZERO,
-        Collections.singletonMap("readonly", ReadOnlyAction.INSTANCE));
     private static Map<String, Set<String>> ALLOWED_ACTIONS = new HashMap<>();
 
     static {
@@ -71,6 +68,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
         for (String phaseName : VALID_PHASES) {
             Phase phase = phases.get(phaseName);
             if (phase != null) {
+                Map<String, LifecycleAction> actions = phase.getActions();
+                if (actions.containsKey(UnfollowAction.NAME) == false
+                    && (actions.containsKey(RolloverAction.NAME) || actions.containsKey(ShrinkAction.NAME))) {
+                    Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
+                    actionMap.put(UnfollowAction.NAME, new UnfollowAction());
+                    phase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
+                }
                 orderedPhases.add(phase);
             }
         }

@@ -46,6 +46,10 @@ task downloadMachineLearningSnapshot {
   }
 }
 
+task cleanCache(type: Delete) {
+  delete "${projectDir}/.cache"
+}
+
 artifacts {
   'default' file: snapshotZip, name: 'ml-cpp', type: 'zip', builtBy: downloadMachineLearningSnapshot
 }

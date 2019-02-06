@@ -63,6 +63,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -238,7 +239,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
             @Override
             public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp, long msu,
-                                                ActionListener<Long> listener) {
+                                                RetentionLeases retentionLeases, ActionListener<Long> listener) {
                 shippedOps.addAll(operations);
                 checkpointOnTarget.set(randomLongBetween(checkpointOnTarget.get(), Long.MAX_VALUE));
                 maybeExecuteAsync(() -> listener.onResponse(checkpointOnTarget.get()));
@@ -247,7 +248,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         RecoverySourceHandler handler = new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes, between(1, 10));
         PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
         handler.phase2(startingSeqNo, requiredStartingSeqNo, endingSeqNo, newTranslogSnapshot(operations, Collections.emptyList()),
-            randomNonNegativeLong(), randomNonNegativeLong(), future);
+            randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, future);
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
         assertThat(result.totalOperations, equalTo(expectedOps));
@@ -265,7 +266,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> failedFuture = new PlainActionFuture<>();
             expectThrows(IllegalStateException.class, () -> {
                 handler.phase2(startingSeqNo, requiredStartingSeqNo, endingSeqNo, newTranslogSnapshot(operations, opsToSkip),
-                    randomNonNegativeLong(), randomNonNegativeLong(), failedFuture);
+                    randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, failedFuture);
                 failedFuture.actionGet();
             });
         }
@@ -285,7 +286,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
             @Override
             public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp,
-                                                long msu, ActionListener<Long> listener) {
+                                                long msu, RetentionLeases retentionLeases, ActionListener<Long> listener) {
                 if (randomBoolean()) {
                     maybeExecuteAsync(() -> listener.onResponse(SequenceNumbers.NO_OPS_PERFORMED));
                 } else {
@@ -299,7 +300,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final long startingSeqNo = randomLongBetween(0, ops.size() - 1L);
         final long endingSeqNo = randomLongBetween(startingSeqNo, ops.size() - 1L);
         handler.phase2(startingSeqNo, startingSeqNo, endingSeqNo, newTranslogSnapshot(ops, Collections.emptyList()),
-            randomNonNegativeLong(), randomNonNegativeLong(), future);
+            randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, future);
         if (wasFailed.get()) {
             assertThat(expectThrows(RuntimeException.class, () -> future.actionGet()).getMessage(), equalTo("test - failed to index"));
         }
@@ -491,18 +492,18 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            TimeValue prepareTargetForTranslog(final boolean fileBasedRecovery, final int totalTranslogOps) throws IOException {
+            void prepareTargetForTranslog(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<TimeValue> listener) {
                 prepareTargetForTranslogCalled.set(true);
-                return super.prepareTargetForTranslog(fileBasedRecovery, totalTranslogOps);
+                super.prepareTargetForTranslog(fileBasedRecovery, totalTranslogOps, listener);
             }
 
             @Override
             void phase2(long startingSeqNo, long requiredSeqNoRangeStart, long endingSeqNo, Translog.Snapshot snapshot,
-                        long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes,
+                        long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes, RetentionLeases retentionLeases,
                         ActionListener<SendSnapshotResult> listener) throws IOException {
                 phase2Called.set(true);
                 super.phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot,
-                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes, listener);
+                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes, retentionLeases, listener);
             }
 
         };
@@ -700,7 +701,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
     class TestRecoveryTargetHandler implements RecoveryTargetHandler {
         @Override
-        public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) {
+        public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
         }
 
         @Override
@@ -716,8 +717,13 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp, long msu,
-                                            ActionListener<Long> listener) {
+        public void indexTranslogOperations(
+                final List<Translog.Operation> operations,
+                final int totalTranslogOps,
+                final long timestamp,
+                final long msu,
+                final RetentionLeases retentionLeases,
+                final ActionListener<Long> listener) {
         }
 
         @Override

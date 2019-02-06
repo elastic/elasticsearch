@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -104,7 +103,8 @@ public class XPackLicenseState {
                             "The following X-Pack security functionality will be disabled: authentication, authorization, " +
                                 "ip filtering, and auditing. Please restart your node after applying the license.",
                             "Field and document level access control will be disabled.",
-                            "Custom realms will be ignored."
+                            "Custom realms will be ignored.",
+                            "A custom authorization engine will be ignored."
                         };
                 }
                 break;
@@ -117,7 +117,8 @@ public class XPackLicenseState {
                     case PLATINUM:
                         return new String[] {
                             "Field and document level access control will be disabled.",
-                            "Custom realms will be ignored."
+                            "Custom realms will be ignored.",
+                            "A custom authorization engine will be ignored."
                         };
                 }
                 break;
@@ -132,7 +133,8 @@ public class XPackLicenseState {
                             "Authentication will be limited to the native realms.",
                             "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
-                            "Custom realms will be ignored."
+                            "Custom realms will be ignored.",
+                            "A custom authorization engine will be ignored."
                         };
                 }
         }
@@ -271,17 +273,11 @@ public class XPackLicenseState {
     private final boolean isSecurityExplicitlyEnabled;
 
     private Status status = new Status(OperationMode.TRIAL, true);
-    private boolean isSecurityEnabledByTrialVersion;
 
     public XPackLicenseState(Settings settings) {
         this.listeners = new CopyOnWriteArrayList<>();
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        // 6.0+ requires TLS for production licenses, so if TLS is enabled and security is enabled
-        // we can interpret this as an explicit enabling of security if the security enabled
-        // setting is not explicitly set
-        this.isSecurityExplicitlyEnabled = isSecurityEnabled &&
-            (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) || XPackSettings.TRANSPORT_SSL_ENABLED.get(settings));
-        this.isSecurityEnabledByTrialVersion = false;
+        this.isSecurityExplicitlyEnabled = isSecurityEnabled && settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey());
     }
 
     private XPackLicenseState(XPackLicenseState xPackLicenseState) {
@@ -289,7 +285,6 @@ public class XPackLicenseState {
         this.isSecurityEnabled = xPackLicenseState.isSecurityEnabled;
         this.isSecurityExplicitlyEnabled = xPackLicenseState.isSecurityExplicitlyEnabled;
         this.status = xPackLicenseState.status;
-        this.isSecurityEnabledByTrialVersion = xPackLicenseState.isSecurityEnabledByTrialVersion;
     }
 
     /**
@@ -304,16 +299,6 @@ public class XPackLicenseState {
     void update(OperationMode mode, boolean active, @Nullable Version mostRecentTrialVersion) {
         synchronized (this) {
             status = new Status(mode, active);
-            if (isSecurityEnabled == true && isSecurityExplicitlyEnabled == false && mode == OperationMode.TRIAL
-                && isSecurityEnabledByTrialVersion == false) {
-                // Before 6.3, Trial licenses would default having security enabled.
-                // If this license was generated before that version, then treat it as if security is explicitly enabled
-                if (mostRecentTrialVersion == null || mostRecentTrialVersion.before(Version.V_6_3_0)) {
-                    LogManager.getLogger(getClass()).info("Automatically enabling security for older trial license ({})",
-                        mostRecentTrialVersion == null ? "[pre 6.1.0]" : mostRecentTrialVersion.toString());
-                    isSecurityEnabledByTrialVersion = true;
-                }
-            }
         }
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
@@ -345,7 +330,7 @@ public class XPackLicenseState {
     public synchronized boolean isAuthAllowed() {
         OperationMode mode = status.mode;
         final boolean isSecurityCurrentlyEnabled =
-            isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabledByTrialVersion, isSecurityEnabled);
+            isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
         return isSecurityCurrentlyEnabled && (mode == OperationMode.STANDARD || mode == OperationMode.GOLD
             || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL);
     }
@@ -356,7 +341,7 @@ public class XPackLicenseState {
     public synchronized boolean isIpFilteringAllowed() {
         OperationMode mode = status.mode;
         final boolean isSecurityCurrentlyEnabled =
-            isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabledByTrialVersion, isSecurityEnabled);
+            isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
         return isSecurityCurrentlyEnabled && (mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL);
     }
 
@@ -366,7 +351,7 @@ public class XPackLicenseState {
     public synchronized boolean isAuditingAllowed() {
         OperationMode mode = status.mode;
         final boolean isSecurityCurrentlyEnabled =
-            isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabledByTrialVersion, isSecurityEnabled);
+            isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
         return isSecurityCurrentlyEnabled && (mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL);
     }
 
@@ -395,7 +380,7 @@ public class XPackLicenseState {
     public synchronized boolean isDocumentAndFieldLevelSecurityAllowed() {
         OperationMode mode = status.mode;
         final boolean isSecurityCurrentlyEnabled =
-            isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabledByTrialVersion, isSecurityEnabled);
+            isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
         return isSecurityCurrentlyEnabled && (mode == OperationMode.TRIAL || mode == OperationMode.PLATINUM);
     }
 
@@ -412,7 +397,7 @@ public class XPackLicenseState {
      */
     public synchronized AllowedRealmType allowedRealmType() {
         final boolean isSecurityCurrentlyEnabled =
-            isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabledByTrialVersion, isSecurityEnabled);
+            isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
         if (isSecurityCurrentlyEnabled) {
             switch (status.mode) {
                 case PLATINUM:
@@ -435,7 +420,7 @@ public class XPackLicenseState {
      */
     public synchronized boolean isCustomRoleProvidersAllowed() {
         final boolean isSecurityCurrentlyEnabled =
-            isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabledByTrialVersion, isSecurityEnabled);
+            isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
         return isSecurityCurrentlyEnabled && (status.mode == OperationMode.PLATINUM || status.mode == OperationMode.TRIAL)
                 && status.active;
     }
@@ -446,7 +431,18 @@ public class XPackLicenseState {
      */
     public synchronized boolean isAuthorizationRealmAllowed() {
         final boolean isSecurityCurrentlyEnabled =
-            isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabledByTrialVersion, isSecurityEnabled);
+            isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
+        return isSecurityCurrentlyEnabled && (status.mode == OperationMode.PLATINUM || status.mode == OperationMode.TRIAL)
+            && status.active;
+    }
+
+    /**
+     * @return whether a custom authorization engine is allowed based on the license {@link OperationMode}
+     * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
+     */
+    public synchronized boolean isAuthorizationEngineAllowed() {
+        final boolean isSecurityCurrentlyEnabled =
+            isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
         return isSecurityCurrentlyEnabled && (status.mode == OperationMode.PLATINUM || status.mode == OperationMode.TRIAL)
             && status.active;
     }
@@ -676,19 +672,17 @@ public class XPackLicenseState {
      * @return true if security has been disabled by a trial license which is the case of the
      *         default distribution post 6.3.0. The conditions necessary for this are:
      *         <ul>
-     *             <li>A trial license generated in 6.3.0+</li>
+     *             <li>A trial license</li>
      *             <li>xpack.security.enabled not specified as a setting</li>
      *         </ul>
      */
     public synchronized boolean isSecurityDisabledByTrialLicense() {
-        return status.mode == OperationMode.TRIAL && isSecurityEnabled
-            && isSecurityExplicitlyEnabled == false
-            && isSecurityEnabledByTrialVersion == false;
+        return status.mode == OperationMode.TRIAL && isSecurityEnabled && isSecurityExplicitlyEnabled == false;
     }
 
     private static boolean isSecurityEnabled(final OperationMode mode, final boolean isSecurityExplicitlyEnabled,
-                                             final boolean isSecurityEnabledByTrialVersion, final boolean isSecurityEnabled) {
-        return mode == OperationMode.TRIAL ? (isSecurityExplicitlyEnabled || isSecurityEnabledByTrialVersion) : isSecurityEnabled;
+                                             final boolean isSecurityEnabled) {
+        return mode == OperationMode.TRIAL ? isSecurityExplicitlyEnabled : isSecurityEnabled;
     }
 
     /**

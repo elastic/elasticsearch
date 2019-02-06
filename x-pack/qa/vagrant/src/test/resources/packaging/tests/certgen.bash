@@ -248,7 +248,7 @@ cat >> $ESCONFIG/elasticsearch.yml <<- EOF
 node.name: "node-master"
 node.master: true
 node.data: false
-discovery.zen.ping.unicast.hosts: ["127.0.0.1:9301"]
+discovery.seed_hosts: ["127.0.0.1:9301"]
 cluster.initial_master_nodes: ["node-master"]
 
 xpack.security.transport.ssl.key: $ESCONFIG/certs/node-master/node-master.key
@@ -335,7 +335,7 @@ cat >> $ESCONFIG/elasticsearch.yml <<- EOF
 node.name: "node-data"
 node.master: false
 node.data: true
-discovery.zen.ping.unicast.hosts: ["127.0.0.1:9300"]
+discovery.seed_hosts: ["127.0.0.1:9300"]
 
 xpack.security.transport.ssl.key: $ESCONFIG/certs/node-data/node-data.key
 xpack.security.transport.ssl.certificate: $ESCONFIG/certs/node-data/node-data.crt
@@ -416,4 +416,13 @@ DATA_SETTINGS
 
     echo "$testSearch" | grep '"_index":"books"'
     echo "$testSearch" | grep '"_id":"0"'
+}
+
+@test "[$GROUP] exit code on failure" {
+    run sudo -E -u $MASTER_USER "$MASTER_HOME/bin/elasticsearch-certgen" --not-a-valid-option
+    [ "$status" -ne 0 ] || {
+        echo "Expected elasticsearch-certgen tool exit code to be non-zero"
+        echo "$output"
+        false
+    }
 }

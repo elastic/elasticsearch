@@ -8,6 +8,7 @@ package org.elasticsearch.index.engine;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -45,6 +47,9 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 
 public class FrozenIndexTests extends ESSingleNodeTestCase {
 
@@ -323,5 +328,46 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest("idx").setFreeze(false)));
         assertEquals(IndexMetaData.State.OPEN,
             client().admin().cluster().prepareState().get().getState().metaData().index("idx").getState());
+    }
+
+    public void testFreezeIndexIncreasesIndexSettingsVersion() throws ExecutionException, InterruptedException {
+        final String index = "test";
+        createIndex(index, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        client().prepareIndex(index, "_doc").setSource("field", "value").execute().actionGet();
+
+        final long settingsVersion = client().admin().cluster().prepareState().get()
+            .getState().metaData().index(index).getSettingsVersion();
+
+        XPackClient xPackClient = new XPackClient(client());
+        assertAcked(xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest(index)));
+        assertIndexFrozen(index);
+        assertThat(client().admin().cluster().prepareState().get().getState().metaData().index(index).getSettingsVersion(),
+            equalTo(settingsVersion + 1));
+    }
+
+    public void testFreezeEmptyIndexWithTranslogOps() throws Exception {
+        final String indexName = "empty";
+        createIndex(indexName, Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.refresh_interval", TimeValue.MINUS_ONE)
+            .build());
+
+        final long nbNoOps = randomIntBetween(1, 10);
+        for (long i = 0; i < nbNoOps; i++) {
+            final DeleteResponse deleteResponse = client().prepareDelete(indexName, "_doc", Long.toString(i)).get();
+            assertThat(deleteResponse.status(), is(RestStatus.NOT_FOUND));
+        }
+
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        assertBusy(() -> {
+            final Index index = client().admin().cluster().prepareState().get().getState().metaData().index(indexName).getIndex();
+            final IndexService indexService = indicesService.indexService(index);
+            assertThat(indexService.hasShard(0), is(true));
+            assertThat(indexService.getShard(0).getGlobalCheckpoint(), greaterThanOrEqualTo(nbNoOps - 1L));
+        });
+
+        assertAcked(new XPackClient(client()).freeze(new TransportFreezeIndexAction.FreezeRequest(indexName)));
+        assertIndexFrozen(indexName);
     }
 }

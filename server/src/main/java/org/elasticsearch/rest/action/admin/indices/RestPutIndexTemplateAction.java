@@ -26,7 +26,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -35,13 +34,15 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(RestPutIndexTemplateAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+            " Specifying include_type_name in put index template requests is deprecated."+
+            " The parameter will be removed in the next major version.";
 
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);
@@ -56,7 +57,12 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            deprecationLogger.deprecatedAndMaybeLog("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
         if (request.hasParam("template")) {
             deprecationLogger.deprecated("Deprecated parameter[template] used, replaced by [index_patterns]");
             putRequest.patterns(Collections.singletonList(request.param("template")));
@@ -68,22 +74,11 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
 
-        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-        Map<String, Object> sourceAsMap = prepareRequestSource(request, includeTypeName);
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
+            request.getXContentType()).v2();
+        sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap, includeTypeName);
         putRequest.source(sourceAsMap);
 
         return channel -> client.admin().indices().putTemplate(putRequest, new RestToXContentListener<>(channel));
-    }
-
-    Map<String, Object> prepareRequestSource(RestRequest request, boolean includeTypeName) {
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
-            request.getXContentType()).v2();
-        if (includeTypeName == false && sourceAsMap.containsKey("mappings")) {
-            Map<String, Object> newSourceAsMap = new HashMap<>(sourceAsMap);
-            newSourceAsMap.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
-            return newSourceAsMap;
-        } else {
-            return sourceAsMap;
-        }
     }
 }

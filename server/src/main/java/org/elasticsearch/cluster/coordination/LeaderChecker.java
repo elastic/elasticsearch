@@ -71,7 +71,7 @@ public class LeaderChecker {
     // the timeout for each check sent to the leader
     public static final Setting<TimeValue> LEADER_CHECK_TIMEOUT_SETTING =
         Setting.timeSetting("cluster.fault_detection.leader_check.timeout",
-            TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     // the number of failed checks that must happen before the leader is considered to have failed.
     public static final Setting<Integer> LEADER_CHECK_RETRY_COUNT_SETTING =

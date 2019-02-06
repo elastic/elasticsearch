@@ -517,7 +517,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     protected void warnAboutSlowTaskIfNeeded(TimeValue executionTime, String source) {
         if (executionTime.getMillis() > slowTaskLoggingThreshold.getMillis()) {
-            logger.warn("cluster state applier task [{}] took [{}] above the warn threshold of {}", source, executionTime,
+            logger.warn("cluster state applier task [{}] took [{}] which is above the warn threshold of {}", source, executionTime,
                 slowTaskLoggingThreshold);
         }
     }

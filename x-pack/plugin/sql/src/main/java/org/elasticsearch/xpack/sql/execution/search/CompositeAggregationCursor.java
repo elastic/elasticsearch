@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,12 +50,14 @@ public class CompositeAggregationCursor implements Cursor {
     private final String[] indices;
     private final byte[] nextQuery;
     private final List<BucketExtractor> extractors;
+    private final BitSet mask;
     private final int limit;
 
-    CompositeAggregationCursor(byte[] next, List<BucketExtractor> exts, int remainingLimit, String... indices) {
+    CompositeAggregationCursor(byte[] next, List<BucketExtractor> exts, BitSet mask, int remainingLimit, String... indices) {
         this.indices = indices;
         this.nextQuery = next;
         this.extractors = exts;
+        this.mask = mask;
         this.limit = remainingLimit;
     }
 
@@ -64,6 +67,7 @@ public class CompositeAggregationCursor implements Cursor {
         limit = in.readVInt();
 
         extractors = in.readNamedWriteableList(BucketExtractor.class);
+        mask = BitSet.valueOf(in.readByteArray());
     }
 
     @Override
@@ -73,6 +77,7 @@ public class CompositeAggregationCursor implements Cursor {
         out.writeVInt(limit);
 
         out.writeNamedWriteableList(extractors);
+        out.writeByteArray(mask.toByteArray());
     }
 
     @Override
@@ -86,6 +91,10 @@ public class CompositeAggregationCursor implements Cursor {
 
     byte[] next() {
         return nextQuery;
+    }
+
+    BitSet mask() {
+        return mask;
     }
 
     List<BucketExtractor> extractors() {
@@ -125,7 +134,7 @@ public class CompositeAggregationCursor implements Cursor {
                     }
 
                     updateCompositeAfterKey(r, query);
-                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, r, limit, serializeQuery(query), indices);
+                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, mask, r, limit, serializeQuery(query), indices);
                     listener.onResponse(rowSet);
                 } catch (Exception ex) {
                     listener.onFailure(ex);

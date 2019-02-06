@@ -36,7 +36,7 @@ public abstract class Rows {
         }
 
         Schema schema = schema(attrs);
-        return new ListRowSetCursor(schema, values);
+        return new ListRowSet(schema, values);
     }
 
     public static SchemaRowSet singleton(List<Attribute> attrs, Object... values) {
@@ -49,10 +49,10 @@ public abstract class Rows {
     }
 
     public static SchemaRowSet empty(Schema schema) {
-        return new EmptyRowSetCursor(schema);
+        return new EmptyRowSet(schema);
     }
 
     public static SchemaRowSet empty(List<Attribute> attrs) {
-        return new EmptyRowSetCursor(schema(attrs));
+        return new EmptyRowSet(schema(attrs));
     }
 }

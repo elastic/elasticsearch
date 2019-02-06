@@ -36,7 +36,7 @@ public final class Expressions {
     private Expressions() {}
 
     public static NamedExpression wrapAsNamed(Expression exp) {
-        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.nodeName(), exp);
+        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.sourceText(), exp);
     }
 
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
@@ -191,7 +191,7 @@ public final class Expressions {
                 paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
                 acceptedTypesForErrorMsg(acceptedTypes),
                 Expressions.name(e),
-                e.dataType().esType));
+                e.dataType().typeName));
     }
 
     private static String acceptedTypesForErrorMsg(String... acceptedTypes) {

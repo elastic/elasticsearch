@@ -118,7 +118,7 @@ public class InternalSettingsPreparer {
      */
     private static void checkSettingsForTerminalDeprecation(final Settings.Builder output) throws SettingsException {
         // This method to be removed in 8.0.0, as it was deprecated in 6.0 and removed in 7.0
-        assert Version.CURRENT.major != 8: "Logic pertaining to config driven prompting should be removed";
+        // assert Version.CURRENT.major != 8: "Logic pertaining to config driven prompting should be removed";
         for (String setting : output.keys()) {
             switch (output.get(setting)) {
                 case SECRET_PROMPT_VALUE:

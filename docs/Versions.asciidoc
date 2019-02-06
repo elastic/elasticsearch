@@ -1,4 +1,4 @@
-:version:               8.0.0
+:version:               8.0.0-alpha1
 :major-version:         8.x
 :lucene_version:        8.0.0
 :lucene_version_path:   8_0_0

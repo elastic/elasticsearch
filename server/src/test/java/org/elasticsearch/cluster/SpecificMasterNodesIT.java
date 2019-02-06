@@ -84,7 +84,6 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligibleNodeName));
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/38331")
     public void testElectOnlyBetweenMasterNodes() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");

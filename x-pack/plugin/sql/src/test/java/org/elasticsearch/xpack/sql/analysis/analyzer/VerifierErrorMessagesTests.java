@@ -649,5 +649,16 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:52: HAVING filter is unsupported for function [MAX(keyword)]",
             error("SELECT MAX(keyword) FROM test GROUP BY text HAVING MAX(keyword) > 10"));
     }
-}
 
+    public void testProjectAliasInFilter() {
+        accept("SELECT int AS i FROM test WHERE i > 10");
+    }
+
+    public void testAggregateAliasInFilter() {
+        accept("SELECT int AS i FROM test WHERE i > 10 GROUP BY i HAVING MAX(i) > 10");
+    }
+
+    public void testProjectUnresolvedAliasInFilter() {
+        assertEquals("1:8: Unknown column [tni]", error("SELECT tni AS i FROM test WHERE i > 10 GROUP BY i"));
+    }
+}

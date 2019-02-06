@@ -8,7 +8,7 @@ Discovery and cluster formation are affected by the following settings:
     Provides a list of master-eligible nodes in the cluster. Each value has the
     format `host:port` or `host`, where `port` defaults to the setting
     `transport.profiles.default.port`. Note that IPv6 hosts must be bracketed.
-    The default value is `127.0.0.1, [::1]`. See <<unicast.hosts>>. This
+    The default value is `["127.0.0.1", "[::1]"]`. See <<unicast.hosts>>. This
     setting was previously known as `discovery.zen.ping.unicast.hosts`. Its old
     name is deprecated but continues to work in order to preserve backwards
     compatibility. Support for the old name will be removed in a future

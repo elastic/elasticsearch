@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.discovery;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -27,7 +27,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -49,9 +49,9 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.discovery.zen.FileBasedUnicastHostsProvider.UNICAST_HOSTS_FILE;
+import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
 
-public class FileBasedUnicastHostsProviderTests extends ESTestCase {
+public class FileBasedSeedHostsProviderTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private ExecutorService executorService;
@@ -60,7 +60,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool(FileBasedUnicastHostsProviderTests.class.getName());
+        threadPool = new TestThreadPool(FileBasedSeedHostsProviderTests.class.getName());
         executorService = Executors.newSingleThreadExecutor();
         createTransportSvc();
     }
@@ -115,16 +115,15 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
     }
 
     public void testUnicastHostsDoesNotExist() {
-        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(createTempDir().toAbsolutePath());
-        final List<TransportAddress> addresses = provider.buildDynamicHosts((hosts, limitPortCounts) ->
+        final FileBasedSeedHostsProvider provider = new FileBasedSeedHostsProvider(createTempDir().toAbsolutePath());
+        final List<TransportAddress> addresses = provider.getSeedAddresses((hosts, limitPortCounts) ->
             UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
                 TimeValue.timeValueSeconds(10)));
         assertEquals(0, addresses.size());
     }
 
     public void testInvalidHostEntries() throws Exception {
-        final List<String> hostEntries = Arrays.asList("192.168.0.1:9300:9300");
+        final List<String> hostEntries = Collections.singletonList("192.168.0.1:9300:9300");
         final List<TransportAddress> addresses = setupAndRunHostProvider(hostEntries);
         assertEquals(0, addresses.size());
     }
@@ -141,16 +140,13 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
     // and then runs the file-based unicast host provider to get the list of discovery nodes
     private List<TransportAddress> setupAndRunHostProvider(final List<String> hostEntries) throws IOException {
         final Path homeDir = createTempDir();
-        final Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
-            .build();
         final Path configPath = randomBoolean() ? homeDir.resolve("config") : createTempDir();
         Files.createDirectories(configPath);
         try (BufferedWriter writer = Files.newBufferedWriter(configPath.resolve(UNICAST_HOSTS_FILE))) {
             writer.write(String.join("\n", hostEntries));
         }
 
-        return new FileBasedUnicastHostsProvider(configPath).buildDynamicHosts((hosts, limitPortCounts) ->
+        return new FileBasedSeedHostsProvider(configPath).getSeedAddresses((hosts, limitPortCounts) ->
             UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
                 TimeValue.timeValueSeconds(10)));
     }

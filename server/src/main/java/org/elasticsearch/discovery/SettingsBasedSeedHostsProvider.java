@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,16 +33,16 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 
 /**
- * An implementation of {@link UnicastHostsProvider} that reads hosts/ports
+ * An implementation of {@link SeedHostsProvider} that reads hosts/ports
  * from the "discovery.seed_hosts" node setting. If the port is
- * left off an entry, a default port of 9300 is assumed.
+ * left off an entry, we default to the first port in the {@code transport.port} range.
  *
- * An example unicast hosts setting might look as follows:
+ * An example setting might look as follows:
  * [67.81.244.10, 67.81.244.11:9305, 67.81.244.15:9400]
  */
-public class SettingsBasedHostsProvider implements UnicastHostsProvider {
+public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
 
-    private static final Logger logger = LogManager.getLogger(SettingsBasedHostsProvider.class);
+    private static final Logger logger = LogManager.getLogger(SettingsBasedSeedHostsProvider.class);
 
     public static final Setting<List<String>> LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING =
         Setting.listSetting("discovery.zen.ping.unicast.hosts", emptyList(), Function.identity(), Property.NodeScope, Property.Deprecated);
@@ -57,7 +57,7 @@ public class SettingsBasedHostsProvider implements UnicastHostsProvider {
     private final List<String> configuredHosts;
     private final int limitPortCounts;
 
-    public SettingsBasedHostsProvider(Settings settings, TransportService transportService) {
+    public SettingsBasedSeedHostsProvider(Settings settings, TransportService transportService) {
         if (LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.exists(settings)) {
             if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)) {
                 throw new IllegalArgumentException("it is forbidden to set both ["
@@ -81,7 +81,7 @@ public class SettingsBasedHostsProvider implements UnicastHostsProvider {
     }
 
     @Override
-    public List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver) {
+    public List<TransportAddress> getSeedAddresses(HostsResolver hostsResolver) {
         return hostsResolver.resolveHosts(configuredHosts, limitPortCounts);
     }
 }

@@ -46,6 +46,7 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.DeadHostState.TimeSupplier;
 
 import javax.net.ssl.SSLHandshakeException;
@@ -122,6 +123,9 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         setNodes(nodes);
+        if (JavaVersion.current().compareTo(JavaVersion.parse("1.8.0")) < 0) {
+            logger.warn("use of the low-level REST client on JDK 7 is deprecated and will be removed in version 7.0.0 of the client");
+        }
     }
 
     /**

@@ -440,7 +440,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                             final long nanosPaused = ccrSettings.getRateLimiter().maybePause(actualChunkSize);
                                             throttleListener.accept(nanosPaused);
                                             final boolean lastChunk = r.getOffset() + actualChunkSize >= fileToRecover.length();
-                                            multiFileWriter.writeFileChunk(fileToRecover.metadata(), r.getOffset(), r.getChunk(), lastChunk);
+                                            multiFileWriter.writeFileChunk(fileToRecover.metadata(), r.getOffset(), r.getChunk(),
+                                                lastChunk);
                                             if (lastChunk) {
                                                 synchronized (mutex) {
                                                     final boolean removed = inFlightRequests.remove(fileToRecover);

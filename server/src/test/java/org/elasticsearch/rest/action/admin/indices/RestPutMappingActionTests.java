@@ -19,8 +19,11 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -40,10 +43,17 @@ public class RestPutMappingActionTests extends RestActionTestCase {
         new RestPutMappingAction(Settings.EMPTY, controller());
     }
 
-    public void testIncludeTypeName() {
+    public void testIncludeTypeName() throws Exception {
+        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+            .startObject("mappings")
+                .startObject("some_type").endObject()
+            .endObject()
+        .endObject();
+
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.PUT)
-            .withPath("/some_index/_mapping/")
+            .withPath("/some_index/_mapping")
+            .withContent(BytesReference.bytes(content), content.contentType())
             .build();
 
         dispatchRequest(deprecatedRequest);
@@ -55,20 +65,28 @@ public class RestPutMappingActionTests extends RestActionTestCase {
             .withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/_mapping")
             .withParams(params)
+            .withContent(BytesReference.bytes(content), content.contentType())
             .build();
         dispatchRequest(validRequest);
     }
 
-    public void testTypeInPath() {
+    public void testTypeInPath() throws Exception {
         // Test that specifying a type while include_type_name is false
         // results in an illegal argument exception.
         Map<String, String> params = new HashMap<>();
         params.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
 
+        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+            .startObject("mappings")
+                .startObject("some_type").endObject()
+            .endObject()
+        .endObject();
+
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/_mapping/some_type")
             .withParams(params)
+            .withContent(BytesReference.bytes(content), content.contentType())
             .build();
 
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);

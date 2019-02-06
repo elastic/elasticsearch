@@ -54,6 +54,7 @@ import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.isEmptyString;
@@ -317,7 +318,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
                 // Ensure that the exit code from the java command is passed back up through the shell script
                 result = sh.runIgnoreExitCode(bin.elasticsearchCertutil + " invalid-command");
-                assertThat(result.exitCode, is(64));
+                assertThat(result.exitCode, is(not(0)));
                 assertThat(result.stdout, containsString("Unknown command [invalid-command]"));
             };
             Platforms.onLinux(action);

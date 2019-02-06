@@ -86,7 +86,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         final RoleDescriptor roleOverAlias = new RoleDescriptor("roleOverAlias", new String[] { "manage_watcher" },
                 new RoleDescriptor.IndicesPrivileges[] {
                         indexPrivileges("write", "alias"),
-                        indexPrivileges("read", "alias") },
+                        indexPrivileges("manage_ilm", "alias") },
                 null);
         DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
                 mockClusterService(metaDataBuilder.build()), threadPool, deprecationLogger);
@@ -103,7 +103,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         addIndex(metaDataBuilder, "index3", "alias3", "alias");
         addIndex(metaDataBuilder, "index4", "alias4", "alias");
         addIndex(metaDataBuilder, "foo", "bar");
-        final RoleDescriptor roleOverAlias = new RoleDescriptor("roleMultiplePrivileges", new String[] { "manage_watcher" },
+        final RoleDescriptor roleMultiplePrivileges = new RoleDescriptor("roleMultiplePrivileges", new String[] { "manage_watcher" },
                 new RoleDescriptor.IndicesPrivileges[] {
                         indexPrivileges("write", "index2", "alias"),
                         indexPrivileges("read", "alias4"),
@@ -112,9 +112,90 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
                 null);
         DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
                 mockClusterService(metaDataBuilder.build()), threadPool, deprecationLogger);
-        deprecationConsumer.accept(Arrays.asList(roleOverAlias));
+        deprecationConsumer.accept(Arrays.asList(roleMultiplePrivileges));
         verifyLogger(deprecationLogger, "roleMultiplePrivileges", "alias", "index, index3, index4");
         verifyLogger(deprecationLogger, "roleMultiplePrivileges", "alias4", "index2, index4");
+        verifyNoMoreInteractions(deprecationLogger);
+    }
+
+    public void testPermissionsOverlapping() throws Exception {
+        final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
+        final MetaData.Builder metaDataBuilder = MetaData.builder();
+        addIndex(metaDataBuilder, "index1", "alias1", "bar");
+        addIndex(metaDataBuilder, "index2", "alias2", "baz");
+        addIndex(metaDataBuilder, "foo", "bar");
+        final RoleDescriptor roleOverAliasAndIndex = new RoleDescriptor("roleOverAliasAndIndex", new String[] { "read_ilm" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                        indexPrivileges("monitor", "index2", "alias1"),
+                        indexPrivileges("monitor", "index1", "alias2")},
+                null);
+        DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
+                mockClusterService(metaDataBuilder.build()), threadPool, deprecationLogger);
+        deprecationConsumer.accept(Arrays.asList(roleOverAliasAndIndex));
+        verifyNoMoreInteractions(deprecationLogger);
+    }
+
+    public void testOverlappingAcrossMultipleRoleDescriptors() throws Exception {
+        final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
+        final MetaData.Builder metaDataBuilder = MetaData.builder();
+        addIndex(metaDataBuilder, "index1", "alias1", "bar");
+        addIndex(metaDataBuilder, "index2", "alias2", "baz");
+        addIndex(metaDataBuilder, "foo", "bar");
+        final RoleDescriptor role1 = new RoleDescriptor("role1", new String[] { "monitor_watcher" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                        indexPrivileges("monitor", "index2", "alias1")},
+                null);
+        final RoleDescriptor role2 = new RoleDescriptor("role2", new String[] { "read_ccr" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                        indexPrivileges("monitor", "index1", "alias2")},
+                null);
+        final RoleDescriptor role3 = new RoleDescriptor("role3", new String[] { "monitor_ml" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                        indexPrivileges("index", "bar")},
+                null);
+        DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(
+                mockClusterService(metaDataBuilder.build()), threadPool, deprecationLogger);
+        deprecationConsumer.accept(Arrays.asList(role1, role2, role3));
+        verifyLogger(deprecationLogger, "role1", "alias1", "index1");
+        verifyLogger(deprecationLogger, "role2", "alias2", "index2");
+        verifyLogger(deprecationLogger, "role3", "bar", "foo, index1");
+        verifyNoMoreInteractions(deprecationLogger);
+    }
+
+    public void testDailyRoleCaching() throws Exception {
+        final DeprecationLogger deprecationLogger = mock(DeprecationLogger.class);
+        final MetaData.Builder metaDataBuilder = MetaData.builder();
+        addIndex(metaDataBuilder, "index1", "alias1", "far");
+        addIndex(metaDataBuilder, "index2", "alias2", "baz");
+        addIndex(metaDataBuilder, "foo", "bar");
+        final MetaData metaData = metaDataBuilder.build();
+        RoleDescriptor someRole = new RoleDescriptor("someRole", new String[] { "monitor_rollup" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                        indexPrivileges("monitor", "i*", "bar")},
+                null);
+        final DeprecationRoleDescriptorConsumer deprecationConsumer = new DeprecationRoleDescriptorConsumer(mockClusterService(metaData),
+                threadPool, deprecationLogger);
+        final String cacheKeyBefore = DeprecationRoleDescriptorConsumer.buildCacheKey(someRole.getName());
+        deprecationConsumer.accept(Arrays.asList(someRole));
+        verifyLogger(deprecationLogger, "someRole", "bar", "foo");
+        verifyNoMoreInteractions(deprecationLogger);
+        deprecationConsumer.accept(Arrays.asList(someRole));
+        final String cacheKeyAfter = DeprecationRoleDescriptorConsumer.buildCacheKey(someRole.getName());
+        // we don't do this test if it crosses days
+        if (false == cacheKeyBefore.equals(cacheKeyAfter)) {
+            return;
+        }
+        verifyNoMoreInteractions(deprecationLogger);
+        RoleDescriptor differentRoleSameName = new RoleDescriptor("someRole", new String[] { "manage_pipeline" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                        indexPrivileges("write", "i*", "baz")},
+                null);
+        deprecationConsumer.accept(Arrays.asList(differentRoleSameName));
+        final String cacheKeyAfterParty = DeprecationRoleDescriptorConsumer.buildCacheKey(differentRoleSameName.getName());
+        // we don't do this test if it crosses days
+        if (false == cacheKeyBefore.equals(cacheKeyAfterParty)) {
+            return;
+        }
         verifyNoMoreInteractions(deprecationLogger);
     }
 
@@ -125,8 +206,22 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         addIndex(metaDataBuilder, "index2", "alias", "alias2", "alias4");
         addIndex(metaDataBuilder, "index3", "alias", "alias3");
         addIndex(metaDataBuilder, "index4", "alias", "alias4");
-        addIndex(metaDataBuilder, "foo", "bar");
+        addIndex(metaDataBuilder, "foo", "bar", "baz");
         MetaData metaData = metaDataBuilder.build();
+        final RoleDescriptor roleGlobalWildcard = new RoleDescriptor("roleGlobalWildcard", new String[] { "manage_token" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                        indexPrivileges(randomFrom("write", "delete_index", "read_cross_cluster"), "*")},
+                null);
+        new DeprecationRoleDescriptorConsumer(mockClusterService(metaData), threadPool, deprecationLogger)
+        .accept(Arrays.asList(roleGlobalWildcard));
+        verifyNoMoreInteractions(deprecationLogger);
+        final RoleDescriptor roleGlobalWildcard2 = new RoleDescriptor("roleGlobalWildcard2", new String[] { "manage_index_templates" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                        indexPrivileges(randomFrom("write", "delete_index", "read_cross_cluster"), "i*", "a*")},
+                null);
+        new DeprecationRoleDescriptorConsumer(mockClusterService(metaData), threadPool, deprecationLogger)
+        .accept(Arrays.asList(roleGlobalWildcard2));
+        verifyNoMoreInteractions(deprecationLogger);
         final RoleDescriptor roleWildcardOnIndices = new RoleDescriptor("roleWildcardOnIndices", new String[] { "manage_watcher" },
                 new RoleDescriptor.IndicesPrivileges[] {
                         indexPrivileges("write", "index*", "alias", "alias3"),

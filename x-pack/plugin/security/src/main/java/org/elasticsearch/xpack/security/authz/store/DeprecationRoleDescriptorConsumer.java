@@ -37,15 +37,16 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
- * Inspects for aliases that have greater privileges than the indices that they point to and logs them as deprecated.
- * This is done in preparation for the removal of privileges over aliases.
+ * Inspects for aliases that have greater privileges than the indices that they point to and logs the role descriptor as deprecated.
+ * This is done in preparation for the removal of the ability to define privileges over aliases.
  * The log messages are generated asynchronously and do not generate deprecation response headers.
- * One log entry is generated for each role and alias pair, and it contains all the indices for which
+ * One log entry is generated for each role descriptor and alias pair, and it contains all the indices for which
  * privileges are a subset of those of the alias. In this case, the administrator has to adjust the index privileges
  * definition such that name patterns do not cover aliases.
  * If no logging is generated then the roles used for the current indices and aliases are not vulnerable to the
- * ensuing breaking change. However, there could be roles that are never used and are invisible to this check. Moreover,
- * roles can be dynamically added by role providers.
+ * ensuing breaking change. However, there could be role descriptors that are never used and are invisible to this check. Moreover,
+ * role descriptors can be dynamically added by role providers. In addition, role descriptors are merged when building the effective
+ * role, so a role name reported as deprecated might not actually have an impact (if other role descriptors cover its indices).
  * The check iterates over all indices and aliases for each role descriptor so it is quite expensive computationally.
  * For this reason the check is done only once a day for each role. If the role definitions stay the same, the deprecations
  * can change from one day to another only if aliases or indices are added.

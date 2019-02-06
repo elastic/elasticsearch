@@ -150,7 +150,7 @@ public class ExpressionTests extends ESTestCase {
         int randomHour = randomInt(23);
         int randomMinute = randomInt(59);
         int randomSecond = randomInt(59);
-        int randomMilli = randomInt(999999999);
+        int randomMilli = randomInt(999);
 
         String value = format(Locale.ROOT, "INTERVAL '%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
                 randomMilli);
@@ -163,7 +163,7 @@ public class ExpressionTests extends ESTestCase {
         int randomHour = randomInt(23);
         int randomMinute = randomInt(59);
         int randomSecond = randomInt(59);
-        int randomMilli = randomInt(999999999);
+        int randomMilli = randomInt(999);
 
         String value = format(Locale.ROOT, "INTERVAL -'%d %d:%d:%d.%d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
                 randomMilli);
@@ -336,6 +336,22 @@ public class ExpressionTests extends ESTestCase {
     public void testConvertWithInvalidESDataType() {
         ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, INVALID)"));
         assertEquals("line 1:13: Invalid data type [INVALID] provided", ex.getMessage());
+    }
+
+    public void testCurrentDate() {
+        Expression expr = parser.createExpression("CURRENT_DATE");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_DATE", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentDateWithParentheses() {
+        Expression expr = parser.createExpression("CURRENT_DATE(  )");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_DATE(  )", ur.sourceText());
+        assertEquals(0, ur.children().size());
     }
 
     public void testCurrentTimestamp() {

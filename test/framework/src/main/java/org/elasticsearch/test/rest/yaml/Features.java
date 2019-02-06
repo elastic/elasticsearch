@@ -46,7 +46,8 @@ public final class Features {
             "stash_path_replace",
             "warnings",
             "yaml",
-            "contains"
+            "contains",
+            "transform_and_set"
     ));
 
     private Features() {

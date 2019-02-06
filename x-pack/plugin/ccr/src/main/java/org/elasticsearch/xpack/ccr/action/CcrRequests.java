@@ -6,11 +6,15 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestValidator;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
@@ -18,6 +22,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public final class CcrRequests {
@@ -38,6 +43,39 @@ public final class CcrRequests {
         putMappingRequest.type(mappingMetaData.type());
         putMappingRequest.source(mappingMetaData.source().string(), XContentType.JSON);
         return putMappingRequest;
+    }
+
+    /**
+     * Gets an {@link IndexMetaData} of the given index. The mapping version and metadata version of the returned {@link IndexMetaData}
+     * must be at least the provided {@code mappingVersion} and {@code metadataVersion} respectively.
+     */
+    public static void getIndexMetadata(Client client, Index index, long mappingVersion, long metadataVersion,
+                                        Supplier<TimeValue> timeoutSupplier, ActionListener<IndexMetaData> listener) {
+        final ClusterStateRequest request = CcrRequests.metaDataRequest(index.getName());
+        if (metadataVersion > 0) {
+            request.waitForMetaDataVersion(metadataVersion).waitForTimeout(timeoutSupplier.get());
+        }
+        client.admin().cluster().state(request, ActionListener.wrap(
+            response -> {
+                if (response.getState() == null) {
+                    assert metadataVersion > 0 : metadataVersion;
+                    throw new IllegalStateException("timeout to get cluster state with" +
+                        " metadata version [" + metadataVersion + "], mapping version [" + mappingVersion + "]");
+                }
+                final MetaData metaData = response.getState().metaData();
+                final IndexMetaData indexMetaData = metaData.getIndexSafe(index);
+                if (indexMetaData.getMappingVersion() >= mappingVersion) {
+                    listener.onResponse(indexMetaData);
+                    return;
+                }
+                if (timeoutSupplier.get().nanos() < 0) {
+                    throw new IllegalStateException("timeout to get cluster state with mapping version [" + mappingVersion + "]");
+                }
+                // ask for the next version.
+                getIndexMetadata(client, index, mappingVersion, metaData.version() + 1, timeoutSupplier, listener);
+            },
+            listener::onFailure
+        ));
     }
 
     public static final MappingRequestValidator CCR_PUT_MAPPING_REQUEST_VALIDATOR = (request, state, indices) -> {

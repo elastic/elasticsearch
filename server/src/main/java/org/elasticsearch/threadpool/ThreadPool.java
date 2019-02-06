@@ -501,7 +501,16 @@ public class ThreadPool implements Scheduler, Closeable {
 
         @Override
         public void run() {
-            executor.execute(runnable);
+            try {
+                executor.execute(runnable);
+            } catch (EsRejectedExecutionException e) {
+                if (e.isExecutorShutdown()) {
+                    logger.debug(new ParameterizedMessage("could not schedule execution of [{}] on [{}] as executor is shut down",
+                        runnable, executor), e);
+                } else {
+                    throw e;
+                }
+            }
         }
 
         @Override

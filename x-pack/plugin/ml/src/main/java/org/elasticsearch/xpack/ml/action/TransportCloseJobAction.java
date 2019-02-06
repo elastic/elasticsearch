@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
@@ -16,6 +17,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -272,7 +274,12 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                    if (e instanceof ResourceNotFoundException && Strings.isAllOrWildcard(new String[]{request.getJobId()})) {
+                        jobTask.closeJob("close job (api)");
+                        listener.onResponse(new CloseJobAction.Response(true));
+                    } else {
+                        listener.onFailure(e);
+                    }
                 }
 
                 @Override
@@ -332,7 +339,10 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
                             @Override
                             public void onFailure(Exception e) {
                                 final int slot = counter.incrementAndGet();
-                                failures.set(slot - 1, e);
+                                if ((e instanceof ResourceNotFoundException &&
+                                    Strings.isAllOrWildcard(new String[]{request.getJobId()})) == false) {
+                                    failures.set(slot - 1, e);
+                                }
                                 if (slot == numberOfJobs) {
                                     sendResponseOrFailure(request.getJobId(), listener, failures);
                                 }

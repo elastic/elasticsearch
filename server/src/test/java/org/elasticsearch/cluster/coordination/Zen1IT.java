@@ -37,13 +37,13 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
@@ -71,12 +71,10 @@ import static org.hamcrest.Matchers.is;
 public class Zen1IT extends ESIntegTestCase {
 
     private static Settings ZEN1_SETTINGS = Coordinator.addZen1Attribute(true, Settings.builder()
-        .put(TestZenDiscovery.USE_ZEN2.getKey(), false)
-        .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)) // Zen2 does not know about mock pings
-        .build();
+        .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.ZEN_DISCOVERY_TYPE)).build();
 
     private static Settings ZEN2_SETTINGS = Settings.builder()
-        .put(TestZenDiscovery.USE_ZEN2.getKey(), true)
+        .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.ZEN2_DISCOVERY_TYPE)
         .build();
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {

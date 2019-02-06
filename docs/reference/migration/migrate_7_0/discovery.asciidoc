@@ -35,6 +35,14 @@ Production deployments of Elasticsearch now require at least one of the
 following settings to be specified in the `elasticsearch.yml` configuration
 file:
 
-- `discovery.zen.ping.unicast.hosts`
-- `discovery.zen.hosts_provider`
+- `discovery.seed_hosts`
+- `discovery.seed_providers`
 - `cluster.initial_master_nodes`
+
+[float]
+==== New name for `no_master_block` setting
+
+The `discovery.zen.no_master_block` setting is now known as
+`cluster.no_master_block`. Any value set for `discovery.zen.no_master_block` is
+now ignored. You should remove this setting and, if needed, set
+`cluster.no_master_block` appropriately after the upgrade.

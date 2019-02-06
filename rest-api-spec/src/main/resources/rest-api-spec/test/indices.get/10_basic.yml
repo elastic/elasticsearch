@@ -9,7 +9,9 @@ setup:
             test_alias: {}
             test_blias: {}
           mappings:
-            type_1: {}
+            properties:
+              foo:
+                type: keyword
           settings:
             number_of_shards:   1
             number_of_replicas: 1
@@ -51,41 +53,6 @@ setup:
   - is_true: test_index.aliases
   - is_true: test_index.settings
   - is_true: test_index.mappings
-
----
-"Test include_type_name":
-  - skip:
-      version: " - 6.6.99"
-      reason: the include_type_name parameter is not supported before 6.7
-
-  - do:
-      indices.get:
-        include_type_name: true
-        index: test_index
-
-  - is_true: test_index.mappings
-  - is_true: test_index.mappings.type_1
-
-  - do:
-      indices.get:
-        include_type_name: false
-        index: test_index
-
-  - is_true: test_index.mappings
-  - is_false: test_index.mappings.type_1
-
----
-"Test include_type_name dafaults to false":
-  - skip:
-      version: " - 6.99.99"
-      reason: the include_type_name parameter default is different on 6.x and 7.0, so only test this on 7.0 clusters
-
-  - do:
-      indices.get:
-        index: test_index
-
-  - is_true: test_index.mappings
-  - is_false: test_index.mappings.type_1
 
 ---
 "Get index infos should work for wildcards":
@@ -198,4 +165,3 @@ setup:
      catch: bad_request
      indices.get:
        index: _foo
-

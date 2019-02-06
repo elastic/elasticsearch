@@ -1,0 +1,47 @@
+---
+"Typeless mapping":
+  - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name defaults to true before 7.0.0
+
+  - do:
+      indices.create:
+        index: logs-1
+        body:
+          aliases:
+            logs_search: {}
+
+  # index first document and wait for refresh
+  - do:
+      index:
+        index: logs-1
+        type:  test
+        id:    "1"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # index second document and wait for refresh
+  - do:
+      index:
+        index: logs-1
+        type:  test
+        id:    "2"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # perform alias rollover with new typeless mapping
+  - do:
+      indices.rollover:
+        include_type_name: true
+        alias: "logs_search"
+        body:
+          conditions:
+            max_docs: 2
+          mappings:
+            _doc:
+              properties:
+                foo2:
+                  type: keyword
+
+  - match: { conditions: { "[max_docs: 2]": true } }
+  - match: { rolled_over: true }

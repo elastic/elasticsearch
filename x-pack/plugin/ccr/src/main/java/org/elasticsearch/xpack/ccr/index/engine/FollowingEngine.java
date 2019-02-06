@@ -72,6 +72,9 @@ public final class FollowingEngine extends InternalEngine {
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
         assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         if (hasBeenProcessedBefore(index)) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("index operation [id={} seq_no={} origin={}] was processed before", index.id(), index.seqNo(), index.origin());
+            }
             if (index.origin() == Operation.Origin.PRIMARY) {
                 /*
                  * The existing operation in this engine was probably assigned the term of the previous primary shard which is different

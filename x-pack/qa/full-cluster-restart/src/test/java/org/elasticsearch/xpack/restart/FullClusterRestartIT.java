@@ -24,9 +24,11 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.hamcrest.Matcher;
@@ -193,7 +195,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
                 logger.info("checking that upgrade procedure on the new cluster is no longer required");
                 Map<String, Object> responseAfter = entityAsMap(client().performRequest(
-                        new Request("GET", "/_migration/assistance")));
+                    new Request("GET", "/_migration/assistance")));
                 @SuppressWarnings("unchecked") Map<String, Object> indicesAfter = (Map<String, Object>) responseAfter.get("indices");
                 assertNull(indicesAfter.get(".watches"));
             } else {
@@ -207,7 +209,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 Map<String, Object> statsWatchResponse = entityAsMap(client().performRequest(new Request("GET", "_watcher/stats")));
                 @SuppressWarnings("unchecked")
                 List<Object> states = ((List<Object>) statsWatchResponse.get("stats"))
-                        .stream().map(o -> ((Map<String, Object>) o).get("watcher_state")).collect(Collectors.toList());
+                    .stream().map(o -> ((Map<String, Object>) o).get("watcher_state")).collect(Collectors.toList());
                 assertThat(states, everyItem(is("started")));
             });
 
@@ -223,10 +225,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 assertThat(stopWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
                 assertBusy(() -> {
                     Map<String, Object> statsStoppedWatchResponse = entityAsMap(client().performRequest(
-                            new Request("GET", "_watcher/stats")));
+                        new Request("GET", "_watcher/stats")));
                     @SuppressWarnings("unchecked")
                     List<Object> states = ((List<Object>) statsStoppedWatchResponse.get("stats"))
-                            .stream().map(o -> ((Map<String, Object>) o).get("watcher_state")).collect(Collectors.toList());
+                        .stream().map(o -> ((Map<String, Object>) o).get("watcher_state")).collect(Collectors.toList());
                     assertThat(states, everyItem(is("stopped")));
                 });
             }
@@ -456,7 +458,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     @SuppressWarnings("unchecked")
     private void assertWatchIndexContentsWork() throws Exception {
         // Fetch a basic watch
-        Map<String, Object> bwcWatch = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/bwc_watch")));
+        Request getRequest = new Request("GET", "_watcher/watch/bwc_watch");
+        getRequest.setOptions(expectWarnings(IndexAction.TYPES_DEPRECATION_MESSAGE,
+            WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE));
+        Map<String, Object> bwcWatch = entityAsMap(client().performRequest(getRequest));
 
         logger.error("-----> {}", bwcWatch);
 
@@ -467,11 +472,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(ObjectPath.eval("input.search.timeout_in_millis", source), equalTo(timeout));
         assertThat(ObjectPath.eval("actions.index_payload.transform.search.timeout_in_millis", source), equalTo(timeout));
         assertThat(ObjectPath.eval("actions.index_payload.index.index", source), equalTo("bwc_watch_index"));
-        assertThat(ObjectPath.eval("actions.index_payload.index.doc_type", source), equalTo("bwc_watch_type"));
         assertThat(ObjectPath.eval("actions.index_payload.index.timeout_in_millis", source), equalTo(timeout));
 
         // Fetch a watch with "fun" throttle periods
-        bwcWatch = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/bwc_throttle_period")));
+        getRequest = new Request("GET", "_watcher/watch/bwc_throttle_period");
+        getRequest.setOptions(expectWarnings(IndexAction.TYPES_DEPRECATION_MESSAGE,
+            WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE));
+        bwcWatch = entityAsMap(client().performRequest(getRequest));
         assertThat(bwcWatch.get("found"), equalTo(true));
         source = (Map<String, Object>) bwcWatch.get("watch");
         assertEquals(timeout, source.get("throttle_period_in_millis"));
@@ -652,9 +659,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
         Map<String, Object> getRollupJobResponse = entityAsMap(client().performRequest(getRollupJobRequest));
         Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
-        if (job != null) {
-            assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
-        }
+        assertNotNull(job);
+        assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
 
         // check that the rollup job is started using the Tasks API
         final Request taskRequest = new Request("GET", "_tasks");
@@ -705,9 +711,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertThat(getRollupJobResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
             Map<String, Object> job = getJob(getRollupJobResponse, rollupJob);
-            if (job != null) {
-                assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
-            }
+            assertNotNull(job);
+            assertThat(ObjectPath.eval("status.job_state", job), expectedStates);
         }, 30L, TimeUnit.SECONDS);
     }
 

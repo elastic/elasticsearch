@@ -411,6 +411,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case "float":
             case "double":
                 return DataType.DOUBLE;
+            case "date":
+                return DataType.DATE;
             case "datetime":
             case "timestamp":
                 return DataType.DATETIME;
@@ -463,7 +465,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitBuiltinDateTimeFunction(BuiltinDateTimeFunctionContext ctx) {
-        // maps current_XXX to their respective functions
+        // maps CURRENT_XXX to its respective function e.g: CURRENT_TIMESTAMP()
         // since the functions need access to the Configuration, the parser only registers the definition and not the actual function
         Source source = source(ctx);
         Literal p = null;
@@ -482,13 +484,15 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         
         String functionName = ctx.name.getText();
-        
+
         switch (ctx.name.getType()) {
+            case SqlBaseLexer.CURRENT_DATE:
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             case SqlBaseLexer.CURRENT_TIMESTAMP:
                 return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, p != null ? singletonList(p) : emptyList());
+            default:
+                throw new ParsingException(source, "Unknown function [{}]", functionName);
         }
-
-        throw new ParsingException(source, "Unknown function [{}]", functionName);
     }
 
     @Override
@@ -793,7 +797,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch(IllegalArgumentException ex) {
             throw new ParsingException(source, "Invalid date received; {}", ex.getMessage());
         }
-        return new Literal(source, DateUtils.of(dt), DataType.DATETIME);
+        return new Literal(source, DateUtils.asDateOnly(dt), DataType.DATE);
     }
 
     @Override
@@ -829,7 +833,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (IllegalArgumentException ex) {
             throw new ParsingException(source, "Invalid timestamp received; {}", ex.getMessage());
         }
-        return new Literal(source, DateUtils.of(dt), DataType.DATETIME);
+        return new Literal(source, DateUtils.asDateTime(dt), DataType.DATETIME);
     }
 
     @Override

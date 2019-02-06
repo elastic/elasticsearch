@@ -37,13 +37,17 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
+import org.elasticsearch.xpack.core.indexlifecycle.StopILMRequest;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.StopILMAction;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -362,6 +366,39 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
                 .prepareState().execute().actionGet().getState().getMetaData().index("test"));
             assertThat(lifecycleState.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
         });
+    }
+
+    public void testCreatePolicyWhenStopped() throws Exception {
+        // start master node
+        logger.info("Starting server1");
+        final String server_1 = internalCluster().startNode();
+        final String node1 = getLocalNodeId(server_1);
+
+        assertAcked(client().execute(StopILMAction.INSTANCE, new StopILMRequest()).get());
+        assertBusy(() -> assertThat(
+            client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get().getMode(),
+            equalTo(OperationMode.STOPPED)));
+
+        logger.info("Creating lifecycle [test_lifecycle]");
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        long lowerBoundModifiedDate = Instant.now().toEpochMilli();
+        PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
+        assertAcked(putLifecycleResponse);
+        long upperBoundModifiedDate = Instant.now().toEpochMilli();
+
+        // assert version and modified_date
+        GetLifecycleAction.Response getLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
+            new GetLifecycleAction.Request()).get();
+        assertThat(getLifecycleResponse.getPolicies().size(), equalTo(1));
+        GetLifecycleAction.LifecyclePolicyResponseItem responseItem = getLifecycleResponse.getPolicies().get(0);
+        assertThat(responseItem.getLifecyclePolicy(), equalTo(lifecyclePolicy));
+        assertThat(responseItem.getVersion(), equalTo(1L));
+        long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
+        assertThat(actualModifiedDate,
+            is(both(greaterThanOrEqualTo(lowerBoundModifiedDate)).and(lessThanOrEqualTo(upperBoundModifiedDate))));
+        // assert ILM is still stopped
+        GetStatusAction.Response statusResponse = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get();
+        assertThat(statusResponse.getMode(), equalTo(OperationMode.STOPPED));
     }
 
     public void testPollIntervalUpdate() throws Exception {

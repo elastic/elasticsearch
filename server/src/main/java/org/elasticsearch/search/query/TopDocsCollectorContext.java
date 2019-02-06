@@ -112,8 +112,11 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                         this.collector = hitCountCollector;
                         this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO);
                     } else {
-                        this.collector = new EarlyTerminatingCollector(hitCountCollector, trackTotalHitsUpTo, false);
-                        this.hitCountSupplier = () -> new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
+                        EarlyTerminatingCollector col =
+                            new EarlyTerminatingCollector(hitCountCollector, trackTotalHitsUpTo, false);
+                        this.collector = col;
+                        this.hitCountSupplier = () -> new TotalHits(hitCountCollector.getTotalHits(),
+                            col.hasEarlyTerminated() ? TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO : TotalHits.Relation.EQUAL_TO);
                     }
                 } else {
                     this.collector = new EarlyTerminatingCollector(hitCountCollector, 0, false);
@@ -157,7 +160,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
             this.topDocsCollector = collapseContext.createTopDocs(sort, numHits);
 
-            MaxScoreCollector maxScoreCollector = null;
+            MaxScoreCollector maxScoreCollector;
             if (trackMaxScore) {
                 maxScoreCollector = new MaxScoreCollector();
                 maxScoreSupplier = maxScoreCollector::getMaxScore;

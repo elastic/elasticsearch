@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -135,20 +134,8 @@ public class PutMappingRequestTests extends ESTestCase {
 
         String type = randomAlphaOfLength(5);
         request.type(type);
-        request.source(randomMapping());
+        request.source(RandomCreateIndexGenerator.randomMapping(type));
 
         return request;
-    }
-
-    private static XContentBuilder randomMapping() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-
-        if (randomBoolean()) {
-            RandomCreateIndexGenerator.randomMappingFields(builder, true);
-        }
-
-        builder.endObject();
-        return builder;
     }
 }

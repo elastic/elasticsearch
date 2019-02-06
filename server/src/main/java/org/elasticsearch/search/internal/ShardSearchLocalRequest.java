@@ -170,7 +170,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
-    public Boolean allowPartialSearchResults() {
+    public boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
     }
 
@@ -216,7 +216,9 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         nowInMillis = in.readVLong();
         requestCache = in.readOptionalBoolean();
         clusterAlias = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            allowPartialSearchResults = in.readBoolean();
+        } else if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             allowPartialSearchResults = in.readOptionalBoolean();
         }
         if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
@@ -244,7 +246,9 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         }
         out.writeOptionalBoolean(requestCache);
         out.writeOptionalString(clusterAlias);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(allowPartialSearchResults);
+        } else if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
         }
         if (asKey == false) {
@@ -295,5 +299,4 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             }
         }
     }
-
 }

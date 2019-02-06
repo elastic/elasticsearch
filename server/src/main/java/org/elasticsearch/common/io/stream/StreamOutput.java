@@ -56,6 +56,7 @@ import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
 import java.time.ZoneId;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
@@ -323,6 +324,18 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Writes an optional {@link Integer}.
+     */
+    public void writeOptionalInt(@Nullable Integer integer) throws IOException {
+        if (integer == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeInt(integer);
+        }
+    }
+
     public void writeOptionalVInt(@Nullable Integer integer) throws IOException {
         if (integer == null) {
             writeBoolean(false);
@@ -558,6 +571,26 @@ public abstract class StreamOutput extends OutputStream {
         for (final Map.Entry<K, V> entry : map.entrySet()) {
             keyWriter.write(this, entry.getKey());
             valueWriter.write(this, entry.getValue());
+        }
+    }
+
+    /**
+     * Writes an {@link Instant} to the stream with nanosecond resolution
+     */
+    public final void writeInstant(Instant instant) throws IOException {
+        writeLong(instant.getEpochSecond());
+        writeInt(instant.getNano());
+    }
+
+    /**
+     * Writes an {@link Instant} to the stream, which could possibly be null
+     */
+    public final void writeOptionalInstant(@Nullable Instant instant) throws IOException {
+        if (instant == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeInstant(instant);
         }
     }
 
@@ -1048,23 +1081,27 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a collection of generic objects via a {@link Writer}
+     * Writes a collection of objects via a {@link Writer}.
+     *
+     * @param collection the collection of objects
+     * @throws IOException if an I/O exception occurs writing the collection
      */
-    public <T> void writeCollection(Collection<T> collection, Writer<T> writer) throws IOException {
+    public <T> void writeCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
         writeVInt(collection.size());
-        for (T val: collection) {
+        for (final T val: collection) {
             writer.write(this, val);
         }
     }
 
     /**
-     * Writes a list of strings
+     * Writes a collection of a strings. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readList(Writeable.Reader)}.
+     *
+     * @param collection the collection of strings
+     * @throws IOException if an I/O exception occurs writing the collection
      */
-    public void writeStringList(List<String> list) throws IOException {
-        writeVInt(list.size());
-        for (String string: list) {
-            this.writeString(string);
-        }
+    public void writeStringCollection(final Collection<String> collection) throws IOException {
+        writeCollection(collection, StreamOutput::writeString);
     }
 
     /**
@@ -1078,7 +1115,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an enum with type E that by serialized it based on it's ordinal value
+     * Writes an enum with type E based on its ordinal value
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
         writeVInt(enumValue.ordinal());

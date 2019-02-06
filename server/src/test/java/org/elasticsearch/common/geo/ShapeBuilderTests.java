@@ -52,7 +52,7 @@ public class ShapeBuilderTests extends ESTestCase {
         Point point = pb.buildS4J();
         assertEquals(-100D, point.getX(), 0.0d);
         assertEquals(45D, point.getY(), 0.0d);
-        GeoPoint geoPoint = pb.buildLucene();
+        org.elasticsearch.geo.geometry.Point geoPoint = pb.buildGeometry();
         assertEquals(-100D, geoPoint.getLon(), 0.0d);
         assertEquals(45D, geoPoint.getLat(), 0.0d);
     }
@@ -65,11 +65,11 @@ public class ShapeBuilderTests extends ESTestCase {
         assertEquals(45D, rectangle.getMaxX(), 0.0d);
         assertEquals(30D, rectangle.getMaxY(), 0.0d);
 
-        org.apache.lucene.geo.Rectangle luceneRectangle = eb.buildLucene();
-        assertEquals(-45D, luceneRectangle.minLon, 0.0d);
-        assertEquals(-30D, luceneRectangle.minLat, 0.0d);
-        assertEquals(45D, luceneRectangle.maxLon, 0.0d);
-        assertEquals(30D, luceneRectangle.maxLat, 0.0d);
+        org.elasticsearch.geo.geometry.Rectangle luceneRectangle = eb.buildGeometry();
+        assertEquals(-45D, luceneRectangle.getMinLon(), 0.0d);
+        assertEquals(-30D, luceneRectangle.getMinLat(), 0.0d);
+        assertEquals(45D, luceneRectangle.getMaxLon(), 0.0d);
+        assertEquals(30D, luceneRectangle.getMaxLat(), 0.0d);
     }
 
     public void testNewPolygon() {
@@ -87,15 +87,15 @@ public class ShapeBuilderTests extends ESTestCase {
         assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
         assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
 
-        org.apache.lucene.geo.Polygon lucenePoly = (org.apache.lucene.geo.Polygon)(pb.toPolygonLucene());
-        assertEquals(lucenePoly.getPolyLat(0), 30, 0d);
-        assertEquals(lucenePoly.getPolyLon(0), -45, 0d);
-        assertEquals(lucenePoly.getPolyLat(1), 30, 0d);
-        assertEquals(lucenePoly.getPolyLon(1), 45, 0d);
-        assertEquals(lucenePoly.getPolyLat(2), -30, 0d);
-        assertEquals(lucenePoly.getPolyLon(2), 45, 0d);
-        assertEquals(lucenePoly.getPolyLat(3), -30, 0d);
-        assertEquals(lucenePoly.getPolyLon(3), -45, 0d);
+        org.elasticsearch.geo.geometry.LinearRing polygon = pb.toPolygonGeometry().getPolygon();
+        assertEquals(polygon.getLat(0), 30, 0d);
+        assertEquals(polygon.getLon(0), -45, 0d);
+        assertEquals(polygon.getLat(1), 30, 0d);
+        assertEquals(polygon.getLon(1), 45, 0d);
+        assertEquals(polygon.getLat(2), -30, 0d);
+        assertEquals(polygon.getLon(2), 45, 0d);
+        assertEquals(polygon.getLat(3), -30, 0d);
+        assertEquals(polygon.getLon(3), -45, 0d);
     }
 
     public void testNewPolygon_coordinate() {
@@ -113,15 +113,15 @@ public class ShapeBuilderTests extends ESTestCase {
         assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
         assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
 
-        org.apache.lucene.geo.Polygon lucenePoly = (org.apache.lucene.geo.Polygon)(pb.toPolygonLucene());
-        assertEquals(lucenePoly.getPolyLat(0), 30, 0d);
-        assertEquals(lucenePoly.getPolyLon(0), -45, 0d);
-        assertEquals(lucenePoly.getPolyLat(1), 30, 0d);
-        assertEquals(lucenePoly.getPolyLon(1), 45, 0d);
-        assertEquals(lucenePoly.getPolyLat(2), -30, 0d);
-        assertEquals(lucenePoly.getPolyLon(2), 45, 0d);
-        assertEquals(lucenePoly.getPolyLat(3), -30, 0d);
-        assertEquals(lucenePoly.getPolyLon(3), -45, 0d);
+        org.elasticsearch.geo.geometry.LinearRing polygon = pb.toPolygonGeometry().getPolygon();
+        assertEquals(polygon.getLat(0), 30, 0d);
+        assertEquals(polygon.getLon(0), -45, 0d);
+        assertEquals(polygon.getLat(1), 30, 0d);
+        assertEquals(polygon.getLon(1), 45, 0d);
+        assertEquals(polygon.getLat(2), -30, 0d);
+        assertEquals(polygon.getLon(2), 45, 0d);
+        assertEquals(polygon.getLat(3), -30, 0d);
+        assertEquals(polygon.getLon(3), -45, 0d);
     }
 
     public void testNewPolygon_coordinates() {
@@ -137,15 +137,15 @@ public class ShapeBuilderTests extends ESTestCase {
         assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
         assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
 
-        org.apache.lucene.geo.Polygon lucenePoly = (org.apache.lucene.geo.Polygon)(pb.toPolygonLucene());
-        assertEquals(lucenePoly.getPolyLat(0), 30, 0d);
-        assertEquals(lucenePoly.getPolyLon(0), -45, 0d);
-        assertEquals(lucenePoly.getPolyLat(1), 30, 0d);
-        assertEquals(lucenePoly.getPolyLon(1), 45, 0d);
-        assertEquals(lucenePoly.getPolyLat(2), -30, 0d);
-        assertEquals(lucenePoly.getPolyLon(2), 45, 0d);
-        assertEquals(lucenePoly.getPolyLat(3), -30, 0d);
-        assertEquals(lucenePoly.getPolyLon(3), -45, 0d);
+        org.elasticsearch.geo.geometry.LinearRing polygon = pb.toPolygonGeometry().getPolygon();
+        assertEquals(polygon.getLat(0), 30, 0d);
+        assertEquals(polygon.getLon(0), -45, 0d);
+        assertEquals(polygon.getLat(1), 30, 0d);
+        assertEquals(polygon.getLon(1), 45, 0d);
+        assertEquals(polygon.getLat(2), -30, 0d);
+        assertEquals(polygon.getLon(2), 45, 0d);
+        assertEquals(polygon.getLat(3), -30, 0d);
+        assertEquals(polygon.getLon(3), -45, 0d);
     }
 
     public void testLineStringBuilder() {
@@ -161,7 +161,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(-110.0, 55.0));
 
         lsb.buildS4J();
-        lsb.buildLucene();
+        lsb.buildGeometry();
 
         // Building a linestring that needs to be wrapped
         lsb = new LineStringBuilder(new CoordinatesBuilder()
@@ -175,7 +175,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .coordinate(130.0, 60.0));
 
         lsb.buildS4J();
-        lsb.buildLucene();
+        lsb.buildGeometry();
 
         // Building a lineString on the dateline
         lsb = new LineStringBuilder(new CoordinatesBuilder()
@@ -185,7 +185,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .coordinate(-180.0, -80.0));
 
         lsb.buildS4J();
-        lsb.buildLucene();
+        lsb.buildGeometry();
 
         // Building a lineString on the dateline
         lsb = new LineStringBuilder(new CoordinatesBuilder()
@@ -195,7 +195,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .coordinate(180.0, -80.0));
 
         lsb.buildS4J();
-        lsb.buildLucene();
+        lsb.buildGeometry();
     }
 
     public void testMultiLineString() {
@@ -215,7 +215,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 )
             );
         mlsb.buildS4J();
-        mlsb.buildLucene();
+        mlsb.buildGeometry();
 
         // LineString that needs to be wrapped
         new MultiLineStringBuilder()
@@ -235,7 +235,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
 
         mlsb.buildS4J();
-        mlsb.buildLucene();
+        mlsb.buildGeometry();
     }
 
     public void testPolygonSelfIntersection() {
@@ -283,7 +283,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .close());
 
         assertMultiPolygon(pb.buildS4J(), true);
-        assertMultiPolygon(pb.buildLucene(), false);
+        assertMultiPolygon(pb.buildGeometry(), false);
     }
 
     public void testLineStringWrapping() {
@@ -295,7 +295,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .close());
 
         assertMultiLineString(lsb.buildS4J(), true);
-        assertMultiLineString(lsb.buildLucene(), false);
+        assertMultiLineString(lsb.buildGeometry(), false);
     }
 
     public void testDatelineOGC() {
@@ -339,7 +339,7 @@ public class ShapeBuilderTests extends ESTestCase {
             ));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildLucene(), false);
+        assertMultiPolygon(builder.close().buildGeometry(), false);
     }
 
     public void testDateline() {
@@ -383,7 +383,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 ));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildLucene(), false);
+        assertMultiPolygon(builder.close().buildGeometry(), false);
     }
 
     public void testComplexShapeWithHole() {
@@ -458,7 +458,7 @@ public class ShapeBuilderTests extends ESTestCase {
             )
             );
         assertPolygon(builder.close().buildS4J(), true);
-        assertPolygon(builder.close().buildLucene(), false);
+        assertPolygon(builder.close().buildGeometry(), false);
      }
 
     public void testShapeWithHoleAtEdgeEndPoints() {
@@ -480,7 +480,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .coordinate(4, 1)
             ));
         assertPolygon(builder.close().buildS4J(), true);
-        assertPolygon(builder.close().buildLucene(), false);
+        assertPolygon(builder.close().buildGeometry(), false);
      }
 
     public void testShapeWithPointOnDateline() {
@@ -491,7 +491,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(180, 0)
                 );
             assertPolygon(builder.close().buildS4J(), true);
-            assertPolygon(builder.close().buildLucene(), false);
+            assertPolygon(builder.close().buildGeometry(), false);
      }
 
     public void testShapeWithEdgeAlongDateline() {
@@ -504,7 +504,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
 
         assertPolygon(builder.close().buildS4J(), true);
-        assertPolygon(builder.close().buildLucene(), false);
+        assertPolygon(builder.close().buildGeometry(), false);
 
         // test case 2: test the negative side of the dateline
         builder = new PolygonBuilder(new CoordinatesBuilder()
@@ -515,7 +515,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
 
         assertPolygon(builder.close().buildS4J(), true);
-        assertPolygon(builder.close().buildLucene(), false);
+        assertPolygon(builder.close().buildGeometry(), false);
      }
 
     public void testShapeWithBoundaryHoles() {
@@ -537,7 +537,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 ));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildLucene(), false);
+        assertMultiPolygon(builder.close().buildGeometry(), false);
 
         // test case 2: test the negative side of the dateline
         builder = new PolygonBuilder(
@@ -560,7 +560,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 ));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildLucene(), false);
+        assertMultiPolygon(builder.close().buildGeometry(), false);
     }
 
     public void testShapeWithTangentialHole() {
@@ -582,7 +582,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 ));
 
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildLucene(), false);
+        assertMultiPolygon(builder.close().buildGeometry(), false);
     }
 
     public void testShapeWithInvalidTangentialHole() {
@@ -606,7 +606,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
         e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
-        e = expectThrows(InvalidShapeException.class, () -> builder.close().buildLucene());
+        e = expectThrows(InvalidShapeException.class, () -> builder.close().buildGeometry());
         assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
     }
 
@@ -634,7 +634,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(172, 0)
                 ));
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildLucene(), false);
+        assertMultiPolygon(builder.close().buildGeometry(), false);
     }
 
     public void testBoundaryShapeWithInvalidTangentialHole() {
@@ -657,7 +657,7 @@ public class ShapeBuilderTests extends ESTestCase {
         Exception e;
         e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
-        e = expectThrows(InvalidShapeException.class, () -> builder.close().buildLucene());
+        e = expectThrows(InvalidShapeException.class, () -> builder.close().buildGeometry());
         assertThat(e.getMessage(), containsString("interior cannot share more than one point with the exterior"));
     }
 
@@ -673,7 +673,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
 
         assertPolygon(builder.close().buildS4J(), true);
-        assertPolygon(builder.close().buildLucene(), false);
+        assertPolygon(builder.close().buildGeometry(), false);
     }
 
     public void testShapeWithAlternateOrientation() {
@@ -686,7 +686,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
 
         assertPolygon(builder.close().buildS4J(), true);
-        assertPolygon(builder.close().buildLucene(), false);
+        assertPolygon(builder.close().buildGeometry(), false);
 
         // cw: geo core will convert to ccw across the dateline
         builder = new PolygonBuilder(new CoordinatesBuilder()
@@ -697,7 +697,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 );
 
         assertMultiPolygon(builder.close().buildS4J(), true);
-        assertMultiPolygon(builder.close().buildLucene(), false);
+        assertMultiPolygon(builder.close().buildGeometry(), false);
      }
 
     public void testInvalidShapeWithConsecutiveDuplicatePoints() {
@@ -711,7 +711,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
         Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
-        e = expectThrows(InvalidShapeException.class, () -> builder.close().buildLucene());
+        e = expectThrows(InvalidShapeException.class, () -> builder.close().buildGeometry());
         assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
     }
 

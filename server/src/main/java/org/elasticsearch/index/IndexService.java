@@ -54,6 +54,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -120,6 +121,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncRefreshTask refreshTask;
     private volatile AsyncTranslogFSync fsyncTask;
     private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
+    private volatile AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -196,6 +198,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.refreshTask = new AsyncRefreshTask(this);
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
+        this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         rescheduleFsyncTask(indexSettings.getTranslogDurability());
     }
 
@@ -285,7 +288,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         refreshTask,
                         fsyncTask,
                         trimTranslogTask,
-                        globalCheckpointTask);
+                        globalCheckpointTask,
+                        retentionLeaseSyncTask);
             }
         }
     }
@@ -310,7 +314,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public synchronized IndexShard createShard(ShardRouting routing, Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+    public synchronized IndexShard createShard(
+            final ShardRouting routing,
+            final Consumer<ShardId> globalCheckpointSyncer,
+            final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
+        Objects.requireNonNull(retentionLeaseSyncer);
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
          * be able to serialize the execution via the cluster state in the future. for now we just
@@ -398,6 +406,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     searchOperationListeners,
                     indexingOperationListeners,
                     () -> globalCheckpointSyncer.accept(shardId),
+                    retentionLeaseSyncer,
                     circuitBreakerService);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -776,6 +785,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void maybeSyncGlobalCheckpoints() {
+        sync(is -> is.maybeSyncGlobalCheckpoint("background"), "global checkpoint");
+    }
+
+    private void syncRetentionLeases() {
+        sync(IndexShard::syncRetentionLeases, "retention lease");
+    }
+
+    private void sync(final Consumer<IndexShard> sync, final String source) {
         for (final IndexShard shard : this.shards.values()) {
             if (shard.routingEntry().active() && shard.routingEntry().primary()) {
                 switch (shard.state()) {
@@ -789,17 +806,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     case STARTED:
                         try {
                             shard.runUnderPrimaryPermit(
-                                    () -> shard.maybeSyncGlobalCheckpoint("background"),
+                                    () -> sync.accept(shard),
                                     e -> {
                                         if (e instanceof AlreadyClosedException == false
                                                 && e instanceof IndexShardClosedException == false) {
                                             logger.warn(
                                                     new ParameterizedMessage(
-                                                            "{} failed to execute background global checkpoint sync", shard.shardId()), e);
+                                                            "{} failed to execute {} sync", shard.shardId(), source), e);
                                         }
                                     },
                                     ThreadPool.Names.SAME,
-                                    "background global checkpoint sync");
+                                    source + " sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }
@@ -905,6 +922,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     Property.Dynamic,
                     Property.IndexScope);
 
+    // this setting is intentionally not registered, it is only used in tests
+    public static final Setting<TimeValue> RETENTION_LEASE_SYNC_INTERVAL_SETTING =
+            Setting.timeSetting(
+                    "index.soft_deletes.retention_lease.sync_interval",
+                    new TimeValue(5, TimeUnit.MINUTES),
+                    new TimeValue(0, TimeUnit.MILLISECONDS),
+                    Property.Dynamic,
+                    Property.IndexScope);
+
     /**
      * Background task that syncs the global checkpoint to replicas.
      */
@@ -929,6 +955,29 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         public String toString() {
             return "global_checkpoint_sync";
         }
+    }
+
+    final class AsyncRetentionLeaseSyncTask extends BaseAsyncTask {
+
+        AsyncRetentionLeaseSyncTask(final IndexService indexService) {
+            super(indexService, RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings()));
+        }
+
+        @Override
+        protected void runInternal() {
+            indexService.syncRetentionLeases();
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.MANAGEMENT;
+        }
+
+        @Override
+        public String toString() {
+            return "retention_lease_sync";
+        }
+
     }
 
     AsyncRefreshTask getRefreshTask() { // for tests

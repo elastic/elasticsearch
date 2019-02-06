@@ -2142,8 +2142,8 @@ block to send the document to the 'failure_index' index for later inspection:
         "on_failure" : [
           {
             "set" : {
-              "field", "_index",
-              "value", "failure_index"
+              "field": "_index",
+              "value": "failure_index"
             }
           }
         ]

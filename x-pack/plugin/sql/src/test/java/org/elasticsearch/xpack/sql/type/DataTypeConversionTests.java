@@ -211,7 +211,7 @@ public class DataTypeConversionTests extends ESTestCase {
             Conversion back = conversionFor(KEYWORD, DATETIME);
             assertEquals(dt, back.convert(forward.convert(dt)));
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
-            assertEquals("cannot cast [0xff] to [datetime]: Text '0xff' could not be parsed at index 0", e.getMessage());
+            assertEquals("cannot cast [0xff] to [datetime]: failed to parse date field [0xff] with format [date_optional_time]", e.getMessage());
         }
     }
 

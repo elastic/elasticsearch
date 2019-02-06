@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql.util;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
@@ -15,18 +16,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
-import java.time.format.SignStyle;
-import java.time.temporal.ChronoField;
-import java.util.Locale;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
-import static java.time.temporal.ChronoField.DAY_OF_MONTH;
-import static java.time.temporal.ChronoField.HOUR_OF_DAY;
-import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
-import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
-import static java.time.temporal.ChronoField.NANO_OF_SECOND;
-import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public final class DateUtils {
 
@@ -39,42 +31,9 @@ public final class DateUtils {
         .append(ISO_LOCAL_TIME)
         .toFormatter().withZone(UTC);
 
-    private static final DateTimeFormatter UTC_DATE_TIME_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
-        .appendLiteral("-")
-        .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
-        .appendLiteral('-')
-        .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
-        .optionalStart()
-        .appendLiteral('T')
-        .optionalStart()
-        .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
-        .optionalStart()
-        .appendLiteral(':')
-        .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
-        .optionalStart()
-        .appendLiteral(':')
-        .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-        .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
-        .optionalEnd()
-        .optionalEnd()
-        .optionalStart()
-        .appendZoneOrOffsetId()
-        .optionalEnd()
-        .optionalStart()
-        .appendOffset("+HHmm", "Z")
-        .optionalEnd()
-        .optionalEnd()
-        .optionalEnd()
-        .optionalEnd()
-        .parseDefaulting(HOUR_OF_DAY, 0)
-        .parseDefaulting(MINUTE_OF_HOUR, 0)
-        .parseDefaulting(SECOND_OF_MINUTE, 0)
-        .toFormatter(Locale.ROOT)
-        .withZone(UTC);
+    private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(UTC);
 
-    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
+    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
 
     private DateUtils() {}
 

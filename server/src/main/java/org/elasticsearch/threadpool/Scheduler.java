@@ -21,7 +21,7 @@ package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -47,8 +47,8 @@ public interface Scheduler {
     /**
      * Create a scheduler that can be used client side. Server side, please use <code>ThreadPool.schedule</code> instead.
      *
-     * Notice that if any scheduled jobs fail with an exception, they will be logged as a warning. This includes jobs started
-     * using execute, submit and schedule.
+     * Notice that if any scheduled jobs fail with an exception, these will bubble up to the uncaught exception handler where they will
+     * be logged as a warning. This includes jobs started using execute, submit and schedule.
      * @param settings the settings to use
      * @return executor
      */
@@ -250,7 +250,8 @@ public interface Scheduler {
     }
 
     /**
-     * This subclass ensures to properly bubble up Throwable instances of type Error and logs exceptions thrown in submitted/scheduled tasks
+     * This subclass ensures to properly bubble up Throwable instances of both type Error and Exception thrown in submitted/scheduled
+     * tasks to the uncaught exception handler
      */
     class SafeScheduledThreadPoolExecutor extends ScheduledThreadPoolExecutor {
         private static final Logger logger = LogManager.getLogger(SafeScheduledThreadPoolExecutor.class);
@@ -272,12 +273,10 @@ public interface Scheduler {
 
         @Override
         protected void afterExecute(Runnable r, Throwable t) {
-            Throwable exception = EsExecutors.rethrowErrors(r);
-            if (exception != null) {
-                logger.warn(() ->
-                    new ParameterizedMessage("uncaught exception in scheduled thread [{}]", Thread.currentThread().getName()),
-                    exception);
-            }
+            if (t != null) return;
+            // Scheduler only allows Runnable's so we expect no checked exceptions here. If anyone uses submit directly on `this`, we
+            // accept the wrapped exception in the output.
+            ExceptionsHelper.reThrowIfNotNull(EsExecutors.rethrowErrors(r));
         }
     }
 }

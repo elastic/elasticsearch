@@ -12,7 +12,6 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;
@@ -182,11 +180,10 @@ public final class IndicesPermission {
      * Authorizes the provided action against the provided indices, given the current cluster metadata
      */
     public Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases,
-                                                                          MetaData metaData, FieldPermissionsCache fieldPermissionsCache) {
+                                                                          Map<String, AliasOrIndex> allAliasesAndIndices,
+                                                                          FieldPermissionsCache fieldPermissionsCache) {
         // now... every index that is associated with the request, must be granted
         // by at least one indices permission group
-
-        SortedMap<String, AliasOrIndex> allAliasesAndIndices = metaData.getAliasAndIndexLookup();
         Map<String, Set<FieldPermissions>> fieldPermissionsByIndex = new HashMap<>();
         Map<String, DocumentLevelPermissions> roleQueriesByIndex = new HashMap<>();
         Map<String, Boolean> grantedBuilder = new HashMap<>();

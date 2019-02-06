@@ -244,6 +244,9 @@ allprojects {
     "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
+    // for security example plugins
+    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core',
+    "org.elasticsearch.client.x-pack-transport:${version}": ':x-pack:transport-client'
   ]
   // substitute unreleased versions with projects that check out and build locally
   bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion ->

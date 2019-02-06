@@ -20,6 +20,10 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+
+import java.util.Arrays;
+import java.util.HashSet;
 
 /**
  * Implementation of the action needed to create an API key
@@ -28,15 +32,17 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
+    private final CompositeRolesStore rolesStore;
 
     @Inject
     public TransportCreateApiKeyAction(Settings settings, ThreadPool threadPool, TransportService transportService,
             ActionFilters actionFilters, ApiKeyService apiKeyService, SecurityContext context,
-            IndexNameExpressionResolver indexNameExpressionResolver) {
+            IndexNameExpressionResolver indexNameExpressionResolver, CompositeRolesStore rolesStore) {
         super(settings, CreateApiKeyAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 CreateApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
+        this.rolesStore = rolesStore;
     }
 
     @Override
@@ -45,7 +51,9 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
         } else {
-            apiKeyService.createApiKey(authentication, request, listener);
+            rolesStore.getRoleDescriptors(new HashSet<>(Arrays.asList(authentication.getUser().roles())),
+                ActionListener.wrap(roleDescriptors -> apiKeyService.createApiKey(authentication, request, roleDescriptors, listener),
+                    listener::onFailure));
         }
     }
 }

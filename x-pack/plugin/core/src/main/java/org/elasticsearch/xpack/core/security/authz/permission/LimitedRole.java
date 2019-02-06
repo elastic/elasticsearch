@@ -6,27 +6,30 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
 /**
  * A {@link Role} limited by another role.<br>
- * The effective permissions returned on {@link #authorize(String, Set, MetaData, FieldPermissionsCache)} call would be limited by the
+ * The effective permissions returned on {@link #authorize(String, Set, Map, FieldPermissionsCache)} call would be limited by the
  * provided role.
  */
 public final class LimitedRole extends Role {
     private final Role limitedBy;
 
     LimitedRole(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application,
-            RunAsPermission runAs, Role limitedBy) {
+                RunAsPermission runAs, Role limitedBy) {
         super(names, cluster, indices, application, runAs);
         assert limitedBy != null : "limiting role is required";
         this.limitedBy = limitedBy;
@@ -37,11 +40,33 @@ public final class LimitedRole extends Role {
     }
 
     @Override
-    public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases, MetaData metaData,
+    public ClusterPermission cluster() {
+        throw new UnsupportedOperationException("cannot retrieve cluster permission on limited role");
+    }
+
+    @Override
+    public IndicesPermission indices() {
+        throw new UnsupportedOperationException("cannot retrieve indices permission on limited role");
+    }
+
+    @Override
+    public ApplicationPermission application() {
+        throw new UnsupportedOperationException("cannot retrieve application permission on limited role");
+    }
+
+    @Override
+    public RunAsPermission runAs() {
+        throw new UnsupportedOperationException("cannot retrieve cluster permission on limited role");
+    }
+
+    @Override
+    public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
+                                          Map<String, AliasOrIndex> aliasAndIndexLookup,
                                           FieldPermissionsCache fieldPermissionsCache) {
-        IndicesAccessControl indicesAccessControl = super.authorize(action, requestedIndicesOrAliases, metaData, fieldPermissionsCache);
-        IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(action, requestedIndicesOrAliases, metaData,
-                fieldPermissionsCache);
+        IndicesAccessControl indicesAccessControl =
+            super.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
+        IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup,
+            fieldPermissionsCache);
 
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
@@ -52,9 +77,16 @@ public final class LimitedRole extends Role {
      */
     @Override
     public Predicate<String> allowedIndicesMatcher(String action) {
-        Predicate<String> predicate = indices().allowedIndicesMatcher(action);
+        Predicate<String> predicate = super.indices().allowedIndicesMatcher(action);
         predicate = predicate.and(limitedBy.indices().allowedIndicesMatcher(action));
         return predicate;
+    }
+
+    @Override
+    public Automaton allowedActionsMatcher(String index) {
+        final Automaton allowedMatcher = super.allowedActionsMatcher(index);
+        final Automaton limitedByMatcher = super.allowedActionsMatcher(index);
+        return Automatons.intersectAndMinimize(allowedMatcher, limitedByMatcher);
     }
 
     /**
@@ -83,9 +115,9 @@ public final class LimitedRole extends Role {
     public ResourcePrivilegesMap checkIndicesPrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
                                                         Set<String> checkForPrivileges) {
         ResourcePrivilegesMap resourcePrivilegesMap = super.indices().checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices,
-                checkForPrivileges);
+            checkForPrivileges);
         ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.indices().checkResourcePrivileges(checkForIndexPatterns,
-                allowRestrictedIndices, checkForPrivileges);
+            allowRestrictedIndices, checkForPrivileges);
         return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
     }
 
@@ -131,10 +163,15 @@ public final class LimitedRole extends Role {
                                                                     Set<String> checkForPrivilegeNames,
                                                                     Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
         ResourcePrivilegesMap resourcePrivilegesMap = super.application().checkResourcePrivileges(applicationName, checkForResources,
-                checkForPrivilegeNames, storedPrivileges);
+            checkForPrivilegeNames, storedPrivileges);
         ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.application().checkResourcePrivileges(applicationName,
-                checkForResources, checkForPrivilegeNames, storedPrivileges);
+            checkForResources, checkForPrivilegeNames, storedPrivileges);
         return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
+    }
+
+    @Override
+    public boolean checkRunAs(String runAs) {
+        return super.checkRunAs(runAs) && limitedBy.checkRunAs(runAs);
     }
 
     /**
@@ -147,6 +184,6 @@ public final class LimitedRole extends Role {
     public static LimitedRole createLimitedRole(Role fromRole, Role limitedByRole) {
         Objects.requireNonNull(limitedByRole, "limited by role is required to create limited role");
         return new LimitedRole(fromRole.names(), fromRole.cluster(), fromRole.indices(), fromRole.application(), fromRole.runAs(),
-                limitedByRole);
+            limitedByRole);
     }
 }

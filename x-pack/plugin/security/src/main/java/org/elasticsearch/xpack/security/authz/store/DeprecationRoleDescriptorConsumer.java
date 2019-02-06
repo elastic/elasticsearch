@@ -36,6 +36,20 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+/**
+ * Inspects for aliases that have greater privileges than the indices that they point to and logs them as deprecated.
+ * This is done in preparation for the removal of privileges over aliases.
+ * The log messages are generated asynchronously and do not generate deprecation response headers.
+ * One log entry is generated for each role and alias pair, and it contains all the indices for which
+ * privileges are a subset of those of the alias. In this case, the administrator has to adjust the index privileges
+ * definition such that name patterns do not cover aliases.
+ * If no logging is generated then the roles used for the current indices and aliases are not vulnerable to the
+ * ensuing breaking change. However, there could be roles that are never used and are invisible to this check. Moreover,
+ * roles can be dynamically added by role providers.
+ * The check iterates over all indices and aliases for each role descriptor so it is quite expensive computationally.
+ * For this reason the check is done only once a day for each role. If the role definitions stay the same, the deprecations
+ * can change from one day to another only if aliases or indices are added.
+ */
 public final class DeprecationRoleDescriptorConsumer implements Consumer<Collection<RoleDescriptor>> {
 
     private static final String ROLE_PERMISSION_DEPRECATION_STANZA = "Role [%s] contains index privileges covering the [%s] alias but"
@@ -46,14 +60,15 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     private final DeprecationLogger deprecationLogger;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
-    private final Set<String> cacheKeys;
+    private final Set<String> dailyRoleCache;
 
     public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool,
                                              DeprecationLogger deprecationLogger) {
         this.deprecationLogger = deprecationLogger;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.cacheKeys = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
+        // this String Set keeps "<role>-<date>" pairs so that we only log a role once a day.
+        this.dailyRoleCache = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<String, Boolean>() {
             @Override
             protected boolean removeEldestEntry(final Map.Entry<String, Boolean> eldest) {
                 return size() > 128;
@@ -65,6 +80,9 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     public void accept(Collection<RoleDescriptor> effectiveRoleDescriptors) {
         threadPool.generic().execute(() -> {
             final SortedMap<String, AliasOrIndex> aliasOrIndexMap = clusterService.state().metaData().getAliasAndIndexLookup();
+            // executing the check asynchronously will not conserve the generated deprecation response headers (which is what we want,
+            // because it's not the request that uses deprecated features, but rather the role definition. Plus, due to caching, we can't
+            // reliably associate response headers to every request).
             logDeprecatedPermission(effectiveRoleDescriptors, aliasOrIndexMap);
         });
     }
@@ -133,11 +151,11 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     }
 
     private boolean isCached(String cacheKey) {
-        return cacheKeys.contains(cacheKey);
+        return dailyRoleCache.contains(cacheKey);
     }
 
     private boolean addToCache(String cacheKey) {
-        return cacheKeys.add(cacheKey);
+        return dailyRoleCache.add(cacheKey);
     }
 
     // package-private for testing

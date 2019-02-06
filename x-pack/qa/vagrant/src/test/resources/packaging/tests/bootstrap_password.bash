@@ -52,7 +52,7 @@ fi
 
     run sudo -E -u $ESPLUGIN_COMMAND_USER bash <<"NEW_PASS"
 if [[ ! -f $ESCONFIG/elasticsearch.keystore ]]; then
-    $ESHOME/bin/elasticsearch-keystore create
+    $ESHOME/bin/elasticsearch-keystore create --nopass
 fi
 cat /dev/urandom | tr -dc "[a-zA-Z0-9]" | fold -w 20 | head -n 1 > /tmp/bootstrap.password
 cat /tmp/bootstrap.password | $ESHOME/bin/elasticsearch-keystore add --stdin bootstrap.password

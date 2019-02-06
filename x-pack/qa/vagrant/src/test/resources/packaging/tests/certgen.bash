@@ -164,7 +164,7 @@ start_node_using_package() {
     # cacerts imported into a Java keystore.
     run sudo -E -u $MASTER_USER bash <<"NEW_PASS"
 if [[ ! -f $ESCONFIG/elasticsearch.keystore ]]; then
-    $ESHOME/bin/elasticsearch-keystore create
+    $ESHOME/bin/elasticsearch-keystore create --nopass
 fi
 echo "changeme" | $ESHOME/bin/elasticsearch-keystore add --stdin bootstrap.password
 NEW_PASS

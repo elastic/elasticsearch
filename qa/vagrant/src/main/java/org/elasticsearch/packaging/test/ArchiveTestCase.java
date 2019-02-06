@@ -125,14 +125,14 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         final Shell sh = new Shell();
 
-        Platforms.onLinux(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"));
+        Platforms.onLinux(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create --nopass"));
 
         // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
         // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
         // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
         // when we run these commands as a role user we won't have to do this
         Platforms.onWindows(() -> sh.run(
-                bin.elasticsearchKeystore + " create; " +
+                bin.elasticsearchKeystore + " create --nopass; " +
                 "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
                 "$acl = Get-Acl '" + installation.config("elasticsearch.keystore") + "'; " +
                 "$acl.SetOwner($account); " +

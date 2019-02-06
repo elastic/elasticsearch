@@ -37,7 +37,7 @@ public class GetRolesResponse extends ActionResponse {
         int size = in.readVInt();
         roles = new RoleDescriptor[size];
         for (int i = 0; i < size; i++) {
-            roles[i] = RoleDescriptor.readFrom(in);
+            roles[i] = new RoleDescriptor(in);
         }
     }
 
@@ -46,7 +46,7 @@ public class GetRolesResponse extends ActionResponse {
         super.writeTo(out);
         out.writeVInt(roles.length);
         for (RoleDescriptor role : roles) {
-            RoleDescriptor.writeTo(role, out);
+            role.writeTo(out);
         }
     }
 }

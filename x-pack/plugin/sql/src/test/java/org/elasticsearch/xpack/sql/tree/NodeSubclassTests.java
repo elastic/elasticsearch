@@ -92,8 +92,7 @@ import static org.mockito.Mockito.mock;
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
 
-
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.<Class<?>> asList(IfNull.class, In.class, InPipe.class,
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.asList(IfNull.class, In.class, InPipe.class,
             Percentile.class, Percentiles.class, PercentileRanks.class);
 
     private final Class<T> subclass;
@@ -138,9 +137,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             Type changedArgType = argTypes[changedArgOffset];
             Object changedArgValue = randomValueOtherThan(nodeCtorArgs[changedArgOffset], () -> makeArg(changedArgType));
 
-            B transformed = node.transformNodeProps(prop -> {
-                return Objects.equals(prop, originalArgValue) ? changedArgValue : prop;
-            }, Object.class);
+            B transformed = node.transformNodeProps(prop -> Objects.equals(prop, originalArgValue) ? changedArgValue : prop, Object.class);
 
             if (node.children().contains(originalArgValue) || node.children().equals(originalArgValue)) {
                 if (node.children().equals(emptyList()) && originalArgValue.equals(emptyList())) {

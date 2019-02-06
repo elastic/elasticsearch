@@ -61,7 +61,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
+import org.elasticsearch.discovery.SeedHostsProvider.HostsResolver;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
@@ -120,10 +120,10 @@ import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
-import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_ALL;
-import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_ID;
-import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_SETTING;
-import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
+import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ALL;
+import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
+import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_SETTING;
+import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
@@ -1070,7 +1070,7 @@ public class CoordinatorTests extends ESTestCase {
             logger.info("--> disconnecting {}", partitionedNode);
             partitionedNode.disconnect();
         }
-        cluster.setEmptyUnicastHostsList();
+        cluster.setEmptySeedHostsList();
         cluster.stabilise();
 
         partitionedNode.heal();
@@ -1145,7 +1145,7 @@ public class CoordinatorTests extends ESTestCase {
         private final Function<DiscoveryNode, MockPersistedState> defaultPersistedStateSupplier = MockPersistedState::new;
 
         @Nullable // null means construct a list from all the current nodes
-        private List<TransportAddress> unicastHostsList;
+        private List<TransportAddress> seedHostsList;
 
         Cluster(int initialNodeCount) {
             this(initialNodeCount, true);
@@ -1536,8 +1536,8 @@ public class CoordinatorTests extends ESTestCase {
             return getAnyNode();
         }
 
-        void setEmptyUnicastHostsList() {
-            unicastHostsList = emptyList();
+        void setEmptySeedHostsList() {
+            seedHostsList = emptyList();
         }
 
         class MockPersistedState implements PersistedState {
@@ -1702,7 +1702,7 @@ public class CoordinatorTests extends ESTestCase {
                     Collections.singletonList((dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs)));
                 coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
                     ESAllocationTestCase.createAllocationService(Settings.EMPTY), masterService, this::getPersistedState,
-                    Cluster.this::provideUnicastHosts, clusterApplierService, onJoinValidators, Randomness.get());
+                    Cluster.this::provideSeedHosts, clusterApplierService, onJoinValidators, Randomness.get());
                 masterService.setClusterStatePublisher(coordinator);
 
                 logger.trace("starting up [{}]", localNode);
@@ -1903,8 +1903,8 @@ public class CoordinatorTests extends ESTestCase {
             }
         }
 
-        private List<TransportAddress> provideUnicastHosts(HostsResolver ignored) {
-            return unicastHostsList != null ? unicastHostsList
+        private List<TransportAddress> provideSeedHosts(HostsResolver ignored) {
+            return seedHostsList != null ? seedHostsList
                 : clusterNodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getAddress).collect(Collectors.toList());
         }
     }

@@ -59,6 +59,12 @@ public class ApplicationPrivilegeTests extends ESTestCase {
             assertNoException(app, () -> ApplicationPrivilege.validateApplicationName(app));
             assertNoException(app, () -> ApplicationPrivilege.validateApplicationNameOrWildcard(app));
         }
+
+        // wildcards in the suffix
+        for (String app : Arrays.asList("app1-*", "app1-foo*", "app1-.*", "app1-.foo.*", appNameWithSpecialChars + "*")) {
+            assertValidationFailure(app, "application name", () -> ApplicationPrivilege.validateApplicationName(app));
+            assertNoException(app, () -> ApplicationPrivilege.validateApplicationNameOrWildcard(app));
+        }
     }
 
     public void testValidationOfPrivilegeName() {

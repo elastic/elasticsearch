@@ -128,7 +128,10 @@ public final class ApplicationPrivilege extends Privilege {
         }
 
         if (parts.length > 1) {
-            final String suffix = parts[1];
+            String suffix = parts[1];
+            if (allowWildcard && suffix.endsWith("*")) {
+                suffix = suffix.substring(0, suffix.length() - 1);
+            }
             if (Strings.validFileName(suffix) == false) {
                 throw new IllegalArgumentException("An application name suffix may not contain any of the characters '" +
                     Strings.collectionToDelimitedString(Strings.INVALID_FILENAME_CHARS, "") + "' (found '" + suffix + "')");

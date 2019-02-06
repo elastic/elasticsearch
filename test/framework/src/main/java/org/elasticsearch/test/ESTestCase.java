@@ -1006,17 +1006,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
     }
 
-    private static boolean useZen2;
-
-    @BeforeClass
-    public static void setUseZen2() {
-        useZen2 = true;
-    }
-
-    protected static boolean getUseZen2() {
-        return useZen2;
-    }
-
     public static String getTestTransportType() {
         return MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME;
     }

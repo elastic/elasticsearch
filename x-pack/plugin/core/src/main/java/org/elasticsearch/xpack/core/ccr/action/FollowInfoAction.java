@@ -14,8 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -23,17 +21,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_READ_REQUESTS;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_WRITE_REQUESTS;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_OPERATION_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_SIZE;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_RETRY_DELAY_FIELD;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_SIZE;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_REQUEST_OPERATION_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_REQUEST_SIZE;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.READ_POLL_TIMEOUT;
 
 public class FollowInfoAction extends Action<FollowInfoAction.Response> {
 
@@ -202,7 +189,7 @@ public class FollowInfoAction extends Action<FollowInfoAction.Response> {
                 remoteCluster = in.readString();
                 leaderIndex = in.readString();
                 status = Status.fromString(in.readString());
-                parameters = in.readOptionalWriteable(FollowParameters::new);
+                parameters = in.readOptionalWriteable(innerIn -> new FollowParameters(in));
             }
 
             @Override
@@ -224,16 +211,7 @@ public class FollowInfoAction extends Action<FollowInfoAction.Response> {
                 if (parameters != null) {
                     builder.startObject(PARAMETERS_FIELD.getPreferredName());
                     {
-                        builder.field(MAX_READ_REQUEST_OPERATION_COUNT.getPreferredName(), parameters.maxReadRequestOperationCount);
-                        builder.field(MAX_READ_REQUEST_SIZE.getPreferredName(), parameters.maxReadRequestSize.getStringRep());
-                        builder.field(MAX_OUTSTANDING_READ_REQUESTS.getPreferredName(), parameters.maxOutstandingReadRequests);
-                        builder.field(MAX_WRITE_REQUEST_OPERATION_COUNT.getPreferredName(), parameters.maxWriteRequestOperationCount);
-                        builder.field(MAX_WRITE_REQUEST_SIZE.getPreferredName(), parameters.maxWriteRequestSize.getStringRep());
-                        builder.field(MAX_OUTSTANDING_WRITE_REQUESTS.getPreferredName(), parameters.maxOutstandingWriteRequests);
-                        builder.field(MAX_WRITE_BUFFER_COUNT.getPreferredName(), parameters.maxWriteBufferCount);
-                        builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), parameters.maxWriteBufferSize.getStringRep());
-                        builder.field(MAX_RETRY_DELAY_FIELD.getPreferredName(), parameters.maxRetryDelay.getStringRep());
-                        builder.field(READ_POLL_TIMEOUT.getPreferredName(), parameters.readPollTimeout.getStringRep());
+                        parameters.toXContentFragment(builder);
                     }
                     builder.endObject();
                 }
@@ -261,138 +239,6 @@ public class FollowInfoAction extends Action<FollowInfoAction.Response> {
             public String toString() {
                 return Strings.toString(this);
             }
-        }
-
-        public static class FollowParameters implements Writeable {
-
-            private final int maxReadRequestOperationCount;
-            private final ByteSizeValue maxReadRequestSize;
-            private final int maxOutstandingReadRequests;
-            private final int maxWriteRequestOperationCount;
-            private final ByteSizeValue maxWriteRequestSize;
-            private final int maxOutstandingWriteRequests;
-            private final int maxWriteBufferCount;
-            private final ByteSizeValue maxWriteBufferSize;
-            private final TimeValue maxRetryDelay;
-            private final TimeValue readPollTimeout;
-
-            public FollowParameters(int maxReadRequestOperationCount,
-                                    ByteSizeValue maxReadRequestSize, int maxOutstandingReadRequests,
-                                    int maxWriteRequestOperationCount, ByteSizeValue maxWriteRequestSize,
-                                    int maxOutstandingWriteRequests, int maxWriteBufferCount,
-                                    ByteSizeValue maxWriteBufferSize, TimeValue maxRetryDelay, TimeValue readPollTimeout) {
-                this.maxReadRequestOperationCount = maxReadRequestOperationCount;
-                this.maxReadRequestSize = maxReadRequestSize;
-                this.maxOutstandingReadRequests = maxOutstandingReadRequests;
-                this.maxWriteRequestOperationCount = maxWriteRequestOperationCount;
-                this.maxWriteRequestSize = maxWriteRequestSize;
-                this.maxOutstandingWriteRequests = maxOutstandingWriteRequests;
-                this.maxWriteBufferCount = maxWriteBufferCount;
-                this.maxWriteBufferSize = maxWriteBufferSize;
-                this.maxRetryDelay = maxRetryDelay;
-                this.readPollTimeout = readPollTimeout;
-            }
-
-            public int getMaxReadRequestOperationCount() {
-                return maxReadRequestOperationCount;
-            }
-
-            public ByteSizeValue getMaxReadRequestSize() {
-                return maxReadRequestSize;
-            }
-
-            public int getMaxOutstandingReadRequests() {
-                return maxOutstandingReadRequests;
-            }
-
-            public int getMaxWriteRequestOperationCount() {
-                return maxWriteRequestOperationCount;
-            }
-
-            public ByteSizeValue getMaxWriteRequestSize() {
-                return maxWriteRequestSize;
-            }
-
-            public int getMaxOutstandingWriteRequests() {
-                return maxOutstandingWriteRequests;
-            }
-
-            public int getMaxWriteBufferCount() {
-                return maxWriteBufferCount;
-            }
-
-            public ByteSizeValue getMaxWriteBufferSize() {
-                return maxWriteBufferSize;
-            }
-
-            public TimeValue getMaxRetryDelay() {
-                return maxRetryDelay;
-            }
-
-            public TimeValue getReadPollTimeout() {
-                return readPollTimeout;
-            }
-
-            FollowParameters(StreamInput in) throws IOException {
-                this.maxReadRequestOperationCount = in.readVInt();
-                this.maxReadRequestSize = new ByteSizeValue(in);
-                this.maxOutstandingReadRequests = in.readVInt();
-                this.maxWriteRequestOperationCount = in.readVInt();
-                this.maxWriteRequestSize = new ByteSizeValue(in);
-                this.maxOutstandingWriteRequests = in.readVInt();
-                this.maxWriteBufferCount = in.readVInt();
-                this.maxWriteBufferSize = new ByteSizeValue(in);
-                this.maxRetryDelay = in.readTimeValue();
-                this.readPollTimeout = in.readTimeValue();
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeVLong(maxReadRequestOperationCount);
-                maxReadRequestSize.writeTo(out);
-                out.writeVInt(maxOutstandingReadRequests);
-                out.writeVLong(maxWriteRequestOperationCount);
-                maxWriteRequestSize.writeTo(out);
-                out.writeVInt(maxOutstandingWriteRequests);
-                out.writeVInt(maxWriteBufferCount);
-                maxWriteBufferSize.writeTo(out);
-                out.writeTimeValue(maxRetryDelay);
-                out.writeTimeValue(readPollTimeout);
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                FollowParameters that = (FollowParameters) o;
-                return maxReadRequestOperationCount == that.maxReadRequestOperationCount &&
-                    maxOutstandingReadRequests == that.maxOutstandingReadRequests &&
-                    maxWriteRequestOperationCount == that.maxWriteRequestOperationCount &&
-                    maxOutstandingWriteRequests == that.maxOutstandingWriteRequests &&
-                    maxWriteBufferCount == that.maxWriteBufferCount &&
-                    Objects.equals(maxReadRequestSize, that.maxReadRequestSize) &&
-                    Objects.equals(maxWriteRequestSize, that.maxWriteRequestSize) &&
-                    Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
-                    Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
-                    Objects.equals(readPollTimeout, that.readPollTimeout);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(
-                    maxReadRequestOperationCount,
-                    maxReadRequestSize,
-                    maxOutstandingReadRequests,
-                    maxWriteRequestOperationCount,
-                    maxWriteRequestSize,
-                    maxOutstandingWriteRequests,
-                    maxWriteBufferCount,
-                    maxWriteBufferSize,
-                    maxRetryDelay,
-                    readPollTimeout
-                );
-            }
-
         }
 
         public enum Status {

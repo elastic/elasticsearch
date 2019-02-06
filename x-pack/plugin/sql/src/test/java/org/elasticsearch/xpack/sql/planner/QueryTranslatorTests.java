@@ -632,16 +632,16 @@ public class QueryTranslatorTests extends ESTestCase {
                         "\"sort\":[{\"keyword\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
         }
         {
-            PhysicalPlan p = optimizeAndPlan("SELECT LAST(keyword) FROM test");
+            PhysicalPlan p = optimizeAndPlan("SELECT LAST(date) FROM test");
             assertEquals(EsQueryExec.class, p.getClass());
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.output().size());
-            assertEquals("LAST(keyword)", eqe.output().get(0).qualifiedName());
-            assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
+            assertEquals("LAST(date)", eqe.output().get(0).qualifiedName());
+            assertTrue(eqe.output().get(0).dataType() == DataType.DATETIME);
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
-                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
-                    "\"sort\":[{\"keyword\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
+                    "\"sort\":[{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
         }
     }
 
@@ -661,17 +661,17 @@ public class QueryTranslatorTests extends ESTestCase {
 
         }
         {
-            PhysicalPlan p = optimizeAndPlan("SELECT LAST(keyword, int) FROM test");
+            PhysicalPlan p = optimizeAndPlan("SELECT LAST(date, int) FROM test");
             assertEquals(EsQueryExec.class, p.getClass());
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.output().size());
-            assertEquals("LAST(keyword, int)", eqe.output().get(0).qualifiedName());
-            assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
+            assertEquals("LAST(date, int)", eqe.output().get(0).qualifiedName());
+            assertTrue(eqe.output().get(0).dataType() == DataType.DATETIME);
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
-                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
                     "\"sort\":[{\"int\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
-                    "{\"keyword\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+                    "{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
         }
     }
 }

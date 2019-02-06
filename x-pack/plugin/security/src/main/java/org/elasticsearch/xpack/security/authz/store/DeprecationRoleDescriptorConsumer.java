@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -21,6 +23,8 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -69,44 +73,52 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
         for (final RoleDescriptor roleDescriptor : effectiveRoleDescriptors) {
             final String cacheKey = buildCacheKey(roleDescriptor.getName());
             if (false == isCached(cacheKey)) {
-                // the aliases and their associated indices that are, respectively, matched and not matched by the permission
-                final Map<String, Set<String>> indicesNotCoveredByAlias = new TreeMap<>();
+                // sort answer by alias for tests
+                final TreeMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();
+                final Map<String, Set<String>> privilegesByAliasMap = new HashMap<>();
+                // collate privileges by index and by alias separately
                 for (final IndicesPrivileges indicesPrivilege : roleDescriptor.getIndicesPrivileges()) {
-                    Predicate<String> namePatternPredicate = null;
+                    final Predicate<String> namePatternPredicate = IndicesPermission
+                            .indexMatcher(Arrays.asList(indicesPrivilege.getIndices()));
                     for (final Map.Entry<String, AliasOrIndex> aliasOrIndex : aliasOrIndexMap.entrySet()) {
-                        if (aliasOrIndex.getValue().isAlias()) {
-                            if (namePatternPredicate == null) {
-                                namePatternPredicate = IndicesPermission.indexMatcher(Arrays.asList(indicesPrivilege.getIndices()));
-                            }
-                            final String aliasName = aliasOrIndex.getKey();
-                            // the privilege name pattern matches the alias name
-                            if (namePatternPredicate.test(aliasName)) {
-                                for (final IndexMetaData indexMeta : aliasOrIndex.getValue().getIndices()) {
-                                    final String indexName = indexMeta.getIndex().getName();
-                                    // but it does not match the name of an index pointed to by the alias
-                                    if (false == namePatternPredicate.test(indexName)) {
-                                        final Set<String> indicesNotMatchedForAlias = indicesNotCoveredByAlias.computeIfAbsent(aliasName,
-                                                k -> new TreeSet<String>());
-                                        indicesNotMatchedForAlias.add(indexName);
-                                    }
-                                }
+                        final String aliasOrIndexName = aliasOrIndex.getKey();
+                        if (namePatternPredicate.test(aliasOrIndexName)) {
+                            if (aliasOrIndex.getValue().isAlias()) {
+                                final Set<String> privilegesByAlias = privilegesByAliasMap.computeIfAbsent(aliasOrIndexName,
+                                        k -> new HashSet<String>());
+                                privilegesByAlias.addAll(Arrays.asList(indicesPrivilege.getPrivileges()));
+                            } else {
+                                final Set<String> privilegesByIndex = privilegesByIndexMap.computeIfAbsent(aliasOrIndexName,
+                                        k -> new HashSet<String>());
+                                privilegesByIndex.addAll(Arrays.asList(indicesPrivilege.getPrivileges()));
                             }
                         }
                     }
                 }
-                for (Map.Entry<String, Set<String>> grantedAliasNoIndex : indicesNotCoveredByAlias.entrySet()) {
-                    final String logMessage = String.format(Locale.ROOT, ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
-                            grantedAliasNoIndex.getKey(), String.join(", ", grantedAliasNoIndex.getValue()));
-                    deprecationLogger.deprecated(logMessage);
+                // sort by alias and by index for tests
+                final Map<String, Automaton> indexAutomatonMap = new HashMap<>();
+                for (final Map.Entry<String, Set<String>> privilegesByAlias : privilegesByAliasMap.entrySet()) {
+                    final String aliasName = privilegesByAlias.getKey();
+                    final Set<String> aliasPrivileges = privilegesByAliasMap.get(aliasName);
+                    final Automaton aliasPrivilegeAutomaton = IndexPrivilege.get(aliasPrivileges).getAutomaton();
+                    final TreeSet<String> inferiorIndexNames = new TreeSet<>();
+                    // check if the alias grants superiors privileges than the index pointed to
+                    for (final IndexMetaData indexMetadata : aliasOrIndexMap.get(aliasName).getIndices()) {
+                        final String indexName = indexMetadata.getIndex().getName();
+                        final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(indexName, i -> {
+                            final Set<String> indexPrivileges = privilegesByIndexMap.get(indexName);
+                            return IndexPrivilege.get(indexPrivileges).getAutomaton();
+                        });
+                        if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
+                            inferiorIndexNames.add(indexName);
+                        }
+                    }
+                    if (false == inferiorIndexNames.isEmpty()) {
+                        final String logMessage = String.format(Locale.ROOT, ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
+                                aliasName, String.join(", ", inferiorIndexNames));
+                        deprecationLogger.deprecated(logMessage);
+                    }
                 }
-                // mark role as checked for "today"
-                addToCache(cacheKey);
-            }
-        }
-        for (final RoleDescriptor roleDescriptor : effectiveRoleDescriptors) {
-            final String cacheKey = buildCacheKey(roleDescriptor.getName());
-            if (false == isCached(cacheKey)) {
-                
                 // mark role as checked for "today"
                 addToCache(cacheKey);
             }

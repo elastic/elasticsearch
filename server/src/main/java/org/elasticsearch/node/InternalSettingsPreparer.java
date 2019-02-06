@@ -88,7 +88,6 @@ public class InternalSettingsPreparer {
 
         // re-initialize settings now that the config file has been loaded
         initializeSettings(output, input, properties);
-        checkSettingsForTerminalDeprecation(output);
         finalizeSettings(output, defaultNodeName);
 
         environment = new Environment(output.build(), configPath);
@@ -110,25 +109,6 @@ public class InternalSettingsPreparer {
         output.put(input);
         output.putProperties(esSettings, Function.identity());
         output.replacePropertyPlaceholders();
-    }
-
-    /**
-     * Checks all settings values to make sure they do not have the old prompt settings. These were deprecated in 6.0.0.
-     * This check should be removed in 8.0.0.
-     */
-    private static void checkSettingsForTerminalDeprecation(final Settings.Builder output) throws SettingsException {
-        // This method to be removed in 8.0.0, as it was deprecated in 6.0 and removed in 7.0
-        // assert Version.CURRENT.major != 8: "Logic pertaining to config driven prompting should be removed";
-        for (String setting : output.keys()) {
-            switch (output.get(setting)) {
-                case SECRET_PROMPT_VALUE:
-                    throw new SettingsException("Config driven secret prompting was deprecated in 6.0.0. Use the keystore" +
-                        " for secure settings.");
-                case TEXT_PROMPT_VALUE:
-                    throw new SettingsException("Config driven text prompting was deprecated in 6.0.0. Use the keystore" +
-                        " for secure settings.");
-            }
-        }
     }
 
     /**

@@ -57,22 +57,16 @@ public class RestCreateIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
-            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
+
+        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         if (request.hasContent()) {
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.content(), false, request.getXContentType()).v2();
-            if (sourceAsMap.containsKey("mappings")) {
-                if (includeTypeName == false) {
-                    Map<String, Object> newSourceAsMap = new HashMap<>(sourceAsMap);
-                    newSourceAsMap.put("mappings", Collections.singletonMap(
-                        MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
-                    sourceAsMap = newSourceAsMap;
-                } else {
-                    deprecationLogger.deprecatedAndMaybeLog("create_index_with_types", TYPES_DEPRECATION_MESSAGE);
-                }
+            if (includeTypeName && sourceAsMap.containsKey("mappings")) {
+                deprecationLogger.deprecatedAndMaybeLog("create_index_with_types", TYPES_DEPRECATION_MESSAGE);
             }
+            sourceAsMap = prepareMappings(sourceAsMap, includeTypeName);
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
 
@@ -84,5 +78,26 @@ public class RestCreateIndexAction extends BaseRestHandler {
         createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
         createIndexRequest.waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> client.admin().indices().create(createIndexRequest, new RestToXContentListener<>(channel));
+    }
+
+    static Map<String, Object> prepareMappings(Map<String, Object> source, boolean includeTypeName) {
+        if (includeTypeName
+            || source.containsKey("mappings") == false
+            || (source.get("mappings") instanceof Map) == false) {
+            return source;
+        }
+
+        Map<String, Object> newSource = new HashMap<>(source);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
+
+        if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
+            throw new IllegalArgumentException("The mapping definition cannot be nested under a type " +
+                "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
+        }
+
+        newSource.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
+        return newSource;
     }
 }

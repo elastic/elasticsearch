@@ -38,8 +38,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -57,6 +55,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -276,7 +275,7 @@ public class MetaDataMappingService {
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 DocumentMapper newMapper;
                 DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
-                if (existingMapper == null && isMappingSourceTyped(mapperService, mappingUpdateSource, request.type()) == false) {
+                if (existingMapper == null && isMappingSourceTyped(request.type(), mappingUpdateSource) == false) {
                     existingMapper = getMapperForUpdate(mapperService, mappingType);
                 }
                 String typeForUpdate = existingMapper == null ? mappingType : existingMapper.type();
@@ -337,7 +336,7 @@ public class MetaDataMappingService {
                 String typeForUpdate = mappingType;
                 CompressedXContent existingSource = null;
                 DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
-                if (existingMapper == null && isMappingSourceTyped(mapperService, mappingUpdateSource, request.type()) == false) {
+                if (existingMapper == null && isMappingSourceTyped(request.type(), mappingUpdateSource) == false) {
                     existingMapper = getMapperForUpdate(mapperService, mappingType);
                 }
                 if (existingMapper != null) {
@@ -398,15 +397,6 @@ public class MetaDataMappingService {
         public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
             return String.join(", ", tasks.stream().map(t -> (CharSequence)t.type())::iterator);
         }
-    }
-
-    /**
-     * Returns {@code true} if the given {@code mappingSource} includes a type
-     * as a top-level object.
-     */
-    private static boolean isMappingSourceTyped(MapperService mapperService, CompressedXContent mappingSource, String type) {
-        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
-        return root.size() == 1 && root.keySet().iterator().next().equals(type);
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {

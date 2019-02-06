@@ -122,14 +122,6 @@ public final class CardinalityAggregationBuilder
         return precisionThreshold;
     }
 
-    /**
-     * @deprecated no replacement - values will always be rehashed
-     */
-    @Deprecated
-    public void rehash(boolean rehash) {
-        // Deprecated all values are already rehashed so do nothing
-    }
-
     @Override
     protected CardinalityAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {

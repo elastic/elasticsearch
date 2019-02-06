@@ -4,21 +4,19 @@ setup:
         index: airline-data
         body:
           mappings:
-            response:
-              properties:
-                time:
-                  type: date
-                airline:
-                  type: keyword
-                responsetime:
-                  type: float
-                event_rate:
-                  type: integer
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
 
   - do:
       index:
         index: airline-data
-        type: response
         id: 1
         body: >
           {
@@ -31,7 +29,6 @@ setup:
   - do:
       index:
         index: airline-data
-        type: response
         id: 2
         body: >
           {
@@ -44,7 +41,6 @@ setup:
   - do:
       index:
         index: airline-data
-        type: response
         id: 3
         body: >
           {
@@ -57,7 +53,6 @@ setup:
   - do:
       index:
         index: airline-data
-        type: response
         id: 4
         body: >
           {
@@ -94,8 +89,7 @@ setup:
         body:  >
           {
             "job_id":"preview-datafeed-job",
-            "indexes":"airline-data",
-            "types":"response"
+            "indexes":"airline-data"
           }
 
   - do:
@@ -140,7 +134,6 @@ setup:
           {
             "job_id":"aggregation-doc-count-job",
             "indexes":"airline-data",
-            "types":"response",
             "aggregations": {
               "buckets": {
                 "histogram": {
@@ -213,7 +206,6 @@ setup:
           {
             "job_id":"aggregation-custom-single-metric-summary-job",
             "indexes":"airline-data",
-            "types":"response",
             "aggregations": {
               "buckets": {
                 "histogram": {
@@ -272,7 +264,6 @@ setup:
           {
             "job_id":"aggregation-custom-multi-metric-summary-job",
             "indexes":"airline-data",
-            "types":"response",
             "aggregations": {
               "buckets": {
                 "histogram": {
@@ -358,8 +349,7 @@ setup:
         body:  >
           {
             "job_id":"unavailable-job",
-            "indexes":"unavailable-data",
-            "types":"response"
+            "indexes":"unavailable-data"
           }
 
   - do:
@@ -391,7 +381,6 @@ setup:
           {
             "job_id":"empty-job",
             "indexes":"airline-data",
-            "types":"response",
             "query": {
               "term": {"airline":"missing"}
             }

@@ -38,7 +38,7 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to get a document (its source) from an index based on its type (optional) and id. Best created using
+ * A request to get a document (its source) from an index based on its id. Best created using
  * {@link org.elasticsearch.client.Requests#getRequest(String)}.
  * <p>
  * The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)}
@@ -84,7 +84,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
      * @param index The index to get the document from
      * @param type  The type of the document
      * @param id    The id of the document
-     *
      * @deprecated Types are in the process of being removed, use {@link GetRequest(String, String)} instead.
      */
     @Deprecated
@@ -127,7 +126,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     /**
      * Sets the type of the document to fetch.
-     *
      * @deprecated Types are in the process of being removed.
      */
     @Deprecated

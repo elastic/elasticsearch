@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -40,16 +41,16 @@ import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.joda.time.DateTimeZone.UTC;
 
 /**
  * Performs the watch execution operation.
@@ -86,9 +87,8 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
                     ActionListener.<GetResponse>wrap(response -> {
                         if (response.isExists()) {
-                            Watch watch =
-                                    watchParser.parse(request.getId(), true, response.getSourceAsBytesRef(), request.getXContentType());
-                            watch.version(response.getVersion());
+                            Watch watch = watchParser.parse(request.getId(), true, response.getSourceAsBytesRef(),
+                                request.getXContentType(), response.getSeqNo(), response.getPrimaryTerm());
                             watch.status().version(response.getVersion());
                             executeWatch(request, listener, watch, true);
                         } else {
@@ -99,7 +99,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             try {
                 assert !request.isRecordExecution();
                 Watch watch = watchParser.parse(ExecuteWatchRequest.INLINE_WATCH_ID, true, request.getWatchSource(),
-                request.getXContentType());
+                    request.getXContentType(), SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
                 executeWatch(request, listener, watch, false);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("failed to parse [{}]", request.getId()), e);
@@ -133,7 +133,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                 ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, knownWatch,
                         new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
 
-                DateTime executionTime = new DateTime(clock.millis(), UTC);
+                ZonedDateTime executionTime = clock.instant().atZone(ZoneOffset.UTC);
                 ctxBuilder.executionTime(executionTime);
                 for (Map.Entry<String, ActionExecutionMode> entry : request.getActionModes().entrySet()) {
                     ctxBuilder.actionMode(entry.getKey(), entry.getValue());

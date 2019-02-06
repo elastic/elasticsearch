@@ -20,12 +20,16 @@ public class DateTimeTestUtils {
 
     public static ZonedDateTime dateTime(int year, int month, int day, int hour, int minute) {
         DateTime dateTime = new DateTime(year, month, day, hour, minute, DateTimeZone.UTC);
-        ZonedDateTime zdt = ZonedDateTime.of(year, month, day, hour, minute, 0, 0, DateUtils.UTC_ZI);
+        ZonedDateTime zdt = ZonedDateTime.of(year, month, day, hour, minute, 0, 0, DateUtils.UTC);
         assertEquals(dateTime.getMillis() / 1000, zdt.toEpochSecond());
         return zdt;
     }
 
     public static ZonedDateTime dateTime(long millisSinceEpoch) {
-        return DateUtils.of(millisSinceEpoch);
+        return DateUtils.asDateTime(millisSinceEpoch);
+    }
+
+    public static ZonedDateTime date(long millisSinceEpoch) {
+        return DateUtils.asDateOnly(millisSinceEpoch);
     }
 }

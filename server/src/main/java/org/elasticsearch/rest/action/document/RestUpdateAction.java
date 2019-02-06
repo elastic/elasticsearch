@@ -47,6 +47,8 @@ public class RestUpdateAction extends BaseRestHandler {
     public RestUpdateAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/{index}/_update/{id}", this);
+
+        // Deprecated typed endpoint.
         controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
     }
 
@@ -81,9 +83,9 @@ public class RestUpdateAction extends BaseRestHandler {
         }
 
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
-        updateRequest.version(RestActions.parseVersion(request));
-        updateRequest.versionType(VersionType.fromString(request.param("version_type"), updateRequest.versionType()));
 
+        updateRequest.setIfSeqNo(request.paramAsLong("if_seq_no", updateRequest.ifSeqNo()));
+        updateRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", updateRequest.ifPrimaryTerm()));
 
         request.applyContentParser(parser -> {
             updateRequest.fromXContent(parser);

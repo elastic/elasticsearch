@@ -51,6 +51,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -74,6 +75,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
@@ -276,8 +278,11 @@ public class InternalEngine extends Engine {
         } else {
             lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
         }
-        return new SoftDeletesPolicy(translog::getLastSyncedGlobalCheckpoint, lastMinRetainedSeqNo,
-            engineConfig.getIndexSettings().getSoftDeleteRetentionOperations());
+        return new SoftDeletesPolicy(
+                translog::getLastSyncedGlobalCheckpoint,
+                lastMinRetainedSeqNo,
+                engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
+                engineConfig.retentionLeasesSupplier());
     }
 
     /**
@@ -618,6 +623,12 @@ public class InternalEngine extends Engine {
                     if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                             get.versionType().explainConflictForReads(versionValue.version, get.version()));
+                    }
+                    if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+                        get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term
+                        )) {
+                        throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                            get.getIfSeqNo(), get.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
                     }
                     if (get.isReadFromTranslog()) {
                         // this is only used for updates - API _GET calls will always read form a reader for consistency
@@ -965,7 +976,7 @@ public class InternalEngine extends Engine {
             versionMap.enforceSafeAccess();
             // resolves incoming version
             final VersionValue versionValue =
-                resolveDocVersion(index, index.getIfSeqNoMatch() != SequenceNumbers.UNASSIGNED_SEQ_NO);
+                resolveDocVersion(index, index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
             final long currentVersion;
             final boolean currentNotFoundOrDeleted;
             if (versionValue == null) {
@@ -975,15 +986,15 @@ public class InternalEngine extends Engine {
                 currentVersion = versionValue.version;
                 currentNotFoundOrDeleted = versionValue.isDelete();
             }
-            if (index.getIfSeqNoMatch() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
+            if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.type(), index.id(),
-                    index.getIfSeqNoMatch(), index.getIfPrimaryTermMatch(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+                    index.getIfSeqNo(), index.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
                 plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, getPrimaryTerm());
-            } else if (index.getIfSeqNoMatch() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
-                versionValue.seqNo != index.getIfSeqNoMatch() || versionValue.term != index.getIfPrimaryTermMatch()
+            } else if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+                versionValue.seqNo != index.getIfSeqNo() || versionValue.term != index.getIfPrimaryTerm()
             )) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.type(), index.id(),
-                    index.getIfSeqNoMatch(), index.getIfPrimaryTermMatch(), versionValue.seqNo, versionValue.term);
+                    index.getIfSeqNo(), index.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
                 plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, getPrimaryTerm());
             } else if (index.versionType().isVersionConflictForWrites(
                 currentVersion, index.version(), currentNotFoundOrDeleted)) {
@@ -1302,7 +1313,7 @@ public class InternalEngine extends Engine {
         assert delete.origin() == Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
         assert getMaxSeqNoOfUpdatesOrDeletes() != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         // resolve operation from external to internal
-        final VersionValue versionValue = resolveDocVersion(delete, delete.getIfSeqNoMatch() != SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final VersionValue versionValue = resolveDocVersion(delete, delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
         assert incrementVersionLookup();
         final long currentVersion;
         final boolean currentlyDeleted;
@@ -1314,15 +1325,15 @@ public class InternalEngine extends Engine {
             currentlyDeleted = versionValue.isDelete();
         }
         final DeletionStrategy plan;
-        if (delete.getIfSeqNoMatch() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
+        if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.type(), delete.id(),
-                delete.getIfSeqNoMatch(), delete.getIfPrimaryTermMatch(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+                delete.getIfSeqNo(), delete.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, getPrimaryTerm(), currentlyDeleted);
-        } else if (delete.getIfSeqNoMatch() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
-            versionValue.seqNo != delete.getIfSeqNoMatch() || versionValue.term != delete.getIfPrimaryTermMatch()
+        } else if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+            versionValue.seqNo != delete.getIfSeqNo() || versionValue.term != delete.getIfPrimaryTerm()
         )) {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.type(), delete.id(),
-                delete.getIfSeqNoMatch(), delete.getIfPrimaryTermMatch(), versionValue.seqNo, versionValue.term);
+                delete.getIfSeqNo(), delete.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, getPrimaryTerm(), currentlyDeleted);
         } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete, currentVersion, currentlyDeleted);
@@ -2333,7 +2344,13 @@ public class InternalEngine extends Engine {
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
                 if (softDeleteEnabled) {
-                    commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
+                    /*
+                     * We sample these from the policy (which occurs under a lock) to ensure that we have a consistent view of the minimum
+                     * retained sequence number, and the retention leases.
+                     */
+                    final Tuple<Long, RetentionLeases> retentionPolicy = softDeletesPolicy.getRetentionPolicy();
+                    commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(retentionPolicy.v1()));
+                    commitData.put(Engine.RETENTION_LEASES, RetentionLeases.encodeRetentionLeases(retentionPolicy.v2()));
                 }
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();

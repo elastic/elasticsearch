@@ -57,6 +57,8 @@ public class RestCountAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_count", this);
         controller.registerHandler(POST, "/{index}/_count", this);
         controller.registerHandler(GET, "/{index}/_count", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(POST, "/{index}/{type}/_count", this);
         controller.registerHandler(GET, "/{index}/{type}/_count", this);
     }
@@ -70,7 +72,7 @@ public class RestCountAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         countRequest.source(searchSourceBuilder);
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser == null) {

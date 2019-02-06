@@ -18,6 +18,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,8 +50,6 @@ import org.elasticsearch.xpack.monitoring.collector.indices.IndicesStatsMonitori
 import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.shards.ShardMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.test.MockIngestPlugin;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
 import java.lang.Thread.State;
@@ -58,6 +57,8 @@ import java.lang.management.LockInfo;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MonitorInfo;
 import java.lang.management.ThreadInfo;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -103,11 +104,11 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     }
 
     private String createBulkEntity() {
-        return "{\"index\":{\"_type\":\"test\"}}\n" +
+        return "{\"index\":{}}\n" +
                "{\"foo\":{\"bar\":0}}\n" +
-               "{\"index\":{\"_type\":\"test\"}}\n" +
+               "{\"index\":{}}\n" +
                "{\"foo\":{\"bar\":1}}\n" +
-               "{\"index\":{\"_type\":\"test\"}}\n" +
+               "{\"index\":{}}\n" +
                "{\"foo\":{\"bar\":2}}\n" +
                "\n";
     }
@@ -126,7 +127,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             final MonitoringBulkResponse bulkResponse =
                     new MonitoringBulkRequestBuilder(client())
-                            .add(system, null, new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
+                            .add(system, "monitoring_data_type", new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
                                  System.currentTimeMillis(), interval.millis())
                     .get();
 
@@ -177,7 +178,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                        equalTo(1L));
 
             for (final SearchHit hit : hits.getHits()) {
-                assertMonitoringDoc(toMap(hit), system, "test", interval);
+                assertMonitoringDoc(toMap(hit), system, "monitoring_data_type", interval);
             }
         });
     }
@@ -262,7 +263,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         final String index = (String) document.get("_index");
         assertThat(index, containsString(".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-"));
-        assertThat(document.get("_type"), equalTo("doc"));
         assertThat((String) document.get("_id"), not(isEmptyOrNullString()));
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
@@ -275,9 +275,10 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         assertThat(((Number) source.get("interval_ms")).longValue(), equalTo(interval.getMillis()));
 
-        assertThat(index, equalTo(MonitoringTemplateUtils.indexName(DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC(),
-                                                                    expectedSystem,
-                                                                    ISODateTimeFormat.dateTime().parseMillis(timestamp))));
+        DateFormatter formatter = DateFormatter.forPattern("yyyy.MM.dd");
+        long isoTimestamp = Instant.from(DateFormatter.forPattern("strict_date_time").parse(timestamp)).toEpochMilli();
+        String isoDateTime = MonitoringTemplateUtils.indexName(formatter.withZone(ZoneOffset.UTC), expectedSystem, isoTimestamp);
+        assertThat(index, equalTo(isoDateTime));
 
         final Map<String, Object> sourceNode = (Map<String, Object>) source.get("source_node");
         if (sourceNode != null) {

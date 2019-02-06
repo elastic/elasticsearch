@@ -3,6 +3,22 @@
 === API changes
 
 [float]
+==== Internal Versioning is no longer supported for optimistic concurrency control
+
+Elasticsearch maintains a numeric version field for each document it stores. That field
+is incremented by one with every change to the document. Until 7.0.0 the API allowed using
+that field for optimistic concurrency control, i.e., making a write operation conditional
+on the current document version. Sadly, that approach is flawed because the value of the
+version doesn't always uniquely represent a change to the document. If a primary fails
+while handling a write operation, it may expose a version that will then be reused by the
+new primary.
+
+Due to that issue, internal versioning can no longer be used and is replaced by a new
+method based on sequence numbers. See <<optimistic-concurrency-control>> for more details.
+
+Note that the `external` versioning type is still fully supported.
+
+[float]
 ==== Camel case and underscore parameters deprecated in 6.x have been removed
 A number of duplicate parameters deprecated in 6.x have been removed from
 Bulk request, Multi Get request, Term Vectors request, and More Like This Query
@@ -88,10 +104,10 @@ When putting stored scripts, support for storing them with the deprecated `templ
 now removed. Scripts must be stored using the `script` context as mentioned in the documentation.
 
 [float]
-==== Get Aliases API limitations when {security} is enabled removed
+==== Removed Get Aliases API limitations when {security-features} are enabled
 
 The behavior and response codes of the get aliases API no longer vary
-depending on whether {security} is enabled. Previously a
+depending on whether {security-features} are enabled. Previously a
 404 - NOT FOUND (IndexNotFoundException) could be returned in case the
 current user was not authorized for any alias. An empty response with
 status 200 - OK is now returned instead at all times.
@@ -126,3 +142,15 @@ removed.
 
 The `_termvector` endpoint was deprecated in 2.0 and has now been removed.
 The endpoint `_termvectors` (plural) should be used instead.
+
+[float]
+==== When {security-features} are enabled, index monitoring APIs over restricted indices are not authorized implicitly anymore
+
+Restricted indices (currently only `.security-6` and `.security`) are special internal
+indices that require setting the `allow_restricted_indices` flag on every index
+permission that covers them. If this flag is `false` (default) the permission
+will not cover these and actions against them will not be authorized.
+However, the monitoring APIs were the only exception to this rule. This exception
+has been forfeited and index monitoring privileges have to be granted explicitly,
+using the `allow_restricted_indices` flag on the permission (as any other index
+privilege).

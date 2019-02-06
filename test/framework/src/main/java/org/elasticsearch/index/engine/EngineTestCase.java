@@ -84,6 +84,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -115,6 +116,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
 import java.util.stream.Collectors;
 
@@ -146,7 +148,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Path primaryTranslogDir;
     protected Path replicaTranslogDir;
     // A default primary term is used by engine instances created in this test.
-    protected AtomicLong primaryTerm = new AtomicLong();
+    protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(0L);
 
     protected static void assertVisibleCount(Engine engine, int numDocs) throws IOException {
         assertVisibleCount(engine, numDocs, true);
@@ -224,7 +226,8 @@ public abstract class EngineTestCase extends ESTestCase {
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
-            config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier(), tombstoneDocSupplier());
+            config.getCircuitBreakerService(), globalCheckpointSupplier, config.retentionLeasesSupplier(),
+                config.getPrimaryTermSupplier(), tombstoneDocSupplier());
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
@@ -233,8 +236,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
                 config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
-                config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.getPrimaryTermSupplier(),
-                config.getTombstoneDocSupplier());
+                config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
+                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
     }
 
     public EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
@@ -243,8 +246,8 @@ public abstract class EngineTestCase extends ESTestCase {
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(),
-            config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.getPrimaryTermSupplier(),
-            config.getTombstoneDocSupplier());
+            config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
+                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
     }
 
     @Override
@@ -332,7 +335,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 source.endObject();
             }
             source.endObject();
-            return nestedMapper.parse(SourceToParse.source("test", "type", docId, BytesReference.bytes(source), XContentType.JSON));
+            return nestedMapper.parse(new SourceToParse("test", "type", docId, BytesReference.bytes(source), XContentType.JSON));
         };
     }
 
@@ -574,35 +577,119 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
                                ReferenceManager.RefreshListener refreshListener, Sort indexSort, LongSupplier globalCheckpointSupplier) {
-        return config(indexSettings, store, translogPath, mergePolicy, refreshListener, null, indexSort, globalCheckpointSupplier,
-            new NoneCircuitBreakerService());
+        return config(
+                indexSettings,
+                store,
+                translogPath,
+                mergePolicy,
+                refreshListener,
+                indexSort,
+                globalCheckpointSupplier,
+                globalCheckpointSupplier == null ? null : () -> RetentionLeases.EMPTY);
+    }
+
+    public EngineConfig config(
+            final IndexSettings indexSettings,
+            final Store store,
+            final Path translogPath,
+            final MergePolicy mergePolicy,
+            final ReferenceManager.RefreshListener refreshListener,
+            final Sort indexSort,
+            final LongSupplier globalCheckpointSupplier,
+            final Supplier<RetentionLeases> retentionLeasesSupplier) {
+        return config(
+                indexSettings,
+                store,
+                translogPath,
+                mergePolicy,
+                refreshListener,
+                null,
+                indexSort,
+                globalCheckpointSupplier,
+                retentionLeasesSupplier,
+                new NoneCircuitBreakerService());
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
                                ReferenceManager.RefreshListener externalRefreshListener,
                                ReferenceManager.RefreshListener internalRefreshListener,
-                               Sort indexSort, LongSupplier globalCheckpointSupplier, CircuitBreakerService breakerService) {
-            IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        Engine.EventListener listener = new Engine.EventListener() {
-            @Override
-            public void onFailedEngine(String reason, @Nullable Exception e) {
-                // we don't need to notify anybody in this test
-            }
-        };
+                               Sort indexSort, @Nullable LongSupplier maybeGlobalCheckpointSupplier,
+                               CircuitBreakerService breakerService) {
+        return config(
+                indexSettings,
+                store,
+                translogPath,
+                mergePolicy,
+                externalRefreshListener,
+                internalRefreshListener,
+                indexSort,
+                maybeGlobalCheckpointSupplier,
+                maybeGlobalCheckpointSupplier == null ? null : () -> RetentionLeases.EMPTY,
+                breakerService);
+    }
+
+    public EngineConfig config(
+            final IndexSettings indexSettings,
+            final Store store,
+            final Path translogPath,
+            final MergePolicy mergePolicy,
+            final ReferenceManager.RefreshListener externalRefreshListener,
+            final ReferenceManager.RefreshListener internalRefreshListener,
+            final Sort indexSort,
+            final @Nullable LongSupplier maybeGlobalCheckpointSupplier,
+            final @Nullable Supplier<RetentionLeases> maybeRetentionLeasesSupplier,
+            final CircuitBreakerService breakerService) {
+        final IndexWriterConfig iwc = newIndexWriterConfig();
+        final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        final Engine.EventListener eventListener = new Engine.EventListener() {}; // we don't need to notify anybody in this test
         final List<ReferenceManager.RefreshListener> extRefreshListenerList =
-            externalRefreshListener == null ? emptyList() : Collections.singletonList(externalRefreshListener);
+                externalRefreshListener == null ? emptyList() : Collections.singletonList(externalRefreshListener);
         final List<ReferenceManager.RefreshListener> intRefreshListenerList =
-            internalRefreshListener == null ? emptyList() : Collections.singletonList(internalRefreshListener);
-        EngineConfig config = new EngineConfig(shardId, allocationId.getId(), threadPool, indexSettings, null, store,
-                mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
-                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), extRefreshListenerList, intRefreshListenerList, indexSort,
+                internalRefreshListener == null ? emptyList() : Collections.singletonList(internalRefreshListener);
+        final LongSupplier globalCheckpointSupplier;
+        final Supplier<RetentionLeases> retentionLeasesSupplier;
+        if (maybeGlobalCheckpointSupplier == null) {
+            assert maybeRetentionLeasesSupplier == null;
+            final ReplicationTracker replicationTracker = new ReplicationTracker(
+                    shardId,
+                    allocationId.getId(),
+                    indexSettings,
+                    randomNonNegativeLong(),
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    update -> {},
+                    () -> 0L,
+                    (leases, listener) -> {});
+            globalCheckpointSupplier = replicationTracker;
+            retentionLeasesSupplier = replicationTracker::getRetentionLeases;
+        } else {
+            assert maybeRetentionLeasesSupplier != null;
+            globalCheckpointSupplier = maybeGlobalCheckpointSupplier;
+            retentionLeasesSupplier = maybeRetentionLeasesSupplier;
+        }
+        return new EngineConfig(
+                shardId,
+                allocationId.getId(),
+                threadPool,
+                indexSettings,
+                null,
+                store,
+                mergePolicy,
+                iwc.getAnalyzer(),
+                iwc.getSimilarity(),
+                new CodecService(null, logger),
+                eventListener,
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                translogConfig,
+                TimeValue.timeValueMinutes(5),
+                extRefreshListenerList,
+                intRefreshListenerList,
+                indexSort,
                 breakerService,
-                globalCheckpointSupplier == null ?
-                    new ReplicationTracker(shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED, update -> {}) :
-                    globalCheckpointSupplier, primaryTerm::get, tombstoneDocSupplier());
-        return config;
+                globalCheckpointSupplier,
+                retentionLeasesSupplier,
+                primaryTerm,
+                tombstoneDocSupplier());
     }
 
     protected static final BytesReference B_1 = new BytesArray(new byte[]{1});
@@ -999,5 +1086,26 @@ public abstract class EngineTestCase extends ESTestCase {
         assert engine instanceof InternalEngine : "only InternalEngines have translogs, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;
         return internalEngine.getTranslog();
+    }
+
+    public static final class PrimaryTermSupplier implements LongSupplier {
+        private final AtomicLong term;
+
+        PrimaryTermSupplier(long initialTerm) {
+            this.term = new AtomicLong(initialTerm);
+        }
+
+        public long get() {
+            return term.get();
+        }
+
+        public void set(long newTerm) {
+            this.term.set(newTerm);
+        }
+
+        @Override
+        public long getAsLong() {
+            return get();
+        }
     }
 }

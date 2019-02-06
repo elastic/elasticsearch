@@ -26,6 +26,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_STATS_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
 
 public abstract class RestSqlUsageTestCase extends ESRestTestCase {
@@ -38,7 +41,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     );
     
     private enum ClientType {
-        CANVAS, CLI, JDBC, ODBC, REST;
+        CANVAS, CLI, JDBC, ODBC, ODBC32, ODBC64, REST;
 
         @Override
         public String toString() {
@@ -84,7 +87,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
                 baseMetrics.put(metric.toString(), (Integer) featuresMetrics.get(metric.toString()));
             }
             
-            // initialize the "base" metric values with whatever values are already recorder on ES
+            // initialize the "base" metric values with whatever values are already recorded on ES
             baseClientTypeTotalQueries = ((Map<String,Integer>) queriesMetrics.get(clientType)).get("total");
             baseClientTypeFailedQueries = ((Map<String,Integer>) queriesMetrics.get(clientType)).get("failed");
             baseAllTotalQueries = ((Map<String,Integer>) queriesMetrics.get("_all")).get("total");
@@ -160,8 +163,8 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         allTotalQueries += randomCommandExecutions;
         for (int i = 0; i < randomCommandExecutions; i++) {
             runSql(randomFrom("SHOW FUNCTIONS", "SHOW COLUMNS FROM library", "SHOW SCHEMAS",
-                                 "SHOW TABLES", "SYS CATALOGS", "SYS COLUMNS LIKE '%name'",
-                                 "SYS TABLES", "SYS TYPES"));
+                                 "SHOW TABLES", "SYS TABLES", "SYS COLUMNS LIKE '%name'",
+                                 "SYS TABLES TYPE '%'", "SYS TYPES"));
         }
         responseAsMap = getStats();
         assertFeatureMetric(baseMetrics.get("command") + randomCommandExecutions, responseAsMap, "command");
@@ -226,7 +229,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private Map<String, Object> getStats() throws UnsupportedOperationException, IOException {
-        Request request = new Request("GET", "/_sql/stats");
+        Request request = new Request("GET", SQL_STATS_REST_ENDPOINT);
         Map<String, Object> responseAsMap;
         try (InputStream content = client().performRequest(request).getEntity().getContent()) {
             responseAsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
@@ -236,7 +239,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runTranslate(String sql) throws IOException {
-        Request request = new Request("POST", "/_sql/translate");
+        Request request = new Request("POST", SQL_TRANSLATE_REST_ENDPOINT);
         if (randomBoolean()) {
             // We default to JSON but we force it randomly for extra coverage
             request.addParameter("format", "json");
@@ -252,8 +255,15 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runSql(String sql) throws IOException {
-        String mode = (clientType.equals(ClientType.JDBC.toString()) || clientType.equals(ClientType.ODBC.toString())) ?
-                clientType.toString() : Mode.PLAIN.toString();
+        String mode = Mode.PLAIN.toString();
+        if (clientType.equals(ClientType.JDBC.toString())) {
+            mode = Mode.JDBC.toString();
+        } else if (clientType.startsWith(ClientType.ODBC.toString())) {
+            mode = Mode.ODBC.toString();
+        } else if (clientType.equals(ClientType.CLI.toString())) {
+            mode = Mode.CLI.toString();
+        }
+
         runSql(mode, clientType, sql);
     }
     
@@ -270,7 +280,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
     
     private void runSql(String mode, String restClient, String sql) throws IOException {
-        Request request = new Request("POST", "/_sql");
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         if (randomBoolean()) {

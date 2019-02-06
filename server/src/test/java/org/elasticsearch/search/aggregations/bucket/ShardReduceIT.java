@@ -24,7 +24,7 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -39,6 +39,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHist
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.geotileGrid;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.ipRange;
@@ -301,7 +302,22 @@ public class ShardReduceIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        GeoHashGrid grid = response.getAggregations().get("grid");
+        GeoGrid grid = response.getAggregations().get("grid");
+        Histogram histo = grid.getBuckets().iterator().next().getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(4));
+    }
+
+    public void testGeoTileGrid() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addAggregation(geotileGrid("grid").field("location")
+                        .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
+                                .minDocCount(0)))
+                .get();
+
+        assertSearchResponse(response);
+
+        GeoGrid grid = response.getAggregations().get("grid");
         Histogram histo = grid.getBuckets().iterator().next().getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(4));
     }

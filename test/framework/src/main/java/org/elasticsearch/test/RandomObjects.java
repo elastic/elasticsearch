@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo.Failure;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.shard.IndexShardRecoveringException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -135,13 +135,16 @@ public final class RandomObjects {
             }
         }
         if (value instanceof Float) {
+            if (xContentType == XContentType.CBOR) {
+                //with CBOR we get back a float
+                return value;
+            }
             if (xContentType == XContentType.SMILE) {
                 //with SMILE we get back a double (this will change in Jackson 2.9 where it will return a Float)
                 return ((Float)value).doubleValue();
-            } else {
-                //with JSON AND YAML we get back a double, but with float precision.
-                return Double.parseDouble(value.toString());
             }
+            //with JSON AND YAML we get back a double, but with float precision.
+            return Double.parseDouble(value.toString());
         }
         if (value instanceof Byte) {
             return ((Byte)value).intValue();
@@ -307,7 +310,7 @@ public final class RandomObjects {
         int type = randomIntBetween(random, 0, 3);
         switch (type) {
             case 0:
-                actualException = new ClusterBlockException(singleton(DiscoverySettings.NO_MASTER_BLOCK_WRITES));
+                actualException = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
                 expectedException = new ElasticsearchException("Elasticsearch exception [type=cluster_block_exception, " +
                         "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
                 break;

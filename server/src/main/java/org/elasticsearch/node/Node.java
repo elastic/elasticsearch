@@ -67,6 +67,7 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -238,7 +239,6 @@ public class Node implements Closeable {
     private final Logger logger;
     private final Injector injector;
     private final Settings settings;
-    private final Settings originalSettings;
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
@@ -265,7 +265,6 @@ public class Node implements Closeable {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
         try {
-            originalSettings = environment.settings();
             Settings tmpSettings = Settings.builder().put(environment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
 
@@ -302,7 +301,8 @@ public class Node implements Closeable {
                     environment.configFile(), Arrays.toString(environment.dataFiles()), environment.logsFile(), environment.pluginsFile());
             }
 
-            this.pluginsService = new PluginsService(tmpSettings, environment.configFile(), environment.modulesFile(), environment.pluginsFile(), classpathPlugins);
+            this.pluginsService = new PluginsService(tmpSettings, environment.configFile(), environment.modulesFile(),
+                environment.pluginsFile(), classpathPlugins);
             this.settings = pluginsService.updatedSettings();
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
@@ -596,13 +596,6 @@ public class Node implements Closeable {
     }
 
     /**
-     * The original settings that were used to create the node
-     */
-    public Settings originalSettings() {
-        return originalSettings;
-    }
-
-    /**
      * The settings that are used by this node. Contains original settings as well as additional settings provided by plugins.
      */
     public Settings settings() {
@@ -678,11 +671,9 @@ public class Node implements Closeable {
             onDiskMetadata = MetaData.EMPTY_META_DATA;
         }
         assert onDiskMetadata != null : "metadata is null but shouldn't"; // this is never null
-        validateNodeBeforeAcceptingRequests(new BootstrapContext(environment, onDiskMetadata), transportService.boundAddress(), pluginsService
-            .filterPlugins(Plugin
-            .class)
-            .stream()
-            .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
+        validateNodeBeforeAcceptingRequests(new BootstrapContext(environment, onDiskMetadata), transportService.boundAddress(),
+            pluginsService.filterPlugins(Plugin.class).stream()
+                .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
 
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known
@@ -693,10 +684,14 @@ public class Node implements Closeable {
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
+        configureNodeAndClusterIdStateListener(clusterService);
+
         if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterState clusterState = clusterService.state();
-            ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
+            ClusterStateObserver observer =
+                new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
+
             if (clusterState.nodes().getMasterNodeId() == null) {
                 logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
                 final CountDownLatch latch = new CountDownLatch(1);
@@ -741,6 +736,11 @@ public class Node implements Closeable {
         return this;
     }
 
+    protected void configureNodeAndClusterIdStateListener(ClusterService clusterService) {
+        NodeAndClusterIdStateListener.getAndSetNodeIdAndClusterId(clusterService,
+            injector.getInstance(ThreadPool.class).getThreadContext());
+    }
+
     private Node stop() {
         if (!lifecycle.moveToStopped()) {
             return this;
@@ -776,8 +776,9 @@ public class Node implements Closeable {
     }
 
     // During concurrent close() calls we want to make sure that all of them return after the node has completed it's shutdown cycle.
-    // If not, the hook that is added in Bootstrap#setup() will be useless: close() might not be executed, in case another (for example api) call
-    // to close() has already set some lifecycles to stopped. In this case the process will be terminated even if the first call to close() has not finished yet.
+    // If not, the hook that is added in Bootstrap#setup() will be useless:
+    // close() might not be executed, in case another (for example api) call to close() has already set some lifecycles to stopped.
+    // In this case the process will be terminated even if the first call to close() has not finished yet.
     @Override
     public synchronized void close() throws IOException {
         if (lifecycle.started()) {

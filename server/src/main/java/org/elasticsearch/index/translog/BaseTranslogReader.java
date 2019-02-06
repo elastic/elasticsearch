@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -113,7 +114,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
 
     protected Translog.Operation read(BufferedChecksumStreamInput inStream) throws IOException {
         final Translog.Operation op = Translog.readOperation(inStream);
-        if (op.primaryTerm() > getPrimaryTerm() && getPrimaryTerm() != TranslogHeader.UNKNOWN_PRIMARY_TERM) {
+        if (op.primaryTerm() > getPrimaryTerm() && getPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
             throw new TranslogCorruptedException(
                     path.toString(),
                     "operation's term is newer than translog header term; " +

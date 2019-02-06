@@ -19,20 +19,24 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetIndexTemplatesResponseTests extends AbstractXContentTestCase<GetIndexTemplatesResponse> {
@@ -79,6 +83,15 @@ public class GetIndexTemplatesResponseTests extends AbstractXContentTestCase<Get
         // from template name to template content. IndexTemplateMetaDataTests already covers situations where we
         // inject arbitrary things inside the IndexTemplateMetaData.
         return false;
+    }
+
+    /**
+     * For now, we only unit test the legacy typed responses. This will soon no longer be the case,
+     * as we introduce support for typeless xContent parsing in {@link GetFieldMappingsResponse}.
+     */
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return new ToXContent.MapParams(Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true"));
     }
 
     @Override

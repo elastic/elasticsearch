@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -52,7 +51,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
-    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatters.forPattern("strictDateOptionalTime");
+    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strictDateOptionalTime");
     private static final String SNAPSHOT = "snapshot";
     private static final String UUID = "uuid";
     private static final String INDICES = "indices";
@@ -232,16 +231,18 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private final List<SnapshotShardFailure> shardFailures;
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state) {
-        this(snapshotId, indices, state, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null);
+        this(snapshotId, indices, state, null, null, 0L, 0L, 0, 0,
+            Collections.emptyList(), null);
     }
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state, Version version) {
-        this(snapshotId, indices, state, null, version, 0L, 0L, 0, 0, Collections.emptyList(), null);
+        this(snapshotId, indices, state, null, version, 0L, 0L, 0, 0,
+            Collections.emptyList(), null);
     }
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, long startTime, Boolean includeGlobalState) {
-        this(snapshotId, indices, SnapshotState.IN_PROGRESS, null, Version.CURRENT, startTime, 0L, 0, 0,
-            Collections.emptyList(), includeGlobalState);
+        this(snapshotId, indices, SnapshotState.IN_PROGRESS, null, Version.CURRENT, startTime, 0L,
+            0, 0, Collections.emptyList(), includeGlobalState);
     }
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, long startTime, String reason, long endTime,
@@ -306,7 +307,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     public static SnapshotInfo incompatible(SnapshotId snapshotId) {
         return new SnapshotInfo(snapshotId, Collections.emptyList(), SnapshotState.INCOMPATIBLE,
                                 "the snapshot is incompatible with the current version of Elasticsearch and its exact version is unknown",
-                                null, 0L, 0L, 0, 0, Collections.emptyList(), null);
+                                null, 0L, 0L, 0, 0,
+                                Collections.emptyList(), null);
     }
 
     /**

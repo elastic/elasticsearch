@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -32,6 +33,8 @@ import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
+import org.elasticsearch.client.security.CreateApiKeyRequest;
+import org.elasticsearch.client.security.CreateApiKeyResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
@@ -43,9 +46,10 @@ import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
-import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.ExpressionRoleMapping;
+import org.elasticsearch.client.security.GetApiKeyRequest;
+import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetPrivilegesResponse;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
@@ -58,6 +62,8 @@ import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GetUsersResponse;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
+import org.elasticsearch.client.security.InvalidateApiKeyRequest;
+import org.elasticsearch.client.security.InvalidateApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
@@ -69,6 +75,7 @@ import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
@@ -78,14 +85,17 @@ import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.Role;
+import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
+import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.hamcrest.Matchers;
 
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -98,15 +108,20 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
@@ -337,7 +352,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private void addUser(RestHighLevelClient client, String userName, String password) throws IOException {
         User user = new User(userName, Collections.singletonList(userName));
-        PutUserRequest request = new PutUserRequest(user, password.toCharArray(), true, RefreshPolicy.NONE);
+        PutUserRequest request = PutUserRequest.withPassword(user, password.toCharArray(), true, RefreshPolicy.NONE);
         PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
         assertTrue(response.isCreated());
     }
@@ -511,25 +526,25 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
         User enable_user = new User("enable_user", Collections.singletonList("superuser"));
-        PutUserRequest putUserRequest = new PutUserRequest(enable_user, password, true, RefreshPolicy.IMMEDIATE);
+        PutUserRequest putUserRequest = PutUserRequest.withPassword(enable_user, password, true, RefreshPolicy.IMMEDIATE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
         assertTrue(putUserResponse.isCreated());
 
         {
             //tag::enable-user-execute
             EnableUserRequest request = new EnableUserRequest("enable_user", RefreshPolicy.NONE);
-            EmptyResponse response = client.security().enableUser(request, RequestOptions.DEFAULT);
+            boolean response = client.security().enableUser(request, RequestOptions.DEFAULT);
             //end::enable-user-execute
 
-            assertNotNull(response);
+            assertTrue(response);
         }
 
         {
             //tag::enable-user-execute-listener
             EnableUserRequest request = new EnableUserRequest("enable_user", RefreshPolicy.NONE);
-            ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(EmptyResponse setUserEnabledResponse) {
+                public void onResponse(Boolean response) {
                     // <1>
                 }
 
@@ -556,24 +571,24 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
         User disable_user = new User("disable_user", Collections.singletonList("superuser"));
-        PutUserRequest putUserRequest = new PutUserRequest(disable_user, password, true, RefreshPolicy.IMMEDIATE);
+        PutUserRequest putUserRequest = PutUserRequest.withPassword(disable_user, password, true, RefreshPolicy.IMMEDIATE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
         assertTrue(putUserResponse.isCreated());
         {
             //tag::disable-user-execute
             DisableUserRequest request = new DisableUserRequest("disable_user", RefreshPolicy.NONE);
-            EmptyResponse response = client.security().disableUser(request, RequestOptions.DEFAULT);
+            boolean response = client.security().disableUser(request, RequestOptions.DEFAULT);
             //end::disable-user-execute
 
-            assertNotNull(response);
+            assertTrue(response);
         }
 
         {
             //tag::disable-user-execute-listener
             DisableUserRequest request = new DisableUserRequest("disable_user", RefreshPolicy.NONE);
-            ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(EmptyResponse setUserEnabledResponse) {
+                public void onResponse(Boolean response) {
                     // <1>
                 }
 
@@ -639,8 +654,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<Role> roles = response.getRoles();
             assertNotNull(response);
-            // 21 system roles plus the three we created
-            assertThat(roles.size(), equalTo(24));
+            // 25 system roles plus the three we created
+            assertThat(roles.size(), equalTo(28));
         }
 
         {
@@ -741,8 +756,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             HasPrivilegesRequest request = new HasPrivilegesRequest(
                 Sets.newHashSet("monitor", "manage"),
                 Sets.newHashSet(
-                    IndicesPrivileges.builder().indices("logstash-2018-10-05").privileges("read", "write").build(),
-                    IndicesPrivileges.builder().indices("logstash-2018-*").privileges("read").build()
+                    IndicesPrivileges.builder().indices("logstash-2018-10-05").privileges("read", "write")
+                        .allowRestrictedIndices(false).build(),
+                    IndicesPrivileges.builder().indices("logstash-2018-*").privileges("read")
+                        .allowRestrictedIndices(true).build()
                 ),
                 null
             );
@@ -1031,23 +1048,23 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
         char[] newPassword = new char[]{'n', 'e', 'w', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
         User user = new User("change_password_user", Collections.singletonList("superuser"), Collections.emptyMap(), null, null);
-        PutUserRequest putUserRequest = new PutUserRequest(user, password, true, RefreshPolicy.NONE);
+        PutUserRequest putUserRequest = PutUserRequest.withPassword(user, password, true, RefreshPolicy.NONE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
         assertTrue(putUserResponse.isCreated());
         {
             //tag::change-password-execute
             ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", newPassword, RefreshPolicy.NONE);
-            EmptyResponse response = client.security().changePassword(request, RequestOptions.DEFAULT);
+            boolean response = client.security().changePassword(request, RequestOptions.DEFAULT);
             //end::change-password-execute
 
-            assertNotNull(response);
+            assertTrue(response);
         }
         {
             //tag::change-password-execute-listener
             ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", password, RefreshPolicy.NONE);
-            ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(EmptyResponse response) {
+                public void onResponse(Boolean response) {
                     // <1>
                 }
 
@@ -1248,7 +1265,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Setup user
             User token_user = new User("token_user", Collections.singletonList("kibana_user"));
-            PutUserRequest putUserRequest = new PutUserRequest(token_user, "password".toCharArray(), true, RefreshPolicy.IMMEDIATE);
+            PutUserRequest putUserRequest = PutUserRequest.withPassword(token_user, "password".toCharArray(), true,
+                    RefreshPolicy.IMMEDIATE);
             PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
             assertTrue(putUserResponse.isCreated());
         }
@@ -1323,19 +1341,52 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         String accessToken;
         String refreshToken;
         {
-            // Setup user
+            // Setup users
             final char[] password = "password".toCharArray();
-            User invalidate_token_user = new User("invalidate_token", Collections.singletonList("kibana_user"));
-            PutUserRequest putUserRequest = new PutUserRequest(invalidate_token_user, password, true, RefreshPolicy.IMMEDIATE);
+            User user = new User("user", Collections.singletonList("kibana_user"));
+            PutUserRequest putUserRequest = PutUserRequest.withPassword(user, password, true, RefreshPolicy.IMMEDIATE);
             PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
             assertTrue(putUserResponse.isCreated());
 
+            User this_user = new User("this_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putThisUserRequest = PutUserRequest.withPassword(this_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putThisUserResponse = client.security().putUser(putThisUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putThisUserResponse.isCreated());
+
+            User that_user = new User("that_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putThatUserRequest = PutUserRequest.withPassword(that_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putThatUserResponse = client.security().putUser(putThatUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putThatUserResponse.isCreated());
+
+            User other_user = new User("other_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putOtherUserRequest = PutUserRequest.withPassword(other_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putOtherUserResponse = client.security().putUser(putOtherUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putOtherUserResponse.isCreated());
+
+            User extra_user = new User("extra_user", Collections.singletonList("kibana_user"));
+            PutUserRequest putExtraUserRequest = PutUserRequest.withPassword(extra_user, password, true, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putExtraUserResponse = client.security().putUser(putExtraUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putExtraUserResponse.isCreated());
+
             // Create tokens
-            final CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant("invalidate_token", password);
+            final CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant("user", password);
             final CreateTokenResponse tokenResponse = client.security().createToken(createTokenRequest, RequestOptions.DEFAULT);
             accessToken = tokenResponse.getAccessToken();
             refreshToken = tokenResponse.getRefreshToken();
+            final CreateTokenRequest createThisTokenRequest = CreateTokenRequest.passwordGrant("this_user", password);
+            final CreateTokenResponse thisTokenResponse = client.security().createToken(createThisTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(thisTokenResponse);
+            final CreateTokenRequest createThatTokenRequest = CreateTokenRequest.passwordGrant("that_user", password);
+            final CreateTokenResponse thatTokenResponse = client.security().createToken(createThatTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(thatTokenResponse);
+            final CreateTokenRequest createOtherTokenRequest = CreateTokenRequest.passwordGrant("other_user", password);
+            final CreateTokenResponse otherTokenResponse = client.security().createToken(createOtherTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(otherTokenResponse);
+            final CreateTokenRequest createExtraTokenRequest = CreateTokenRequest.passwordGrant("extra_user", password);
+            final CreateTokenResponse extraTokenResponse = client.security().createToken(createExtraTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(extraTokenResponse);
         }
+
         {
             // tag::invalidate-access-token-request
             InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.accessToken(accessToken);
@@ -1347,15 +1398,54 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::invalidate-token-execute
 
             // tag::invalidate-token-response
-            boolean isCreated = invalidateTokenResponse.isCreated();
+            final List<ElasticsearchException> errors = invalidateTokenResponse.getErrors();
+            final int invalidatedTokens = invalidateTokenResponse.getInvalidatedTokens();
+            final int previouslyInvalidatedTokens = invalidateTokenResponse.getPreviouslyInvalidatedTokens();
             // end::invalidate-token-response
-            assertTrue(isCreated);
+            assertTrue(errors.isEmpty());
+            assertThat(invalidatedTokens, equalTo(1));
+            assertThat(previouslyInvalidatedTokens, equalTo(0));
         }
 
         {
             // tag::invalidate-refresh-token-request
             InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.refreshToken(refreshToken);
             // end::invalidate-refresh-token-request
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            assertTrue(invalidateTokenResponse.getErrors().isEmpty());
+            assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(1));
+            assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        }
+
+        {
+            // tag::invalidate-user-tokens-request
+            InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.userTokens("other_user");
+            // end::invalidate-user-tokens-request
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            assertTrue(invalidateTokenResponse.getErrors().isEmpty());
+            // We have one refresh and one access token for that user
+            assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(2));
+            assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        }
+
+        {
+            // tag::invalidate-user-realm-tokens-request
+            InvalidateTokenRequest invalidateTokenRequest = new InvalidateTokenRequest(null, null, "default_native", "extra_user");
+            // end::invalidate-user-realm-tokens-request
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            assertTrue(invalidateTokenResponse.getErrors().isEmpty());
+            // We have one refresh and one access token for that user in this realm
+            assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(2));
+            assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
+        }
+
+        {
+            // tag::invalidate-realm-tokens-request
+            InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.realmTokens("default_native");
+            // end::invalidate-realm-tokens-request
 
             ActionListener<InvalidateTokenResponse> listener;
             //tag::invalidate-token-execute-listener
@@ -1385,8 +1475,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             final InvalidateTokenResponse response = future.get(30, TimeUnit.SECONDS);
             assertNotNull(response);
-            assertTrue(response.isCreated());// technically, this should be false, but the API is broken
-            // See https://github.com/elastic/elasticsearch/issues/35115
+            assertTrue(response.getErrors().isEmpty());
+            //We still have 4 tokens ( 2 access_tokens and 2 refresh_tokens ) for the default_native realm
+            assertThat(response.getInvalidatedTokens(), equalTo(4));
+            assertThat(response.getPreviouslyInvalidatedTokens(), equalTo(0));
         }
     }
 
@@ -1672,4 +1764,363 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testCreateApiKey() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        final TimeValue expiration = TimeValue.timeValueHours(24);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        {
+            final String name = randomAlphaOfLength(5);
+            // tag::create-api-key-request
+            CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+            // end::create-api-key-request
+
+            // tag::create-api-key-execute
+            CreateApiKeyResponse createApiKeyResponse = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+            // end::create-api-key-execute
+
+            // tag::create-api-key-response
+            SecureString apiKey = createApiKeyResponse.getKey(); // <1>
+            Instant apiKeyExpiration = createApiKeyResponse.getExpiration(); // <2>
+            // end::create-api-key-response
+            assertThat(createApiKeyResponse.getName(), equalTo(name));
+            assertNotNull(apiKey);
+            assertNotNull(apiKeyExpiration);
+        }
+
+        {
+            final String name = randomAlphaOfLength(5);
+            CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+
+            ActionListener<CreateApiKeyResponse> listener;
+            // tag::create-api-key-execute-listener
+            listener = new ActionListener<CreateApiKeyResponse>() {
+                @Override
+                public void onResponse(CreateApiKeyResponse createApiKeyResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::create-api-key-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::create-api-key-execute-async
+            client.security().createApiKeyAsync(createApiKeyRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::create-api-key-execute-async
+
+            assertNotNull(future.get(30, TimeUnit.SECONDS));
+            assertThat(future.get().getName(), equalTo(name));
+            assertNotNull(future.get().getKey());
+            assertNotNull(future.get().getExpiration());
+        }
+    }
+
+    public void testGetApiKey() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        final TimeValue expiration = TimeValue.timeValueHours(24);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        // Create API Keys
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("k1", roles, expiration, refreshPolicy);
+        CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+        assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
+        assertNotNull(createApiKeyResponse1.getKey());
+
+        final ApiKey expectedApiKeyInfo = new ApiKey(createApiKeyResponse1.getName(), createApiKeyResponse1.getId(), Instant.now(),
+                Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file");
+        {
+            // tag::get-api-key-id-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+            // end::get-api-key-id-request
+
+            // tag::get-api-key-execute
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+            // end::get-api-key-execute
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            // tag::get-api-key-name-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyName(createApiKeyResponse1.getName());
+            // end::get-api-key-name-request
+
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            // tag::get-realm-api-keys-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingRealmName("default_file");
+            // end::get-realm-api-keys-request
+
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            // tag::get-user-api-keys-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingUserName("test_user");
+            // end::get-user-api-keys-request
+
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            // tag::get-user-realm-api-keys-request
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName("default_file", "test_user");
+            // end::get-user-realm-api-keys-request
+
+            // tag::get-api-key-response
+            GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
+            // end::get-api-key-response
+
+            assertThat(getApiKeyResponse.getApiKeyInfos(), is(notNullValue()));
+            assertThat(getApiKeyResponse.getApiKeyInfos().size(), is(1));
+            verifyApiKey(getApiKeyResponse.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+
+        {
+            GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+
+            ActionListener<GetApiKeyResponse> listener;
+            // tag::get-api-key-execute-listener
+            listener = new ActionListener<GetApiKeyResponse>() {
+                @Override
+                public void onResponse(GetApiKeyResponse getApiKeyResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-api-key-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::get-api-key-execute-async
+            client.security().getApiKeyAsync(getApiKeyRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-api-key-execute-async
+
+            final GetApiKeyResponse response = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+
+            assertThat(response.getApiKeyInfos(), is(notNullValue()));
+            assertThat(response.getApiKeyInfos().size(), is(1));
+            verifyApiKey(response.getApiKeyInfos().get(0), expectedApiKeyInfo);
+        }
+    }
+
+    private void verifyApiKey(final ApiKey actual, final ApiKey expected) {
+        assertThat(actual.getId(), is(expected.getId()));
+        assertThat(actual.getName(), is(expected.getName()));
+        assertThat(actual.getUsername(), is(expected.getUsername()));
+        assertThat(actual.getRealm(), is(expected.getRealm()));
+        assertThat(actual.isInvalidated(), is(expected.isInvalidated()));
+        assertThat(actual.getExpiration(), is(greaterThan(Instant.now())));
+    }
+
+    public void testInvalidateApiKey() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        final TimeValue expiration = TimeValue.timeValueHours(24);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        // Create API Keys
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("k1", roles, expiration, refreshPolicy);
+        CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+        assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
+        assertNotNull(createApiKeyResponse1.getKey());
+
+        {
+            // tag::invalidate-api-key-id-request
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId());
+            // end::invalidate-api-key-id-request
+
+            // tag::invalidate-api-key-execute
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
+                    RequestOptions.DEFAULT);
+            // end::invalidate-api-key-execute
+
+            final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
+            final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
+            final List<String> previouslyInvalidatedApiKeyIds = invalidateApiKeyResponse.getPreviouslyInvalidatedApiKeys();
+
+            assertTrue(errors.isEmpty());
+            List<String> expectedInvalidatedApiKeyIds = Arrays.asList(createApiKeyResponse1.getId());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
+        }
+
+        {
+            createApiKeyRequest = new CreateApiKeyRequest("k2", roles, expiration, refreshPolicy);
+            CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(createApiKeyResponse2.getName(), equalTo("k2"));
+            assertNotNull(createApiKeyResponse2.getKey());
+
+            // tag::invalidate-api-key-name-request
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyName(createApiKeyResponse2.getName());
+            // end::invalidate-api-key-name-request
+
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
+                    RequestOptions.DEFAULT);
+
+            final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
+            final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
+            final List<String> previouslyInvalidatedApiKeyIds = invalidateApiKeyResponse.getPreviouslyInvalidatedApiKeys();
+
+            assertTrue(errors.isEmpty());
+            List<String> expectedInvalidatedApiKeyIds = Arrays.asList(createApiKeyResponse2.getId());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
+        }
+
+        {
+            createApiKeyRequest = new CreateApiKeyRequest("k3", roles, expiration, refreshPolicy);
+            CreateApiKeyResponse createApiKeyResponse3 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(createApiKeyResponse3.getName(), equalTo("k3"));
+            assertNotNull(createApiKeyResponse3.getKey());
+
+            // tag::invalidate-realm-api-keys-request
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmName("default_file");
+            // end::invalidate-realm-api-keys-request
+
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
+                    RequestOptions.DEFAULT);
+
+            final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
+            final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
+            final List<String> previouslyInvalidatedApiKeyIds = invalidateApiKeyResponse.getPreviouslyInvalidatedApiKeys();
+
+            assertTrue(errors.isEmpty());
+            List<String> expectedInvalidatedApiKeyIds = Arrays.asList(createApiKeyResponse3.getId());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
+        }
+
+        {
+            createApiKeyRequest = new CreateApiKeyRequest("k4", roles, expiration, refreshPolicy);
+            CreateApiKeyResponse createApiKeyResponse4 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(createApiKeyResponse4.getName(), equalTo("k4"));
+            assertNotNull(createApiKeyResponse4.getKey());
+
+            // tag::invalidate-user-api-keys-request
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingUserName("test_user");
+            // end::invalidate-user-api-keys-request
+
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
+                    RequestOptions.DEFAULT);
+
+            final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
+            final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
+            final List<String> previouslyInvalidatedApiKeyIds = invalidateApiKeyResponse.getPreviouslyInvalidatedApiKeys();
+
+            assertTrue(errors.isEmpty());
+            List<String> expectedInvalidatedApiKeyIds = Arrays.asList(createApiKeyResponse4.getId());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
+        }
+
+        {
+            createApiKeyRequest = new CreateApiKeyRequest("k5", roles, expiration, refreshPolicy);
+            CreateApiKeyResponse createApiKeyResponse5 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(createApiKeyResponse5.getName(), equalTo("k5"));
+            assertNotNull(createApiKeyResponse5.getKey());
+
+            // tag::invalidate-user-realm-api-keys-request
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName("default_file", "test_user");
+            // end::invalidate-user-realm-api-keys-request
+
+            // tag::invalidate-api-key-response
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
+                    RequestOptions.DEFAULT);
+            // end::invalidate-api-key-response
+
+            final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
+            final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
+            final List<String> previouslyInvalidatedApiKeyIds = invalidateApiKeyResponse.getPreviouslyInvalidatedApiKeys();
+
+            assertTrue(errors.isEmpty());
+            List<String> expectedInvalidatedApiKeyIds = Arrays.asList(createApiKeyResponse5.getId());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
+        }
+
+        {
+            createApiKeyRequest = new CreateApiKeyRequest("k6", roles, expiration, refreshPolicy);
+            CreateApiKeyResponse createApiKeyResponse6 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
+            assertThat(createApiKeyResponse6.getName(), equalTo("k6"));
+            assertNotNull(createApiKeyResponse6.getKey());
+
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(createApiKeyResponse6.getId());
+
+            ActionListener<InvalidateApiKeyResponse> listener;
+            // tag::invalidate-api-key-execute-listener
+            listener = new ActionListener<InvalidateApiKeyResponse>() {
+                @Override
+                public void onResponse(InvalidateApiKeyResponse invalidateApiKeyResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::invalidate-api-key-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<InvalidateApiKeyResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::invalidate-api-key-execute-async
+            client.security().invalidateApiKeyAsync(invalidateApiKeyRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::invalidate-api-key-execute-async
+
+            final InvalidateApiKeyResponse response = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+            final List<String> invalidatedApiKeyIds = response.getInvalidatedApiKeys();
+            List<String> expectedInvalidatedApiKeyIds = Arrays.asList(createApiKeyResponse6.getId());
+            assertTrue(response.getErrors().isEmpty());
+            assertThat(invalidatedApiKeyIds, containsInAnyOrder(expectedInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(response.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
+        }
+    }
 }

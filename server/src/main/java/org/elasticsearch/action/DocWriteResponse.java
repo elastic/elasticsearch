@@ -43,6 +43,8 @@ import java.net.URLEncoder;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * A base class for the response of a write operation that involves a single doc
@@ -266,8 +268,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             seqNo = in.readZLong();
             primaryTerm = in.readVLong();
         } else {
-            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            primaryTerm = 0;
+            seqNo = UNASSIGNED_SEQ_NO;
+            primaryTerm = UNASSIGNED_PRIMARY_TERM;
         }
         forcedRefresh = in.readBoolean();
         result = Result.readFrom(in);
@@ -378,8 +380,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         protected Result result = null;
         protected boolean forcedRefresh;
         protected ShardInfo shardInfo = null;
-        protected Long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        protected Long primaryTerm = 0L;
+        protected Long seqNo = UNASSIGNED_SEQ_NO;
+        protected Long primaryTerm = UNASSIGNED_PRIMARY_TERM;
 
         public ShardId getShardId() {
             return shardId;

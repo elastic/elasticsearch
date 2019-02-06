@@ -234,7 +234,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             if (setting.isDynamic()) {
-                boolean notReplicated = TransportResumeFollowAction.WHITE_LISTED_SETTINGS.contains(setting);
+                boolean notReplicated = TransportResumeFollowAction.NON_REPLICATED_SETTINGS.contains(setting);
                 boolean replicated = replicatedSettings.contains(setting);
                 assertThat("setting [" + setting.getKey() + "] is not classified as replicated xor not replicated",
                     notReplicated ^ replicated, is(true));

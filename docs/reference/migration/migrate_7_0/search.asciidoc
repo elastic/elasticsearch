@@ -123,6 +123,16 @@ Search requests with extra content after the main object will no longer be accep
 by the `_search` endpoint. A parsing exception will be thrown instead.
 
 [float]
+==== Doc-value fields default format
+
+The format of doc-value fields is changing to be the same as what could be
+obtained in 6.x with the special `use_field_mapping` format. This is mostly a
+change for date fields, which are now formatted based on the format that is
+configured in the mappings by default. This behavior can be changed by
+specifying a <<search-request-docvalue-fields,`format`>> within the doc-value
+field.
+
+[float]
 ==== Context Completion Suggester
 
 The ability to query and index context enabled suggestions without context,
@@ -149,8 +159,8 @@ instead which is a more appropriate value for a scenario where scores are not av
 [float]
 ==== Negative boosts are not allowed
 
-Setting a negative `boost` in a query, deprecated in 6x, are not allowed in this version.
-To deboost a specific query you can use a `boost` comprise between 0 and 1.
+Setting a negative `boost` for a query or a field, deprecated in 6x, is not allowed in this version.
+To deboost a specific query or field you can use a `boost` comprise between 0 and 1.
 
 [float]
 ==== Negative scores are not allowed in Function Score Query
@@ -174,9 +184,10 @@ major version.
 ==== `hits.total` is now an object in the search response
 
 The total hits that match the search request is now returned as an object
-with a `value` and a `relation`. `value indicates the number of hits that
-match and `relation indicates whether the value is accurate (`eq`) or a lower bound
+with a `value` and a `relation`. `value` indicates the number of hits that
+match and `relation` indicates whether the value is accurate (`eq`) or a lower bound
 (`gte`):
+
 ```
 {
     "hits": {
@@ -200,7 +211,38 @@ will be removed in the next major version (8.0).
 [float]
 ==== `hits.total` is omitted in the response if `track_total_hits` is disabled (false)
 
-If `track_total_hits` is set to `false in the search request the search response
+If `track_total_hits` is set to `false` in the search request the search response
 will set `hits.total` to null and the object will not be displayed in the rest
 layer. You can add `rest_total_hits_as_int=true` in the search request parameters
 to get the old format back (`"total": -1`).
+
+[float]
+==== `track_total_hits` defaults to 10,000
+
+By default search request will count the total hits accurately up to `10,000`
+documents. If the total number of hits that match the query is greater than this
+ value, the response will indicate that the returned value is a lower bound:
+
+[source,js]
+--------------------------------------------------
+{
+     "_shards": ...
+     "timed_out": false,
+     "took": 100,
+     "hits": {
+         "max_score": 1.0,
+         "total" : {
+             "value": 10000,    <1>
+             "relation": "gte"  <2>
+         },
+         "hits": ...
+     }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> There are at least 10000 documents that match the query
+<2> This is a lower bound (`"gte"`).
+
+You can force the count to always be accurate by setting `"track_total_hits`
+to true explicitly in the search request.

@@ -29,7 +29,7 @@ archivesBaseName = 'client-benchmarks'
 mainClassName = 'org.elasticsearch.client.benchmark.BenchmarkMain'
 
 // never try to invoke tests on the benchmark project - there aren't any
-test.enabled = false
+unitTest.enabled = false
 
 dependencies {
   compile 'org.apache.commons:commons-math3:3.2'

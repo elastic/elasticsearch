@@ -52,8 +52,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 
 /**
  * We enforce bootstrap checks once a node has the transport protocol bound to a non-loopback interface or if the system property {@code
@@ -267,7 +267,7 @@ final class BootstrapChecks {
         private final int limit;
 
         FileDescriptorCheck() {
-            this(1 << 16);
+            this(65535);
         }
 
         protected FileDescriptorCheck(final int limit) {
@@ -407,8 +407,8 @@ final class BootstrapChecks {
 
         @Override
         public BootstrapCheckResult check(final BootstrapContext context) {
-            // we only enforce the check if mmapfs is an allowed store type
-            if (IndexModule.NODE_STORE_ALLOW_MMAPFS.get(context.settings())) {
+            // we only enforce the check if a store is allowed to use mmap at all
+            if (IndexModule.NODE_STORE_ALLOW_MMAP.get(context.settings())) {
                 if (getMaxMapCount() != -1 && getMaxMapCount() < LIMIT) {
                     final String message = String.format(
                             Locale.ROOT,
@@ -735,7 +735,7 @@ final class BootstrapChecks {
             return BootstrapCheckResult.failure(String.format(
                 Locale.ROOT,
                 "the default discovery settings are unsuitable for production use; at least one of [%s] must be configured",
-                Stream.of(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING, DISCOVERY_HOSTS_PROVIDER_SETTING, INITIAL_MASTER_NODES_SETTING)
+                Stream.of(DISCOVERY_SEED_HOSTS_SETTING, DISCOVERY_SEED_PROVIDERS_SETTING, INITIAL_MASTER_NODES_SETTING)
                     .map(Setting::getKey).collect(Collectors.joining(", "))));
         }
     }

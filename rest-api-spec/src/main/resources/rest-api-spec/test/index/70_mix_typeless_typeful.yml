@@ -7,6 +7,7 @@
 
  - do:
       indices.create: # not using include_type_name: false on purpose
+          include_type_name: true
           index: index
           body:
               mappings:
@@ -60,3 +61,42 @@
  - match:   { _id:      $id}
  - match:   { _version: 1}
  - match:   { _source: { foo: bar }}
+
+---
+"Index call that introduces new field mappings":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  Typeless APIs were introduced in 7.0.0
+
+  - do:
+      indices.create: # not using include_type_name: false on purpose
+        include_type_name: true
+        index: index
+        body:
+          mappings:
+            not_doc:
+              properties:
+                foo:
+                  type: "keyword"
+  - do:
+      index:
+        index:  index
+        id:     2
+        body:   { new_field: value }
+
+  - match:   { _index:   "index" }
+  - match:   { _type:    "_doc" }
+  - match:   { _id:      "2" }
+  - match:   { _version: 1 }
+
+  - do:
+      get: # using typeful API on purpose
+        index:  index
+        type:   not_doc
+        id:     2
+
+  - match:   { _index:   "index" }
+  - match:   { _type:    "not_doc" }
+  - match:   { _id:      "2" }
+  - match:   { _version: 1}

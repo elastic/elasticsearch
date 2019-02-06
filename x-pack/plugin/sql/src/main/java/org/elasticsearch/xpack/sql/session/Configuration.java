@@ -10,16 +10,17 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.TimeZone;
 
 // Typed object holding properties for a given query
 public class Configuration {
-    private final TimeZone timeZone;
+    private final ZoneId zoneId;
     private final int pageSize;
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
     private final Mode mode;
+    private final String clientId;
     private final String username;
     private final String clusterName;
     private final ZonedDateTime now;
@@ -27,21 +28,23 @@ public class Configuration {
     @Nullable
     private QueryBuilder filter;
 
-    public Configuration(TimeZone tz, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter, Mode mode,
+    public Configuration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter,
+                         Mode mode, String clientId,
                          String username, String clusterName) {
-        this.timeZone = tz;
+        this.zoneId = zi.normalized();
         this.pageSize = pageSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
         this.filter = filter;
         this.mode = mode == null ? Mode.PLAIN : mode;
+        this.clientId = clientId;
         this.username = username;
         this.clusterName = clusterName;
-        this.now = ZonedDateTime.now(timeZone.toZoneId().normalized());
+        this.now = ZonedDateTime.now(zoneId);
     }
 
-    public TimeZone timeZone() {
-        return timeZone;
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
     public int pageSize() {
@@ -61,6 +64,10 @@ public class Configuration {
     }
     public Mode mode() {
         return mode;
+    }
+
+    public String clientId() {
+        return clientId;
     }
 
     public String username() {

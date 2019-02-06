@@ -35,6 +35,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -72,6 +73,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -2814,9 +2816,12 @@ public class TranslogTests extends ESTestCase {
         Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true);
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
+        Version wireVersion = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
         BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(wireVersion);
         Translog.Operation.writeOperation(out, index);
         StreamInput in = out.bytes().streamInput();
+        in.setVersion(wireVersion);
         Translog.Index serializedIndex = (Translog.Index) Translog.Operation.readOperation(in);
         assertEquals(index, serializedIndex);
 
@@ -2826,8 +2831,10 @@ public class TranslogTests extends ESTestCase {
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
 
         out = new BytesStreamOutput();
+        out.setVersion(wireVersion);
         Translog.Operation.writeOperation(out, delete);
         in = out.bytes().streamInput();
+        in.setVersion(wireVersion);
         Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
         assertEquals(delete, serializedDelete);
     }

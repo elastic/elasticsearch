@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.tree.NodeTests.ChildrenAreAProperty;
 import org.elasticsearch.xpack.sql.tree.NodeTests.Dummy;
@@ -91,8 +92,8 @@ import static org.mockito.Mockito.mock;
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
 
-    private static final List<Class<? extends Node<?>>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.asList(
-        IfNull.class, In.class, InPipe.class, Percentile.class, Percentiles.class, PercentileRanks.class);
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.asList(IfNull.class, In.class, InPipe.class,
+            Percentile.class, Percentiles.class, PercentileRanks.class);
 
     private final Class<T> subclass;
 
@@ -136,9 +137,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             Type changedArgType = argTypes[changedArgOffset];
             Object changedArgValue = randomValueOtherThan(nodeCtorArgs[changedArgOffset], () -> makeArg(changedArgType));
 
-            B transformed = node.transformNodeProps(prop -> {
-                return Objects.equals(prop, originalArgValue) ? changedArgValue : prop;
-            }, Object.class);
+            B transformed = node.transformNodeProps(prop -> Objects.equals(prop, originalArgValue) ? changedArgValue : prop, Object.class);
 
             if (node.children().contains(originalArgValue) || node.children().equals(originalArgValue)) {
                 if (node.children().equals(emptyList()) && originalArgValue.equals(emptyList())) {
@@ -250,9 +249,9 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              * Transforming using the way we did above should only change
              * the one property of the node that we intended to transform.
              */
-            assertEquals(node.location(), transformed.location());
-            List<Object> op = node.properties();
-            List<Object> tp = transformed.properties();
+            assertEquals(node.source(), transformed.source());
+            List<Object> op = node.nodeProperties();
+            List<Object> tp = transformed.nodeProperties();
             for (int p = 0; p < op.size(); p++) {
                 if (p == changedArgOffset - 1) { // -1 because location isn't in the list
                     assertEquals(changedArgValue, tp.get(p));
@@ -449,21 +448,19 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                 }
                 return b.toString();
             }
-        } else if (toBuildClass == LikePattern.class) {
-            /*
-             * The pattern and escape character have to be valid together
-             * so we pick an escape character that isn't used
-             */
-            if (argClass == char.class) {
-                return randomFrom('\\', '|', '/', '`');
+        } else if (toBuildClass == Like.class) {
+
+            if (argClass == LikePattern.class) {
+                return new LikePattern(randomAlphaOfLength(16), randomFrom('\\', '|', '/', '`'));
             }
+
         } else if (toBuildClass == Histogram.class) {
             if (argClass == Expression.class) {
                 return LiteralTests.randomLiteral();
             }
         } else if (toBuildClass == CurrentDateTime.class) {
             if (argClass == Expression.class) {
-                return Literal.of(LocationTests.randomLocation(), randomInt(9));
+                return Literal.of(SourceTests.randomSource(), randomInt(9));
             }
         }
         if (Expression.class == argClass) {
@@ -517,9 +514,9 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             // Nor strings
             return randomAlphaOfLength(5);
         }
-        if (argClass == Location.class) {
+        if (argClass == Source.class) {
             // Location is final and can't be mocked but we have a handy method to generate ones.
-            return LocationTests.randomLocation();
+            return SourceTests.randomSource();
         }
         try {
             return mock(argClass);

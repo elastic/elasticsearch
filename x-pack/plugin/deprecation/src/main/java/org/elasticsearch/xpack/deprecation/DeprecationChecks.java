@@ -5,18 +5,21 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Class containing all the cluster, node, and index deprecation checks that will be served
@@ -30,18 +33,30 @@ public class DeprecationChecks {
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
         Collections.emptyList();
 
-    static List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> NODE_SETTINGS_CHECKS =
+    static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             // STUB
         ));
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            IndexDeprecationChecks::baseSimilarityDefinedCheck,
-            IndexDeprecationChecks::dynamicTemplateWithMatchMappingTypeCheck,
-            IndexDeprecationChecks::indexSharedFileSystemCheck,
-            IndexDeprecationChecks::indexStoreTypeCheck,
-            IndexDeprecationChecks::storeThrottleSettingsCheck,
-            IndexDeprecationChecks::delimitedPayloadFilterCheck));
+            IndexDeprecationChecks::oldIndicesCheck));
 
+    static List<Function<DatafeedConfig, DeprecationIssue>> ML_SETTINGS_CHECKS =
+            Collections.unmodifiableList(Arrays.asList(
+                    MlDeprecationChecks::checkDataFeedAggregations,
+                    MlDeprecationChecks::checkDataFeedQuery
+            ));
+
+    /**
+     * helper utility function to reduce repeat of running a specific {@link List} of checks.
+     *
+     * @param checks The functional checks to execute using the mapper function
+     * @param mapper The function that executes the lambda check with the appropriate arguments
+     * @param <T> The signature of the check (BiFunction, Function, including the appropriate arguments)
+     * @return The list of {@link DeprecationIssue} that were found in the cluster
+     */
+    static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {
+        return checks.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toList());
+    }
 }

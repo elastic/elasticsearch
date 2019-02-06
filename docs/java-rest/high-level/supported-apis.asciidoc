@@ -295,6 +295,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-update-model-snapshot>>
 * <<{upid}-get-ml-info>>
 * <<{upid}-delete-expired-data>>
+* <<{upid}-set-upgrade-mode>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -338,6 +339,7 @@ include::ml/revert-model-snapshot.asciidoc[]
 include::ml/update-model-snapshot.asciidoc[]
 include::ml/get-info.asciidoc[]
 include::ml/delete-expired-data.asciidoc[]
+include::ml/set-upgrade-mode.asciidoc[]
 
 == Migration APIs
 
@@ -409,6 +411,9 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-get-privileges>>
 * <<{upid}-put-privileges>>
 * <<{upid}-delete-privileges>>
+* <<{upid}-create-api-key>>
+* <<{upid}-get-api-key>>
+* <<{upid}-invalidate-api-key>>
 
 include::security/put-user.asciidoc[]
 include::security/get-users.asciidoc[]
@@ -433,6 +438,9 @@ include::security/delete-role-mapping.asciidoc[]
 include::security/create-token.asciidoc[]
 include::security/invalidate-token.asciidoc[]
 include::security/put-privileges.asciidoc[]
+include::security/create-api-key.asciidoc[]
+include::security/get-api-key.asciidoc[]
+include::security/invalidate-api-key.asciidoc[]
 
 == Watcher APIs
 

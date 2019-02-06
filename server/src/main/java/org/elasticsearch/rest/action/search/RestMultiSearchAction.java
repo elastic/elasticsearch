@@ -59,7 +59,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     static {
         final Set<String> responseParams = new HashSet<>(
-            Arrays.asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HIT_AS_INT_PARAM)
+            Arrays.asList(RestSearchAction.TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM)
         );
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
@@ -68,11 +68,12 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     public RestMultiSearchAction(Settings settings, RestController controller) {
         super(settings);
-
         controller.registerHandler(GET, "/_msearch", this);
         controller.registerHandler(POST, "/_msearch", this);
         controller.registerHandler(GET, "/{index}/_msearch", this);
         controller.registerHandler(POST, "/{index}/_msearch", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/_msearch", this);
         controller.registerHandler(POST, "/{index}/{type}/_msearch", this);
 
@@ -87,6 +88,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex);
+
+        // Emit a single deprecation message if any search request contains types.
+        for (SearchRequest searchRequest : multiSearchRequest.requests()) {
+            if (searchRequest.types().length > 0) {
+                deprecationLogger.deprecatedAndMaybeLog("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
+                break;
+            }
+        }
         return channel -> client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
     }
 
@@ -113,10 +122,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
         }
 
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
-            if (searchRequest.types().length > 0) {
-                deprecationLogger.deprecatedAndMaybeLog("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
-            }
             searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
+            RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();
@@ -140,13 +147,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         String searchType = request.param("search_type");
+        boolean ccsMinimizeRoundtrips = request.paramAsBoolean("ccs_minimize_roundtrips", true);
         String routing = request.param("routing");
 
         final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
         MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, types, routing,
-                searchType, request.getXContentRegistry(), allowExplicitIndex);
+                searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex);
     }
 
     @Override

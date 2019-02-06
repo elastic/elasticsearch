@@ -22,9 +22,13 @@ package org.elasticsearch.repositories.blobstore;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -234,6 +238,35 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertEquals(0, repository.getRepositoryData().getIncompatibleSnapshotIds().size());
     }
 
+
+    public void testBlobStoreRepositoryConstructor() {
+        // simply check that compress and chunksize are not called (since they used to be) - they are not valid inside the constructor,
+        // call them in doStart() instead.
+        new BlobStoreRepository(new RepositoryMetaData("test", "test", Settings.EMPTY), Settings.EMPTY, null) {
+            @Override
+            protected boolean isCompress() {
+                fail("Not allowed to call isCompress in constructor");
+                return false;
+            }
+
+            @Override
+            protected ByteSizeValue chunkSize() {
+                fail("Not allowed to call chunkSize in constructor");
+                return null;
+            }
+
+            @Override
+            protected BlobStore createBlobStore() throws Exception {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            protected BlobPath basePath() {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
     @Test(expected = RepositoryException.class)
     public void testBadChunksize() throws Exception {
         final Client client = client();
@@ -244,9 +277,9 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                                 .setType(REPO_TYPE)
                                 .setSettings(Settings.builder().put(node().settings())
                                             .put("location", location)
-                                            .put("chunk_size", randomIntBetween(Integer.MIN_VALUE, 4), ByteSizeUnit.BYTES))
+                                            .put("chunk_size", randomLongBetween(-10, 0), ByteSizeUnit.BYTES))
                                 .get();
- }
+    }
 
     private BlobStoreRepository setupRepo() {
         final Client client = client();

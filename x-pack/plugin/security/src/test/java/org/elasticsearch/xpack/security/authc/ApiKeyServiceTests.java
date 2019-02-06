@@ -28,12 +28,12 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyRoleDescriptors;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.authc.ApiKeyService.CachedApiKeyHashResult;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.junit.After;
 import org.junit.Before;
@@ -52,6 +52,8 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -71,7 +73,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     public void testGetCredentialsFromThreadContext() {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ThreadContext threadContext = threadPool.getThreadContext();
         assertNull(ApiKeyService.getCredentialsFromHeader(threadContext));
 
         final String apiKeyAuthScheme = randomFrom("apikey", "apiKey", "ApiKey", "APikey", "APIKEY");
@@ -120,10 +122,12 @@ public class ApiKeyServiceTests extends ESTestCase {
         sourceMap.put("creator", creatorMap);
         sourceMap.put("api_key_invalidated", false);
 
+        ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
+            ClusterServiceUtils.createClusterService(threadPool), threadPool);
         ApiKeyService.ApiKeyCredentials creds =
             new ApiKeyService.ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
-        ApiKeyService.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        service.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
         AuthenticationResult result = future.get();
         assertNotNull(result);
         assertTrue(result.isAuthenticated());
@@ -136,7 +140,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         sourceMap.put("expiration_time", Clock.systemUTC().instant().plus(1L, ChronoUnit.HOURS).toEpochMilli());
         future = new PlainActionFuture<>();
-        ApiKeyService.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        service.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
         result = future.get();
         assertNotNull(result);
         assertTrue(result.isAuthenticated());
@@ -149,7 +153,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         sourceMap.put("expiration_time", Clock.systemUTC().instant().minus(1L, ChronoUnit.HOURS).toEpochMilli());
         future = new PlainActionFuture<>();
-        ApiKeyService.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        service.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
         result = future.get();
         assertNotNull(result);
         assertFalse(result.isAuthenticated());
@@ -157,7 +161,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         sourceMap.remove("expiration_time");
         creds = new ApiKeyService.ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(randomAlphaOfLength(15).toCharArray()));
         future = new PlainActionFuture<>();
-        ApiKeyService.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        service.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
         result = future.get();
         assertNotNull(result);
         assertFalse(result.isAuthenticated());
@@ -165,7 +169,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         sourceMap.put("api_key_invalidated", true);
         creds = new ApiKeyService.ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(randomAlphaOfLength(15).toCharArray()));
         future = new PlainActionFuture<>();
-        ApiKeyService.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        service.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
         result = future.get();
         assertNotNull(result);
         assertFalse(result.isAuthenticated());
@@ -189,21 +193,8 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
             Version.CURRENT, AuthenticationType.API_KEY, authMetadata);
-        CompositeRolesStore rolesStore = mock(CompositeRolesStore.class);
-        doAnswer(invocationOnMock -> {
-            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
-            Collection<RoleDescriptor> descriptors = (Collection<RoleDescriptor>) invocationOnMock.getArguments()[0];
-            if (descriptors.size() != 1) {
-                listener.onFailure(new IllegalStateException("descriptors was empty!"));
-            } else if (descriptors.iterator().next().getName().equals("superuser")) {
-                listener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
-            } else {
-                listener.onFailure(new IllegalStateException("unexpected role name " + descriptors.iterator().next().getName()));
-            }
-            return Void.TYPE;
-        }).when(rolesStore).buildAndCacheRoleFromDescriptors(any(Collection.class), any(String.class), any(ActionListener.class));
         ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
-                ClusterServiceUtils.createClusterService(threadPool));
+                ClusterServiceUtils.createClusterService(threadPool), threadPool);
 
         PlainActionFuture<ApiKeyRoleDescriptors> roleFuture = new PlainActionFuture<>();
         service.getRoleForApiKey(authentication, roleFuture);
@@ -258,7 +249,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         ).when(privilegesStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
 
         ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
-                ClusterServiceUtils.createClusterService(threadPool));
+                ClusterServiceUtils.createClusterService(threadPool), threadPool);
 
         PlainActionFuture<ApiKeyRoleDescriptors> roleFuture = new PlainActionFuture<>();
         service.getRoleForApiKey(authentication, roleFuture);
@@ -273,5 +264,96 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(result.getRoleDescriptors().get(0).getName(), is("a role"));
             assertThat(result.getLimitedByRoleDescriptors().get(0).getName(), is("limited role"));
         }
+    }
+
+    public void testApiKeyCache() {
+        final String apiKey = randomAlphaOfLength(16);
+        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
+
+        Map<String, Object> sourceMap = new HashMap<>();
+        sourceMap.put("api_key_hash", new String(hash));
+        sourceMap.put("role_descriptors", Collections.singletonMap("a role", Collections.singletonMap("cluster", "all")));
+        sourceMap.put("limited_by_role_descriptors", Collections.singletonMap("limited role", Collections.singletonMap("cluster", "all")));
+        Map<String, Object> creatorMap = new HashMap<>();
+        creatorMap.put("principal", "test_user");
+        creatorMap.put("metadata", Collections.emptyMap());
+        sourceMap.put("creator", creatorMap);
+        sourceMap.put("api_key_invalidated", false);
+
+        ApiKeyService service = new ApiKeyService(Settings.EMPTY, Clock.systemUTC(), null, null,
+            ClusterServiceUtils.createClusterService(threadPool), threadPool);
+        ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        service.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        AuthenticationResult result = future.actionGet();
+        assertThat(result.isAuthenticated(), is(true));
+        CachedApiKeyHashResult cachedApiKeyHashResult = service.getFromCache(creds.getId());
+        assertNotNull(cachedApiKeyHashResult);
+        assertThat(cachedApiKeyHashResult.success, is(true));
+
+        creds = new ApiKeyCredentials(creds.getId(), new SecureString("foobar".toCharArray()));
+        future = new PlainActionFuture<>();
+        service.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        result = future.actionGet();
+        assertThat(result.isAuthenticated(), is(false));
+        final CachedApiKeyHashResult shouldBeSame = service.getFromCache(creds.getId());
+        assertNotNull(shouldBeSame);
+        assertThat(shouldBeSame, sameInstance(cachedApiKeyHashResult));
+
+        sourceMap.put("api_key_hash", new String(hasher.hash(new SecureString("foobar".toCharArray()))));
+        creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString("foobar1".toCharArray()));
+        future = new PlainActionFuture<>();
+        service.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        result = future.actionGet();
+        assertThat(result.isAuthenticated(), is(false));
+        cachedApiKeyHashResult = service.getFromCache(creds.getId());
+        assertNotNull(cachedApiKeyHashResult);
+        assertThat(cachedApiKeyHashResult.success, is(false));
+
+        creds = new ApiKeyCredentials(creds.getId(), new SecureString("foobar2".toCharArray()));
+        future = new PlainActionFuture<>();
+        service.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        result = future.actionGet();
+        assertThat(result.isAuthenticated(), is(false));
+        assertThat(service.getFromCache(creds.getId()), not(sameInstance(cachedApiKeyHashResult)));
+        assertThat(service.getFromCache(creds.getId()).success, is(false));
+
+        creds = new ApiKeyCredentials(creds.getId(), new SecureString("foobar".toCharArray()));
+        future = new PlainActionFuture<>();
+        service.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        result = future.actionGet();
+        assertThat(result.isAuthenticated(), is(true));
+        assertThat(service.getFromCache(creds.getId()), not(sameInstance(cachedApiKeyHashResult)));
+        assertThat(service.getFromCache(creds.getId()).success, is(true));
+    }
+
+    public void testApiKeyCacheDisabled() {
+        final String apiKey = randomAlphaOfLength(16);
+        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
+        final Settings settings = Settings.builder()
+            .put(ApiKeyService.CACHE_TTL_SETTING.getKey(), "0s")
+            .build();
+
+        Map<String, Object> sourceMap = new HashMap<>();
+        sourceMap.put("api_key_hash", new String(hash));
+        sourceMap.put("role_descriptors", Collections.singletonMap("a role", Collections.singletonMap("cluster", "all")));
+        sourceMap.put("limited_by_role_descriptors", Collections.singletonMap("limited role", Collections.singletonMap("cluster", "all")));
+        Map<String, Object> creatorMap = new HashMap<>();
+        creatorMap.put("principal", "test_user");
+        creatorMap.put("metadata", Collections.emptyMap());
+        sourceMap.put("creator", creatorMap);
+        sourceMap.put("api_key_invalidated", false);
+
+        ApiKeyService service = new ApiKeyService(settings, Clock.systemUTC(), null, null,
+            ClusterServiceUtils.createClusterService(threadPool), threadPool);
+        ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        service.validateApiKeyCredentials(sourceMap, creds, Clock.systemUTC(), future);
+        AuthenticationResult result = future.actionGet();
+        assertThat(result.isAuthenticated(), is(true));
+        CachedApiKeyHashResult cachedApiKeyHashResult = service.getFromCache(creds.getId());
+        assertNull(cachedApiKeyHashResult);
     }
 }

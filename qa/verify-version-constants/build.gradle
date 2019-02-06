@@ -54,7 +54,7 @@ for (Version version : bwcVersions.indexCompatible) {
 
 unitTest.enabled = false
 
-task bwcTestSample {
+task bwcTestSnapshots {
   if (project.bwc_tests_enabled) {
     final def version = bwcVersions.unreleasedIndexCompatible.first()
     dependsOn "v${version}#bwcTest"
@@ -83,4 +83,4 @@ task verifyDocsLuceneVersion {
   }
 }
 
-check.dependsOn bwcTestSample, verifyDocsLuceneVersion
+check.dependsOn bwcTestSnapshots, verifyDocsLuceneVersion

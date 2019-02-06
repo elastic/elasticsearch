@@ -125,14 +125,14 @@ for (Version version : bwcVersions.wireCompatible) {
 unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
-task bwcTestSample {
+task bwcTestSnapshots {
     if (project.bwc_tests_enabled) {
         for (final def version : bwcVersions.unreleasedWireCompatible) {
             dependsOn "v${version}#bwcTest"
         }
     }
 }
-check.dependsOn(bwcTestSample)
+check.dependsOn(bwcTestSnapshots)
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 

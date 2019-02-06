@@ -196,15 +196,31 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery5() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
             "    \"geo_polygon\":{\n" +
             "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
-            "            \"multipolygon\":[ [ [\n" +
-            "                [-70, 40],\n" +
-            "                [-80, 30],\n" +
-            "                [-90, 20]\n" +
-            "            ] ] ]\n" +
+            "            \"multipolygon\":[\n" +
+            "                [\n" +
+            "                  [[-70, 40],\n" +
+            "                  [-80, 30],\n" +
+            "                  [-90, 20]]\n" +
+            "                ],\n" +
+            "                [\n" +
+            "                  [[70, 40],\n" +
+            "                  [80, 30],\n" +
+            "                  [90, 20]]\n" +
+            "                ],\n" +
+            "                [\n" +
+            "                  [[-10, -10],\n" +
+            "                  [10, -10],\n" +
+            "                  [10, 10],\n" +
+            "                  [-10, 10]],\n" +
+            "                  [[-5, -5],\n" +
+            "                  [5, -5],\n" +
+            "                  [5, 5],\n" +
+            "                  [-5, 5]]\n" +
+            "                ]\n" +
+            "            ]\n" +
             "        }\n" +
             "    }\n" +
             "}\n";

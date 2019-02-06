@@ -294,8 +294,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         return polygons;
     }
 
-    public static GeoPolygonQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static GeoPolygonQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
 
         List shell = null;
@@ -322,7 +321,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
                             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                                 shell.add(GeoUtils.parseGeoPoint(parser));
                             }
-                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MULTIPOLYGON_FIELD)) {
+                        } else if (MULTIPOLYGON_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             // parse a multipolygon as defined in the GeoJSON spec
                             //   Note: shape validation is not performed, possible todo but perhaps overkill
                             shell = parseMultiPolygon(parser);

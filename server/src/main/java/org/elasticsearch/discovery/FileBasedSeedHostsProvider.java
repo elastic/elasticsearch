@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,26 +33,27 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * An implementation of {@link UnicastHostsProvider} that reads hosts/ports
+ * An implementation of {@link SeedHostsProvider} that reads hosts/ports
  * from {@link #UNICAST_HOSTS_FILE}.
  *
- * Each unicast host/port that is part of the discovery process must be listed on
- * a separate line.  If the port is left off an entry, a default port of 9300 is
- * assumed.  An example unicast hosts file could read:
+ * Each host/port that is part of the discovery process must be listed on
+ * a separate line. If the port is left off an entry, we default to the
+ * first port in the {@code transport.port} range.
+ * An example unicast hosts file could read:
  *
  * 67.81.244.10
  * 67.81.244.11:9305
  * 67.81.244.15:9400
  */
-public class FileBasedUnicastHostsProvider implements UnicastHostsProvider {
+public class FileBasedSeedHostsProvider implements SeedHostsProvider {
 
-    private static final Logger logger = LogManager.getLogger(FileBasedUnicastHostsProvider.class);
+    private static final Logger logger = LogManager.getLogger(FileBasedSeedHostsProvider.class);
 
     public static final String UNICAST_HOSTS_FILE = "unicast_hosts.txt";
 
     private final Path unicastHostsFilePath;
 
-    public FileBasedUnicastHostsProvider(Path configFile) {
+    public FileBasedSeedHostsProvider(Path configFile) {
         this.unicastHostsFilePath = configFile.resolve(UNICAST_HOSTS_FILE);
     }
 
@@ -73,7 +74,7 @@ public class FileBasedUnicastHostsProvider implements UnicastHostsProvider {
     }
 
     @Override
-    public List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver) {
+    public List<TransportAddress> getSeedAddresses(HostsResolver hostsResolver) {
         final List<TransportAddress> transportAddresses = hostsResolver.resolveHosts(getHostsList(), 1);
         logger.debug("seed addresses: {}", transportAddresses);
         return transportAddresses;

@@ -31,7 +31,7 @@ The `_meta` field can be updated on an existing type using the
 
 [source,js]
 --------------------------------------------------
-PUT my_index/_mapping/doc
+PUT my_index/_mapping/user
 {
   "_meta": {
     "class": "MyApp2::User3",

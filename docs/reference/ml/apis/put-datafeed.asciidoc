@@ -19,6 +19,11 @@ Instantiates a {dfeed}.
 You must create a job before you create a {dfeed}.  You can associate only one
 {dfeed} to each job.
 
+IMPORTANT:  Putting a {dfeed} must be done via this API only. Do not put a {dfeed}
+            directly to the `.ml-config` index using the Elasticsearch Index API.
+            If {es} {security-features} are enabled, make sure no `write`
+            privileges are granted to anyone over the `.ml-config` index.
+
 
 ==== Path Parameters
 

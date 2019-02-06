@@ -12,7 +12,13 @@ Instantiates a job.
 
 `PUT _ml/anomaly_detectors/<job_id>`
 
-//===== Description
+===== Description
+
+IMPORTANT:  Putting a job must be done via this API only. Do not put a job
+            directly to the `.ml-config` index using the Elasticsearch Index API.
+            If {es} {security-features} are enabled, make sure no `write`
+            privileges are granted to anyone over the `.ml-config` index.
+
 
 ==== Path Parameters
 

@@ -520,6 +520,7 @@ POST _reindex
 // TEST[s/^/PUT source\n/]
 // TEST[s/otherhost:9200/\${host}/]
 
+[float]
 [[reindex-ssl]]
 ==== Configuring SSL parameters
 

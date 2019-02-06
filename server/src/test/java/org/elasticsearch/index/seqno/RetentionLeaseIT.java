@@ -48,6 +48,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -271,10 +272,9 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                 .put("index.number_of_replicas", 0)
                 .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(24))
                 .build();
-        createIndex("index", settings);
+        // when we increase the number of replicas below we want to exclude the replicas from being allocated so that they do not recover
+        assertAcked(prepareCreate("index", 1).setSettings(settings));
         ensureYellow("index");
-        // exclude the replicas from being allocated
-        allowNodes("index", 1);
         final AcknowledgedResponse response = client().admin()
                 .indices()
                 .prepareUpdateSettings("index").setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas).build())
@@ -315,11 +315,6 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
                     .getShardOrNull(new ShardId(resolveIndex("index"), 0));
             final Map<String, RetentionLease> retentionLeasesOnReplica = RetentionLeases.toMap(replica.getRetentionLeases());
             assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
-
-            // check retention leases have been committed on the replica
-            final RetentionLeases replicaCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
-                    replica.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
-            assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(replicaCommittedRetentionLeases)));
         }
     }
 

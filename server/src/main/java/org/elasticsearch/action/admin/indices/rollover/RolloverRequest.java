@@ -70,14 +70,17 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             CONDITIONS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.settings(parser.map()),
             CreateIndexRequest.SETTINGS, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, isTypeIncluded) -> {
-            if (isTypeIncluded) {
+        PARSER.declareField((parser, request, includeTypeName) -> {
+            if (includeTypeName) {
                 for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
                     request.createIndexRequest.mapping(mappingsEntry.getKey(), (Map<String, Object>) mappingsEntry.getValue());
                 }
             } else {
-                // a type is not included, add a dummy _doc type
-                request.createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, parser.map());
+                Map<String, Object> mappings = parser.map();
+                if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
+                    throw new IllegalArgumentException("The mapping definition cannot be nested under a type " +
+                        "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
+                }
             }
         }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),

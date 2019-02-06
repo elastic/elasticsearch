@@ -26,6 +26,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -33,8 +34,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
+import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -76,20 +79,24 @@ public class RestPutMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+        PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
+
+        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
             DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-        final String type = request.param("type");
+        String type = request.param("type");
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
+            request.getXContentType()).v2();
 
         if (includeTypeName) {
             deprecationLogger.deprecatedAndMaybeLog("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
-        } else if (type != null) {
+        } else if (type != null || isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap)) {
             throw new IllegalArgumentException("Types cannot be provided in put mapping requests, unless " +
                 "the include_type_name parameter is set to true.");
         }
 
-        PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.type(includeTypeName ? type : MapperService.SINGLE_MAPPING_NAME);
-        putMappingRequest.source(request.requiredContent(), request.getXContentType());
+        putMappingRequest.source(sourceAsMap);
+
         if (request.hasParam("update_all_types")) {
             deprecationLogger.deprecated("[update_all_types] is deprecated since indices may not have more than one type anymore");
         }

@@ -725,13 +725,8 @@ final class QueryTranslator {
                     Query q = null;
                     if (in.value() instanceof FieldAttribute) {
                         FieldAttribute fa = (FieldAttribute) in.value();
-                        String name = fa.name();
-                        // equality should always be against an exact match
-                        // (which is important for strings)
-                        if (fa.isInexact()) {
-                            name = fa.exactAttribute().name();
-                        }
-                        q = new TermsQuery(in.source(), name, in.list());
+                        // equality should always be against an exact match (which is important for strings)
+                        q = new TermsQuery(in.source(), fa.isInexact() ? fa.exactAttribute().name() : fa.name(), in.list());
                     } else {
                         q = new ScriptQuery(in.source(), in.asScript());
                     }

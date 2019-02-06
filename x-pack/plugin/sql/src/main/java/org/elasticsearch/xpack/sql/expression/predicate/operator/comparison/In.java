@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -113,17 +112,18 @@ public class In extends ScalarFunction {
         if (value instanceof FieldAttribute) {
             try {
                 ((FieldAttribute) value).exactAttribute();
-            } catch (MappingException ex) {
-                return new TypeResolution(format(null, "[{}] cannot operate on first argument field of data type [{}]",
-                    functionName(), value().dataType().esType));
+            } catch (MappingException e) {
+                return new TypeResolution(format(null, "[{}] cannot operate on field of data type [{}]: {}",
+                    functionName(), value().dataType().esType, e.getMessage()));
             }
         }
 
-        Optional<Expression> firstNotFoldable = list.stream().filter(expression -> !expression.foldable()).findFirst();
-        if (firstNotFoldable.isPresent()) {
-            return new TypeResolution(format(null, "Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
-                Expressions.name(firstNotFoldable.get()),
-                name()));
+        for (Expression ex : list) {
+            if (ex.foldable() == false) {
+                return new TypeResolution(format(null, "Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
+                    Expressions.name(ex),
+                    name()));
+            }
         }
         return super.resolveType();
     }

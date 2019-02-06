@@ -410,7 +410,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInOnFieldTextWithNoKeyword() {
-        assertEquals("1:26: [IN] cannot operate on first argument field of data type [text]",
+        assertEquals("1:26: [IN] cannot operate on field of data type [text]: " +
+            "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text IN ('foo', 'bar')"));
     }
 

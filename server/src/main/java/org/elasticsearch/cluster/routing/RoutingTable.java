@@ -45,7 +45,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Predicate;
 
 /**
@@ -66,6 +65,14 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     private RoutingTable(long version, ImmutableOpenMap<String, IndexRoutingTable> indicesRouting) {
         this.version = version;
         this.indicesRouting = indicesRouting;
+    }
+
+    public static IndexShardRoutingTable shardRoutingTable(IndexRoutingTable indexRouting, int shardId) {
+        IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
+        if (indexShard == null) {
+            throw new ShardNotFoundException(new ShardId(indexRouting.getIndex(), shardId));
+        }
+        return indexShard;
     }
 
     /**
@@ -118,7 +125,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         if (indexRouting == null) {
             throw new IndexNotFoundException(index);
         }
-        return OperationRouting.shardRoutingTable(indexRouting, shardId);
+        return shardRoutingTable(indexRouting, shardId);
     }
 
     /**
@@ -141,10 +148,12 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     @Nullable
     public ShardRouting getByAllocationId(ShardId shardId, String allocationId) {
-        return Optional.ofNullable(index(shardId.getIndexName()))
-            .map(irt -> irt.shard(shardId.getId()))
-            .map(shardRoutingTable -> shardRoutingTable.getByAllocationId(allocationId))
-            .orElse(null);
+        final IndexRoutingTable indexRoutingTable = index(shardId.getIndexName());
+        if (indexRoutingTable == null) {
+            return null;
+        }
+        final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.getId());
+        return shardRoutingTable == null ? null : shardRoutingTable.getByAllocationId(allocationId);
     }
 
     public boolean validate(MetaData metaData) {

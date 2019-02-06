@@ -61,9 +61,9 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
-import org.elasticsearch.discovery.UnicastConfiguredHostsResolver;
+import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
@@ -113,7 +113,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private final PreVoteCollector preVoteCollector;
     private final Random random;
     private final ElectionSchedulerFactory electionSchedulerFactory;
-    private final UnicastConfiguredHostsResolver configuredHostsResolver;
+    private final SeedHostsResolver configuredHostsResolver;
     private final TimeValue publishTimeout;
     private final PublicationTransportHandler publicationHandler;
     private final LeaderChecker leaderChecker;
@@ -139,7 +139,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     public Coordinator(String nodeName, Settings settings, ClusterSettings clusterSettings, TransportService transportService,
                        NamedWriteableRegistry namedWriteableRegistry, AllocationService allocationService, MasterService masterService,
-                       Supplier<CoordinationState.PersistedState> persistedStateSupplier, UnicastHostsProvider unicastHostsProvider,
+                       Supplier<CoordinationState.PersistedState> persistedStateSupplier, SeedHostsProvider seedHostsProvider,
                        ClusterApplier clusterApplier, Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, Random random) {
         this.settings = settings;
         this.transportService = transportService;
@@ -156,7 +156,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.random = random;
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(transportService, this::startElection, this::updateMaxTermSeen);
-        configuredHostsResolver = new UnicastConfiguredHostsResolver(nodeName, settings, transportService, unicastHostsProvider);
+        configuredHostsResolver = new SeedHostsResolver(nodeName, settings, transportService, seedHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
         this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry,

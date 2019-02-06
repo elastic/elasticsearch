@@ -48,18 +48,16 @@ teardown:
         index: foo
         body:
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                value_field:
-                  type: integer
+            properties:
+              timestamp:
+                type: date
+              value_field:
+                type: integer
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: foo
-        type: _doc
         body:
           timestamp: 123
           value_field: 1232
@@ -69,18 +67,16 @@ teardown:
         index: foobar
         body:
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                value_field:
-                  type: integer
+            properties:
+              timestamp:
+                type: date
+              value_field:
+                type: integer
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: foobar
-        type: _doc
         body:
           timestamp: 123
           value_field: 456
@@ -220,20 +216,18 @@ teardown:
         index: foo
         body:
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                value_field:
-                  type: integer
-                visibility:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              value_field:
+                type: integer
+              visibility:
+                type: keyword
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: foo
-        type: _doc
         body:
           timestamp: 123
           value_field: 1232
@@ -243,7 +237,6 @@ teardown:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: foobar
-        type: _doc
         body:
           timestamp: 123
           value_field: 456

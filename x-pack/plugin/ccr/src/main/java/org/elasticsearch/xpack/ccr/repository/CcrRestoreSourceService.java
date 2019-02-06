@@ -53,7 +53,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     private final Map<String, RestoreSession> onGoingRestores = ConcurrentCollections.newConcurrentMap();
     private final Map<IndexShard, HashSet<String>> sessionsForShard = new HashMap<>();
-    private final CopyOnWriteArrayList<Consumer<String>> closeSessionListeners = new CopyOnWriteArrayList<>();
     private final ThreadPool threadPool;
     private final CcrSettings ccrSettings;
     private final CounterMetric throttleTime = new CounterMetric();
@@ -92,12 +91,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         sessionsForShard.clear();
         onGoingRestores.values().forEach(AbstractRefCounted::decRef);
         onGoingRestores.clear();
-    }
-
-    // TODO: The listeners are for testing. Once end-to-end file restore is implemented and can be tested,
-    //  these should be removed.
-    public void addCloseSessionListener(Consumer<String> listener) {
-        closeSessionListeners.add(listener);
     }
 
     public synchronized Store.MetadataSnapshot openSession(String sessionUUID, IndexShard indexShard) throws IOException {
@@ -166,9 +159,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 }
             }
         }
-        closeSessionListeners.forEach(c -> c.accept(sessionUUID));
         restore.decRef();
-
     }
 
     private Scheduler.Cancellable scheduleTimeout(String sessionUUID) {
@@ -261,6 +252,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             assert keyedLock.hasLockedKeys() == false : "Should not hold any file locks when closing";
             timeoutTask.cancel();
             IOUtils.closeWhileHandlingException(cachedInputs.values());
+            IOUtils.closeWhileHandlingException(commitRef);
         }
     }
 

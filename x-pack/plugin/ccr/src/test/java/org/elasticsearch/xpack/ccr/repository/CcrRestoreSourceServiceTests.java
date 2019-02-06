@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -198,7 +199,10 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
             sessionReader.readFileBytes(files.get(1).name(), new BytesArray(new byte[10]));
         }
 
+        assertTrue(EngineTestCase.hasSnapshottedCommits(IndexShardTestCase.getEngine(indexShard)));
         restoreSourceService.closeSession(sessionUUID);
+        assertFalse(EngineTestCase.hasSnapshottedCommits(IndexShardTestCase.getEngine(indexShard)));
+
         closeShards(indexShard);
         // Exception will be thrown if file is not closed.
     }

@@ -38,9 +38,6 @@ import org.elasticsearch.node.Node;
 
 public class InternalSettingsPreparer {
 
-    private static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
-    private static final String TEXT_PROMPT_VALUE = "${prompt.text}";
-
     /**
      * Prepares settings for the transport client by gathering all
      * elasticsearch system properties and setting defaults.

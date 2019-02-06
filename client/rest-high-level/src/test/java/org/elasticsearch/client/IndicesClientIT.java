@@ -39,16 +39,10 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.client.indices.GetFieldMappingsRequest;
-import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -68,6 +62,10 @@ import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsResponse;
+import org.elasticsearch.client.indices.GetIndexRequest;
+import org.elasticsearch.client.indices.GetIndexResponse;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
@@ -77,8 +75,11 @@ import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
+import org.elasticsearch.client.indices.rollover.RolloverRequest;
+import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Setting;
@@ -97,8 +98,10 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
+import org.elasticsearch.rest.action.admin.indices.RestGetIndicesAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
+import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 
@@ -137,13 +140,10 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             String indexName = "test_index_exists_index_present";
             createIndex(indexName, Settings.EMPTY);
 
-            GetIndexRequest request = new GetIndexRequest();
-            request.indices(indexName);
+            GetIndexRequest request = new GetIndexRequest(indexName);
 
             boolean response = execute(
                 request,
-                highLevelClient().indices()::exists,
-                highLevelClient().indices()::existsAsync,
                 highLevelClient().indices()::exists,
                 highLevelClient().indices()::existsAsync
             );
@@ -154,13 +154,10 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         {
             String indexName = "non_existent_index";
 
-            GetIndexRequest request = new GetIndexRequest();
-            request.indices(indexName);
+            GetIndexRequest request = new GetIndexRequest(indexName);
 
             boolean response = execute(
                 request,
-                highLevelClient().indices()::exists,
-                highLevelClient().indices()::existsAsync,
                 highLevelClient().indices()::exists,
                 highLevelClient().indices()::existsAsync
             );
@@ -174,19 +171,34 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
             String nonExistentIndex = "oranges";
 
-            GetIndexRequest request = new GetIndexRequest();
-            request.indices(existingIndex, nonExistentIndex);
+            GetIndexRequest request = new GetIndexRequest(existingIndex, nonExistentIndex);
 
             boolean response = execute(
+                request,
+                highLevelClient().indices()::exists,
+                highLevelClient().indices()::existsAsync
+            );
+            assertFalse(response);
+        }
+    }
+
+    public void testIndicesExistsWithTypes() throws IOException {
+        // Index present
+        String indexName = "test_index_exists_index_present";
+        createIndex(indexName, Settings.EMPTY);
+
+        org.elasticsearch.action.admin.indices.get.GetIndexRequest request
+            = new org.elasticsearch.action.admin.indices.get.GetIndexRequest();
+        request.indices(indexName);
+
+        boolean response = execute(
                 request,
                 highLevelClient().indices()::exists,
                 highLevelClient().indices()::existsAsync,
                 highLevelClient().indices()::exists,
                 highLevelClient().indices()::existsAsync
             );
-            assertFalse(response);
-        }
-
+        assertTrue(response);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -426,8 +438,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String mappings = "\"_doc\":{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
         createIndex(indexName, basicSettings, mappings);
 
-        GetIndexRequest getIndexRequest = new GetIndexRequest()
-            .indices(indexName).includeDefaults(false);
+        GetIndexRequest getIndexRequest = new GetIndexRequest(indexName).includeDefaults(false);
         GetIndexResponse getIndexResponse =
             execute(getIndexRequest, highLevelClient().indices()::get, highLevelClient().indices()::getAsync);
 
@@ -436,14 +447,45 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals("1", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_SHARDS));
         assertEquals("0", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_REPLICAS));
         assertNotNull(getIndexResponse.getMappings().get(indexName));
-        assertNotNull(getIndexResponse.getMappings().get(indexName).get("_doc"));
-        Object o = getIndexResponse.getMappings().get(indexName).get("_doc").getSourceAsMap().get("properties");
+        assertNotNull(getIndexResponse.getMappings().get(indexName));
+        MappingMetaData mappingMetaData = getIndexResponse.getMappings().get(indexName);
+        assertNotNull(mappingMetaData);
+        assertEquals("_doc", mappingMetaData.type());
+        assertEquals("{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}", mappingMetaData.source().string());
+        Object o = mappingMetaData.getSourceAsMap().get("properties");
         assertThat(o, instanceOf(Map.class));
         //noinspection unchecked
         assertThat(((Map<String, Object>) o).get("field-1"), instanceOf(Map.class));
         //noinspection unchecked
         Map<String, Object> fieldMapping = (Map<String, Object>) ((Map<String, Object>) o).get("field-1");
         assertEquals("integer", fieldMapping.get("type"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetIndexWithTypes() throws IOException {
+        String indexName = "get_index_test";
+        Settings basicSettings = Settings.builder()
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        String mappings = "\"_doc\":{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
+        createIndex(indexName, basicSettings, mappings);
+
+        org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest =
+                new org.elasticsearch.action.admin.indices.get.GetIndexRequest().indices(indexName).includeDefaults(false);
+        org.elasticsearch.action.admin.indices.get.GetIndexResponse getIndexResponse = execute(getIndexRequest,
+                highLevelClient().indices()::get, highLevelClient().indices()::getAsync,
+                expectWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE));
+
+        // default settings should be null
+        assertNull(getIndexResponse.getSetting(indexName, "index.refresh_interval"));
+        assertEquals("1", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_SHARDS));
+        assertEquals("0", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_REPLICAS));
+        assertNotNull(getIndexResponse.getMappings().get(indexName));
+        MappingMetaData mappingMetaData = getIndexResponse.getMappings().get(indexName).get("_doc");
+        assertNotNull(mappingMetaData);
+        assertEquals("_doc", mappingMetaData.type());
+        assertEquals("{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}", mappingMetaData.source().string());
     }
 
     @SuppressWarnings("unchecked")
@@ -456,19 +498,18 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String mappings = "\"_doc\":{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
         createIndex(indexName, basicSettings, mappings);
 
-        GetIndexRequest getIndexRequest = new GetIndexRequest()
-            .indices(indexName).includeDefaults(true);
+        GetIndexRequest getIndexRequest = new GetIndexRequest(indexName).includeDefaults(true);
         GetIndexResponse getIndexResponse =
             execute(getIndexRequest, highLevelClient().indices()::get, highLevelClient().indices()::getAsync);
 
         assertNotNull(getIndexResponse.getSetting(indexName, "index.refresh_interval"));
         assertEquals(IndexSettings.DEFAULT_REFRESH_INTERVAL,
-            getIndexResponse.defaultSettings().get(indexName).getAsTime("index.refresh_interval", null));
+            getIndexResponse.getDefaultSettings().get(indexName).getAsTime("index.refresh_interval", null));
         assertEquals("1", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_SHARDS));
         assertEquals("0", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_REPLICAS));
         assertNotNull(getIndexResponse.getMappings().get(indexName));
-        assertNotNull(getIndexResponse.getMappings().get(indexName).get("_doc"));
-        Object o = getIndexResponse.getMappings().get(indexName).get("_doc").getSourceAsMap().get("properties");
+        assertNotNull(getIndexResponse.getMappings().get(indexName));
+        Object o = getIndexResponse.getMappings().get(indexName).getSourceAsMap().get("properties");
         assertThat(o, instanceOf(Map.class));
         assertThat(((Map<String, Object>) o).get("field-1"), instanceOf(Map.class));
         Map<String, Object> fieldMapping = (Map<String, Object>) ((Map<String, Object>) o).get("field-1");
@@ -479,7 +520,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String nonExistentIndex = "index_that_doesnt_exist";
         assertFalse(indexExists(nonExistentIndex));
 
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(nonExistentIndex);
+        GetIndexRequest getIndexRequest = new GetIndexRequest(nonExistentIndex);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> execute(getIndexRequest, highLevelClient().indices()::get, highLevelClient().indices()::getAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
@@ -1109,7 +1150,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         {
             RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
-                    highLevelClient().indices()::rolloverAsync, highLevelClient().indices()::rollover,
                     highLevelClient().indices()::rolloverAsync);
             assertFalse(rolloverResponse.isRolledOver());
             assertFalse(rolloverResponse.isDryRun());
@@ -1129,7 +1169,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             rolloverRequest.addMaxIndexAgeCondition(new TimeValue(1));
             rolloverRequest.dryRun(true);
             RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
-                    highLevelClient().indices()::rolloverAsync, highLevelClient().indices()::rollover,
                     highLevelClient().indices()::rolloverAsync);
             assertFalse(rolloverResponse.isRolledOver());
             assertTrue(rolloverResponse.isDryRun());
@@ -1141,10 +1180,11 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
         {
+            String mappings = "{\"properties\":{\"field2\":{\"type\":\"keyword\"}}}";
+            rolloverRequest.getCreateIndexRequest().mapping(mappings, XContentType.JSON);
             rolloverRequest.dryRun(false);
             rolloverRequest.addMaxIndexSizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
             RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
-                    highLevelClient().indices()::rolloverAsync, highLevelClient().indices()::rollover,
                     highLevelClient().indices()::rolloverAsync);
             assertTrue(rolloverResponse.isRolledOver());
             assertFalse(rolloverResponse.isDryRun());
@@ -1156,6 +1196,34 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test", rolloverResponse.getOldIndex());
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
+    }
+
+    public void testRolloverWithTypes() throws IOException {
+        highLevelClient().indices().create(new CreateIndexRequest("test").alias(new Alias("alias")), RequestOptions.DEFAULT);
+        highLevelClient().index(new IndexRequest("test", "_doc", "1").source("field", "value"), RequestOptions.DEFAULT);
+        highLevelClient().index(new IndexRequest("test", "_doc", "2").source("field", "value")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
+
+        org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest =
+            new org.elasticsearch.action.admin.indices.rollover.RolloverRequest("alias", "test_new");
+        rolloverRequest.addMaxIndexDocsCondition(1);
+
+        Settings.Builder settings = Settings.builder().put("number_of_shards", 1);
+        rolloverRequest.getCreateIndexRequest().mapping("_doc", "field2", "type=keyword")
+            .settings(settings);
+
+        org.elasticsearch.action.admin.indices.rollover.RolloverResponse rolloverResponse = execute(
+            rolloverRequest,
+            highLevelClient().indices()::rollover,
+            highLevelClient().indices()::rolloverAsync,
+            expectWarnings(RestRolloverIndexAction.TYPES_DEPRECATION_MESSAGE)
+        );
+        assertTrue(rolloverResponse.isRolledOver());
+        assertFalse(rolloverResponse.isDryRun());
+        Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
+        assertTrue(conditionStatus.get("[max_docs: 1]"));
+        assertEquals("test", rolloverResponse.getOldIndex());
+        assertEquals("test_new", rolloverResponse.getNewIndex());
     }
 
     public void testGetAlias() throws IOException {

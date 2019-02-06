@@ -224,7 +224,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::index-conflict
             IndexRequest request = new IndexRequest("posts", "doc", "1")
                     .source("field", "value")
-                    .version(1);
+                    .setIfSeqNo(100L)
+                    .setIfPrimaryTerm(1L);
             try {
                 IndexResponse response = client.index(request, RequestOptions.DEFAULT);
             } catch(ElasticsearchException e) {
@@ -434,7 +435,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-conflict
             UpdateRequest request = new UpdateRequest("posts", "doc", "1")
                     .doc("field", "value")
-                    .version(1);
+                    .setIfSeqNo(100L)
+                    .setIfPrimaryTerm(1L);
             try {
                 UpdateResponse updateResponse = client.update(
                         request, RequestOptions.DEFAULT);
@@ -639,8 +641,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-conflict
             try {
                 DeleteResponse deleteResponse = client.delete(
-                        new DeleteRequest("posts", "doc", "1").version(2),
-                        RequestOptions.DEFAULT);
+                    new DeleteRequest("posts", "doc", "1")
+                        .setIfSeqNo(100L).setIfPrimaryTerm(2L),
+                    RequestOptions.DEFAULT);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {
                     // <1>

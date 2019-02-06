@@ -557,6 +557,8 @@ public class UpdateRequestTests extends ESTestCase {
         updateRequest.doc("{}", XContentType.JSON);
         updateRequest.upsert(new IndexRequest("index","type", "id"));
         assertThat(updateRequest.validate().validationErrors(), contains("can't provide both upsert request and a version"));
+        assertWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. " +
+            "Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [index], type [type], id [id])");
     }
 
     public void testToValidateUpsertRequestWithVersion() {

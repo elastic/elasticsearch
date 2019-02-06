@@ -34,16 +34,10 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.client.indices.GetFieldMappingsRequest;
-import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -57,6 +51,10 @@ import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsRequest;
+import org.elasticsearch.client.indices.GetFieldMappingsResponse;
+import org.elasticsearch.client.indices.GetIndexRequest;
+import org.elasticsearch.client.indices.GetIndexResponse;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
@@ -65,6 +63,8 @@ import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
+import org.elasticsearch.client.indices.rollover.RolloverRequest;
+import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -902,6 +902,41 @@ public final class IndicesClient {
     }
 
     /**
+     * Retrieve information about one or more indexes
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-index.html">
+     * Indices Get Index API on elastic.co</a>
+     * @param getIndexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #get(GetIndexRequest, RequestOptions)} should be used instead, which accepts a new request object.
+     */
+    @Deprecated
+    public org.elasticsearch.action.admin.indices.get.GetIndexResponse get(
+            org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
+                org.elasticsearch.action.admin.indices.get.GetIndexResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Retrieve information about one or more indexes
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-index.html">
+     * Indices Get Index API on elastic.co</a>
+     * @param getIndexRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #getAsync(GetIndexRequest, RequestOptions, ActionListener)} should be used instead, which accepts a new request object.
+     */
+    @Deprecated
+    public void getAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest getIndexRequest, RequestOptions options,
+            ActionListener<org.elasticsearch.action.admin.indices.get.GetIndexResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
+                org.elasticsearch.action.admin.indices.get.GetIndexResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Force merge one or more indices using the Force Merge API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">
      * Force Merge API on elastic.co</a>
@@ -1060,13 +1095,36 @@ public final class IndicesClient {
 
     /**
      * Checks if the index (indices) exists or not.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
+     * Indices Exists API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #exists(GetIndexRequest, RequestOptions)} should be used instead, which accepts a new request object.
+     */
+    @Deprecated
+    public boolean exists(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(
+            request,
+            IndicesRequestConverters::indicesExist,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Checks if the index (indices) exists or not.
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
-     * @deprecated Prefer {@link #exists(GetIndexRequest, RequestOptions)}
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #exists(GetIndexRequest, RequestOptions)} should be used instead, which accepts a new request object.
      */
     @Deprecated
-    public boolean exists(GetIndexRequest request, Header... headers) throws IOException {
+    public boolean exists(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, Header... headers) throws IOException {
         return restHighLevelClient.performRequest(
                 request,
                 IndicesRequestConverters::indicesExist,
@@ -1097,13 +1155,38 @@ public final class IndicesClient {
 
     /**
      * Asynchronously checks if the index (indices) exists or not.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
+     * Indices Exists API on elastic.co</a>
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #existsAsync(GetIndexRequest, RequestOptions, ActionListener)} should be used instead, which accepts a new request object.
+     */
+    @Deprecated
+    public void existsAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, RequestOptions options,
+            ActionListener<Boolean> listener) {
+        restHighLevelClient.performRequestAsync(
+                request,
+                IndicesRequestConverters::indicesExist,
+                options,
+                RestHighLevelClient::convertExistsResponse,
+                listener,
+                Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously checks if the index (indices) exists or not.
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
-     * @deprecated Prefer {@link #existsAsync(GetIndexRequest, RequestOptions, ActionListener)}
+     * @deprecated This method uses an old request object which still refers to types, a deprecated feature. The method
+     * {@link #existsAsync(GetIndexRequest, RequestOptions, ActionListener)} should be used instead, which accepts a new request object.
      */
     @Deprecated
-    public void existsAsync(GetIndexRequest request, ActionListener<Boolean> listener, Header... headers) {
+    public void existsAsync(org.elasticsearch.action.admin.indices.get.GetIndexRequest request, ActionListener<Boolean> listener,
+            Header... headers) {
         restHighLevelClient.performRequestAsync(
             request,
             IndicesRequestConverters::indicesExist,
@@ -1235,19 +1318,6 @@ public final class IndicesClient {
     }
 
     /**
-     * Rolls over an index using the Rollover Index API.
-     * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
-     * Rollover Index API on elastic.co</a>
-     * @deprecated Prefer {@link #rollover(RolloverRequest, RequestOptions)}
-     */
-    @Deprecated
-    public RolloverResponse rollover(RolloverRequest rolloverRequest, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover,
-                RolloverResponse::fromXContent, emptySet(), headers);
-    }
-
-    /**
      * Asynchronously rolls over an index using the Rollover Index API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
      * Rollover Index API on elastic.co</a>
@@ -1261,16 +1331,76 @@ public final class IndicesClient {
     }
 
     /**
+     * Rolls over an index using the Rollover Index API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
+     * Rollover Index API on elastic.co</a>
+     * @param rolloverRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     *
+     * @deprecated This method uses deprecated request and response objects.
+     * The method {@link #rollover(RolloverRequest, RequestOptions)} should be used instead, which accepts a new request object.
+     */
+    @Deprecated
+    public org.elasticsearch.action.admin.indices.rollover.RolloverResponse rollover(
+            org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest, 
+            RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover, options,
+                org.elasticsearch.action.admin.indices.rollover.RolloverResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Rolls over an index using the Rollover Index API.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
+     * Rollover Index API on elastic.co</a>
+     * 
+     * @deprecated This method uses deprecated request and response objects.
+     * The method {@link #rollover(RolloverRequest, RequestOptions)} should be used instead, which accepts a new request object.
+     */
+    @Deprecated
+    public org.elasticsearch.action.admin.indices.rollover.RolloverResponse rollover(
+            org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest, 
+            Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover,
+                org.elasticsearch.action.admin.indices.rollover.RolloverResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously rolls over an index using the Rollover Index API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
+     * Rollover Index API on elastic.co</a>
+     * @param rolloverRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     *
+     * @deprecated This method uses deprecated request and response objects.
+     * The method {@link #rolloverAsync(RolloverRequest, RequestOptions, ActionListener)} should be used instead, which
+     * accepts a new request object.
+     */
+    @Deprecated
+    public void rolloverAsync(org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest, 
+        RequestOptions options, ActionListener<org.elasticsearch.action.admin.indices.rollover.RolloverResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover, options,
+                org.elasticsearch.action.admin.indices.rollover.RolloverResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Asynchronously rolls over an index using the Rollover Index API.
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
      * Rollover Index API on elastic.co</a>
-     * @deprecated Prefer {@link #rolloverAsync(RolloverRequest, RequestOptions, ActionListener)}
+     *
+     * @deprecated This method uses deprecated request and response objects.
+     * The method {@link #rolloverAsync(RolloverRequest, RequestOptions, ActionListener)} should be used instead, which
+     * accepts a new request object.
      */
     @Deprecated
-    public void rolloverAsync(RolloverRequest rolloverRequest, ActionListener<RolloverResponse> listener, Header... headers) {
+    public void rolloverAsync(org.elasticsearch.action.admin.indices.rollover.RolloverRequest rolloverRequest, 
+        ActionListener<org.elasticsearch.action.admin.indices.rollover.RolloverResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover,
-                RolloverResponse::fromXContent, listener, emptySet(), headers);
+                org.elasticsearch.action.admin.indices.rollover.RolloverResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**

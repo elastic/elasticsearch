@@ -53,7 +53,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertEquals("{\"names\":[\"idx\"],\"privileges\":[\"priv\"],\"allow_restricted_indices\":true}", Strings.toString(b));
     }
 
-    public void testToString() throws Exception {
+    public void testToString() {
         RoleDescriptor.IndicesPrivileges[] groups = new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                         .indices("i1", "i2")
@@ -235,11 +235,11 @@ public class RoleDescriptorTests extends ESTestCase {
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
         final RoleDescriptor descriptor = new RoleDescriptor("test", new String[]{"all", "none"}, groups, applicationPrivileges,
             conditionalClusterPrivileges, new String[] { "sudo" }, metadata, null);
-        RoleDescriptor.writeTo(descriptor, output);
+        descriptor.writeTo(output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
             registry);
-        final RoleDescriptor serialized = RoleDescriptor.readFrom(streamInput);
+        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
         assertEquals(descriptor, serialized);
     }
 
@@ -268,7 +268,7 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testParseIgnoresTransientMetadata() throws Exception {
-        final RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all" }, null, null,
+        final RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all" }, null, null, null, null,
                 Collections.singletonMap("_unlicensed_feature", true), Collections.singletonMap("foo", "bar"));
         XContentBuilder b = jsonBuilder();
         descriptor.toXContent(b, ToXContent.EMPTY_PARAMS);

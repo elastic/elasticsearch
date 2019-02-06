@@ -43,7 +43,7 @@ import java.util.Objects;
  * A holder for a Role that contains user-readable information about the Role
  * without containing the actual Role object.
  */
-public class RoleDescriptor implements ToXContentObject {
+public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public static final String ROLE_TYPE = "role";
 
@@ -108,6 +108,27 @@ public class RoleDescriptor implements ToXContentObject {
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
         this.transientMetadata = transientMetadata != null ? Collections.unmodifiableMap(transientMetadata) :
                 Collections.singletonMap("enabled", true);
+    }
+
+    public RoleDescriptor(StreamInput in) throws IOException {
+        this.name = in.readString();
+        this.clusterPrivileges = in.readStringArray();
+        int size = in.readVInt();
+        this.indicesPrivileges = new IndicesPrivileges[size];
+        for (int i = 0; i < size; i++) {
+            indicesPrivileges[i] = new IndicesPrivileges(in);
+        }
+        this.runAs = in.readStringArray();
+        this.metadata = in.readMap();
+        this.transientMetadata = in.readMap();
+
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            this.applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
+            this.conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
+        } else {
+            this.applicationPrivileges = ApplicationResourcePrivileges.NONE;
+            this.conditionalClusterPrivileges = ConditionalClusterPrivileges.EMPTY_ARRAY;
+        }
     }
 
     public String getName() {
@@ -264,21 +285,20 @@ public class RoleDescriptor implements ToXContentObject {
             runAs, metadata, transientMetadata);
     }
 
-    public static void writeTo(RoleDescriptor descriptor, StreamOutput out) throws IOException {
-        out.writeString(descriptor.name);
-        out.writeStringArray(descriptor.clusterPrivileges);
-        out.writeVInt(descriptor.indicesPrivileges.length);
-        for (IndicesPrivileges group : descriptor.indicesPrivileges) {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeStringArray(clusterPrivileges);
+        out.writeVInt(indicesPrivileges.length);
+        for (IndicesPrivileges group : indicesPrivileges) {
             group.writeTo(out);
         }
-        out.writeStringArray(descriptor.runAs);
-        out.writeMap(descriptor.metadata);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
-            out.writeMap(descriptor.transientMetadata);
-        }
+        out.writeStringArray(runAs);
+        out.writeMap(metadata);
+        out.writeMap(transientMetadata);
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeArray(ApplicationResourcePrivileges::write, descriptor.applicationPrivileges);
-            ConditionalClusterPrivileges.writeArray(out, descriptor.getConditionalClusterPrivileges());
+            out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
+            ConditionalClusterPrivileges.writeArray(out, getConditionalClusterPrivileges());
         }
     }
 

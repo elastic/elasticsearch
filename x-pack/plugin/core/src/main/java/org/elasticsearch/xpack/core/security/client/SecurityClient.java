@@ -10,6 +10,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
@@ -335,6 +345,27 @@ public class SecurityClient {
 
     public void invalidateToken(InvalidateTokenRequest request, ActionListener<InvalidateTokenResponse> listener) {
         client.execute(InvalidateTokenAction.INSTANCE, request, listener);
+    }
+
+    /* -- Api Keys -- */
+    public CreateApiKeyRequestBuilder prepareCreateApiKey() {
+        return new CreateApiKeyRequestBuilder(client);
+    }
+
+    public CreateApiKeyRequestBuilder prepareCreateApiKey(BytesReference bytesReference, XContentType xContentType) throws IOException {
+        return new CreateApiKeyRequestBuilder(client).source(bytesReference, xContentType);
+    }
+
+    public void createApiKey(CreateApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
+        client.execute(CreateApiKeyAction.INSTANCE, request, listener);
+    }
+
+    public void invalidateApiKey(InvalidateApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
+        client.execute(InvalidateApiKeyAction.INSTANCE, request, listener);
+    }
+
+    public void getApiKey(GetApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
+        client.execute(GetApiKeyAction.INSTANCE, request, listener);
     }
 
     public SamlAuthenticateRequestBuilder prepareSamlAuthenticate(byte[] xmlContent, List<String> validIds) {

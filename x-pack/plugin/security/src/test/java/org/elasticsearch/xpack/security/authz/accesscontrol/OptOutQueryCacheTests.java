@@ -25,13 +25,13 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.HashSet;
 
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
@@ -70,56 +70,56 @@ public class OptOutQueryCacheTests extends ESTestCase {
 
         // whenever the allowed fields match the fields in the query and we do not deny access to any fields we allow caching.
         IndicesAccessControl.IndexAccessControl permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(new String[]{"foo", "no"}, null)), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(new String[]{"foo", "no"}, null)), DocumentPermissions.allowAll());
         assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions));
 
         permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(new String[]{"foo", "no"}, new String[]{})), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(new String[]{"foo", "no"}, new String[]{})), DocumentPermissions.allowAll());
         assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions));
 
         permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(new String[]{"*"}, new String[]{})), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(new String[]{"*"}, new String[]{})), DocumentPermissions.allowAll());
         assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions));
 
         permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(new String[]{"*"}, null)), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(new String[]{"*"}, null)), DocumentPermissions.allowAll());
         assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions));
 
         permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(new String[]{"*"}, new String[]{"oof"})), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(new String[]{"*"}, new String[]{"oof"})), DocumentPermissions.allowAll());
         assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions));
 
         permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(new String[]{"f*", "n*"}, new String[]{})), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(new String[]{"f*", "n*"}, new String[]{})), DocumentPermissions.allowAll());
         assertTrue(OptOutQueryCache.cachingIsSafe(weight, permissions));
 
         // check we don't cache if a field is not allowed
         permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(new String[]{"foo"}, null)), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(new String[]{"foo"}, null)), DocumentPermissions.allowAll());
         assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
 
         permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(new String[]{"a*"}, new String[]{"aa"})), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(new String[]{"a*"}, new String[]{"aa"})), DocumentPermissions.allowAll());
         assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
 
         permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(null, new String[]{"no"})), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(null, new String[]{"no"})), DocumentPermissions.allowAll());
         assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
 
         permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(null, new String[]{"*"})), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(null, new String[]{"*"})), DocumentPermissions.allowAll());
         assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
 
         permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(new String[]{"foo", "no"}, new String[]{"no"})), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(new String[]{"foo", "no"}, new String[]{"no"})), DocumentPermissions.allowAll());
         assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
 
         permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(new String[]{}, new String[]{})), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(new String[]{}, new String[]{})), DocumentPermissions.allowAll());
         assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
 
         permissions = new IndicesAccessControl.IndexAccessControl(true,
-                new FieldPermissions(fieldPermissionDef(new String[]{}, null)), new HashSet<>());
+                new FieldPermissions(fieldPermissionDef(new String[]{}, null)), DocumentPermissions.allowAll());
         assertFalse(OptOutQueryCache.cachingIsSafe(weight, permissions));
     }
 

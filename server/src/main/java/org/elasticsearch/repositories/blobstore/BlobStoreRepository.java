@@ -193,7 +193,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String DATA_BLOB_PREFIX = "__";
 
-    protected final Settings settings;
+    private final Settings settings;
 
     private final RateLimiter snapshotRateLimiter;
 
@@ -211,9 +211,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final boolean readOnly;
 
-    private final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshot> indexShardSnapshotFormat;
+    private ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshot> indexShardSnapshotFormat;
 
-    private final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshots> indexShardSnapshotsFormat;
+    private ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshots> indexShardSnapshotsFormat;
 
     private final Object lock = new Object();
 
@@ -234,15 +234,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         readOnly = metadata.settings().getAsBoolean("readonly", false);
-
-        indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
-            BlobStoreIndexShardSnapshot::fromXContent, namedXContentRegistry, isCompress());
-        indexShardSnapshotsFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_INDEX_CODEC, SNAPSHOT_INDEX_NAME_FORMAT,
-            BlobStoreIndexShardSnapshots::fromXContent, namedXContentRegistry, isCompress());
-        ByteSizeValue chunkSize = chunkSize();
-        if (chunkSize != null && chunkSize.getBytes() <= 0) {
-            throw new IllegalArgumentException("the chunk size cannot be negative: [" + chunkSize + "]");
-        }
     }
 
     @Override
@@ -253,6 +244,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             IndexMetaData::fromXContent, namedXContentRegistry, isCompress());
         snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
             SnapshotInfo::fromXContentInternal, namedXContentRegistry, isCompress());
+
+        indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
+            BlobStoreIndexShardSnapshot::fromXContent, namedXContentRegistry, isCompress());
+        indexShardSnapshotsFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_INDEX_CODEC, SNAPSHOT_INDEX_NAME_FORMAT,
+            BlobStoreIndexShardSnapshots::fromXContent, namedXContentRegistry, isCompress());
+        ByteSizeValue chunkSize = chunkSize();
+        if (chunkSize != null && chunkSize.getBytes() <= 0) {
+            throw new IllegalArgumentException("the chunk size cannot be negative: [" + chunkSize + "]");
+        }
     }
 
     @Override

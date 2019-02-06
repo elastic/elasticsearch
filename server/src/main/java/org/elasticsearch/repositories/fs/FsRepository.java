@@ -66,12 +66,10 @@ public class FsRepository extends BlobStoreRepository {
         Setting.boolSetting("repositories.fs.compress", false, Property.NodeScope);
     private final Environment environment;
 
-    private boolean chunkSizeInitialized = false;
     private ByteSizeValue chunkSize;
 
     private final BlobPath basePath;
 
-    private boolean compressInitialized = false;
     private boolean compress;
 
     /**
@@ -102,6 +100,13 @@ public class FsRepository extends BlobStoreRepository {
             }
         }
 
+        if (CHUNK_SIZE_SETTING.exists(metadata.settings())) {
+            this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
+        } else {
+            this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(environment.settings());
+        }
+        this.compress = COMPRESS_SETTING.exists(metadata.settings())
+            ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(environment.settings());
         this.basePath = BlobPath.cleanPath();
     }
 
@@ -112,36 +117,13 @@ public class FsRepository extends BlobStoreRepository {
         return new FsBlobStore(environment.settings(), locationFile);
     }
 
-    /*
-     * Note: this method gets called by the super constructor, so we can't rely on instance fields in this class having been initialized
-     * yet.
-     */
     @Override
     protected boolean isCompress() {
-        if (!compressInitialized) {
-            this.compress = COMPRESS_SETTING.exists(metadata.settings()) ? COMPRESS_SETTING.get(metadata.settings())
-                    : REPOSITORIES_COMPRESS_SETTING.get(settings);
-            compressInitialized = true;
-        }
-        
         return compress;
     }
 
-    /*
-     * Note: this method gets called by the super constructor, so we can't rely on instance fields in this class having been initialized
-     * yet.
-     */
     @Override
     protected ByteSizeValue chunkSize() {
-        if (!chunkSizeInitialized) {
-            if (CHUNK_SIZE_SETTING.exists(metadata.settings())) {
-                this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
-            } else {
-                this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(settings);
-            }
-            chunkSizeInitialized = true;
-        }
-        
         return chunkSize;
     }
 

@@ -44,7 +44,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestPutMappingAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestPutMappingAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in create index " +
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in put mapping " +
         "requests is deprecated. To be compatible with 7.0, the mapping definition should not be nested under " +
         "the type name, and the parameter include_type_name must be provided and set to false.";
 

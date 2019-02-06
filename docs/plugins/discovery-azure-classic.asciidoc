@@ -15,7 +15,7 @@ include::install_remove.asciidoc[]
 [[discovery-azure-classic-usage]]
 ==== Azure Virtual Machine Discovery
 
-Azure VM discovery allows to use the azure APIs to perform automatic discovery.
+Azure VM discovery allows to use the Azure APIs to perform automatic discovery.
 Here is a simple sample configuration:
 
 [source,yaml]

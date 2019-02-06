@@ -38,7 +38,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -47,9 +47,9 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AzureUnicastHostsProvider implements UnicastHostsProvider {
+public class AzureSeedHostsProvider implements SeedHostsProvider {
     
-    private static final Logger logger = LogManager.getLogger(AzureUnicastHostsProvider.class);
+    private static final Logger logger = LogManager.getLogger(AzureSeedHostsProvider.class);
 
     public enum HostType {
         PRIVATE_IP("private_ip"),
@@ -110,8 +110,8 @@ public class AzureUnicastHostsProvider implements UnicastHostsProvider {
     private final String deploymentName;
     private final DeploymentSlot deploymentSlot;
 
-    public AzureUnicastHostsProvider(Settings settings, AzureComputeService azureComputeService,
-                                     TransportService transportService, NetworkService networkService) {
+    public AzureSeedHostsProvider(Settings settings, AzureComputeService azureComputeService,
+                                  TransportService transportService, NetworkService networkService) {
         this.settings = settings;
         this.azureComputeService = azureComputeService;
         this.transportService = transportService;
@@ -137,7 +137,7 @@ public class AzureUnicastHostsProvider implements UnicastHostsProvider {
      * Setting `cloud.azure.refresh_interval` to `0` will disable caching (default).
      */
     @Override
-    public List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver) {
+    public List<TransportAddress> getSeedAddresses(HostsResolver hostsResolver) {
         if (refreshInterval.millis() != 0) {
             if (dynamicHosts != null &&
                     (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {

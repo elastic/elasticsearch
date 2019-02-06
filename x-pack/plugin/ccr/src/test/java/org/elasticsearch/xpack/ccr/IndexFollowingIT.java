@@ -114,7 +114,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int firstBatchNumDocs;
         // Sometimes we want to index a lot of documents to ensure that the recovery works with larger files
         if (rarely()) {
-            firstBatchNumDocs = randomIntBetween(1800, 2000);
+            firstBatchNumDocs = randomIntBetween(1800, 10000);
         } else {
             firstBatchNumDocs = randomIntBetween(10, 64);
         }
@@ -127,6 +127,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             waitForDocs(firstBatchNumDocs, indexer);
             indexer.assertNoFailures();
 
+            logger.info("Executing put follow");
             boolean waitOnAll = randomBoolean();
 
             final PutFollowAction.Request followRequest;
@@ -176,6 +177,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
             indexer.continueIndexing(secondBatchNumDocs);
 
+            waitForDocs(firstBatchNumDocs + secondBatchNumDocs, indexer);
+
             final Map<ShardId, Long> secondBatchNumDocsPerShard = new HashMap<>();
             final ShardStats[] secondBatchShardStats =
                 leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
@@ -194,6 +197,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                     assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
                 });
             }
+
             pauseFollow("index2");
             assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfPrimaryShards);
         }

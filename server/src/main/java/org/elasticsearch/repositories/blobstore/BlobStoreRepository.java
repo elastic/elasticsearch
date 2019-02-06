@@ -719,7 +719,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // write the index file
         final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
         logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
-        writeAtomic(indexBlob, snapshotsBytes, false);
+        writeAtomic(indexBlob, snapshotsBytes);
         // delete the N-2 index file if it exists, keep the previous one around as a backup
         if (isReadOnly() == false && newGen - 2 >= 0) {
             final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(newGen - 2);
@@ -733,7 +733,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             genBytes = bStream.bytes();
         }
         logger.debug("Repository [{}] updating index.latest with generation [{}]", metadata.name(), newGen);
-        writeAtomic(INDEX_LATEST_BLOB, genBytes, false);
+        writeAtomic(INDEX_LATEST_BLOB, genBytes);
     }
 
     /**
@@ -753,7 +753,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             bytes = bStream.bytes();
         }
         // write the incompatible snapshots blob
-        writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB, bytes, false);
+        writeAtomic(INCOMPATIBLE_SNAPSHOTS_BLOB, bytes);
     }
 
     /**
@@ -819,9 +819,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return latest;
     }
 
-    private void writeAtomic(final String blobName, final BytesReference bytesRef, boolean failIfAlreadyExists) throws IOException {
+    private void writeAtomic(final String blobName, final BytesReference bytesRef) throws IOException {
         try (InputStream stream = bytesRef.streamInput()) {
-            blobContainer().writeBlobAtomic(blobName, stream, bytesRef.length(), failIfAlreadyExists);
+            blobContainer().writeBlobAtomic(blobName, stream, bytesRef.length(), false);
         }
     }
 

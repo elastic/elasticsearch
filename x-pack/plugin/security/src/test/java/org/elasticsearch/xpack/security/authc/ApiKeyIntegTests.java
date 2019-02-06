@@ -332,6 +332,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38408")
     public void testExpiredApiKeysDeletedAfter1Week() throws Exception {
         List<CreateApiKeyResponse> responses = createApiKeys(2, null);
         Instant created = Instant.now();

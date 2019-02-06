@@ -182,15 +182,6 @@ prevent having to specify them with each single request
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-max-retry-timeout]
---------------------------------------------------
-<1> Set the timeout that should be honoured in case multiple attempts are made
-for the same request. The default value is 30 seconds, same as the default
-socket timeout. In case the socket timeout is customized, the maximum retry
-timeout should be adjusted accordingly
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-init-failure-listener]
 --------------------------------------------------
 <1> Set a listener that gets notified every time a node fails,  in case actions

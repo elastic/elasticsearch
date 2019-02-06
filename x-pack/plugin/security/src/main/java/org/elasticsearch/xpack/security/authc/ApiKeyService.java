@@ -106,7 +106,7 @@ public class ApiKeyService {
     static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
-        "xpack.security.authc.api_key_hashing.algorithm", "pbkdf2", Function.identity(), v -> {
+        "xpack.security.authc.api_key.hashing.algorithm", "pbkdf2", Function.identity(), v -> {
         if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
             throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
                 Hasher.getAvailableAlgoStoredHash().toString());
@@ -194,11 +194,11 @@ public class ApiKeyService {
                     final Instant expiration = getApiKeyExpiration(created, request);
                     final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
                     final Version version = clusterService.state().nodes().getMinNodeVersion();
-                    if (version.before(Version.V_7_0_0)) { // TODO(jaymode) change to V6_6_0 on backport!
+                    if (version.before(Version.V_6_7_0)) {
                         logger.warn(
                                 "nodes prior to the minimum supported version for api keys {} exist in the cluster;"
                                         + " these nodes will not be able to use api keys",
-                                Version.V_7_0_0);
+                                Version.V_6_7_0);
                     }
 
                     final char[] keyHash = hasher.hash(apiKey);

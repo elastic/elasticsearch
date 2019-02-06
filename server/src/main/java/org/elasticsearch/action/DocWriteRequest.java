@@ -255,10 +255,9 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         }
     }
 
-    static ActionRequestValidationException validateSeqNoBasedCASParams(
-        DocWriteRequest request, ActionRequestValidationException validationException) {
-        final long version = request.version();
-        final VersionType versionType = request.versionType();
+    default ActionRequestValidationException validateVersionAndSeqNoBasedCASParams(ActionRequestValidationException validationException) {
+        final long version = version();
+        final VersionType versionType = versionType();
         if (versionType.validateVersionForWrites(version) == false) {
             validationException = addValidationError("illegal version value [" + version + "] for version type ["
                 + versionType.name() + "]", validationException);
@@ -272,17 +271,36 @@ public interface DocWriteRequest<T> extends IndicesRequest {
                 "Please use `if_seq_no` and `if_primary_term` instead", validationException);
         }
 
-        if (request.ifSeqNo() != UNASSIGNED_SEQ_NO && (
+        if (ifSeqNo() != UNASSIGNED_SEQ_NO && (
             versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
         )) {
             validationException = addValidationError("compare and write operations can not use versioning", validationException);
         }
-        if (request.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM && request.ifSeqNo() != UNASSIGNED_SEQ_NO) {
+        if (ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM && ifSeqNo() != UNASSIGNED_SEQ_NO) {
             validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
         }
-        if (request.ifPrimaryTerm() != UNASSIGNED_PRIMARY_TERM && request.ifSeqNo() == UNASSIGNED_SEQ_NO) {
+        if (ifPrimaryTerm() != UNASSIGNED_PRIMARY_TERM && ifSeqNo() == UNASSIGNED_SEQ_NO) {
             validationException =
-                addValidationError("ifSeqNo is unassigned, but primary term is [" + request.ifPrimaryTerm() + "]", validationException);
+                addValidationError("ifSeqNo is unassigned, but primary term is [" + ifPrimaryTerm() + "]", validationException);
+        }
+        if (opType() == OpType.CREATE) {
+            if (versionType != VersionType.INTERNAL) {
+                validationException = addValidationError("create operations only support internal versioning. use index instead",
+                    validationException);
+                return validationException;
+            }
+
+            if (version != Versions.MATCH_DELETED) {
+                validationException = addValidationError("create operations do not support explicit versions. use index instead",
+                    validationException);
+                return validationException;
+            }
+
+            if (ifSeqNo() != UNASSIGNED_SEQ_NO || ifPrimaryTerm() != UNASSIGNED_PRIMARY_TERM) {
+                validationException = addValidationError("create operations do not support compare and set. use index instead",
+                    validationException);
+                return validationException;
+            }
         }
 
         return validationException;

@@ -164,31 +164,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             validationException = addValidationError("content type is missing", validationException);
         }
         final long resolvedVersion = resolveVersionDefaults();
-        if (opType() == OpType.CREATE) {
-            if (versionType != VersionType.INTERNAL) {
-                validationException = addValidationError("create operations only support internal versioning. use index instead",
-                    validationException);
-                return validationException;
-            }
 
-            if (resolvedVersion != Versions.MATCH_DELETED) {
-                validationException = addValidationError("create operations do not support explicit versions. use index instead",
-                    validationException);
-                return validationException;
-            }
-
-            if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
-                validationException = addValidationError("create operations do not support compare and set. use index instead",
-                    validationException);
-                return validationException;
-            }
-        }
 
         if (opType() != OpType.INDEX && id == null) {
             addValidationError("an id is required for a " + opType() + " operation", validationException);
         }
 
-        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
+        validationException = validateVersionAndSeqNoBasedCASParams(validationException);
 
         if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
             validationException = addValidationError("id is too long, must be no longer than 512 bytes but was: " +

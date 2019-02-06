@@ -25,7 +25,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
@@ -37,7 +36,6 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.index.VersionType.INTERNAL;
 
 /**
  * Request to reindex some documents from one index to another. This implements CompositeIndicesRequest but in a misleading way. Rather than
@@ -100,11 +98,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (false == routingIsValid()) {
             e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
         }
-        if (destination.versionType() == INTERNAL) {
-            if (destination.version() != Versions.MATCH_ANY && destination.version() != Versions.MATCH_DELETED) {
-                e = addValidationError("unsupported version for internal versioning [" + destination.version() + ']', e);
-            }
-        }
+
+        e = destination.validateVersionAndSeqNoBasedCASParams(e);
+
         if (getRemoteInfo() != null) {
             if (getSearchRequest().source().query() != null) {
                 e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);

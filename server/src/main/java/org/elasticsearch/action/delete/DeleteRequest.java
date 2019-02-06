@@ -111,7 +111,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
             validationException = addValidationError("id is missing", validationException);
         }
 
-        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
+        validationException = validateVersionAndSeqNoBasedCASParams(validationException);
 
         return validationException;
     }

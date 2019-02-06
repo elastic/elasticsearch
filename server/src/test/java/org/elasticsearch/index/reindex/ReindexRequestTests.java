@@ -21,11 +21,13 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.slice.SliceBuilder;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
@@ -55,6 +57,14 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(
                 "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
                 e.getMessage());
+    }
+
+    public void testReindexShouldThrowErrorWhenCreateIsUsedWithExternalVersionType() {
+        ReindexRequest reindex = newRequest();
+        reindex.setDestOpType("create");
+        reindex.setDestVersionType(VersionType.EXTERNAL);
+        ActionRequestValidationException e = reindex.validate();
+        assertThat(e.getMessage(), containsString("create operations only support internal versioning. use index instead;"));
     }
 
     public void testNoSliceBuilderSetWithSlicedRequest() {

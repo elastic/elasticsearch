@@ -158,7 +158,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             validationException = addValidationError("id is missing", validationException);
         }
 
-        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
+        validationException = validateVersionAndSeqNoBasedCASParams(validationException);
 
         if (ifSeqNo != UNASSIGNED_SEQ_NO) {
             if (retryOnConflict > 0) {

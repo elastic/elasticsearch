@@ -3683,14 +3683,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
             // The deletion must set the snapshot in the ABORTED state
             assertBusy(() -> {
-                try {
-                    SnapshotsStatusResponse status =
-                        client.admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
-                    assertThat(status.getSnapshots().iterator().next().getState(), equalTo(State.ABORTED));
-                } catch (Exception e) {
-                    // Force assertBusy to retry on every exception
-                    throw new AssertionError(e);
-                }
+                SnapshotsStatusResponse status =
+                    client.admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
+                assertThat(status.getSnapshots().iterator().next().getState(), equalTo(State.ABORTED));
             });
 
             // Now unblock the repository

@@ -90,13 +90,13 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         }
         availableDocs.release(between(100, 200));
         PutFollowAction.Request follow = putFollow("leader-index", "follower-index");
-        follow.getFollowRequest().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
-        follow.getFollowRequest().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
-        follow.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
-        follow.getFollowRequest().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
-        follow.getFollowRequest().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
-        follow.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
-        logger.info("--> follow params {}", Strings.toString(follow.getFollowRequest()));
+        follow.getParameters().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
+        follow.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        follow.getParameters().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
+        follow.getParameters().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
+        follow.getParameters().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        follow.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
+        logger.info("--> follow request {}", Strings.toString(follow));
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
         disableDelayedAllocation("follower-index");
         ensureFollowerGreen("follower-index");
@@ -121,6 +121,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         pauseFollow("follower-index");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33337")
     public void testFollowIndexAndCloseNode() throws Exception {
         getFollowerCluster().ensureAtLeastNumDataNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -150,17 +151,17 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         thread.start();
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getFollowRequest().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
-        followRequest.getFollowRequest().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
-        followRequest.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
-        followRequest.getFollowRequest().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
-        followRequest.getFollowRequest().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
-        followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
+        followRequest.getParameters().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
+        followRequest.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        followRequest.getParameters().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
+        followRequest.getParameters().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
+        followRequest.getParameters().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        followRequest.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         disableDelayedAllocation("index2");
-        logger.info("--> follow params {}", Strings.toString(followRequest.getFollowRequest()));
+        logger.info("--> follow request {}", Strings.toString(followRequest));
 
-        int maxOpsPerRead = followRequest.getFollowRequest().getMaxReadRequestOperationCount();
+        int maxOpsPerRead = followRequest.getParameters().getMaxReadRequestOperationCount();
         int maxNumDocsReplicated = Math.min(between(50, 500), between(maxOpsPerRead, maxOpsPerRead * 10));
         availableDocs.release(maxNumDocsReplicated / 2 + 1);
         atLeastDocsIndexed(followerClient(), "index2", maxNumDocsReplicated / 3);
@@ -233,6 +234,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         pauseFollow("follower-index");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37807")
     public void testReadRequestsReturnLatestMappingVersion() throws Exception {
         InternalTestCluster leaderCluster = getLeaderCluster();
         Settings nodeAttributes = Settings.builder().put("node.attr.box", "large").build();

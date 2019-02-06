@@ -326,9 +326,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
     }
 
-    // Specifically, this is waiting for this bullet to be complete:
-    // - integrate shard history retention leases with cross-cluster replication
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37165")
     public void testCannotShrinkLeaderIndex() throws Exception {
         String indexName = "shrink-leader-test";
         String shrunkenIndexName = "shrink-" + indexName;
@@ -361,11 +358,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 changePolicyRequest.setEntity(changePolicyEntity);
                 assertOK(leaderClient.performRequest(changePolicyRequest));
 
-                index(leaderClient, indexName, "1");
-                assertDocumentExists(leaderClient, indexName, "1");
-
                 assertBusy(() -> {
-                    assertDocumentExists(client(), indexName, "1");
                     // Sanity check that following_index setting has been set, so that we can verify later that this setting has been unset:
                     assertThat(getIndexSetting(client(), indexName, "index.xpack.ccr.following_index"), equalTo("true"));
 
@@ -373,6 +366,20 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     assertILMPolicy(leaderClient, indexName, policyName, "warm", "shrink", "wait-for-shard-history-leases");
                     assertILMPolicy(client(), indexName, policyName, "hot", "unfollow", "wait-for-indexing-complete");
                 });
+
+                // Index a bunch of documents and wait for them to be replicated
+                for (int i = 0; i < 50; i++) {
+                    index(leaderClient, indexName, Integer.toString(i));
+                }
+                assertBusy(() -> {
+                    for (int i = 0; i < 50; i++) {
+                        index(client(), indexName, Integer.toString(i));
+                    }
+                });
+
+                // Then make sure both leader and follower are still both waiting
+                assertILMPolicy(leaderClient, indexName, policyName, "warm", "shrink", "wait-for-shard-history-leases");
+                assertILMPolicy(client(), indexName, policyName, "hot", "unfollow", "wait-for-indexing-complete");
 
                 // Manually set this to kick the process
                 updateIndexSettings(leaderClient, indexName, Settings.builder()

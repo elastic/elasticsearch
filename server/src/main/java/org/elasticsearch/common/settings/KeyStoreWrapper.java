@@ -496,9 +496,9 @@ public class KeyStoreWrapper implements SecureSettings {
 
         } catch (final AccessDeniedException e) {
             final String message = String.format(
-                    Locale.ROOT,
-                    "unable to create temporary keystore at [%s], please check filesystem permissions",
-                    configDir.resolve(tmpFile));
+                Locale.ROOT,
+                "unable to create temporary keystore at [%s], please check filesystem permissions",
+                configDir.resolve(tmpFile));
             throw new UserException(ExitCodes.CONFIG, message, e);
         }
 
@@ -520,7 +520,7 @@ public class KeyStoreWrapper implements SecureSettings {
      * @return a char array with the passphrase the user entered
      * @throws UserException If the user is prompted for verification and enters a different passphrase
      */
-    char[] readPassphrase(Terminal terminal, boolean withVerification) throws UserException {
+    static char[] readPassphrase(Terminal terminal, boolean withVerification) throws UserException {
         final char[] passphrase;
         if (withVerification) {
             passphrase = terminal.readSecret("Enter new passphrase for the elasticsearch keystore (empty for no passphrase): ");
@@ -535,6 +535,37 @@ public class KeyStoreWrapper implements SecureSettings {
         return passphrase;
     }
 
+    /**
+     * Reads the keystore from disk or attempts to create it if it doesn't already exist. If the keystore is password protected
+     * it also reads the passphrase from user input and decrypts the keystore. Returns both in a POJO. The caller is responsible to clear
+     * the char array with the passphrase after use, calling {@link KeystoreAndPassphrase#close()}
+     *
+     * @param terminal    the terminal to use for user inputs
+     * @param configFile  the Path from where to attempt and read the existing keystore
+     * @param forceCreate if set, the keystore is created without prompting the user
+     * @return a POJO with the {@link KeyStoreWrapper} and it's passphrase, null if the user elected to not create a keystore
+     */
+    static KeystoreAndPassphrase readOrCreate(Terminal terminal, Path configFile, boolean forceCreate) throws Exception {
+        KeyStoreWrapper keystore = load(configFile);
+        final char[] passphrase;
+        if (keystore == null) {
+            if (forceCreate == false &&
+                terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
+                terminal.println("Exiting without creating keystore.");
+                return null;
+            } else {
+                passphrase = readPassphrase(terminal, true);
+                keystore = KeyStoreWrapper.create();
+                keystore.save(configFile, passphrase);
+                terminal.println("Created elasticsearch keystore in " + configFile);
+                return new KeystoreAndPassphrase(keystore, passphrase);
+            }
+        } else {
+            passphrase = keystore.hasPassword ? readPassphrase(terminal, false) : new char[0];
+            keystore.decrypt(passphrase);
+            return new KeystoreAndPassphrase(keystore, passphrase);
+        }
+    }
 
     /**
      * It is possible to retrieve the setting names even if the keystore is closed.
@@ -583,7 +614,9 @@ public class KeyStoreWrapper implements SecureSettings {
         }
     }
 
-    /** Set a string setting. */
+    /**
+     * Set a string setting.
+     */
     synchronized void setString(String setting, char[] value) {
         ensureOpen();
         validateSettingName(setting);
@@ -592,27 +625,31 @@ public class KeyStoreWrapper implements SecureSettings {
         byte[] bytes = Arrays.copyOfRange(byteBuffer.array(), byteBuffer.position(), byteBuffer.limit());
         Entry oldEntry = entries.get().put(setting, new Entry(EntryType.STRING, bytes));
         if (oldEntry != null) {
-            Arrays.fill(oldEntry.bytes, (byte)0);
+            Arrays.fill(oldEntry.bytes, (byte) 0);
         }
     }
 
-    /** Set a file setting. */
+    /**
+     * Set a file setting.
+     */
     synchronized void setFile(String setting, byte[] bytes) {
         ensureOpen();
         validateSettingName(setting);
 
         Entry oldEntry = entries.get().put(setting, new Entry(EntryType.FILE, Arrays.copyOf(bytes, bytes.length)));
         if (oldEntry != null) {
-            Arrays.fill(oldEntry.bytes, (byte)0);
+            Arrays.fill(oldEntry.bytes, (byte) 0);
         }
     }
 
-    /** Remove the given setting from the keystore. */
+    /**
+     * Remove the given setting from the keystore.
+     */
     void remove(String setting) {
         ensureOpen();
         Entry oldEntry = entries.get().remove(setting);
         if (oldEntry != null) {
-            Arrays.fill(oldEntry.bytes, (byte)0);
+            Arrays.fill(oldEntry.bytes, (byte) 0);
         }
     }
 

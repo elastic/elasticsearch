@@ -48,7 +48,7 @@ class ListKeyStoreCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
         }
         char[] passphrase;
-        passphrase = keystore.hasPassword() ? keystore.readPassphrase(terminal, false) : new char[0];
+        passphrase = keystore.hasPassword() ? KeyStoreWrapper.readPassphrase(terminal, false) : new char[0];
         try {
             keystore.decrypt(passphrase);
             List<String> sortedEntries = new ArrayList<>(keystore.getSettingNames());

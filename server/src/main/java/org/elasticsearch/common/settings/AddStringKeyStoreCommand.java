@@ -56,23 +56,11 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        char[] passphrase = null;
-        try {
-            KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-            if (keystore == null) {
-                if (options.has(forceOption) == false &&
-                    terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
-                    terminal.println("Exiting without creating keystore.");
-                    return;
-                }
-                keystore = KeyStoreWrapper.create();
-                passphrase = keystore.readPassphrase(terminal, true);
-                keystore.save(env.configFile(), passphrase);
-                terminal.println("Created elasticsearch keystore in " + env.configFile());
-            } else {
-                passphrase = keystore.hasPassword() ? keystore.readPassphrase(terminal, false) : new char[0];
-                keystore.decrypt(passphrase);
+        try (KeystoreAndPassphrase keyAndPass = KeyStoreWrapper.readOrCreate(terminal, env.configFile(), options.has(forceOption))) {
+            if (null == keyAndPass) {
+                return;
             }
+            KeyStoreWrapper keystore = keyAndPass.getKeystore();
 
             String setting = arguments.value(options);
             if (setting == null) {
@@ -98,13 +86,9 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
             } catch (IllegalArgumentException e) {
                 throw new UserException(ExitCodes.DATA_ERROR, "String value must contain only ASCII");
             }
-            keystore.save(env.configFile(), passphrase);
+            keystore.save(env.configFile(), keyAndPass.getPassphrase());
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the passphrase was correct.");
-        } finally {
-            if (null != passphrase) {
-                Arrays.fill(passphrase, '\u0000');
-            }
         }
     }
 }

@@ -37,30 +37,20 @@ public class ChangeKeyStorePassphraseCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        char[] passphrase = null;
-        try {
-            KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-            if (keystore == null) {
-                if (terminal.promptYesNo("The elasticsearch keystore does not exist. Do you want to create it?", false) == false) {
-                    terminal.println("Exiting without creating keystore.");
-                    return;
-                }
-                keystore = KeyStoreWrapper.create();
-                passphrase = keystore.readPassphrase(terminal, true);
-                keystore.save(env.configFile(), passphrase);
-                terminal.println("Created elasticsearch keystore in " + env.configFile());
-            } else {
-                passphrase = keystore.hasPassword() ? keystore.readPassphrase(terminal, false) : new char[0];
-                keystore.decrypt(passphrase);
-                passphrase = keystore.readPassphrase(terminal, true);
-                keystore.save(env.configFile(), passphrase);
-                terminal.println("Elasticsearch keystore passphrase changed successfully." + env.configFile());
+        char[] newPassphrase = null;
+        try (KeystoreAndPassphrase keyAndPass = KeyStoreWrapper.readOrCreate(terminal, env.configFile(), false)) {
+            if (null == keyAndPass) {
+                return;
             }
+            KeyStoreWrapper keystore = keyAndPass.getKeystore();
+            newPassphrase = KeyStoreWrapper.readPassphrase(terminal, true);
+            keystore.save(env.configFile(), newPassphrase);
+            terminal.println("Elasticsearch keystore passphrase changed successfully." + env.configFile());
         } catch (SecurityException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "Failed to access the keystore. Please make sure the passphrase was correct.");
         } finally {
-            if (null != passphrase) {
-                Arrays.fill(passphrase, '\u0000');
+            if (null != newPassphrase) {
+                Arrays.fill(newPassphrase, '\u0000');
             }
         }
     }

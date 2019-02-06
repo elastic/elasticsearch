@@ -55,7 +55,7 @@ class RemoveSettingKeyStoreCommand extends EnvironmentAwareCommand {
         }
         char[] passphrase = null;
         try {
-            passphrase = keystore.hasPassword() ? keystore.readPassphrase(terminal, false) : new char[0];
+            passphrase = keystore.hasPassword() ? KeyStoreWrapper.readPassphrase(terminal, false) : new char[0];
             keystore.decrypt(passphrase);
             for (String setting : arguments.values(options)) {
                 if (keystore.getSettingNames().contains(setting) == false) {

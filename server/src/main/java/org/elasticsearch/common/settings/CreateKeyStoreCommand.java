@@ -55,7 +55,7 @@ class CreateKeyStoreCommand extends EnvironmentAwareCommand {
                 }
             }
             KeyStoreWrapper keystore = KeyStoreWrapper.create();
-            passphrase = options.has(noPassOption) ? new char[0] : keystore.readPassphrase(terminal, true);
+            passphrase = options.has(noPassOption) ? new char[0] : KeyStoreWrapper.readPassphrase(terminal, true);
             keystore.save(env.configFile(), passphrase);
             terminal.println("Created elasticsearch keystore in " + env.configFile());
         } catch (SecurityException e) {

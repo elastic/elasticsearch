@@ -24,6 +24,8 @@ applicable for the API key in milliseconds.
 NOTE: By default API keys never expire. You can specify expiration at the time of 
 creation for the API keys. 
 
+See <<api-key-service-settings>> for configuration settings related to API key service.
+
 ==== Request Body
 
 The following parameters can be specified in the body of a POST or PUT request:
@@ -97,3 +99,13 @@ API key information.
 <1> unique id for this API key
 <2> optional expiration in milliseconds for this API key
 <3> generated API key
+
+The API key returned by this API can then be used by sending a request with a
+`Authorization` header with a value having the prefix `ApiKey ` followed
+by the _credentials_, where _credentials_ is the base64 encoding of `id` and `api_key` joined by a colon.
+
+[source,shell]
+--------------------------------------------------
+curl -H "Authorization: ApiKey VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==" http://localhost:9200/_cluster/health
+--------------------------------------------------
+// NOTCONSOLE

@@ -17,21 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.discovery.zen;
+package org.elasticsearch.discovery;
 
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.util.List;
 
 /**
- * A pluggable provider of the list of unicast hosts to use for unicast discovery.
+ * A pluggable provider of the list of seed hosts to use for discovery.
  */
-public interface UnicastHostsProvider {
+public interface SeedHostsProvider {
 
     /**
-     * Builds the dynamic list of unicast hosts to be used for unicast discovery.
+     * Returns a list of seed hosts to use for discovery. Called repeatedly while discovery is active (i.e. while there is no master)
+     * so that this list may be dynamic.
      */
-    List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver);
+    List<TransportAddress> getSeedAddresses(HostsResolver hostsResolver);
 
     /**
      * Helper object that allows to resolve a list of hosts to a list of transport addresses.
@@ -41,5 +42,4 @@ public interface UnicastHostsProvider {
     interface HostsResolver {
         List<TransportAddress> resolveHosts(List<String> hosts, int limitPortCounts);
     }
-
 }

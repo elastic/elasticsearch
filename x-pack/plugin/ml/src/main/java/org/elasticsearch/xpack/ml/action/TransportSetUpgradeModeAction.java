@@ -263,6 +263,9 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
             .sorted(Comparator.comparing(PersistentTask::getTaskName))
             .collect(Collectors.toList());
 
+        logger.info("Un-assigning persistent tasks : " +
+            datafeedAndJobTasks.stream().map(PersistentTask::getId).collect(Collectors.joining(", ", "[ ", " ]")));
+
         TypedChainTaskExecutor<PersistentTask<?>> chainTaskExecutor =
             new TypedChainTaskExecutor<>(client.threadPool().executor(executor()),
                 r -> true,
@@ -287,6 +290,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                                   ActionListener<List<IsolateDatafeedAction.Response>> listener) {
         Set<String> datafeedsToIsolate = MlTasks.startedDatafeedIds(tasksCustomMetaData);
 
+        logger.info("Isolating datafeeds: " + datafeedsToIsolate.toString());
         TypedChainTaskExecutor<IsolateDatafeedAction.Response> isolateDatafeedsExecutor =
             new TypedChainTaskExecutor<>(client.threadPool().executor(executor()), r -> true, ex -> true);
 

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -73,50 +74,52 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
         for (final RoleDescriptor roleDescriptor : effectiveRoleDescriptors) {
             final String cacheKey = buildCacheKey(roleDescriptor.getName());
             if (false == isCached(cacheKey)) {
-                // sort answer by alias for tests
-                final TreeMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();
                 final Map<String, Set<String>> privilegesByAliasMap = new HashMap<>();
+                // sort answer by alias for tests
+                final SortedMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();
                 // collate privileges by index and by alias separately
-                for (final IndicesPrivileges indicesPrivilege : roleDescriptor.getIndicesPrivileges()) {
+                for (final IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
                     final Predicate<String> namePatternPredicate = IndicesPermission
-                            .indexMatcher(Arrays.asList(indicesPrivilege.getIndices()));
+                            .indexMatcher(Arrays.asList(indexPrivilege.getIndices()));
                     for (final Map.Entry<String, AliasOrIndex> aliasOrIndex : aliasOrIndexMap.entrySet()) {
                         final String aliasOrIndexName = aliasOrIndex.getKey();
                         if (namePatternPredicate.test(aliasOrIndexName)) {
                             if (aliasOrIndex.getValue().isAlias()) {
                                 final Set<String> privilegesByAlias = privilegesByAliasMap.computeIfAbsent(aliasOrIndexName,
                                         k -> new HashSet<String>());
-                                privilegesByAlias.addAll(Arrays.asList(indicesPrivilege.getPrivileges()));
+                                privilegesByAlias.addAll(Arrays.asList(indexPrivilege.getPrivileges()));
                             } else {
                                 final Set<String> privilegesByIndex = privilegesByIndexMap.computeIfAbsent(aliasOrIndexName,
                                         k -> new HashSet<String>());
-                                privilegesByIndex.addAll(Arrays.asList(indicesPrivilege.getPrivileges()));
+                                privilegesByIndex.addAll(Arrays.asList(indexPrivilege.getPrivileges()));
                             }
                         }
                     }
                 }
-                // sort by alias and by index for tests
+                // compute privileges Automaton for each alias and for each of the indices it points to
                 final Map<String, Automaton> indexAutomatonMap = new HashMap<>();
                 for (final Map.Entry<String, Set<String>> privilegesByAlias : privilegesByAliasMap.entrySet()) {
                     final String aliasName = privilegesByAlias.getKey();
-                    final Set<String> aliasPrivileges = privilegesByAliasMap.get(aliasName);
-                    final Automaton aliasPrivilegeAutomaton = IndexPrivilege.get(aliasPrivileges).getAutomaton();
+                    final Set<String> aliasPrivilegeNames = privilegesByAlias.getValue();
+                    final Automaton aliasPrivilegeAutomaton = IndexPrivilege.get(aliasPrivilegeNames).getAutomaton();
                     final TreeSet<String> inferiorIndexNames = new TreeSet<>();
-                    // check if the alias grants superiors privileges to the indices it points to
+                    // check if the alias grants superiors privileges than the indices it points to
                     for (final IndexMetaData indexMetadata : aliasOrIndexMap.get(aliasName).getIndices()) {
                         final String indexName = indexMetadata.getIndex().getName();
                         final Set<String> indexPrivileges = privilegesByIndexMap.get(indexName);
-                        // non null if this index matches the permission 
-                        if (indexPrivileges == null) {
-                            inferiorIndexNames.add(indexName);
-                        } else {
+                        // null iff the index does not have *any* privilege
+                        if (indexPrivileges != null) {
+                            // compute automaton once per index no matter how many times it is pointed to
                             final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(indexName,
                                     i -> IndexPrivilege.get(indexPrivileges).getAutomaton());
                             if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
                                 inferiorIndexNames.add(indexName);
                             }
+                        } else {
+                            inferiorIndexNames.add(indexName);
                         }
                     }
+                    // log inferior indices for this role, for this alias
                     if (false == inferiorIndexNames.isEmpty()) {
                         final String logMessage = String.format(Locale.ROOT, ROLE_PERMISSION_DEPRECATION_STANZA, roleDescriptor.getName(),
                                 aliasName, String.join(", ", inferiorIndexNames));
@@ -139,7 +142,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
 
     // package-private for testing
     static String buildCacheKey(String roleName) {
-        final String daysSinceEpoch = Long.toString(ZonedDateTime.now(ZoneId.of("UTC")).toEpochSecond() / 86400000L);
+        final String daysSinceEpoch =  ZonedDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.BASIC_ISO_DATE);
         final StringBuilder sb = new StringBuilder();
         return sb.append(roleName).append('-').append(daysSinceEpoch).toString();
     }

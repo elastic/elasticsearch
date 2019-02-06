@@ -43,7 +43,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -267,18 +266,18 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         };
     }
 
-    @Test(expected = RepositoryException.class)
     public void testBadChunksize() throws Exception {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
 
-        client.admin().cluster().preparePutRepository(repositoryName)
-                                .setType(REPO_TYPE)
-                                .setSettings(Settings.builder().put(node().settings())
-                                            .put("location", location)
-                                            .put("chunk_size", randomLongBetween(-10, 0), ByteSizeUnit.BYTES))
-                                .get();
+        expectThrows(RepositoryException.class, () ->
+            client.admin().cluster().preparePutRepository(repositoryName)
+                .setType(REPO_TYPE)
+                .setSettings(Settings.builder().put(node().settings())
+                    .put("location", location)
+                    .put("chunk_size", randomLongBetween(-10, 0), ByteSizeUnit.BYTES))
+                .get());
     }
 
     private BlobStoreRepository setupRepo() {

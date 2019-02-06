@@ -33,12 +33,16 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -49,6 +53,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
@@ -81,6 +86,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -96,7 +104,6 @@ public class ApiKeyService {
     static final String API_KEY_ID_KEY = "_security_api_key_id";
     static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
-    static final String API_KEY_ROLE_KEY = "_security_api_key_role";
 
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
         "xpack.security.authc.api_key_hashing.algorithm", "pbkdf2", Function.identity(), v -> {
@@ -117,6 +124,12 @@ public class ApiKeyService {
             TimeValue.MINUS_ONE, Property.NodeScope);
     public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting("xpack.security.authc.api_key.delete.interval",
             TimeValue.timeValueHours(24L), Property.NodeScope);
+    public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString("xpack.security.authc.api_key.cache.hash_algo",
+        "ssha256", Setting.Property.NodeScope);
+    public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting("xpack.security.authc.api_key.cache.ttl",
+        TimeValue.timeValueHours(24L), Property.NodeScope);
+    public static final Setting<Integer> CACHE_MAX_KEYS_SETTING = Setting.intSetting("xpack.security.authc.api_key.cache.max_keys",
+        10000, Property.NodeScope);
 
     private final Clock clock;
     private final Client client;
@@ -127,11 +140,14 @@ public class ApiKeyService {
     private final Settings settings;
     private final ExpiredApiKeysRemover expiredApiKeysRemover;
     private final TimeValue deleteInterval;
+    private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
+    private final Hasher cacheHasher;
+    private final ThreadPool threadPool;
 
     private volatile long lastExpirationRunMs;
 
-    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex,
-                         ClusterService clusterService) {
+    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex, ClusterService clusterService,
+                         ThreadPool threadPool) {
         this.clock = clock;
         this.client = client;
         this.securityIndex = securityIndex;
@@ -141,6 +157,17 @@ public class ApiKeyService {
         this.settings = settings;
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.expiredApiKeysRemover = new ExpiredApiKeysRemover(settings, client);
+        this.threadPool = threadPool;
+        this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
+        final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
+        if (ttl.getNanos() > 0) {
+            this.apiKeyAuthCache = CacheBuilder.<String, ListenableFuture<CachedApiKeyHashResult>>builder()
+                .setExpireAfterWrite(ttl)
+                .setMaximumWeight(CACHE_MAX_KEYS_SETTING.get(settings))
+                .build();
+        } else {
+            this.apiKeyAuthCache = null;
+        }
     }
 
     /**
@@ -167,11 +194,11 @@ public class ApiKeyService {
                     final Instant expiration = getApiKeyExpiration(created, request);
                     final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
                     final Version version = clusterService.state().nodes().getMinNodeVersion();
-                    if (version.before(Version.V_7_0_0)) { // TODO(jaymode) change to V6_6_0 on backport!
+                    if (version.before(Version.V_6_7_0)) {
                         logger.warn(
                                 "nodes prior to the minimum supported version for api keys {} exist in the cluster;"
                                         + " these nodes will not be able to use api keys",
-                                Version.V_7_0_0);
+                                Version.V_6_7_0);
                     }
 
                     final char[] keyHash = hasher.hash(apiKey);
@@ -363,8 +390,8 @@ public class ApiKeyService {
      * @param credentials the credentials provided by the user
      * @param listener the listener to notify after verification
      */
-    static void validateApiKeyCredentials(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
-                                          ActionListener<AuthenticationResult> listener) {
+    void validateApiKeyCredentials(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
+                                   ActionListener<AuthenticationResult> listener) {
         final Boolean invalidated = (Boolean) source.get("api_key_invalidated");
         if (invalidated == null) {
             listener.onResponse(AuthenticationResult.terminate("api key document is missing invalidated field", null));
@@ -375,30 +402,84 @@ public class ApiKeyService {
             if (apiKeyHash == null) {
                 throw new IllegalStateException("api key hash is missing");
             }
-            final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
 
-            if (verified) {
-                final Long expirationEpochMilli = (Long) source.get("expiration_time");
-                if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {
-                    final Map<String, Object> creator = Objects.requireNonNull((Map<String, Object>) source.get("creator"));
-                    final String principal = Objects.requireNonNull((String) creator.get("principal"));
-                    final Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
-                    final Map<String, Object> roleDescriptors = (Map<String, Object>) source.get("role_descriptors");
-                    final Map<String, Object> limitedByRoleDescriptors = (Map<String, Object>) source.get("limited_by_role_descriptors");
-                    final String[] roleNames = (roleDescriptors != null) ? roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY)
-                            : limitedByRoleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
-                    final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
-                    final Map<String, Object> authResultMetadata = new HashMap<>();
-                    authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);
-                    authResultMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleDescriptors);
-                    authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
-                    listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
+            if (apiKeyAuthCache != null) {
+                final AtomicBoolean valueAlreadyInCache = new AtomicBoolean(true);
+                final ListenableFuture<CachedApiKeyHashResult> listenableCacheEntry;
+                try {
+                    listenableCacheEntry = apiKeyAuthCache.computeIfAbsent(credentials.getId(),
+                        k -> {
+                            valueAlreadyInCache.set(false);
+                            return new ListenableFuture<>();
+                        });
+                } catch (ExecutionException e) {
+                    listener.onFailure(e);
+                    return;
+                }
+
+                if (valueAlreadyInCache.get()) {
+                    listenableCacheEntry.addListener(ActionListener.wrap(result -> {
+                            if (result.success) {
+                                if (result.verify(credentials.getKey())) {
+                                    // move on
+                                    validateApiKeyExpiration(source, credentials, clock, listener);
+                                } else {
+                                    listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                                }
+                            } else if (result.verify(credentials.getKey())) { // same key, pass the same result
+                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            } else {
+                                apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
+                                validateApiKeyCredentials(source, credentials, clock, listener);
+                            }
+                        }, listener::onFailure),
+                        threadPool.generic(), threadPool.getThreadContext());
                 } else {
-                    listener.onResponse(AuthenticationResult.terminate("api key is expired", null));
+                    final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
+                    listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
+                    if (verified) {
+                        // move on
+                        validateApiKeyExpiration(source, credentials, clock, listener);
+                    } else {
+                        listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                    }
                 }
             } else {
-                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
+                if (verified) {
+                    // move on
+                    validateApiKeyExpiration(source, credentials, clock, listener);
+                } else {
+                    listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                }
             }
+        }
+    }
+
+    // pkg private for testing
+    CachedApiKeyHashResult getFromCache(String id) {
+        return apiKeyAuthCache == null ? null : FutureUtils.get(apiKeyAuthCache.get(id), 0L, TimeUnit.MILLISECONDS);
+    }
+
+    private void validateApiKeyExpiration(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
+                                  ActionListener<AuthenticationResult> listener) {
+        final Long expirationEpochMilli = (Long) source.get("expiration_time");
+        if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {
+            final Map<String, Object> creator = Objects.requireNonNull((Map<String, Object>) source.get("creator"));
+            final String principal = Objects.requireNonNull((String) creator.get("principal"));
+            final Map<String, Object> metadata = (Map<String, Object>) creator.get("metadata");
+            final Map<String, Object> roleDescriptors = (Map<String, Object>) source.get("role_descriptors");
+            final Map<String, Object> limitedByRoleDescriptors = (Map<String, Object>) source.get("limited_by_role_descriptors");
+            final String[] roleNames = (roleDescriptors != null) ? roleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY)
+                : limitedByRoleDescriptors.keySet().toArray(Strings.EMPTY_ARRAY);
+            final User apiKeyUser = new User(principal, roleNames, null, null, metadata, true);
+            final Map<String, Object> authResultMetadata = new HashMap<>();
+            authResultMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleDescriptors);
+            authResultMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleDescriptors);
+            authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
+            listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
+        } else {
+            listener.onResponse(AuthenticationResult.terminate("api key is expired", null));
         }
     }
 
@@ -851,4 +932,17 @@ public class ApiKeyService {
         }
     }
 
+    final class CachedApiKeyHashResult {
+        final boolean success;
+        final char[] hash;
+
+        CachedApiKeyHashResult(boolean success, SecureString apiKey) {
+            this.success = success;
+            this.hash = cacheHasher.hash(apiKey);
+        }
+
+        private boolean verify(SecureString password) {
+            return hash != null && cacheHasher.verify(password, hash);
+        }
+    }
 }

@@ -687,8 +687,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (event.localNodeMaster()) {
                 // We don't remove old master when master flips anymore. So, we need to check for change in master
                 final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
+                final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
                 if (snapshotsInProgress != null) {
-                    if (removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes())) {
+                    if (newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes())) {
                         processSnapshotsOnRemovedNodes();
                     }
                     if (event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event)) {
@@ -704,7 +705,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             || entry.state() != State.INIT && completed(entry.shards().values())
                     ).forEach(this::endSnapshot);
                 }
-                if (event.previousState().nodes().isLocalNodeElectedMaster() == false) {
+                if (newMaster) {
                     finalizeSnapshotDeletionFromPreviousMaster(event);
                 }
             }

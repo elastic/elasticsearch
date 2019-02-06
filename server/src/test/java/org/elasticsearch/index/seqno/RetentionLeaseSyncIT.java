@@ -205,6 +205,7 @@ public class RetentionLeaseSyncIT extends ESIntegTestCase  {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38487")
     public void testRetentionLeasesSyncOnRecovery() throws Exception {
         final int numberOfReplicas = 1;
         /*

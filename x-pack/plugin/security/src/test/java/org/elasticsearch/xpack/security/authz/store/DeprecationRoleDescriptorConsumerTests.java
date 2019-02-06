@@ -114,7 +114,6 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
                 mockClusterService(metaDataBuilder.build()), threadPool, deprecationLogger);
         deprecationConsumer.accept(Arrays.asList(roleOverAlias));
         verifyLogger(deprecationLogger, "roleMultiplePrivileges", "alias", "index, index3, index4");
-        verifyLogger(deprecationLogger, "roleMultiplePrivileges", "alias3", "index, index3");
         verifyLogger(deprecationLogger, "roleMultiplePrivileges", "alias4", "index2, index4");
         verifyNoMoreInteractions(deprecationLogger);
     }

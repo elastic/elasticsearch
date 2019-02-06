@@ -102,15 +102,19 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                     final Set<String> aliasPrivileges = privilegesByAliasMap.get(aliasName);
                     final Automaton aliasPrivilegeAutomaton = IndexPrivilege.get(aliasPrivileges).getAutomaton();
                     final TreeSet<String> inferiorIndexNames = new TreeSet<>();
-                    // check if the alias grants superiors privileges than the index pointed to
+                    // check if the alias grants superiors privileges to the indices it points to
                     for (final IndexMetaData indexMetadata : aliasOrIndexMap.get(aliasName).getIndices()) {
                         final String indexName = indexMetadata.getIndex().getName();
-                        final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(indexName, i -> {
-                            final Set<String> indexPrivileges = privilegesByIndexMap.get(indexName);
-                            return IndexPrivilege.get(indexPrivileges).getAutomaton();
-                        });
-                        if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
+                        final Set<String> indexPrivileges = privilegesByIndexMap.get(indexName);
+                        // non null if this index matches the permission 
+                        if (indexPrivileges == null) {
                             inferiorIndexNames.add(indexName);
+                        } else {
+                            final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(indexName,
+                                    i -> IndexPrivilege.get(indexPrivileges).getAutomaton());
+                            if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
+                                inferiorIndexNames.add(indexName);
+                            }
                         }
                     }
                     if (false == inferiorIndexNames.isEmpty()) {

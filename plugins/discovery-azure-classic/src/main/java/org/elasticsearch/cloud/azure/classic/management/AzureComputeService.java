@@ -24,8 +24,8 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.azure.classic.AzureUnicastHostsProvider;
-import org.elasticsearch.discovery.azure.classic.AzureUnicastHostsProvider.Deployment;
+import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider;
+import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider.Deployment;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -63,9 +63,9 @@ public interface AzureComputeService {
     final class Discovery {
         public static final Setting<TimeValue> REFRESH_SETTING =
             Setting.positiveTimeSetting("discovery.azure.refresh_interval", TimeValue.timeValueSeconds(0), Property.NodeScope);
-        public static final Setting<AzureUnicastHostsProvider.HostType> HOST_TYPE_SETTING =
-            new Setting<>("discovery.azure.host.type", AzureUnicastHostsProvider.HostType.PRIVATE_IP.name(),
-                AzureUnicastHostsProvider.HostType::fromString, Property.NodeScope);
+        public static final Setting<AzureSeedHostsProvider.HostType> HOST_TYPE_SETTING =
+            new Setting<>("discovery.azure.host.type", AzureSeedHostsProvider.HostType.PRIVATE_IP.name(),
+                AzureSeedHostsProvider.HostType::fromString, Property.NodeScope);
         public static final Setting<String> ENDPOINT_NAME_SETTING = new Setting<>("discovery.azure.endpoint.name", "elasticsearch",
             Function.identity(), Property.NodeScope);
         public static final Setting<String> DEPLOYMENT_NAME_SETTING = Setting.simpleString("discovery.azure.deployment.name",

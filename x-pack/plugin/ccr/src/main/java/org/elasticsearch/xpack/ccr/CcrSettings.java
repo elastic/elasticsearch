@@ -83,7 +83,7 @@ public final class CcrSettings {
      *
      * @return the settings
      */
-    static List<Setting<?>> getSettings() {
+    public static List<Setting<?>> getSettings() {
         return Arrays.asList(
                 XPackSettings.CCR_ENABLED_SETTING,
                 CCR_FOLLOWING_INDEX_SETTING,

@@ -12,9 +12,7 @@ import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -25,7 +23,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
@@ -39,10 +37,8 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         super.setUp();
         Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         taskQueue = new DeterministicTaskQueue(settings, random());
-        Set<Setting<?>> registeredSettings = Sets.newHashSet(CcrSettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING,
-            CcrSettings.RECOVERY_MAX_BYTES_PER_SECOND, CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING,
-            CcrSettings.RECOVERY_CHUNK_SIZE);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, registeredSettings);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, CcrSettings.getSettings()
+            .stream().filter(s -> s.hasNodeScope()).collect(Collectors.toSet()));
         restoreSourceService = new CcrRestoreSourceService(taskQueue.getThreadPool(), new CcrSettings(Settings.EMPTY, clusterSettings));
     }
 

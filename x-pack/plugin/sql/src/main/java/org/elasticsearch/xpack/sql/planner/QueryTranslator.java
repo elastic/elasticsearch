@@ -100,7 +100,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -682,16 +681,6 @@ final class QueryTranslator {
 
         @Override
         protected QueryTranslation asQuery(In in, boolean onAggs) {
-            Optional<Expression> firstNotFoldable = in.list().stream().filter(expression -> !expression.foldable()).findFirst();
-
-            if (firstNotFoldable.isPresent()) {
-                throw new SqlIllegalArgumentException(
-                    "Line {}:{}: Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
-                    firstNotFoldable.get().location().getLineNumber(),
-                    firstNotFoldable.get().location().getColumnNumber(),
-                    Expressions.name(firstNotFoldable.get()),
-                    in.name());
-            }
 
             if (in.value() instanceof NamedExpression) {
                 NamedExpression ne = (NamedExpression) in.value();
@@ -709,7 +698,9 @@ final class QueryTranslator {
                 else {
                     Query q = null;
                     if (in.value() instanceof FieldAttribute) {
-                        q = new TermsQuery(in.location(), ne.name(), in.list());
+                        FieldAttribute fa = (FieldAttribute) in.value();
+                        // equality should always be against an exact match (which is important for strings)
+                        q = new TermsQuery(in.location(), fa.isInexact() ? fa.exactAttribute().name() : fa.name(), in.list());
                     } else {
                         q = new ScriptQuery(in.location(), in.asScript());
                     }

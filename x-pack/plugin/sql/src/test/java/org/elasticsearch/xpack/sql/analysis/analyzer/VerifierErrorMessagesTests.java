@@ -351,23 +351,34 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInWithDifferentDataTypes_WhereClause() {
-        assertEquals("1:49: expected data type [TEXT], value provided is of type [INTEGER]",
-            error("SELECT * FROM test WHERE text IN ('foo', 'bar', 4)"));
+        assertEquals("1:52: expected data type [KEYWORD], value provided is of type [INTEGER]",
+            error("SELECT * FROM test WHERE keyword IN ('foo', 'bar', 4)"));
     }
 
     public void testInNestedWithDifferentDataTypes_WhereClause() {
-        assertEquals("1:60: expected data type [TEXT], value provided is of type [INTEGER]",
-            error("SELECT * FROM test WHERE int = 1 OR text IN ('foo', 'bar', 2)"));
+        assertEquals("1:63: expected data type [KEYWORD], value provided is of type [INTEGER]",
+            error("SELECT * FROM test WHERE int = 1 OR keyword IN ('foo', 'bar', 2)"));
     }
 
     public void testInWithDifferentDataTypesFromLeftValue_WhereClause() {
-        assertEquals("1:35: expected data type [TEXT], value provided is of type [INTEGER]",
-            error("SELECT * FROM test WHERE text IN (1, 2)"));
+        assertEquals("1:38: expected data type [KEYWORD], value provided is of type [INTEGER]",
+            error("SELECT * FROM test WHERE keyword IN (1, 2)"));
     }
 
     public void testInNestedWithDifferentDataTypesFromLeftValue_WhereClause() {
-        assertEquals("1:46: expected data type [TEXT], value provided is of type [INTEGER]",
-            error("SELECT * FROM test WHERE int = 1 OR text IN (1, 2)"));
+        assertEquals("1:49: expected data type [KEYWORD], value provided is of type [INTEGER]",
+            error("SELECT * FROM test WHERE int = 1 OR keyword IN (1, 2)"));
+    }
+
+    public void testInWithFieldInListOfValues() {
+        assertEquals("1:30: Comparisons against variables are not (currently) supported; offender [int] in [int IN (1, int)]",
+            error("SELECT * FROM test WHERE int IN (1, int)"));
+    }
+
+    public void testInOnFieldTextWithNoKeyword() {
+        assertEquals("1:31: [IN] cannot operate on field of data type [text]: " +
+            "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT * FROM test WHERE text IN ('foo', 'bar')"));
     }
 
     public void testNotSupportedAggregateOnDate() {

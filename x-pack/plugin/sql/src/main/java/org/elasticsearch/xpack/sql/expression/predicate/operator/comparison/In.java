@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
@@ -25,6 +27,7 @@ import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public class In extends ScalarFunction {
@@ -111,6 +114,27 @@ public class In extends ScalarFunction {
     @Override
     protected Pipe makePipe() {
         return new InPipe(location(), this, children().stream().map(Expressions::pipe).collect(Collectors.toList()));
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        if (value instanceof FieldAttribute) {
+            try {
+                ((FieldAttribute) value).exactAttribute();
+            } catch (MappingException e) {
+                return new TypeResolution(format(null, "[{}] cannot operate on field of data type [{}]: {}",
+                    functionName(), value().dataType().esType, e.getMessage()));
+            }
+        }
+
+        for (Expression ex : list) {
+            if (ex.foldable() == false) {
+                return new TypeResolution(format(null, "Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
+                    Expressions.name(ex),
+                    name()));
+            }
+        }
+        return super.resolveType();
     }
 
     @Override

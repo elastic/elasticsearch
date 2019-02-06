@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Nullable;
@@ -15,7 +17,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -65,7 +66,14 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
  * A composite roles store that combines built in roles, file-based roles, and index-based roles. Checks the built in roles first, then the
  * file roles, and finally the index roles.
  */
-public class CompositeRolesStore extends AbstractComponent {
+public class CompositeRolesStore {
+
+    private static final String ROLES_STORE_SOURCE = "roles_stores";
+    private static final Setting<Integer> CACHE_SIZE_SETTING =
+        Setting.intSetting("xpack.security.authz.store.roles.cache.max_size", 10000, Property.NodeScope);
+    private static final Setting<Integer> NEGATIVE_LOOKUP_CACHE_SIZE_SETTING =
+        Setting.intSetting("xpack.security.authz.store.roles.negative_lookup_cache.max_size", 10000, Property.NodeScope);
+    private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
 
     // the lock is used in an odd manner; when iterating over the cache we cannot have modifiers other than deletes using
     // the iterator but when not iterating we can modify the cache without external locking. When making normal modifications to the cache
@@ -80,16 +88,12 @@ public class CompositeRolesStore extends AbstractComponent {
         writeLock = new ReleasableLock(iterationLock.writeLock());
     }
 
-    private static final Setting<Integer> CACHE_SIZE_SETTING =
-        Setting.intSetting("xpack.security.authz.store.roles.cache.max_size", 10000, Property.NodeScope);
-    private static final Setting<Integer> NEGATIVE_LOOKUP_CACHE_SIZE_SETTING =
-        Setting.intSetting("xpack.security.authz.store.roles.negative_lookup_cache.max_size", 10000, Property.NodeScope);
-
     private final FileRolesStore fileRolesStore;
     private final NativeRolesStore nativeRolesStore;
     private final NativePrivilegeStore privilegeStore;
     private final XPackLicenseState licenseState;
-    private final Cache<Set<String>, Role> roleCache;
+    private final FieldPermissionsCache fieldPermissionsCache;
+    private final Cache<RoleKey, Role> roleCache;
     private final Cache<String, Boolean> negativeLookupCache;
     private final ThreadContext threadContext;
     private final AtomicLong numInvalidation = new AtomicLong();
@@ -99,13 +103,14 @@ public class CompositeRolesStore extends AbstractComponent {
     public CompositeRolesStore(Settings settings, FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore,
                                ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
                                List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders,
-                               ThreadContext threadContext, XPackLicenseState licenseState) {
+                               ThreadContext threadContext, XPackLicenseState licenseState, FieldPermissionsCache fieldPermissionsCache) {
         this.fileRolesStore = fileRolesStore;
         fileRolesStore.addListener(this::invalidate);
         this.nativeRolesStore = nativeRolesStore;
         this.privilegeStore = privilegeStore;
         this.licenseState = licenseState;
-        CacheBuilder<Set<String>, Role> builder = CacheBuilder.builder();
+        this.fieldPermissionsCache = fieldPermissionsCache;
+        CacheBuilder<RoleKey, Role> builder = CacheBuilder.builder();
         final int cacheSize = CACHE_SIZE_SETTING.get(settings);
         if (cacheSize >= 0) {
             builder.setMaximumWeight(cacheSize);
@@ -130,8 +135,9 @@ public class CompositeRolesStore extends AbstractComponent {
         }
     }
 
-    public void roles(Set<String> roleNames, FieldPermissionsCache fieldPermissionsCache, ActionListener<Role> roleActionListener) {
-        Role existing = roleCache.get(roleNames);
+    public void roles(Set<String> roleNames, ActionListener<Role> roleActionListener) {
+        final RoleKey roleKey = new RoleKey(roleNames, ROLES_STORE_SOURCE);
+        Role existing = roleCache.get(roleKey);
         if (existing != null) {
             roleActionListener.onResponse(existing);
         } else {
@@ -151,31 +157,62 @@ public class CompositeRolesStore extends AbstractComponent {
                                     .filter((rd) -> rd.isUsingDocumentOrFieldLevelSecurity() == false)
                                     .collect(Collectors.toSet());
                         }
-                        logger.trace("Building role from descriptors [{}] for names [{}]", effectiveDescriptors, roleNames);
-                        buildRoleFromDescriptors(effectiveDescriptors, fieldPermissionsCache, privilegeStore, ActionListener.wrap(role -> {
-                            if (role != null && rolesRetrievalResult.isSuccess()) {
-                                try (ReleasableLock ignored = readLock.acquire()) {
-                                    /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
-                                     * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
-                                     * stuff in an async fashion we need to make sure that if the cache got invalidated since we
-                                     * started the request we don't put a potential stale result in the cache, hence the
-                                     * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
-                                     * be on the safe side and don't cache potentially stale results
-                                     */
-                                    if (invalidationCounter == numInvalidation.get()) {
-                                        roleCache.computeIfAbsent(roleNames, (s) -> role);
-                                    }
-                                }
-
-                                for (String missingRole : rolesRetrievalResult.getMissingRoles()) {
-                                    negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
-                                }
-                            }
-                            roleActionListener.onResponse(role);
-                        }, roleActionListener::onFailure));
+                        buildThenMaybeCacheRole(roleKey, effectiveDescriptors, rolesRetrievalResult.getMissingRoles(),
+                            rolesRetrievalResult.isSuccess(), invalidationCounter, roleActionListener);
                     },
                     roleActionListener::onFailure));
         }
+    }
+
+    public void buildAndCacheRoleFromDescriptors(Collection<RoleDescriptor> roleDescriptors, String source,
+                                                  ActionListener<Role> listener) {
+        if (ROLES_STORE_SOURCE.equals(source)) {
+            throw new IllegalArgumentException("source [" + ROLES_STORE_SOURCE + "] is reserved for internal use");
+        }
+        RoleKey roleKey = new RoleKey(roleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toSet()), source);
+        Role existing = roleCache.get(roleKey);
+        if (existing != null) {
+            listener.onResponse(existing);
+        } else {
+            final long invalidationCounter = numInvalidation.get();
+            buildThenMaybeCacheRole(roleKey, roleDescriptors, Collections.emptySet(), true, invalidationCounter, listener);
+        }
+    }
+
+    private void buildThenMaybeCacheRole(RoleKey roleKey, Collection<RoleDescriptor> roleDescriptors, Set<String> missing,
+                                         boolean tryCache, long invalidationCounter, ActionListener<Role> listener) {
+        logger.trace("Building role from descriptors [{}] for names [{}] from source [{}]", roleDescriptors, roleKey.names, roleKey.source);
+        buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegeStore, ActionListener.wrap(role -> {
+            if (role != null && tryCache) {
+                try (ReleasableLock ignored = readLock.acquire()) {
+                    /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold
+                     * the write lock (fetching stats for instance - which is kinda overkill?) but since we fetching
+                     * stuff in an async fashion we need to make sure that if the cache got invalidated since we
+                     * started the request we don't put a potential stale result in the cache, hence the
+                     * numInvalidation.get() comparison to the number of invalidation when we started. we just try to
+                     * be on the safe side and don't cache potentially stale results
+                     */
+                    if (invalidationCounter == numInvalidation.get()) {
+                        roleCache.computeIfAbsent(roleKey, (s) -> role);
+                    }
+                }
+
+                for (String missingRole : missing) {
+                    negativeLookupCache.computeIfAbsent(missingRole, s -> Boolean.TRUE);
+                }
+            }
+            listener.onResponse(role);
+        }, listener::onFailure));
+    }
+
+    public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {
+        roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
+            if (rolesRetrievalResult.isSuccess()) {
+                listener.onResponse(rolesRetrievalResult.getRoleDescriptors());
+            } else {
+                listener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
+            }
+        }, listener::onFailure));
     }
 
     private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {
@@ -316,10 +353,10 @@ public class CompositeRolesStore extends AbstractComponent {
 
         // the cache cannot be modified while doing this operation per the terms of the cache iterator
         try (ReleasableLock ignored = writeLock.acquire()) {
-            Iterator<Set<String>> keyIter = roleCache.keys().iterator();
+            Iterator<RoleKey> keyIter = roleCache.keys().iterator();
             while (keyIter.hasNext()) {
-                Set<String> key = keyIter.next();
-                if (key.contains(role)) {
+                RoleKey key = keyIter.next();
+                if (key.names.contains(role)) {
                     keyIter.remove();
                 }
             }
@@ -332,10 +369,10 @@ public class CompositeRolesStore extends AbstractComponent {
 
         // the cache cannot be modified while doing this operation per the terms of the cache iterator
         try (ReleasableLock ignored = writeLock.acquire()) {
-            Iterator<Set<String>> keyIter = roleCache.keys().iterator();
+            Iterator<RoleKey> keyIter = roleCache.keys().iterator();
             while (keyIter.hasNext()) {
-                Set<String> key = keyIter.next();
-                if (Sets.haveEmptyIntersection(key, roles) == false) {
+                RoleKey key = keyIter.next();
+                if (Sets.haveEmptyIntersection(key.names, roles) == false) {
                     keyIter.remove();
                 }
             }
@@ -452,6 +489,31 @@ public class CompositeRolesStore extends AbstractComponent {
 
         private Set<String> getMissingRoles() {
             return missingRoles;
+        }
+    }
+
+    private static final class RoleKey {
+
+        private final Set<String> names;
+        private final String source;
+
+        private RoleKey(Set<String> names, String source) {
+            this.names = Objects.requireNonNull(names);
+            this.source = Objects.requireNonNull(source);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RoleKey roleKey = (RoleKey) o;
+            return names.equals(roleKey.names) &&
+                source.equals(roleKey.source);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(names, source);
         }
     }
 

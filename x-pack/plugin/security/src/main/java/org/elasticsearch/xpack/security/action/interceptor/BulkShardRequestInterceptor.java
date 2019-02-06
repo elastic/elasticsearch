@@ -43,7 +43,7 @@ public class BulkShardRequestInterceptor extends AbstractComponent implements Re
                     indicesAccessControl.getIndexPermissions(bulkItemRequest.index());
                 if (indexAccessControl != null) {
                     boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                    boolean dls = indexAccessControl.getQueries() != null;
+                    boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                     if (fls || dls) {
                         if (bulkItemRequest.request() instanceof UpdateRequest) {
                             throw new ElasticsearchSecurityException("Can't execute a bulk request with update requests embedded if " +

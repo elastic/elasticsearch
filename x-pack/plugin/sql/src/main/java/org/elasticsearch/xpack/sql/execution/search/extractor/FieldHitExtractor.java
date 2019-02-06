@@ -87,7 +87,7 @@ public class FieldHitExtractor implements HitExtractor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeOptionalString(dataType == null ? null : dataType.esType);
+        out.writeOptionalString(dataType == null ? null : dataType.typeName);
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
     }

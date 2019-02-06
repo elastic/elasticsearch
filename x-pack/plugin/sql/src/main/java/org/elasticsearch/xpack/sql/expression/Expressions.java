@@ -191,7 +191,7 @@ public final class Expressions {
                 paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
                 acceptedTypesForErrorMsg(acceptedTypes),
                 Expressions.name(e),
-                e.dataType().esType));
+                e.dataType().typeName));
     }
 
     private static String acceptedTypesForErrorMsg(String... acceptedTypes) {

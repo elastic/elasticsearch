@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -32,13 +30,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class NetworkDisruptionIT extends BaseMlIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
-                .build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

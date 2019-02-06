@@ -31,6 +31,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -67,7 +68,7 @@ public final class DateProcessor extends AbstractProcessor {
     }
 
     private ZoneId newDateTimeZone(Map<String, Object> params) {
-        return timezone == null ? null : ZoneId.of(timezone.newInstance(params).execute());
+        return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone.newInstance(params).execute());
     }
 
     private Locale newLocale(Map<String, Object> params) {

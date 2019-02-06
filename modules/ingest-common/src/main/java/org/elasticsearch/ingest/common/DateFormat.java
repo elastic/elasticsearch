@@ -45,31 +45,25 @@ enum DateFormat {
     Iso8601 {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
-            return (date) -> {
-                ZonedDateTime zonedDateTime = DateFormatters.from(DateFormatter.forPattern("strict_date_time").parse(date));
-                return zonedDateTime.withZoneSameInstant(timezone == null ? ZoneOffset.UTC : timezone);
-            };
+            return (date) -> DateFormatters.from(DateFormatter.forPattern("strict_date_time").parse(date)).withZoneSameInstant(timezone);
         }
     },
     Unix {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
-            return date -> Instant.ofEpochMilli((long) (Double.parseDouble(date) * 1000.0))
-                .atZone(timezone == null ? ZoneOffset.UTC : timezone);
+            return date -> Instant.ofEpochMilli((long) (Double.parseDouble(date) * 1000.0)).atZone(timezone);
         }
     },
     UnixMs {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
-            return date -> Instant.ofEpochMilli(Long.parseLong(date))
-                .atZone(timezone == null ? ZoneOffset.UTC : timezone);
+            return date -> Instant.ofEpochMilli(Long.parseLong(date)).atZone(timezone);
         }
     },
     Tai64n {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
-            return date -> Instant.ofEpochMilli(parseMillis(date))
-                .atZone(timezone == null ? ZoneOffset.UTC : timezone);
+            return date -> Instant.ofEpochMilli(parseMillis(date)).atZone(timezone);
         }
 
         private long parseMillis(String date) {
@@ -93,10 +87,13 @@ enum DateFormat {
                 format = format.substring(1);
             }
 
+            boolean isUtc = ZoneOffset.UTC.equals(zoneId);
+
             int year = LocalDate.now(ZoneOffset.UTC).getYear();
             DateFormatter dateFormatter = DateFormatter.forPattern(format)
                 .withLocale(locale);
-            if (zoneId != null) {
+            // if UTC zone is set here, the the time zone specified in the format will be ignored, leading to wrong dates
+            if (isUtc == false) {
                 dateFormatter = dateFormatter.withZone(zoneId);
             }
             final DateFormatter formatter = dateFormatter;
@@ -112,18 +109,14 @@ enum DateFormat {
                         }
                     }
 
-                    if (zoneId != null) {
-                        accessor = newTime.withZoneSameLocal(zoneId);
-                    } else {
-                        accessor = newTime;
-                    }
+                    accessor = newTime.withZoneSameLocal(zoneId);
                 }
 
-                if (zoneId == null) {
+                if (isUtc) {
                     return DateFormatters.from(accessor).withZoneSameInstant(ZoneOffset.UTC);
+                } else {
+                    return DateFormatters.from(accessor);
                 }
-
-                return DateFormatters.from(accessor);
             };
         }
     };

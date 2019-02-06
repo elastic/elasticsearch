@@ -46,7 +46,7 @@ public class DateFormatTests extends ESTestCase {
 
     public void testParseJavaWithTimeZone() {
         Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSZZ",
-            null, Locale.ROOT);
+            ZoneOffset.UTC, Locale.ROOT);
         ZonedDateTime datetime = javaFunction.apply("2018-02-05T13:44:56.657+0100");
         String expectedDateTime = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").withZone(ZoneOffset.UTC).format(datetime);
         assertThat(expectedDateTime, is("2018-02-05T12:44:56.657Z"));
@@ -81,7 +81,7 @@ public class DateFormatTests extends ESTestCase {
                 equalTo(978336000000L));
         assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800").toString(),
                 equalTo("2001-01-01T08:00Z"));
-        assertThat(DateFormat.Iso8601.getFunction(null, null, null).apply("2001-01-01T00:00:00-0800").toString(),
+        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800").toString(),
                 equalTo("2001-01-01T08:00Z"));
     }
 

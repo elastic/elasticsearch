@@ -159,8 +159,8 @@ task verifyVersions {
  * the enabled state of every bwc task. It should be set back to true
  * after the backport of the backcompat code is complete.
  */
-final boolean bwc_tests_enabled = false
-final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/38180" /* place a PR link here when committing bwc changes */
+final boolean bwc_tests_enabled = true
+final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -233,6 +233,9 @@ allprojects {
     "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
+    // for security example plugins
+    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core',
+    "org.elasticsearch.client.x-pack-transport:${version}": ':x-pack:transport-client'
   ]
 
   /*

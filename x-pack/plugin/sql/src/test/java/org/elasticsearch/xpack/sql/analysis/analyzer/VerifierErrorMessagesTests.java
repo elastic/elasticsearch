@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.TestUtils;
-import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
@@ -42,7 +41,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     private String error(IndexResolution getIndexResult, String sql) {
         Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
-        AnalysisException e = expectThrows(AnalysisException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
+        VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";
         return e.getMessage().substring(header.length());
@@ -170,17 +169,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:41: Unknown column [xxx]", error("SELECT * FROM test GROUP BY DAY_OF_YEAR(xxx)"));
     }
 
+    public void testInvalidOrdinalInOrderBy() {
+        assertEquals("1:56: Invalid ordinal [3] specified in [ORDER BY 2, 3] (valid range is [1, 2])",
+                error("SELECT bool, MIN(int) FROM test GROUP BY 1 ORDER BY 2, 3"));
+    }
+
     public void testFilterOnUnknownColumn() {
         assertEquals("1:26: Unknown column [xxx]", error("SELECT * FROM test WHERE xxx = 1"));
     }
 
     public void testMissingColumnInOrderBy() {
-        // xxx offset is that of the order by field
         assertEquals("1:29: Unknown column [xxx]", error("SELECT * FROM test ORDER BY xxx"));
     }
 
     public void testMissingColumnFunctionInOrderBy() {
-        // xxx offset is that of the order by field
         assertEquals("1:41: Unknown column [xxx]", error("SELECT * FROM test ORDER BY DAY_oF_YEAR(xxx)"));
     }
 
@@ -208,7 +210,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testMultipleColumns() {
-        // xxx offset is that of the order by field
         assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
                 error("SELECT xxx FROM test GROUP BY DAY_oF_YEAR(xxx)"));
     }
@@ -242,13 +243,28 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY bool"));
     }
 
+    public void testGroupByOrdinalPointingToAggregate() {
+        assertEquals("1:42: Ordinal [2] in [GROUP BY 2] refers to an invalid argument, aggregate function [MIN(int)]",
+                error("SELECT bool, MIN(int) FROM test GROUP BY 2"));
+    }
+
+    public void testGroupByInvalidOrdinal() {
+        assertEquals("1:42: Invalid ordinal [3] specified in [GROUP BY 3] (valid range is [1, 2])",
+                error("SELECT bool, MIN(int) FROM test GROUP BY 3"));
+    }
+
+    public void testGroupByNegativeOrdinal() {
+        assertEquals("1:42: Invalid ordinal [-1] specified in [GROUP BY -1] (valid range is [1, 2])",
+                error("SELECT bool, MIN(int) FROM test GROUP BY -1"));
+    }
+
     public void testGroupByOrderByAliasedInSelectAllowed() {
         LogicalPlan lp = accept("SELECT text t FROM test GROUP BY text ORDER BY t");
         assertNotNull(lp);
     }
 
     public void testGroupByOrderByScalarOverNonGrouped() {
-        assertEquals("1:50: Cannot order by non-grouped column [YEAR(date)], expected [text]",
+        assertEquals("1:50: Cannot order by non-grouped column [YEAR(date)], expected [text] or an aggregate function",
                 error("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
     }
 
@@ -258,7 +274,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
-        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date)], expected [text]",
+        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date)], expected [text] or an aggregate function",
             error("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY YEAR(date)"));
     }
 
@@ -316,18 +332,25 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT * FROM test ORDER BY unsupported"));
     }
 
-    public void testGroupByOrderByNonKey() {
-        assertEquals("1:52: Cannot order by non-grouped column [a], expected [bool]",
-                error("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a"));
+    public void testGroupByOrderByAggregate() {
+        accept("SELECT AVG(int) a FROM test GROUP BY bool ORDER BY a");
     }
 
-    public void testGroupByOrderByFunctionOverKey() {
-        assertEquals("1:44: Cannot order by non-grouped column [MAX(int)], expected [int]",
-                error("SELECT int FROM test GROUP BY int ORDER BY MAX(int)"));
+    public void testGroupByOrderByAggs() {
+        accept("SELECT int FROM test GROUP BY int ORDER BY COUNT(*)");
+    }
+
+    public void testGroupByOrderByAggAndGroupedColumn() {
+        accept("SELECT int FROM test GROUP BY int ORDER BY int, MAX(int)");
+    }
+
+    public void testGroupByOrderByNonAggAndNonGroupedColumn() {
+        assertEquals("1:44: Cannot order by non-grouped column [bool], expected [int]",
+                error("SELECT int FROM test GROUP BY int ORDER BY bool"));
     }
 
     public void testGroupByOrderByScore() {
-        assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int]",
+        assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int] or an aggregate function",
                 error("SELECT int FROM test GROUP BY int ORDER BY SCORE()"));
     }
 
@@ -362,23 +385,34 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInWithDifferentDataTypes_WhereClause() {
-        assertEquals("1:49: expected data type [text], value provided is of type [integer]",
-            error("SELECT * FROM test WHERE text IN ('foo', 'bar', 4)"));
+        assertEquals("1:52: expected data type [keyword], value provided is of type [integer]",
+            error("SELECT * FROM test WHERE keyword IN ('foo', 'bar', 4)"));
     }
 
     public void testInNestedWithDifferentDataTypes_WhereClause() {
-        assertEquals("1:60: expected data type [text], value provided is of type [integer]",
-            error("SELECT * FROM test WHERE int = 1 OR text IN ('foo', 'bar', 2)"));
+        assertEquals("1:63: expected data type [keyword], value provided is of type [integer]",
+            error("SELECT * FROM test WHERE int = 1 OR keyword IN ('foo', 'bar', 2)"));
     }
 
     public void testInWithDifferentDataTypesFromLeftValue_WhereClause() {
-        assertEquals("1:35: expected data type [text], value provided is of type [integer]",
-            error("SELECT * FROM test WHERE text IN (1, 2)"));
+        assertEquals("1:38: expected data type [keyword], value provided is of type [integer]",
+            error("SELECT * FROM test WHERE keyword IN (1, 2)"));
     }
 
     public void testInNestedWithDifferentDataTypesFromLeftValue_WhereClause() {
-        assertEquals("1:46: expected data type [text], value provided is of type [integer]",
-            error("SELECT * FROM test WHERE int = 1 OR text IN (1, 2)"));
+        assertEquals("1:49: expected data type [keyword], value provided is of type [integer]",
+            error("SELECT * FROM test WHERE int = 1 OR keyword IN (1, 2)"));
+    }
+
+    public void testInWithFieldInListOfValues() {
+        assertEquals("1:26: Comparisons against variables are not (currently) supported; offender [int] in [int IN (1, int)]",
+            error("SELECT * FROM test WHERE int IN (1, int)"));
+    }
+
+    public void testInOnFieldTextWithNoKeyword() {
+        assertEquals("1:26: [IN] cannot operate on field of data type [text]: " +
+            "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT * FROM test WHERE text IN ('foo', 'bar')"));
     }
 
     public void testNotSupportedAggregateOnDate() {
@@ -535,6 +569,41 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:47: Cannot use an aggregate [MAX] for grouping",
                 error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
     }
+    
+    public void testHistogramNotInGrouping() {
+        assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));
+    }
+    
+    public void testHistogramNotInGroupingWithCount() {
+        assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h, COUNT(*) FROM test"));
+    }
+    
+    public void testHistogramNotInGroupingWithMaxFirst() {
+        assertEquals("1:19: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT MAX(date), HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));
+    }
+    
+    public void testHistogramWithoutAliasNotInGrouping() {
+        assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) FROM test"));
+    }
+    
+    public void testTwoHistogramsNotInGrouping() {
+        assertEquals("1:48: [HISTOGRAM(date, INTERVAL 1 DAY)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h, HISTOGRAM(date, INTERVAL 1 DAY) FROM test GROUP BY h"));
+    }
+    
+    public void testHistogramNotInGrouping_WithGroupByField() {
+        assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) FROM test GROUP BY date"));
+    }
+    
+    public void testScalarOfHistogramNotInGrouping() {
+        assertEquals("1:14: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
+                error("SELECT MONTH(HISTOGRAM(date, INTERVAL 1 MONTH)) FROM test"));
+    }
 
     public void testErrorMessageForPercentileWithSecondArgBasedOnAField() {
         assertEquals("1:8: Second argument of PERCENTILE must be a constant, received [ABS(int)]",
@@ -580,5 +649,16 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:52: HAVING filter is unsupported for function [MAX(keyword)]",
             error("SELECT MAX(keyword) FROM test GROUP BY text HAVING MAX(keyword) > 10"));
     }
-}
 
+    public void testProjectAliasInFilter() {
+        accept("SELECT int AS i FROM test WHERE i > 10");
+    }
+
+    public void testAggregateAliasInFilter() {
+        accept("SELECT int AS i FROM test WHERE i > 10 GROUP BY i HAVING MAX(i) > 10");
+    }
+
+    public void testProjectUnresolvedAliasInFilter() {
+        assertEquals("1:8: Unknown column [tni]", error("SELECT tni AS i FROM test WHERE i > 10 GROUP BY i"));
+    }
+}

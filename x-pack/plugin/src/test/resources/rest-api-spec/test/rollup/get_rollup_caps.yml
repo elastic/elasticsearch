@@ -4,7 +4,6 @@ setup:
   - do:
       indices.create:
         index: foo
-        include_type_name: false
         body:
           mappings:
             properties:
@@ -16,7 +15,6 @@ setup:
   - do:
       indices.create:
         index: foo2
-        include_type_name: false
         body:
           mappings:
             properties:
@@ -28,7 +26,6 @@ setup:
   - do:
       indices.create:
         index: foo3
-        include_type_name: false
         body:
           mappings:
             properties:

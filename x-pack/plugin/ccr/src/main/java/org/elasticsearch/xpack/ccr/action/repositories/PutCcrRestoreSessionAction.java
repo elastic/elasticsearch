@@ -81,7 +81,8 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionReque
                 throw new ShardNotFoundException(shardId);
             }
             Store.MetadataSnapshot storeFileMetaData = ccrRestoreService.openSession(request.getSessionUUID(), indexShard);
-            return new PutCcrRestoreSessionResponse(clusterService.localNode(), storeFileMetaData);
+            long mappingVersion = indexShard.indexSettings().getIndexMetaData().getMappingVersion();
+            return new PutCcrRestoreSessionResponse(clusterService.localNode(), storeFileMetaData, mappingVersion);
         }
 
         @Override
@@ -106,19 +107,22 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionReque
 
         private DiscoveryNode node;
         private Store.MetadataSnapshot storeFileMetaData;
+        private long mappingVersion;
 
         PutCcrRestoreSessionResponse() {
         }
 
-        PutCcrRestoreSessionResponse(DiscoveryNode node, Store.MetadataSnapshot storeFileMetaData) {
+        PutCcrRestoreSessionResponse(DiscoveryNode node, Store.MetadataSnapshot storeFileMetaData, long mappingVersion) {
             this.node = node;
             this.storeFileMetaData = storeFileMetaData;
+            this.mappingVersion = mappingVersion;
         }
 
         PutCcrRestoreSessionResponse(StreamInput in) throws IOException {
             super(in);
             node = new DiscoveryNode(in);
             storeFileMetaData = new Store.MetadataSnapshot(in);
+            mappingVersion = in.readVLong();
         }
 
         @Override
@@ -126,6 +130,7 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionReque
             super.readFrom(in);
             node = new DiscoveryNode(in);
             storeFileMetaData = new Store.MetadataSnapshot(in);
+            mappingVersion = in.readVLong();
         }
 
         @Override
@@ -133,6 +138,7 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionReque
             super.writeTo(out);
             node.writeTo(out);
             storeFileMetaData.writeTo(out);
+            out.writeVLong(mappingVersion);
         }
 
         public DiscoveryNode getNode() {
@@ -141,6 +147,10 @@ public class PutCcrRestoreSessionAction extends Action<PutCcrRestoreSessionReque
 
         public Store.MetadataSnapshot getStoreFileMetaData() {
             return storeFileMetaData;
+        }
+
+        public long getMappingVersion() {
+            return mappingVersion;
         }
     }
 }

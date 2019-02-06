@@ -3,6 +3,73 @@
 
 Discovery and cluster formation are affected by the following settings:
 
+`discovery.seed_hosts`::
+
+    Provides a list of master-eligible nodes in the cluster. The list contains
+    either an array of hosts or a comma-delimited string. Each value has the
+    format `host:port` or `host`, where `port` defaults to the setting
+    `transport.profiles.default.port`. Note that IPv6 hosts must be bracketed.
+    The default value is `127.0.0.1, [::1]`. See <<unicast.hosts>>.
+    This setting was previously known as `discovery.zen.ping.unicast.hosts`.
+    Its old name is deprecated but continues to work in order to preserve
+    backwards compatibility. Support for the old name will be removed in a
+    future version.
+
+`discovery.seed_providers`::
+    Specifies which types of <<built-in-hosts-providers,seed hosts provider>>
+    to use to obtain the addresses of the seed nodes used to start the
+    discovery process. By default, it is the
+    <<settings-based-hosts-provider,settings-based seed hosts provider>>.
+    This setting was previously known as `discovery.zen.hosts_provider`. Its
+    old name is deprecated but continues to work in order to preserve backwards
+    compatibility. Support for the old name will be removed in a future
+    version.
+
+`discovery.cluster_formation_warning_timeout`::
+
+    Sets how long a node will try to form a cluster before logging a warning
+    that the cluster did not form. Defaults to `10s`. If a cluster has not
+    formed after `discovery.cluster_formation_warning_timeout` has elapsed then
+    the node will log a warning message that starts with the phrase `master not
+    discovered` which describes the current state of the discovery process.
+
+`discovery.find_peers_interval`::
+
+    Sets how long a node will wait before attempting another discovery round.
+    Defaults to `1s`.
+
+`discovery.probe.connect_timeout`::
+
+    Sets how long to wait when attempting to connect to each address. Defaults
+    to `3s`.
+
+`discovery.probe.handshake_timeout`::
+
+    Sets how long to wait when attempting to identify the remote node via a
+    handshake. Defaults to `1s`.
+
+`discovery.request_peers_timeout`::
+    Sets how long a node will wait after asking its peers again before
+    considering the request to have failed. Defaults to `3s`.
+
+`discovery.seed_resolver.max_concurrent_resolvers`::
+
+    Specifies how many concurrent DNS lookups to perform when resolving the
+    addresses of seed nodes. Defaults to `10`. This setting was previously
+    known as `discovery.zen.ping.unicast.concurrent_connects`. Its old name is
+    deprecated but continues to work in order to preserve backwards
+    compatibility. Support for the old name will be removed in a future
+    version.
+
+`discovery.seed_resolver.timeout`::
+
+    Specifies how long to wait for each DNS lookup performed when resolving the
+    addresses of seed nodes. Defaults to `5s`. This setting was previously
+    known as `discovery.zen.ping.unicast.hosts.resolve_timeout`. Its old name
+    is deprecated but continues to work in order to preserve backwards
+    compatibility. Support for the old name will be removed in a future
+    version.
+
 `cluster.auto_shrink_voting_configuration`::
 
     Controls whether the <<modules-discovery-voting,voting configuration>>
@@ -129,70 +196,3 @@ WARNING: This setting replaces the `discovery.zen.no_master_block` setting in
 earlier versions. The `discovery.zen.no_master_block` setting is ignored.
 
 --
-
-`discovery.seed_hosts`::
-
-    Provides a list of master-eligible nodes in the cluster. The list contains
-    either an array of hosts or a comma-delimited string. Each value has the
-    format `host:port` or `host`, where `port` defaults to the setting
-    `transport.profiles.default.port`. Note that IPv6 hosts must be bracketed.
-    The default value is `127.0.0.1, [::1]`. See <<unicast.hosts>>.
-    This setting was previously known as `discovery.zen.ping.unicast.hosts`.
-    Its old name is deprecated but continues to work in order to preserve
-    backwards compatibility. Support for the old name will be removed in a
-    future version.
-
-`discovery.seed_providers`::
-    Specifies which types of <<built-in-hosts-providers,seed hosts provider>>
-    to use to obtain the addresses of the seed nodes used to start the
-    discovery process. By default, it is the
-    <<settings-based-hosts-provider,settings-based seed hosts provider>>.
-    This setting was previously known as `discovery.zen.hosts_provider`. Its
-    old name is deprecated but continues to work in order to preserve backwards
-    compatibility. Support for the old name will be removed in a future
-    version.
-
-`discovery.cluster_formation_warning_timeout`::
-
-    Sets how long a node will try to form a cluster before logging a warning
-    that the cluster did not form. Defaults to `10s`. If a cluster has not
-    formed after `discovery.cluster_formation_warning_timeout` has elapsed then
-    the node will log a warning message that starts with the phrase `master not
-    discovered` which describes the current state of the discovery process.
-
-`discovery.find_peers_interval`::
-
-    Sets how long a node will wait before attempting another discovery round.
-    Defaults to `1s`.
-
-`discovery.probe.connect_timeout`::
-
-    Sets how long to wait when attempting to connect to each address. Defaults
-    to `3s`.
-
-`discovery.probe.handshake_timeout`::
-
-    Sets how long to wait when attempting to identify the remote node via a
-    handshake. Defaults to `1s`.
-
-`discovery.request_peers_timeout`::
-    Sets how long a node will wait after asking its peers again before
-    considering the request to have failed. Defaults to `3s`.
-
-`discovery.seed_resolver.max_concurrent_resolvers`::
-
-    Specifies how many concurrent DNS lookups to perform when resolving the
-    addresses of seed nodes. Defaults to `10`. This setting was previously
-    known as `discovery.zen.ping.unicast.concurrent_connects`. Its old name is
-    deprecated but continues to work in order to preserve backwards
-    compatibility. Support for the old name will be removed in a future
-    version.
-
-`discovery.seed_resolver.timeout`::
-
-    Specifies how long to wait for each DNS lookup performed when resolving the
-    addresses of seed nodes. Defaults to `5s`. This setting was previously
-    known as `discovery.zen.ping.unicast.hosts.resolve_timeout`. Its old name
-    is deprecated but continues to work in order to preserve backwards
-    compatibility. Support for the old name will be removed in a future
-    version.

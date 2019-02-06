@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.rest;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -29,6 +30,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class FakeRestRequest extends RestRequest {
 
@@ -37,13 +39,13 @@ public class FakeRestRequest extends RestRequest {
     private final SocketAddress remoteAddress;
 
     public FakeRestRequest() {
-        this(NamedXContentRegistry.EMPTY, new HashMap<>(), new HashMap<>(), null, Method.GET, "/", null);
+        this(NamedXContentRegistry.EMPTY, new HashMap<>(), new HashMap<>(), BytesArray.EMPTY, Method.GET, "/", null);
     }
 
     private FakeRestRequest(NamedXContentRegistry xContentRegistry, Map<String, List<String>> headers,
                             Map<String, String> params, BytesReference content, Method method, String path, SocketAddress remoteAddress) {
         super(xContentRegistry, params, path, headers);
-        this.content = content;
+        this.content = Objects.requireNonNull(content);
         this.method = method;
         this.remoteAddress = remoteAddress;
     }
@@ -60,11 +62,11 @@ public class FakeRestRequest extends RestRequest {
 
     @Override
     public boolean hasContent() {
-        return content != null;
+        return content.length() > 0;
     }
 
     @Override
-    public BytesReference content() {
+    public BytesReference innerContent() {
         return content;
     }
 
@@ -80,7 +82,7 @@ public class FakeRestRequest extends RestRequest {
 
         private Map<String, String> params = new HashMap<>();
 
-        private BytesReference content;
+        private BytesReference content = BytesArray.EMPTY;
 
         private String path = "/";
 
@@ -103,7 +105,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         public Builder withContent(BytesReference content, XContentType xContentType) {
-            this.content = content;
+            this.content = Objects.requireNonNull(content);
             if (xContentType != null) {
                 headers.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
             }

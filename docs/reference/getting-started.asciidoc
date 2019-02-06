@@ -426,7 +426,7 @@ And the response:
   "_primary_term" : 1
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"_seq_no" : 0/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 From the above, we can see that a new customer document was successfully created inside the customer index. The document also has an internal id of 1 which we specified at index time.
 
@@ -450,11 +450,13 @@ And the response:
   "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
+  "_seq_no" : 25,
+  "_primary_term" : 1,
   "found" : true,
   "_source" : { "name": "John Doe" }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Nothing out of the ordinary here other than a field, `found`, stating that we found a document with the requested ID 1 and another field, `_source`, which returns the full JSON document that we indexed from the previous step.
 

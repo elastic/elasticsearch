@@ -339,7 +339,7 @@ The JLH score can be used as a significance score by adding the parameter
 
 The scores are derived from the doc frequencies in _foreground_ and _background_ sets. The _absolute_ change in popularity (foregroundPercent - backgroundPercent) would favor common terms whereas the _relative_ change in popularity (foregroundPercent/ backgroundPercent) would favor rare terms. Rare vs common is essentially a precision vs recall balance and so the absolute and relative changes are multiplied to provide a sweet spot between precision and recall.
 
-===== mutual information
+===== Mutual information
 Mutual information as described in "Information Retrieval", Manning et al., Chapter 13.5.1 can be used as significance score by adding the parameter
 
 [source,js]
@@ -375,7 +375,7 @@ Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5
 Chi square behaves like mutual information and can be configured with the same parameters `include_negatives` and `background_is_superset`.
 
 
-===== google normalized distance
+===== Google normalized distance
 Google normalized distance  as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007 (http://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
 
 [source,js]
@@ -414,7 +414,7 @@ It is hard to say which one of the different heuristics will be the best choice 
 
 If none of the above measures suits your usecase than another option is to implement a custom significance measure:
 
-===== scripted
+===== Scripted
 Customized scores can be implemented via a script:
 
 [source,js]
@@ -448,7 +448,7 @@ If the number of unique terms is greater than `size`, the returned list can be s
 size buckets was not returned).
 
 To ensure better accuracy a multiple of the final `size` is used as the number of terms to request from each shard
-using a heuristic based on the number of shards. To take manual control of this setting the `shard_size` parameter
+(`2 * (size * 1.5 + 10)`). To take manual control of this setting the `shard_size` parameter
 can be  used to control the volumes of candidate terms produced by each shard.
 
 Low-frequency terms can turn out to be the most interesting ones once all results are combined so the

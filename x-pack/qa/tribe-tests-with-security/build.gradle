@@ -15,8 +15,6 @@ dependencies {
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
 }
 
-namingConventions.skipIntegTestInDisguise = true
-
 compileTestJava.options.compilerArgs << "-Xlint:-try"
 
 String xpackPath = project(xpackModule('core')).projectDir.toPath().resolve('src/test/resources').toString()
@@ -118,7 +116,7 @@ integTestCluster {
     }
 }
 
-test {
+unitTest {
     /*
      * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
      * other if we allow them to set the number of available processors as it's set-once in Netty.

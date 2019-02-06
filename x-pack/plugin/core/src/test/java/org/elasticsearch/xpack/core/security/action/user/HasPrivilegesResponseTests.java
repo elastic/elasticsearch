@@ -11,12 +11,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -58,16 +60,17 @@ public class HasPrivilegesResponseTests
     }
 
     public void testToXContent() throws Exception {
-        final HasPrivilegesResponse response = new HasPrivilegesResponse("daredevil", false,
-            Collections.singletonMap("manage", true),
-            Arrays.asList(
-                new HasPrivilegesResponse.ResourcePrivileges("staff",
-                    MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>())
-                        .put("read", true).put("index", true).put("delete", false).put("manage", false).map()),
-                new HasPrivilegesResponse.ResourcePrivileges("customers",
-                    MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>())
-                        .put("read", true).put("index", true).put("delete", true).put("manage", false).map())
-            ), Collections.emptyMap());
+        final HasPrivilegesResponse response = new HasPrivilegesResponse("daredevil", false, Collections.singletonMap("manage", true),
+                Arrays.asList(
+                        ResourcePrivileges.builder("staff")
+                                .addPrivileges(MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>()).put("read", true)
+                                        .put("index", true).put("delete", false).put("manage", false).map())
+                                .build(),
+                        ResourcePrivileges.builder("customers")
+                                .addPrivileges(MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>()).put("read", true)
+                                        .put("index", true).put("delete", true).put("manage", false).map())
+                                .build()),
+                Collections.emptyMap());
 
         final XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -119,9 +122,9 @@ public class HasPrivilegesResponseTests
             );
     }
 
-    private static List<HasPrivilegesResponse.ResourcePrivileges> toResourcePrivileges(Map<String, Map<String, Boolean>> map) {
+    private static List<ResourcePrivileges> toResourcePrivileges(Map<String, Map<String, Boolean>> map) {
         return map.entrySet().stream()
-            .map(e -> new HasPrivilegesResponse.ResourcePrivileges(e.getKey(), e.getValue()))
+            .map(e -> ResourcePrivileges.builder(e.getKey()).addPrivileges(e.getValue()).build())
             .collect(Collectors.toList());
     }
 
@@ -145,22 +148,23 @@ public class HasPrivilegesResponseTests
         for (String priv : randomArray(1, 6, String[]::new, () -> randomAlphaOfLengthBetween(3, 12))) {
             cluster.put(priv, randomBoolean());
         }
-        final Collection<HasPrivilegesResponse.ResourcePrivileges> index = randomResourcePrivileges();
-        final Map<String, Collection<HasPrivilegesResponse.ResourcePrivileges>> application = new HashMap<>();
+        final Collection<ResourcePrivileges> index = randomResourcePrivileges();
+        final Map<String, Collection<ResourcePrivileges>> application = new HashMap<>();
         for (String app : randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT))) {
             application.put(app, randomResourcePrivileges());
         }
         return new HasPrivilegesResponse(username, randomBoolean(), cluster, index, application);
     }
 
-    private Collection<HasPrivilegesResponse.ResourcePrivileges> randomResourcePrivileges() {
-        final Collection<HasPrivilegesResponse.ResourcePrivileges> list = new ArrayList<>();
-        for (String resource : randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(2, 6))) {
+    private Collection<ResourcePrivileges> randomResourcePrivileges() {
+        final Collection<ResourcePrivileges> list = new ArrayList<>();
+        // Use hash set to force a unique set of resources
+        for (String resource : Sets.newHashSet(randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(2, 6)))) {
             final Map<String, Boolean> privileges = new HashMap<>();
             for (String priv : randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))) {
                 privileges.put(priv, randomBoolean());
             }
-            list.add(new HasPrivilegesResponse.ResourcePrivileges(resource, privileges));
+            list.add(ResourcePrivileges.builder(resource).addPrivileges(privileges).build());
         }
         return list;
     }

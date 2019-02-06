@@ -12,6 +12,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
@@ -19,16 +20,13 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -57,11 +55,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
-    @Before
-    public void waitForMlTemplates() throws Exception {
-        XPackRestTestHelper.waitForMlTemplates(client());
-    }
-
     @Override
     protected Settings restClientSettings() {
         String token = "Basic " + Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
@@ -70,7 +63,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 // we increase the timeout here to 90 seconds to handle long waits for a green
                 // cluster health. the waits for green need to be longer than a minute to
                 // account for delayed shards
-                .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "90s")
                 .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
                 .build();
     }

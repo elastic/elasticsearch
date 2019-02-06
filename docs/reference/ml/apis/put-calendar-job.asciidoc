@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-calendar-job]]
-=== Add Jobs to Calendar API
+=== Add jobs to calendar API
 ++++
-<titleabbrev>Add Jobs to Calendar</titleabbrev>
+<titleabbrev>Add jobs to calendar</titleabbrev>
 ++++
 
 Adds a job to a calendar.

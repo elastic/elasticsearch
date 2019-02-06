@@ -1,24 +1,31 @@
 ---
 "Create index with mappings":
-
+  - skip:
+      version: " - 6.6.99"
+      reason: include_type_name was introduced in 6.7.0
   - do:
       indices.create:
+        include_type_name: false
         index: test_index
         body:
           mappings:
-            type_1: {}
+            {}
 
   - do:
       indices.get_mapping:
+        include_type_name: false
         index: test_index
 
-  - is_true: test_index.mappings.type_1
+  - is_true: test_index.mappings
 
 ---
 "Create index with settings":
-
+  - skip:
+      version: " - 6.6.99"
+      reason: include_type_name was introduced in 6.7.0
   - do:
       indices.create:
+        include_type_name: false
         index: test_index
         body:
           settings:
@@ -33,11 +40,11 @@
 ---
 "Create index":
   - skip:
-      version: " - 5.5.99"
-      reason: create index response contains index name since 5.6.0
-
+      version: " - 6.6.99"
+      reason: include_type_name was introduced in 6.7.0
   - do:
       indices.create:
+        include_type_name: false
         index: test_index
 
   - match: { acknowledged: true }
@@ -45,9 +52,12 @@
 
 ---
 "Create index with wait_for_active_shards set to all":
-
+  - skip:
+      version: " - 6.6.99"
+      reason: include_type_name was introduced in 6.7.0
   - do:
       indices.create:
+        include_type_name: false
         index: test_index
         wait_for_active_shards: all
         body:
@@ -59,16 +69,18 @@
 
 ---
 "Create index with aliases":
-
+  - skip:
+      version: " - 6.6.99"
+      reason: include_type_name was introduced in 6.7.0
   - do:
       indices.create:
+        include_type_name: false
         index: test_index
         body:
           mappings:
-            type_1:
-              properties:
-                field:
-                  type: text
+            properties:
+              field:
+                type: text
           aliases:
             test_alias: {}
             test_blias:
@@ -90,48 +102,34 @@
   - is_false: test_index.aliases.test_clias.search_routing
 
 ---
-"Create index with write aliases":
-  - skip:
-      version: " - 6.99.99"
-      reason: is_write_index is not implemented in ES <= 6.x
-  - do:
-      indices.create:
-        index: test_index
-        body:
-          aliases:
-            test_alias: {}
-            test_blias:
-              is_write_index: false
-            test_clias:
-              is_write_index: true
-
-  - do:
-      indices.get_alias:
-        index: test_index
-
-  - is_false: test_index.aliases.test_alias.is_write_index
-  - is_false: test_index.aliases.test_blias.is_write_index
-  - is_true: test_index.aliases.test_clias.is_write_index
-
----
-"Create index with no type mappings":
-  - do:
-      catch: /illegal_argument_exception/
-      indices.create:
-        index: test_index
-        body:
-          mappings:
-           "" : {}
-
----
 "Create index with invalid mappings":
   - do:
       catch: /illegal_argument_exception/
       indices.create:
+        include_type_name: false
         index: test_index
         body:
           mappings:
-            test_type:
+            properties:
+              "":
+                type:     keyword
+
+---
+"Create index with explicit _doc type":
+  - skip:
+      version: " - 6.6.99"
+      reason: include_type_name was introduced in 6.7.0
+  - do:
+      catch: bad_request
+      indices.create:
+        include_type_name: false
+        index: test_index
+        body:
+          mappings:
+            _doc:
               properties:
-                "":
-                  type:     keyword
+                field:
+                  type: keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "The mapping definition cannot be nested under a type [_doc] unless include_type_name is set to true." }

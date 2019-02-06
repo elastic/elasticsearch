@@ -201,7 +201,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         } catch (IOException ex) {
             throw new ElasticsearchException("boom", ex);
         }
-        return new GetResponse(new GetResult(getRequest.index(), getRequest.type(), getRequest.id(), 0, true, new BytesArray(json), null));
+        return new GetResponse(new GetResult(getRequest.index(), getRequest.type(), getRequest.id(), 0, 1, 0, true,
+            new BytesArray(json), null));
     }
 
     public void testNumeric() throws IOException {
@@ -274,10 +275,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     @Override
-    protected boolean isCachable(TermsQueryBuilder queryBuilder) {
-        // even though we use a terms lookup here we do this during rewrite and that means we are cachable on toQuery
+    protected boolean isCacheable(TermsQueryBuilder queryBuilder) {
+        // even though we use a terms lookup here we do this during rewrite and that means we are cacheable on toQuery
         // that's why we return true here all the time
-        return super.isCachable(queryBuilder);
+        return super.isCacheable(queryBuilder);
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {

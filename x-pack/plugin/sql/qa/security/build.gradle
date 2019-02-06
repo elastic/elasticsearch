@@ -4,6 +4,11 @@ dependencies {
 
 Project mainProject = project
 
+group = "${group}.x-pack.qa.sql.security"
+
+// Tests are pushed down to subprojects and will be checked there.
+testingConventions.enabled = false 
+
 subprojects {
   // Use resources from the parent project in subprojects
   sourceSets {

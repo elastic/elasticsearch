@@ -76,7 +76,6 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
                           Map<String, Supplier<ClusterState.Custom>> initialClusterStateCustoms) {
-        super(settings);
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.masterService = new MasterService(nodeName, settings, threadPool);

@@ -24,13 +24,9 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.gradle.api.tasks.options.Option
-import  org.gradle.util.GradleVersion
-import  org.gradle.util.DistributionLocator
+import org.gradle.util.GradleVersion
+import org.gradle.util.DistributionLocator
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-
-import java.util.function.Predicate
 
 plugins {
     id 'com.gradle.build-scan' version '2.0.2'
@@ -210,7 +206,7 @@ allprojects {
   }
 
   /* Sets up the dependencies that we build as part of this project but
-    register as thought they were external to resolve internally. We register
+    register as though they were external to resolve internally. We register
     them as external dependencies so the build plugin that we use can be used
     to build elasticsearch plugins outside of the elasticsearch source tree. */
   ext.projectSubstitutions = [
@@ -221,6 +217,7 @@ allprojects {
     "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
     "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
     "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
+    "org.elasticsearch:elasticsearch-ssl-config:${version}": ':libs:elasticsearch-ssl-config',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
     "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
     "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
@@ -247,6 +244,9 @@ allprojects {
     "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
+    // for security example plugins
+    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core',
+    "org.elasticsearch.client.x-pack-transport:${version}": ':x-pack:transport-client'
   ]
   // substitute unreleased versions with projects that check out and build locally
   bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion ->
@@ -437,7 +437,7 @@ tasks.idea.doLast {
   ideaMarker.setText('', 'UTF-8')
 }
 if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
-  throw new GradleException('You must run gradle idea from the root of elasticsearch before importing into IntelliJ')
+  throw new GradleException('You must run `gradle idea` from the root of elasticsearch before importing into IntelliJ')
 }
 
 // eclipse configuration

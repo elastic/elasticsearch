@@ -38,18 +38,22 @@ public class TransportGetInfluencersAction extends HandledTransportAction<GetInf
 
     @Override
     protected void doExecute(GetInfluencersAction.Request request, ActionListener<GetInfluencersAction.Response> listener) {
-        jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
-        InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder()
-                .includeInterim(request.isExcludeInterim() == false)
-                .start(request.getStart())
-                .end(request.getEnd())
-                .from(request.getPageParams().getFrom())
-                .size(request.getPageParams().getSize())
-                .influencerScoreThreshold(request.getInfluencerScore())
-                .sortField(request.getSort())
-                .sortDescending(request.isDescending()).build();
-        jobResultsProvider.influencers(request.getJobId(), query,
-                page -> listener.onResponse(new GetInfluencersAction.Response(page)), listener::onFailure, client);
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
+                jobFound -> {
+                    InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder()
+                            .includeInterim(request.isExcludeInterim() == false)
+                            .start(request.getStart())
+                            .end(request.getEnd())
+                            .from(request.getPageParams().getFrom())
+                            .size(request.getPageParams().getSize())
+                            .influencerScoreThreshold(request.getInfluencerScore())
+                            .sortField(request.getSort())
+                            .sortDescending(request.isDescending()).build();
+                    jobResultsProvider.influencers(request.getJobId(), query,
+                            page -> listener.onResponse(new GetInfluencersAction.Response(page)), listener::onFailure, client);
+                },
+                listener::onFailure)
+        );
     }
 }

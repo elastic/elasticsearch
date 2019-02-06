@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-datafeed]]
-=== Create {dfeeds-cap} API
+=== Create {dfeeds} API
 ++++
-<titleabbrev>Create {dfeeds-cap}</titleabbrev>
+<titleabbrev>Create {dfeeds}</titleabbrev>
 ++++
 
 Instantiates a {dfeed}.
@@ -24,6 +24,8 @@ You must create a job before you create a {dfeed}.  You can associate only one
 
 `feed_id` (required)::
   (string) A numerical character string that uniquely identifies the {dfeed}.
+  This identifier can contain lowercase alphanumeric characters (a-z and 0-9),
+  hyphens, and underscores. It must start and end with alphanumeric characters.
 
 
 ==== Request Body
@@ -88,15 +90,16 @@ see <<ml-datafeed-resource>>.
 
 ==== Authorization
 
-You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
+cluster privileges to use this API. For more information, see
+{stack-ov}/security-privileges.html[Security Privileges].
 
 
-==== Security Integration
+==== Security integration
 
-When {security} is enabled, your {dfeed} will remember which roles the user who
-created it had at the time of creation, and run the query using those same roles.
+When {es} {security-features} are enabled, your {dfeed} remembers which roles the
+user who created it had at the time of creation and runs the query using those
+same roles.
 
 
 ==== Examples

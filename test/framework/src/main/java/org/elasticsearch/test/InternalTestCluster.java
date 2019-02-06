@@ -135,7 +135,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -395,6 +394,8 @@ public final class InternalTestCluster extends TestCluster {
         // always reduce this - it can make tests really slow
         builder.put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(), TimeValue.timeValueMillis(
                 RandomNumbers.randomIntBetween(random, 20, 50)));
+        builder.put(RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.getKey(),
+            RandomNumbers.randomIntBetween(random, 1, 5));
         defaultSettings = builder.build();
         executor = EsExecutors.newScaling("internal_test_cluster_executor", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
                 EsExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
@@ -659,8 +660,9 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
+        final Settings nodeSettings = finalSettings.build();
         MockNode node = new MockNode(
-                finalSettings.build(),
+                nodeSettings,
                 plugins,
                 nodeConfigurationSource.nodeConfigPath(nodeId),
                 forbidPrivateIndexSettings);
@@ -675,7 +677,7 @@ public final class InternalTestCluster extends TestCluster {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return new NodeAndClient(name, node, nodeId);
+        return new NodeAndClient(name, node, nodeSettings, nodeId);
     }
 
     private String buildNodeName(int id, Settings settings) {
@@ -841,15 +843,17 @@ public final class InternalTestCluster extends TestCluster {
 
     private final class NodeAndClient implements Closeable {
         private MockNode node;
+        private final Settings originalNodeSettings;
         private Client nodeClient;
         private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final String name;
         private final int nodeAndClientId;
 
-        NodeAndClient(String name, MockNode node, int nodeAndClientId) {
+        NodeAndClient(String name, MockNode node, Settings originalNodeSettings, int nodeAndClientId) {
             this.node = node;
             this.name = name;
+            this.originalNodeSettings = originalNodeSettings;
             this.nodeAndClientId = nodeAndClientId;
             markNodeDataDirsAsNotEligableForWipe(node);
         }
@@ -975,7 +979,7 @@ public final class InternalTestCluster extends TestCluster {
             // use a new seed to make sure we have new node id
             final long newIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1;
             Settings finalSettings = Settings.builder()
-                    .put(node.originalSettings())
+                    .put(originalNodeSettings)
                     .put(newSettings)
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                     .build();
@@ -1281,26 +1285,24 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    private IndexShard getShardOrNull(ClusterState clusterState, ShardRouting shardRouting) {
+        if (shardRouting == null || shardRouting.assignedToNode() == false) {
+            return null;
+        }
+        final DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());
+        if (assignedNode == null) {
+            return null;
+        }
+        return getInstance(IndicesService.class, assignedNode.getName()).getShardOrNull(shardRouting.shardId());
+    }
+
     public void assertSeqNos() throws Exception {
-        final BiFunction<ClusterState, ShardRouting, IndexShard> getInstanceShardInstance = (clusterState, shardRouting) -> {
-            if (shardRouting.assignedToNode() == false) {
-                return null;
-            }
-            final DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());
-            if (assignedNode == null) {
-                return null;
-            }
-            return getInstance(IndicesService.class, assignedNode.getName()).getShardOrNull(shardRouting.shardId());
-        };
         assertBusy(() -> {
             final ClusterState state = clusterService().state();
             for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
                 for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
                     ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
-                    if (primaryShardRouting == null) {
-                        continue;
-                    }
-                    final IndexShard primaryShard = getInstanceShardInstance.apply(state, primaryShardRouting);
+                    final IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {
                         continue; //just ignore - shard movement
                     }
@@ -1315,7 +1317,7 @@ public final class InternalTestCluster extends TestCluster {
                     assertThat(primaryShardRouting + " should have set the global checkpoint",
                         primarySeqNoStats.getGlobalCheckpoint(), not(equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO)));
                     for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
-                        final IndexShard replicaShard = getInstanceShardInstance.apply(state, replicaShardRouting);
+                        final IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
                         if (replicaShard == null) {
                             continue; //just ignore - shard movement
                         }
@@ -1344,12 +1346,10 @@ public final class InternalTestCluster extends TestCluster {
             for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
                 for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
                     ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
-                    if (primaryShardRouting == null || primaryShardRouting.assignedToNode() == false) {
+                    IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
+                    if (primaryShard == null) {
                         continue;
                     }
-                    DiscoveryNode primaryNode = state.nodes().get(primaryShardRouting.currentNodeId());
-                    IndexShard primaryShard = getInstance(IndicesService.class, primaryNode.getName())
-                        .indexServiceSafe(primaryShardRouting.index()).getShard(primaryShardRouting.id());
                     final List<DocIdSeqNoAndTerm> docsOnPrimary;
                     try {
                         docsOnPrimary = IndexShardTestCase.getDocIdAndSeqNos(primaryShard);
@@ -1357,12 +1357,10 @@ public final class InternalTestCluster extends TestCluster {
                         continue;
                     }
                     for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
-                        if (replicaShardRouting.assignedToNode() == false) {
+                        IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
+                        if (replicaShard == null) {
                             continue;
                         }
-                        DiscoveryNode replicaNode = state.nodes().get(replicaShardRouting.currentNodeId());
-                        IndexShard replicaShard = getInstance(IndicesService.class, replicaNode.getName())
-                            .indexServiceSafe(replicaShardRouting.index()).getShard(replicaShardRouting.id());
                         final List<DocIdSeqNoAndTerm> docsOnReplica;
                         try {
                             docsOnReplica = IndexShardTestCase.getDocIdAndSeqNos(replicaShard);
@@ -1388,8 +1386,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private void wipePendingDataDirectories() {
-        assert Thread.holdsLock(this);
+    public synchronized void wipePendingDataDirectories() {
         if (!dataDirToClean.isEmpty()) {
             try {
                 for (Path path : dataDirToClean) {

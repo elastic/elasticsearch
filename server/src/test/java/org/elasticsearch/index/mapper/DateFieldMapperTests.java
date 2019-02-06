@@ -37,7 +37,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -174,7 +173,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()),
                 XContentType.JSON));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-        assertThat(e.getCause().getMessage(), containsString("failed to parse date field [2016-03-99]"));
+        assertThat(e.getCause().getMessage(), containsString("Cannot parse \"2016-03-99\""));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date")
@@ -228,8 +227,8 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        double epochFloatMillisFromEpoch = (randomDouble() * 2 - 1) * 1000000;
-        String epochFloatValue = String.format(Locale.US, "%f", epochFloatMillisFromEpoch);
+        long epochMillis = randomNonNegativeLong();
+        String epochFloatValue = epochMillis + "." + randomIntBetween(0, 999);
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
@@ -241,7 +240,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals((long)epochFloatMillisFromEpoch, pointField.numericValue().longValue());
+        assertEquals(epochMillis, pointField.numericValue().longValue());
     }
 
     public void testChangeLocale() throws IOException {

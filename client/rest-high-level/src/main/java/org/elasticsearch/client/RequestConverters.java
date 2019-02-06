@@ -25,8 +25,8 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -75,6 +75,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -107,6 +108,8 @@ final class RequestConverters {
         parameters.withTimeout(deleteRequest.timeout());
         parameters.withVersion(deleteRequest.version());
         parameters.withVersionType(deleteRequest.versionType());
+        parameters.withIfSeqNo(deleteRequest.ifSeqNo());
+        parameters.withIfPrimaryTerm(deleteRequest.ifPrimaryTerm());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
         return request;
@@ -191,6 +194,11 @@ final class RequestConverters {
                         }
                     }
 
+                    if (action.ifSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        metadata.field("if_seq_no", action.ifSeqNo());
+                        metadata.field("if_primary_term", action.ifPrimaryTerm());
+                    }
+
                     if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
                         IndexRequest indexRequest = (IndexRequest) action;
                         if (Strings.hasLength(indexRequest.getPipeline())) {
@@ -242,7 +250,7 @@ final class RequestConverters {
                 content.write(separator);
             }
         }
-        request.setEntity(new ByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
+        request.setEntity(new NByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
         return request;
     }
 
@@ -307,13 +315,15 @@ final class RequestConverters {
         parameters.withTimeout(indexRequest.timeout());
         parameters.withVersion(indexRequest.version());
         parameters.withVersionType(indexRequest.versionType());
+        parameters.withIfSeqNo(indexRequest.ifSeqNo());
+        parameters.withIfPrimaryTerm(indexRequest.ifPrimaryTerm());
         parameters.withPipeline(indexRequest.getPipeline());
         parameters.withRefreshPolicy(indexRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
 
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
-        request.setEntity(new ByteArrayEntity(source.bytes, source.offset, source.length, contentType));
+        request.setEntity(new NByteArrayEntity(source.bytes, source.offset, source.length, contentType));
         return request;
     }
 
@@ -421,7 +431,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
-        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
         return request;
     }
 
@@ -454,7 +464,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
-        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
         return request;
     }
 
@@ -674,7 +684,7 @@ final class RequestConverters {
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
         throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
-        return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
+        return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
     static String endpoint(String index, String type, String id) {
@@ -879,6 +889,24 @@ final class RequestConverters {
                 return putParam("wait_for_active_shards", currentActiveShardCount.toString().toLowerCase(Locale.ROOT));
             }
             return this;
+        }
+
+        Params withIfSeqNo(long ifSeqNo) {
+            if (ifSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                return putParam("if_seq_no", Long.toString(ifSeqNo));
+            }
+            return this;
+        }
+
+        Params withIfPrimaryTerm(long ifPrimaryTerm) {
+            if (ifPrimaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+                return putParam("if_primary_term", Long.toString(ifPrimaryTerm));
+            }
+            return this;
+        }
+
+        Params withWaitForActiveShards(ActiveShardCount activeShardCount) {
+            return withWaitForActiveShards(activeShardCount, ActiveShardCount.DEFAULT);
         }
 
         Params withIndicesOptions(IndicesOptions indicesOptions) {

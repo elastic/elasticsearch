@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLPeerUnverifiedException;
@@ -136,12 +135,7 @@ public interface ServerTransportFilter {
                                SystemUser.is(authentication.getUser()) == false) {
                         securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
                             final Authentication replaced = Authentication.getAuthentication(threadContext);
-                            final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                                    new AuthorizationUtils.AsyncAuthorizer(replaced, listener, (userRoles, runAsRoles) -> {
-                                        authzService.authorize(replaced, securityAction, request, userRoles, runAsRoles);
-                                        listener.onResponse(null);
-                                    });
-                            asyncAuthorizer.authorize(authzService);
+                            authzService.authorize(replaced, securityAction, request, listener);
                         }, version);
                     } else if (authentication.getVersion().before(Version.V_5_6_1) &&
                             XPackUser.NAME.equals(authentication.getUser().authenticatedUser().principal())) {
@@ -149,12 +143,7 @@ public interface ServerTransportFilter {
                         // that doesn't know about the xpack security user
                         executeAsOldVersionXPackUser(securityAction, request, transportChannel, listener);
                     } else {
-                        final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                                new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {
-                                    authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
-                                    listener.onResponse(null);
-                                });
-                        asyncAuthorizer.authorize(authzService);
+                        authzService.authorize(authentication, securityAction, request, listener);
                     }
                 }, listener::onFailure));
         }
@@ -179,12 +168,7 @@ public interface ServerTransportFilter {
                                    ActionListener<Void> listener) {
             securityContext.executeAsUser(user, (original) -> {
                 final Authentication replacedUserAuth = securityContext.getAuthentication();
-                final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                        new AuthorizationUtils.AsyncAuthorizer(replacedUserAuth, listener, (userRoles, runAsRoles) -> {
-                            authzService.authorize(replacedUserAuth, securityAction, request, userRoles, runAsRoles);
-                            listener.onResponse(null);
-                        });
-                asyncAuthorizer.authorize(authzService);
+                authzService.authorize(replacedUserAuth, securityAction, request, listener);
             }, transportChannel.getVersion());
         }
     }

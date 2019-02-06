@@ -50,7 +50,7 @@ public class ScriptedMetricAggContexts {
         private final Object state;
 
         public InitScript(Map<String, Object> params, Object state) {
-            this.params = new ParameterMap(params, DEPRECATIONS);
+            this.params = new DeprecationMap(params, DEPRECATIONS);
             this.state = state;
         }
 
@@ -106,7 +106,7 @@ public class ScriptedMetricAggContexts {
             if (leafLookup != null) {
                 params = new HashMap<>(params); // copy params so we aren't modifying input
                 params.putAll(leafLookup.asMap()); // add lookup vars
-                params = new ParameterMap(params, DEPRECATIONS); // wrap with deprecations
+                params = new DeprecationMap(params, DEPRECATIONS); // wrap with deprecations
             }
             this.params = params;
         }
@@ -178,7 +178,7 @@ public class ScriptedMetricAggContexts {
         private final Object state;
 
         public CombineScript(Map<String, Object> params, Object state) {
-            this.params = new ParameterMap(params, DEPRECATIONS);
+            this.params = new DeprecationMap(params, DEPRECATIONS);
             this.state = state;
         }
 
@@ -216,7 +216,7 @@ public class ScriptedMetricAggContexts {
         private final List<Object> states;
 
         public ReduceScript(Map<String, Object> params, List<Object> states) {
-            this.params = new ParameterMap(params, DEPRECATIONS);
+            this.params = new DeprecationMap(params, DEPRECATIONS);
             this.states = states;
         }
 

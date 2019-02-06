@@ -186,7 +186,6 @@ public class MonitoringServiceTests extends ESTestCase {
         private final CountDownLatch latch;
 
         BlockingExporter(CountDownLatch latch) {
-            super();
             this.latch = latch;
         }
 

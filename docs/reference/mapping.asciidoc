@@ -152,7 +152,7 @@ PUT my_index <1>
 ---------------------------------------
 // CONSOLE
 <1> Create an index called `my_index`.
-<2> Add a mapping type called `doc`.
+<2> Add a mapping type called `_doc`.
 <3> Specify fields or _properties_.
 <4> Specify the data `type` and mapping for each field.
 

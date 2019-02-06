@@ -19,10 +19,14 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lucene.LuceneTests;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -33,36 +37,65 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.function.Predicate;
 
 public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHits> {
+
     public static SearchHits createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
         return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
     }
 
     private static SearchHit[] createSearchHitArray(int size, XContentType xContentType, boolean withOptionalInnerHits,
-                                                    boolean withShardTarget) {
+                                                    boolean transportSerialization) {
         SearchHit[] hits = new SearchHit[size];
         for (int i = 0; i < hits.length; i++) {
-            hits[i] = SearchHitTests.createTestItem(xContentType, withOptionalInnerHits, withShardTarget);
+            hits[i] = SearchHitTests.createTestItem(xContentType, withOptionalInnerHits, transportSerialization);
         }
         return hits;
     }
 
-    public static SearchHits createTestItem(XContentType xContentType, boolean withOptionalInnerHits, boolean withShardTarget) {
+    public static SearchHits createTestItem(XContentType xContentType, boolean withOptionalInnerHits, boolean transportSerialization) {
         int searchHits = randomIntBetween(0, 5);
-        SearchHit[] hits = createSearchHitArray(searchHits, xContentType, withOptionalInnerHits, withShardTarget);
+        SearchHit[] hits = createSearchHitArray(searchHits, xContentType, withOptionalInnerHits, transportSerialization);
         float maxScore = frequently() ? randomFloat() : Float.NaN;
         long totalHits = TestUtil.nextLong(random(), 0, Long.MAX_VALUE);
-        return new SearchHits(hits, frequently() ? totalHits : -1, maxScore);
+        SortField[] sortFields = null;
+        String collapseField = null;
+        Object[] collapseValues = null;
+        if (transportSerialization) {
+            sortFields = randomBoolean() ? createSortFields(randomIntBetween(1, 5)) : null;
+            collapseField = randomAlphaOfLengthBetween(5, 10);
+            collapseValues = randomBoolean() ? createCollapseValues(randomIntBetween(1, 10)) : null;
+        }
+        return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
+    }
+
+    private static SortField[] createSortFields(int size) {
+        SortField[] sortFields = new SortField[size];
+        for (int i = 0; i < sortFields.length; i++) {
+            //sort fields are simplified before serialization, we write directly the simplified version
+            //otherwise equality comparisons become complicated
+            sortFields[i] = LuceneTests.randomSortField().v2();
+        }
+        return sortFields;
+    }
+
+    private static Object[] createCollapseValues(int size) {
+        Object[] collapseValues = new Object[size];
+        for (int i = 0; i < collapseValues.length; i++) {
+            collapseValues[i] = LuceneTests.randomSortValue();
+        }
+        return collapseValues;
     }
 
     @Override
     protected SearchHits mutateInstance(SearchHits instance) {
-        switch (randomIntBetween(0, 2)) {
+        switch (randomIntBetween(0, 5)) {
             case 0:
                 return new SearchHits(createSearchHitArray(instance.getHits().length + 1,
                     randomFrom(XContentType.values()), false, randomBoolean()),
@@ -78,6 +111,33 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
                     maxScore = Float.NaN;
                 }
                 return new SearchHits(instance.getHits(), instance.getTotalHits(), maxScore);
+            case 3:
+                SortField[] sortFields;
+                if (instance.getSortFields() == null) {
+                    sortFields = createSortFields(randomIntBetween(1, 5));
+                } else {
+                    sortFields = randomBoolean() ? createSortFields(instance.getSortFields().length + 1) : null;
+                }
+                return new SearchHits(instance.getHits(), instance.getTotalHits(), instance.getMaxScore(),
+                    sortFields, instance.getCollapseField(), instance.getCollapseValues());
+            case 4:
+                String collapseField;
+                if (instance.getCollapseField() == null) {
+                    collapseField = randomAlphaOfLengthBetween(5, 10);
+                } else {
+                    collapseField = randomBoolean() ? instance.getCollapseField() + randomAlphaOfLengthBetween(2, 5) : null;
+                }
+                return new SearchHits(instance.getHits(), instance.getTotalHits(), instance.getMaxScore(),
+                    instance.getSortFields(), collapseField, instance.getCollapseValues());
+            case 5:
+                Object[] collapseValues;
+                if (instance.getCollapseValues() == null) {
+                    collapseValues = createCollapseValues(randomIntBetween(1, 5));
+                } else {
+                    collapseValues = randomBoolean() ? createCollapseValues(instance.getCollapseValues().length + 1) : null;
+                }
+                return new SearchHits(instance.getHits(), instance.getTotalHits(), instance.getMaxScore(),
+                    instance.getSortFields(), instance.getCollapseField(), collapseValues);
             default:
                 throw new UnsupportedOperationException();
         }
@@ -114,7 +174,7 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
         // deserialized hit cannot be equal to the original instance.
         // There is another test (#testFromXContentWithShards) that checks the
         // rest serialization with shard targets.
-        return createTestItem(xContentType,true, false);
+        return createTestItem(xContentType, true, false);
     }
 
     @Override
@@ -193,5 +253,31 @@ public class SearchHitsTests extends AbstractStreamableXContentTestCase<SearchHi
             }
 
         }
+    }
+
+    public void testReadFromPre6_6_0() throws IOException {
+        try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode("AQC/gAAAAAA="))) {
+            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0)));
+            SearchHits searchHits = new SearchHits();
+            searchHits.readFrom(in);
+            assertEquals(0, searchHits.getHits().length);
+            assertEquals(0L, searchHits.getTotalHits());
+            assertEquals(-1F, searchHits.getMaxScore(), 0F);
+            assertNull(searchHits.getSortFields());
+            assertNull(searchHits.getCollapseField());
+            assertNull(searchHits.getCollapseValues());
+        }
+    }
+
+    public void testSerializationPre6_6_0() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_6_6_0));
+        SearchHits original = createTestItem(randomFrom(XContentType.values()), false, true);
+        SearchHits deserialized = copyInstance(original, version);
+        assertArrayEquals(original.getHits(), deserialized.getHits());
+        assertEquals(original.getMaxScore(), deserialized.getMaxScore(), 0F);
+        assertEquals(original.getTotalHits(), deserialized.getTotalHits());
+        assertNull(deserialized.getSortFields());
+        assertNull(deserialized.getCollapseField());
+        assertNull(deserialized.getCollapseValues());
     }
 }

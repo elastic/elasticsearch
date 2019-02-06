@@ -157,16 +157,16 @@ public class JobResultsProvider {
      */
     public void checkForLeftOverDocuments(Job job, ActionListener<Boolean> listener) {
 
-        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1),
                         CategorizerState.v54DocumentId(job.getId(), 1)))
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+                .setIndicesOptions(IndicesOptions.strictExpand());
 
-        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+                .setIndicesOptions(IndicesOptions.strictExpand());
 
-        String resultsIndexName = job.getResultsIndexName();
+        String resultsIndexName = job.getInitialResultsIndexName();
         SearchRequestBuilder resultDocSearch = client.prepareSearch(resultsIndexName)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
@@ -252,7 +252,7 @@ public class JobResultsProvider {
 
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
-        String indexName = job.getResultsIndexName();
+        String indexName = job.getInitialResultsIndexName();
 
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
             final IndicesAliasesRequest request = client.admin().indices().prepareAliases()
@@ -336,7 +336,7 @@ public class JobResultsProvider {
 
     private void updateIndexMappingWithTermFields(String indexName, Collection<String> termFields, ActionListener<Boolean> listener) {
         // Put the whole "doc" mapping, not just the term fields, otherwise we'll wipe the _meta section of the mapping
-        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.docMapping(termFields)) {
+        try (XContentBuilder termFieldsMapping = ElasticsearchMappings.resultsMapping(termFields)) {
             final PutMappingRequest request = client.admin().indices().preparePutMapping(indexName).setType(ElasticsearchMappings.DOC_TYPE)
                     .setSource(termFieldsMapping).request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, new ActionListener<AcknowledgedResponse>() {
@@ -396,7 +396,7 @@ public class JobResultsProvider {
 
         AutodetectParams.Builder paramsBuilder = new AutodetectParams.Builder(job.getId());
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        String stateIndex = AnomalyDetectorsIndex.jobStateIndexName();
+        String stateIndex = AnomalyDetectorsIndex.jobStateIndexPattern();
 
         MultiSearchRequestBuilder msearch = client.prepareMultiSearch()
                 .add(createLatestDataCountsSearch(resultsIndex, jobId))
@@ -486,20 +486,6 @@ public class JobResultsProvider {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
             errorHandler.accept(new ElasticsearchParseException("failed to parse " + hit.getType(), e));
-            return null;
-        }
-    }
-
-    private <T, U> T parseGetHit(GetResponse getResponse, BiFunction<XContentParser, U, T> objectParser,
-                                 Consumer<Exception> errorHandler) {
-        BytesReference source = getResponse.getSourceAsBytesRef();
-
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return objectParser.apply(parser, null);
-        } catch (IOException e) {
-            errorHandler.accept(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
             return null;
         }
     }
@@ -953,19 +939,6 @@ public class JobResultsProvider {
                 ), client::search);
     }
 
-    private <U, T> void getResult(String jobId, String resultDescription, GetRequest get, BiFunction<XContentParser, U, T> objectParser,
-            Consumer<Result<T>> handler, Consumer<Exception> errorHandler, Supplier<T> notFoundSupplier) {
-
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, get, ActionListener.<GetResponse>wrap(getDocResponse -> {
-            if (getDocResponse.isExists()) {
-                handler.accept(new Result<>(getDocResponse.getIndex(), parseGetHit(getDocResponse, objectParser, errorHandler)));
-            } else {
-                LOGGER.trace("No {} for job with id {}", resultDescription, jobId);
-                handler.accept(new Result<>(null, notFoundSupplier.get()));
-            }
-        }, errorHandler), client::get);
-    }
-
     private SearchRequestBuilder createLatestModelSizeStatsSearch(String indexName) {
         return client.prepareSearch(indexName)
                 .setSize(1)
@@ -1110,11 +1083,14 @@ public class JobResultsProvider {
     public void getForecastRequestStats(String jobId, String forecastId, Consumer<ForecastRequestStats> handler,
             Consumer<Exception> errorHandler) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        GetRequest getRequest = new GetRequest(indexName, ElasticsearchMappings.DOC_TYPE,
-                ForecastRequestStats.documentId(jobId, forecastId));
+        SearchRequestBuilder forecastSearch = client.prepareSearch(indexName)
+            .setQuery(QueryBuilders.idsQuery().addIds(ForecastRequestStats.documentId(jobId, forecastId)));
 
-        getResult(jobId, ForecastRequestStats.RESULTS_FIELD.getPreferredName(), getRequest, ForecastRequestStats.LENIENT_PARSER,
-                result -> handler.accept(result.result), errorHandler, () -> null);
+        searchSingleResult(jobId,
+            ForecastRequestStats.RESULTS_FIELD.getPreferredName(),
+            forecastSearch,
+            ForecastRequestStats.LENIENT_PARSER,result -> handler.accept(result.result),
+            errorHandler, () -> null);
     }
 
     public void getForecastStats(String jobId, Consumer<ForecastStats> handler, Consumer<Exception> errorHandler) {

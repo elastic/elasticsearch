@@ -19,11 +19,14 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -31,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -43,6 +47,13 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
+    private static final Set<String> RESPONSE_PARAMETERS = Collections.unmodifiableSet(Sets.union(
+        Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER), Settings.FORMAT_PARAMS));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+            LogManager.getLogger(RestGetIndexTemplateAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of get index template requests will change"
+            + " in the next major version. Please start using the `include_type_name` parameter set to `false` in the request to "
+            + "move to the new, typeless response format that will be the default in 7.0.";
     public RestGetIndexTemplateAction(final Settings settings, final RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_template", this);
@@ -60,6 +71,9 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
         final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
+        if (request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
+            deprecationLogger.deprecatedAndMaybeLog("get_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
 
@@ -79,7 +93,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Settings.FORMAT_PARAMS;
+        return RESPONSE_PARAMETERS;
     }
 
 }

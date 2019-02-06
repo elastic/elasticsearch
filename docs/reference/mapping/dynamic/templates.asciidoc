@@ -48,7 +48,7 @@ reordered or deleted after they were initially added.
 
 The `match_mapping_type` is the datatype detected by the json parser. Since
 JSON doesn't allow to distinguish a `long` from an `integer` or a `double` from
-a `float`, it will always choose the wider datatype, ie. `long` for integers
+a `float`, it will always choose the wider datatype, i.e. `long` for integers
 and `double` for floating-point numbers.
 
 The following datatypes may be automatically detected:

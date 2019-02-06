@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-bucket]]
-=== Get Buckets API
+=== Get buckets API
 ++++
-<titleabbrev>Get Buckets</titleabbrev>
+<titleabbrev>Get buckets</titleabbrev>
 ++++
 
 Retrieves job results for one or more buckets.

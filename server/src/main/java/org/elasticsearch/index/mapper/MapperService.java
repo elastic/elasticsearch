@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -58,6 +59,7 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -106,10 +108,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     //TODO this needs to be cleaned up: _timestamp and _ttl are not supported anymore, _field_names, _seq_no, _version and _source are
     //also missing, not sure if on purpose. See IndicesModule#getMetadataMappers
-    private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
-            "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
-            "_size", "_timestamp", "_ttl", IgnoredFieldMapper.NAME
-    );
+    private static final String[] SORTED_META_FIELDS = new String[]{
+        "_all", "_id", IgnoredFieldMapper.NAME, "_index", "_parent", "_routing", "_size", "_timestamp", "_ttl", "_type", "_uid"
+    };
+
+    private static final ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(SORTED_META_FIELDS);
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(MapperService.class));
 
@@ -724,6 +727,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+     * Returns {@code true} if the given {@code mappingSource} includes a type
+     * as a top-level object.
+     */
+    public static boolean isMappingSourceTyped(String type, Map<String, Object> mapping) {
+        return mapping.size() == 1 && mapping.keySet().iterator().next().equals(type);
+    }
+
+    public static boolean isMappingSourceTyped(String type, CompressedXContent mappingSource) {
+        Map<String, Object> root = XContentHelper.convertToMap(mappingSource.compressedReference(), true, XContentType.JSON).v2();
+        return isMappingSourceTyped(type, root);
+    }
+
+    /**
      * Returns the {@link MappedFieldType} for the give fullName.
      *
      * If multiple types have fields with the same full name, the first is returned.
@@ -812,7 +828,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public static String[] getAllMetaFields() {
-        return META_FIELDS.toArray(String.class);
+        return Arrays.copyOf(SORTED_META_FIELDS, SORTED_META_FIELDS.length);
     }
 
     /** An analyzer wrapper that can lookup fields within the index mappings */

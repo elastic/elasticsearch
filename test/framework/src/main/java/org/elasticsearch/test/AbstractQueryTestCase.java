@@ -105,7 +105,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QB testQuery = createTestQueryBuilder();
         testQuery.boost(-0.5f);
         assertWarnings("setting a negative [boost] on a query" +
-            " is deprecated and will throw an error in the next version. You can use a value between 0 and 1 to deboost.");
+            " is deprecated and will throw an error in the next major version. You can use a value between 0 and 1 to deboost.");
     }
 
     /**
@@ -416,7 +416,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public void testToQuery() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QueryShardContext context = createShardContext();
-            assert context.isCachable();
+            assert context.isCacheable();
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
@@ -426,12 +426,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
             QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
             Query firstLuceneQuery = rewritten.toQuery(context);
-            if (isCachable(firstQuery)) {
+            if (isCacheable(firstQuery)) {
                 assertTrue("query was marked as not cacheable in the context but this test indicates it should be cacheable: "
-                        + firstQuery.toString(), context.isCachable());
+                        + firstQuery.toString(), context.isCacheable());
             } else {
                 assertFalse("query was marked as cacheable in the context but this test indicates it should not be cacheable: "
-                        + firstQuery.toString(), context.isCachable());
+                        + firstQuery.toString(), context.isCacheable());
             }
             assertNotNull("toQuery should not return null", firstLuceneQuery);
             assertLuceneQuery(firstQuery, firstLuceneQuery, searchContext);
@@ -492,7 +492,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return rewritten;
     }
 
-    protected boolean isCachable(QB queryBuilder) {
+    protected boolean isCacheable(QB queryBuilder) {
         return true;
     }
 

@@ -71,8 +71,8 @@ public class UpdateHelper {
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
-        final GetResult getResult = indexShard.getService().getForUpdate(request.type(), request.id(), request.version(),
-            request.versionType());
+        final GetResult getResult = indexShard.getService().getForUpdate(
+            request.type(), request.id(), request.version(), request.versionType(), request.ifSeqNo(), request.ifPrimaryTerm());
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
 
@@ -166,19 +166,6 @@ public class UpdateHelper {
     }
 
     /**
-     * Calculate the version to use for the update request, using either the existing version if internal versioning is used, or the get
-     * result document's version if the version type is "FORCE".
-     */
-    static long calculateUpdateVersion(UpdateRequest request, GetResult getResult) {
-        if (request.versionType() != VersionType.INTERNAL) {
-            assert request.versionType() == VersionType.FORCE;
-            return request.version(); // remember, match_any is excluded by the conflict test
-        } else {
-            return getResult.getVersion();
-        }
-    }
-
-    /**
      * Calculate a routing value to be used, either the included index request's routing, or retrieved document's routing when defined.
      */
     @Nullable
@@ -211,7 +198,6 @@ public class UpdateHelper {
      * containing a new {@code IndexRequest} to be executed on the primary and replicas.
      */
     Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
-        final long updateVersion = calculateUpdateVersion(request, getResult);
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
         final String parent = calculateParent(getResult, currentRequest);
@@ -226,13 +212,14 @@ public class UpdateHelper {
         if (detectNoop && noop) {
             UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
                     getResult.getVersion(), DocWriteResponse.Result.NOOP);
-            update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap,
-                            updateSourceContentType, getResult.internalSourceRef()));
+            update.setGetResult(extractGetResult(request, request.index(), getResult.getSeqNo(), getResult.getPrimaryTerm(),
+                getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             final IndexRequest finalIndexRequest = Requests.indexRequest(request.index())
                     .type(request.type()).id(request.id()).routing(routing).parent(parent)
-                    .source(updatedSourceAsMap, updateSourceContentType).version(updateVersion).versionType(request.versionType())
+                    .source(updatedSourceAsMap, updateSourceContentType)
+                    .setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm())
                     .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
@@ -245,7 +232,6 @@ public class UpdateHelper {
      * primary and replicas.
      */
     Result prepareUpdateScriptRequest(ShardId shardId, UpdateRequest request, GetResult getResult, LongSupplier nowInMillis) {
-        final long updateVersion = calculateUpdateVersion(request, getResult);
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
         final String parent = calculateParent(getResult, currentRequest);
@@ -274,24 +260,25 @@ public class UpdateHelper {
             case INDEX:
                 final IndexRequest indexRequest = Requests.indexRequest(request.index())
                         .type(request.type()).id(request.id()).routing(routing).parent(parent)
-                        .source(updatedSourceAsMap, updateSourceContentType).version(updateVersion).versionType(request.versionType())
+                        .source(updatedSourceAsMap, updateSourceContentType)
+                        .setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm())
                         .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())
                         .setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             case DELETE:
                 DeleteRequest deleteRequest = Requests.deleteRequest(request.index())
                         .type(request.type()).id(request.id()).routing(routing).parent(parent)
-                        .version(updateVersion).versionType(request.versionType()).waitForActiveShards(request.waitForActiveShards())
+                        .setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm())
+                        .waitForActiveShards(request.waitForActiveShards())
                         .timeout(request.timeout()).setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
             default:
                 // If it was neither an INDEX or DELETE operation, treat it as a noop
                 UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
                         getResult.getVersion(), DocWriteResponse.Result.NOOP);
-                update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap,
-                                updateSourceContentType, getResult.internalSourceRef()));
+                update.setGetResult(extractGetResult(request, request.index(), getResult.getSeqNo(), getResult.getPrimaryTerm(),
+                    getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
                 return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
-
         }
     }
 
@@ -312,7 +299,7 @@ public class UpdateHelper {
      * Applies {@link UpdateRequest#fetchSource()} to the _source of the updated document to be returned in a update response.
      * For BWC this function also extracts the {@link UpdateRequest#fields()} from the updated document to be returned in a update response
      */
-    public static GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long version,
+    public static GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long seqNo, long primaryTerm, long version,
                                              final Map<String, Object> source, XContentType sourceContentType,
                                              @Nullable final BytesReference sourceAsBytes) {
         if ((request.fields() == null || request.fields().length == 0) &&
@@ -363,7 +350,7 @@ public class UpdateHelper {
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
-        return new GetResult(concreteIndex, request.type(), request.id(), version, true,
+        return new GetResult(concreteIndex, request.type(), request.id(), seqNo, primaryTerm, version, true,
                 sourceRequested ? sourceFilteredAsBytes : null, fields);
     }
 

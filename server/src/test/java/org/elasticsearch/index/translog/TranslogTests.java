@@ -2195,14 +2195,8 @@ public class TranslogTests extends ESTestCase {
             Collections.sort(writtenOperations, (a, b) -> a.location.compareTo(b.location));
             assertFalse(translog.isOpen());
             final Checkpoint checkpoint = Checkpoint.read(config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME));
-            Iterator<LocationOperation> iterator = writtenOperations.iterator();
-            while (iterator.hasNext()) {
-                LocationOperation next = iterator.next();
-                if (checkpoint.offset < (next.location.translogLocation + next.location.size)) {
-                    // drop all that haven't been synced
-                    iterator.remove();
-                }
-            }
+            // drop all that haven't been synced
+            writtenOperations.removeIf(next -> checkpoint.offset < (next.location.translogLocation + next.location.size));
             try (Translog tlog =
                      new Translog(config, translogUUID, createTranslogDeletionPolicy(),
                          () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);

@@ -11,9 +11,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import javax.net.ssl.TrustManagerFactory;
-
 import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.Collection;
@@ -57,12 +57,12 @@ public class SSLConfigurationSettings {
     private static final String PKCS12_KEYSTORE_TYPE = "PKCS12";
 
     private static final Function<String, Setting<List<String>>> CIPHERS_SETTING_TEMPLATE = key -> Setting.listSetting(key, Collections
-            .emptyList(), Function.identity(), Property.NodeScope, Property.Filtered);
+            .emptyList(), Function.identity(), propertiesFromKey(key));
     public static final Setting<List<String>> CIPHERS_SETTING_PROFILES =  Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.cipher_suites", CIPHERS_SETTING_TEMPLATE);
 
-    private static final Function<String,Setting<List<String>>> SUPPORTED_PROTOCOLS_TEMPLATE = key ->  Setting.listSetting(key,
-            Collections.emptyList(), Function.identity(), Property.NodeScope, Property.Filtered);
+    static final Function<String, Setting<List<String>>> SUPPORTED_PROTOCOLS_TEMPLATE = key -> Setting.listSetting(key,
+            Collections.emptyList(), Function.identity(), propertiesFromKey(key));
     public static final Setting<List<String>> SUPPORTED_PROTOCOLS_PROFILES = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.supported_protocols", SUPPORTED_PROTOCOLS_TEMPLATE) ;
 
@@ -82,7 +82,7 @@ public class SSLConfigurationSettings {
             "xpack.security.ssl.keystore.secure_key_password", X509KeyPairSettings.KEYSTORE_KEY_PASSWORD_TEMPLATE);
 
     private static final Function<String, Setting<Optional<String>>> TRUST_STORE_PATH_TEMPLATE = key -> new Setting<>(key, s -> null,
-            Optional::ofNullable, Property.NodeScope, Property.Filtered);
+            Optional::ofNullable, propertiesFromKey(key));
     public static final Setting<Optional<String>> TRUST_STORE_PATH_PROFILES = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.truststore.path", TRUST_STORE_PATH_TEMPLATE);
 
@@ -96,7 +96,8 @@ public class SSLConfigurationSettings {
 
     private static final Function<String, Setting<SecureString>> TRUSTSTORE_PASSWORD_TEMPLATE  =  key ->
             SecureSetting.secureString(key, LEGACY_TRUSTSTORE_PASSWORD_TEMPLATE.apply(key.replace("truststore.secure_password",
-                    "truststore.password")));
+                    "truststore.password")),
+                key.startsWith(XPackSettings.GLOBAL_SSL_PREFIX) ? new Property[] { Property.Deprecated } : new Property[0]);
     public static final Setting<SecureString> TRUSTSTORE_PASSWORD_PROFILES = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.truststore.secure_password", TRUSTSTORE_PASSWORD_TEMPLATE);
 
@@ -105,7 +106,7 @@ public class SSLConfigurationSettings {
 
     private static final Function<String, Setting<String>> TRUST_STORE_ALGORITHM_TEMPLATE  =  key ->
             new Setting<>(key, s -> TrustManagerFactory.getDefaultAlgorithm(),
-                    Function.identity(), Property.NodeScope, Property.Filtered);
+                    Function.identity(), propertiesFromKey(key));
     public static final Setting<String> TRUST_STORE_ALGORITHM_PROFILES = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.truststore.algorithm", TRUST_STORE_ALGORITHM_TEMPLATE);
 
@@ -118,7 +119,7 @@ public class SSLConfigurationSettings {
             "xpack.security.ssl.truststore.type", TRUST_STORE_TYPE_TEMPLATE);
 
     private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_TEMPLATE = key -> new Setting<>(key, s -> null,
-            Optional::ofNullable, Property.NodeScope, Property.Filtered);
+            Optional::ofNullable, propertiesFromKey(key));
     public static final Setting<Optional<String>> TRUST_RESTRICTIONS_PROFILES = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.trust_restrictions", TRUST_RESTRICTIONS_TEMPLATE);
 
@@ -132,19 +133,19 @@ public class SSLConfigurationSettings {
             "xpack.security.ssl.certificate", X509KeyPairSettings.CERT_TEMPLATE);
 
     private static final Function<String, Setting<List<String>>> CAPATH_SETTING_TEMPLATE = key -> Setting.listSetting(key, Collections
-            .emptyList(), Function.identity(), Property.NodeScope, Property.Filtered);
+            .emptyList(), Function.identity(), propertiesFromKey(key));
     public static final Setting<List<String>> CAPATH_SETTING_PROFILES =  Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.certificate_authorities", CAPATH_SETTING_TEMPLATE);
 
     private static final Function<String, Setting<Optional<SSLClientAuth>>> CLIENT_AUTH_SETTING_TEMPLATE =
             key -> new Setting<>(key, (String) null, s -> s == null ? Optional.empty() : Optional.of(SSLClientAuth.parse(s)),
-                    Property.NodeScope, Property.Filtered);
+                propertiesFromKey(key));
     public static final Setting<Optional<SSLClientAuth>> CLIENT_AUTH_SETTING_PROFILES =  Setting.affixKeySetting("transport.profiles.",
             "xpack.security.ssl.client_authentication", CLIENT_AUTH_SETTING_TEMPLATE);
 
     private static final Function<String, Setting<Optional<VerificationMode>>> VERIFICATION_MODE_SETTING_TEMPLATE =
             key -> new Setting<>(key, (String) null, s -> s == null ? Optional.empty() : Optional.of(VerificationMode.parse(s)),
-                    Property.NodeScope, Property.Filtered);
+                propertiesFromKey(key));
     public static final Setting<Optional<VerificationMode>> VERIFICATION_MODE_SETTING_PROFILES = Setting.affixKeySetting(
             "transport.profiles.", "xpack.security.ssl.verification_mode", VERIFICATION_MODE_SETTING_TEMPLATE);
 
@@ -187,6 +188,14 @@ public class SSLConfigurationSettings {
             return PKCS12_KEYSTORE_TYPE;
         } else {
             return DEFAULT_KEYSTORE_TYPE;
+        }
+    }
+
+    static Property[] propertiesFromKey(String key) {
+        if (key.startsWith(XPackSettings.GLOBAL_SSL_PREFIX)) {
+            return new Property[] { Property.NodeScope, Property.Filtered, Property.Deprecated };
+        } else {
+            return new Property[] { Property.NodeScope, Property.Filtered };
         }
     }
 

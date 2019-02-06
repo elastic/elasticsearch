@@ -25,6 +25,7 @@ public class RestPostStartTrialLicense extends XPackRestHandler {
     RestPostStartTrialLicense(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, URI_BASE + "/license/start_trial", this);
+        controller.registerHandler(POST, "/_license/start_trial", this);
     }
 
     @Override

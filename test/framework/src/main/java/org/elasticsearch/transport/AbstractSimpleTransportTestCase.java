@@ -2043,11 +2043,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList())) {
             @Override
-            protected String handleRequest(TcpChannel mockChannel, String profileName, StreamInput stream, long requestId,
-                                           int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status)
+            protected void handleRequest(TcpChannel channel, InboundMessage.RequestMessage request, int messageLengthBytes)
                 throws IOException {
-                return super.handleRequest(mockChannel, profileName, stream, requestId, messageLengthBytes, version, remoteAddress,
-                    (byte) (status & ~(1 << 3))); // we flip the isHandshake bit back and act like the handler is not found
+                // we flip the isHandshake bit back and act like the handler is not found
+                byte status = (byte) (request.status & ~(1 << 3));
+                Version version = request.getVersion();
+                InboundMessage.RequestMessage nonHandshakeRequest = new InboundMessage.RequestMessage(request.threadContext, version,
+                    status, request.getRequestId(), request.getActionName(), request.getFeatures(), request.getStreamInput());
+                super.handleRequest(channel, nonHandshakeRequest, messageLengthBytes);
             }
         };
 
@@ -2602,34 +2605,34 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
 
         Settings transportSettings = Settings.builder()
-            .put("transport.tcp_no_delay", enable)
+            .put("transport.tcp.no_delay", enable)
             .put("transport.tcp.keep_alive", enable)
             .put("transport.tcp.reuse_address", enable)
             .put("transport.tcp.send_buffer_size", "43000b")
             .put("transport.tcp.receive_buffer_size", "42000b")
             .put("transport.publish_host", "the_publish_host")
-            .put("transport.tcp.port", "9700-9800")
+            .put("transport.port", "9700-9800")
             .put("transport.bind_host", "the_bind_host")
             .put(globalSettings2)
             .build();
 
         Settings transportSettings2 = Settings.builder()
-            .put("transport.tcp_no_delay", !enable)
+            .put("transport.tcp.no_delay", !enable)
             .put("transport.tcp.keep_alive", !enable)
             .put("transport.tcp.reuse_address", !enable)
             .put("transport.tcp.send_buffer_size", "5b")
             .put("transport.tcp.receive_buffer_size", "6b")
             .put("transport.publish_host", "another_publish_host")
-            .put("transport.tcp.port", "9702-9802")
+            .put("transport.port", "9702-9802")
             .put("transport.bind_host", "another_bind_host")
             .put(globalSettings2)
             .build();
         Settings defaultProfileSettings = Settings.builder()
-            .put("transport.profiles.default.tcp_no_delay", enable)
-            .put("transport.profiles.default.tcp_keep_alive", enable)
+            .put("transport.profiles.default.tcp.no_delay", enable)
+            .put("transport.profiles.default.tcp.keep_alive", enable)
             .put("transport.profiles.default.reuse_address", enable)
-            .put("transport.profiles.default.send_buffer_size", "43000b")
-            .put("transport.profiles.default.receive_buffer_size", "42000b")
+            .put("transport.profiles.default.tcp.send_buffer_size", "43000b")
+            .put("transport.profiles.default.tcp.receive_buffer_size", "42000b")
             .put("transport.profiles.default.port", "9700-9800")
             .put("transport.profiles.default.publish_host", "the_publish_host")
             .put("transport.profiles.default.bind_host", "the_bind_host")
@@ -2638,11 +2641,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
 
         Settings profileSettings = Settings.builder()
-            .put("transport.profiles.some_profile.tcp_no_delay", enable)
-            .put("transport.profiles.some_profile.tcp_keep_alive", enable)
+            .put("transport.profiles.some_profile.tcp.no_delay", enable)
+            .put("transport.profiles.some_profile.tcp.keep_alive", enable)
             .put("transport.profiles.some_profile.reuse_address", enable)
-            .put("transport.profiles.some_profile.send_buffer_size", "43000b")
-            .put("transport.profiles.some_profile.receive_buffer_size", "42000b")
+            .put("transport.profiles.some_profile.tcp.send_buffer_size", "43000b")
+            .put("transport.profiles.some_profile.tcp.receive_buffer_size", "42000b")
             .put("transport.profiles.some_profile.port", "9700-9800")
             .put("transport.profiles.some_profile.publish_host", "the_publish_host")
             .put("transport.profiles.some_profile.bind_host", "the_bind_host")

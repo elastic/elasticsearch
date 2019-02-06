@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -54,12 +55,10 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
      */
     private static final int MODEL_SNAPSHOT_SEARCH_SIZE = 10000;
 
-    private final Client client;
     private final ThreadPool threadPool;
 
-    public ExpiredModelSnapshotsRemover(Client client, ThreadPool threadPool, ClusterService clusterService) {
-        super(clusterService);
-        this.client = Objects.requireNonNull(client);
+    public ExpiredModelSnapshotsRemover(Client client, ClusterService clusterService, ThreadPool threadPool) {
+        super(client, clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 
@@ -90,7 +89,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
         searchRequest.source(new SearchSourceBuilder().query(query).size(MODEL_SNAPSHOT_SEARCH_SIZE));
 
-        client.execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
+        getClient().execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, expiredSnapshotsListener(job.getId(), listener), false));
     }
 
@@ -103,7 +102,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
                     for (SearchHit hit : searchResponse.getHits()) {
                         modelSnapshots.add(ModelSnapshot.fromJson(hit.getSourceRef()));
                     }
-                    deleteModelSnapshots(createVolatileCursorIterator(modelSnapshots), listener);
+                    deleteModelSnapshots(new VolatileCursorIterator<>(modelSnapshots), listener);
                 } catch (Exception e) {
                     onFailure(e);
                 }
@@ -124,7 +123,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         ModelSnapshot modelSnapshot = modelSnapshotIterator.next();
         DeleteModelSnapshotAction.Request deleteSnapshotRequest = new DeleteModelSnapshotAction.Request(
                 modelSnapshot.getJobId(), modelSnapshot.getSnapshotId());
-        client.execute(DeleteModelSnapshotAction.INSTANCE, deleteSnapshotRequest, new ActionListener<AcknowledgedResponse>() {
+        getClient().execute(DeleteModelSnapshotAction.INSTANCE, deleteSnapshotRequest, new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
                     try {

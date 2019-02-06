@@ -15,6 +15,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
+import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.hamcrest.Matcher;
 
@@ -22,6 +24,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -70,7 +73,6 @@ public class SettingsFilterTests extends ESTestCase {
         }
         configureSecureSetting("xpack.security.authc.realms.pki1.truststore.secure_password", "truststore-testnode-only");
         configureFilteredSetting("xpack.security.authc.realms.pki1.truststore.algorithm", "SunX509");
-
 
         configureFilteredSetting("xpack.ssl.cipher_suites",
                 Strings.arrayToCommaDelimitedString(XPackSettings.DEFAULT_CIPHERS.toArray()));
@@ -133,9 +135,20 @@ public class SettingsFilterTests extends ESTestCase {
             assertThat(filteredSettings.get(entry.getKey()), entry.getValue());
         }
 
-        if (useLegacyLdapBindPassword) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD});
+        final SSLConfigurationSettings globalSSLSettings = SSLConfigurationSettings.withPrefix(XPackSettings.GLOBAL_SSL_PREFIX);
+        final X509KeyPairSettings keyPairSettings = new X509KeyPairSettings(XPackSettings.GLOBAL_SSL_PREFIX, true);
+        List<Setting<?>> deprecatedSettings = new ArrayList<>(Arrays.asList(globalSSLSettings.ciphers, globalSSLSettings.supportedProtocols,
+            globalSSLSettings.truststoreAlgorithm, globalSSLSettings.truststorePassword,
+            keyPairSettings.keystoreKeyPassword, keyPairSettings.keystorePassword, keyPairSettings.keystoreAlgorithm));
+        if (inFipsJvm() == false) {
+            deprecatedSettings.add(keyPairSettings.keystorePath);
         }
+        if (useLegacyLdapBindPassword) {
+            deprecatedSettings.add(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD);
+        }
+        assertSettingDeprecationsAndWarnings(deprecatedSettings.toArray(new Setting<?>[0]), "SSL configuration [xpack.http.ssl] relies " +
+            "upon fallback to another configuration for [key configuration, trust configuration, supported protocols], " +
+            "which is deprecated.");
     }
 
     private void configureUnfilteredSetting(String settingName, String value) {

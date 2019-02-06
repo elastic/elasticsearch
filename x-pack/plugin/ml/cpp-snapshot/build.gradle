@@ -1,4 +1,3 @@
-import java.net.HttpURLConnection
 import org.elasticsearch.gradle.VersionProperties
 
 apply plugin: 'distribution'

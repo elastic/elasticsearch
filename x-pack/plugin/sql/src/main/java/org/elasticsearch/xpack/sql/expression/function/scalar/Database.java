@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public class Database extends ConfigurationFunction {
 
-    public Database(Location location, Configuration configuration) {
-        super(location, configuration, DataType.KEYWORD);
+    public Database(Source source, Configuration configuration) {
+        super(source, configuration, DataType.KEYWORD);
     }
 
     @Override

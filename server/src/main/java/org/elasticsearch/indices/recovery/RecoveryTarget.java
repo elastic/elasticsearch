@@ -31,6 +31,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
@@ -55,10 +57,12 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -89,6 +93,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final AtomicBoolean finished = new AtomicBoolean();
 
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<String, FileChunkWriter> fileChunkWriters = ConcurrentCollections.newConcurrentMap();
     private final CancellableThreads cancellableThreads;
 
     // last time this status was accessed
@@ -340,6 +345,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             }
         } finally {
             // free store. increment happens in constructor
+            fileChunkWriters.clear();
             store.decRef();
             indexShard.recoveryStats().decCurrentAsTarget();
             closedLatch.countDown();
@@ -361,21 +367,27 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
-        if (fileBasedRecovery && indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0)) {
-            store.ensureIndexHas6xCommitTags();
-        }
-        state().getTranslog().totalOperations(totalTranslogOps);
-        indexShard().openEngineAndSkipTranslogRecovery();
+    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            if (fileBasedRecovery && indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0)) {
+                store.ensureIndexHas6xCommitTags();
+            }
+            state().getTranslog().totalOperations(totalTranslogOps);
+            indexShard().openEngineAndSkipTranslogRecovery();
+            return null;
+        });
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint) throws IOException {
-        final IndexShard indexShard = indexShard();
-        indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
-        // Persist the global checkpoint.
-        indexShard.sync();
-        indexShard.finalizeRecovery();
+    public void finalizeRecovery(final long globalCheckpoint, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            final IndexShard indexShard = indexShard();
+            indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
+            // Persist the global checkpoint.
+            indexShard.sync();
+            indexShard.finalizeRecovery();
+            return null;
+        });
     }
 
     @Override
@@ -389,40 +401,52 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestampOnPrimary,
-                                        long maxSeqNoOfDeletesOrUpdatesOnPrimary) throws IOException {
-        final RecoveryState.Translog translog = state().getTranslog();
-        translog.totalOperations(totalTranslogOps);
-        assert indexShard().recoveryState() == state();
-        if (indexShard().state() != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, indexShard().state());
-        }
-        /*
-         * The maxSeenAutoIdTimestampOnPrimary received from the primary is at least the highest auto_id_timestamp from any operation
-         * will be replayed. Bootstrapping this timestamp here will disable the optimization for original append-only requests
-         * (source of these operations) replicated via replication. Without this step, we may have duplicate documents if we
-         * replay these operations first (without timestamp), then optimize append-only requests (with timestamp).
-         */
-        indexShard().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampOnPrimary);
-        /*
-         * Bootstrap the max_seq_no_of_updates from the primary to make sure that the max_seq_no_of_updates on this replica when
-         * replaying any of these operations will be at least the max_seq_no_of_updates on the primary when that operation was executed on.
-         */
-        indexShard().advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfDeletesOrUpdatesOnPrimary);
-        for (Translog.Operation operation : operations) {
-            Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
-            if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
-                throw new MapperException("mapping updates are not allowed [" + operation + "]");
+    public void indexTranslogOperations(
+            final List<Translog.Operation> operations,
+            final int totalTranslogOps,
+            final long maxSeenAutoIdTimestampOnPrimary,
+            final long maxSeqNoOfDeletesOrUpdatesOnPrimary,
+            final RetentionLeases retentionLeases,
+            final ActionListener<Long> listener) {
+        ActionListener.completeWith(listener, () -> {
+            final RecoveryState.Translog translog = state().getTranslog();
+            translog.totalOperations(totalTranslogOps);
+            assert indexShard().recoveryState() == state();
+            if (indexShard().state() != IndexShardState.RECOVERING) {
+                throw new IndexShardNotRecoveringException(shardId, indexShard().state());
             }
-            assert result.getFailure() == null: "unexpected failure while replicating translog entry: " + result.getFailure();
-            ExceptionsHelper.reThrowIfNotNull(result.getFailure());
-        }
-        // update stats only after all operations completed (to ensure that mapping updates don't mess with stats)
-        translog.incrementRecoveredOperations(operations.size());
-        indexShard().sync();
-        // roll over / flush / trim if needed
-        indexShard().afterWriteOperation();
-        return indexShard().getLocalCheckpoint();
+            /*
+             * The maxSeenAutoIdTimestampOnPrimary received from the primary is at least the highest auto_id_timestamp from any operation
+             * will be replayed. Bootstrapping this timestamp here will disable the optimization for original append-only requests
+             * (source of these operations) replicated via replication. Without this step, we may have duplicate documents if we
+             * replay these operations first (without timestamp), then optimize append-only requests (with timestamp).
+             */
+            indexShard().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampOnPrimary);
+            /*
+             * Bootstrap the max_seq_no_of_updates from the primary to make sure that the max_seq_no_of_updates on this replica when
+             * replaying any of these operations will be at least the max_seq_no_of_updates on the primary when that op was executed on.
+             */
+            indexShard().advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfDeletesOrUpdatesOnPrimary);
+            /*
+             * We have to update the retention leases before we start applying translog operations to ensure we are retaining according to
+             * the policy.
+             */
+            indexShard().updateRetentionLeasesOnReplica(retentionLeases);
+            for (Translog.Operation operation : operations) {
+                Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
+                if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+                    throw new MapperException("mapping updates are not allowed [" + operation + "]");
+                }
+                assert result.getFailure() == null : "unexpected failure while replicating translog entry: " + result.getFailure();
+                ExceptionsHelper.reThrowIfNotNull(result.getFailure());
+            }
+            // update stats only after all operations completed (to ensure that mapping updates don't mess with stats)
+            translog.incrementRecoveredOperations(operations.size());
+            indexShard().sync();
+            // roll over / flush / trim if needed
+            indexShard().afterWriteOperation();
+            return indexShard().getLocalCheckpoint();
+        });
     }
 
     @Override
@@ -487,12 +511,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         }
     }
 
-    @Override
-    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
-                               boolean lastChunk, int totalTranslogOps) throws IOException {
+    private void innerWriteFileChunk(StoreFileMetaData fileMetaData, long position,
+                                     BytesReference content, boolean lastChunk) throws IOException {
         final Store store = store();
         final String name = fileMetaData.name();
-        state().getTranslog().totalOperations(totalTranslogOps);
         final RecoveryState.Index indexState = state().getIndex();
         IndexOutput indexOutput;
         if (position == 0) {
@@ -500,6 +522,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         } else {
             indexOutput = getOpenIndexOutput(name);
         }
+        assert indexOutput.getFilePointer() == position : "file-pointer " + indexOutput.getFilePointer() + " != " + position;
         BytesRefIterator iterator = content.iterator();
         BytesRef scratch;
         while((scratch = iterator.next()) != null) { // we iterate over all pages - this is a 0-copy for all core impls
@@ -519,6 +542,64 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             store.directory().sync(Collections.singleton(temporaryFileName));
             IndexOutput remove = removeOpenIndexOutputs(name);
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished
+        }
+    }
+
+    @Override
+    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                               boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
+        try {
+            state().getTranslog().totalOperations(totalTranslogOps);
+            final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetaData.name(), name -> new FileChunkWriter());
+            writer.writeChunk(new FileChunk(fileMetaData, content, position, lastChunk));
+            listener.onResponse(null);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static final class FileChunk {
+        final StoreFileMetaData md;
+        final BytesReference content;
+        final long position;
+        final boolean lastChunk;
+        FileChunk(StoreFileMetaData md, BytesReference content, long position, boolean lastChunk) {
+            this.md = md;
+            this.content = content;
+            this.position = position;
+            this.lastChunk = lastChunk;
+        }
+    }
+
+    private final class FileChunkWriter {
+        // chunks can be delivered out of order, we need to buffer chunks if there's a gap between them.
+        final PriorityQueue<FileChunk> pendingChunks = new PriorityQueue<>(Comparator.comparing(fc -> fc.position));
+        long lastPosition = 0;
+
+        void writeChunk(FileChunk newChunk) throws IOException {
+            synchronized (this) {
+                pendingChunks.add(newChunk);
+            }
+            while (true) {
+                final FileChunk chunk;
+                synchronized (this) {
+                    chunk = pendingChunks.peek();
+                    if (chunk == null || chunk.position != lastPosition) {
+                        return;
+                    }
+                    pendingChunks.remove();
+                }
+                innerWriteFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
+                synchronized (this) {
+                    assert lastPosition == chunk.position : "last_position " + lastPosition + " != chunk_position " + chunk.position;
+                    lastPosition += chunk.content.length();
+                    if (chunk.lastChunk) {
+                        assert pendingChunks.isEmpty() == true : "still have pending chunks [" + pendingChunks + "]";
+                        fileChunkWriters.remove(chunk.md.name());
+                        assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
+                    }
+                }
+            }
         }
     }
 

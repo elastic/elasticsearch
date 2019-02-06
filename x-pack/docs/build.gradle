@@ -13,7 +13,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/security/authentication/user-cache.asciidoc',
         'en/security/authorization/run-as-privilege.asciidoc',
         'en/security/tribe-clients-integrations/http.asciidoc',
-        'en/security/authorization/custom-roles-provider.asciidoc',
         'en/rest-api/watcher/stats.asciidoc',
         'en/watcher/example-watches/watching-time-series-data.asciidoc',
 ]
@@ -73,6 +72,7 @@ project.copyRestSpec.from(xpackResources) {
 }
 integTestCluster {
     setting 'xpack.security.enabled', 'true'
+    setting 'xpack.security.authc.api_key.enabled', 'true'
     setting 'xpack.security.authc.token.enabled', 'true'
     // Disable monitoring exporters for the docs tests
     setting 'xpack.monitoring.exporters._local.type', 'local'

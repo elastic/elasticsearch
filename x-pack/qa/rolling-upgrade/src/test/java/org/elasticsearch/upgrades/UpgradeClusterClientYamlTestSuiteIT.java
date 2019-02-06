@@ -23,6 +23,7 @@ import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
@@ -33,7 +34,23 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
      */
     @Before
     public void waitForTemplates() throws Exception {
-        XPackRestTestHelper.waitForMlTemplates(client());
+        List<String> templatesToWaitFor = XPackRestTestHelper.ML_POST_V660_TEMPLATES;
+
+        // If upgrading from a version prior to v6.6.0 the set of templates
+        // to wait for is different
+        if (System.getProperty("tests.rest.suite").equals("old_cluster")) {
+            String versionProperty = System.getProperty("tests.upgrade_from_version");
+            if (versionProperty == null) {
+                throw new IllegalStateException("System property 'tests.upgrade_from_version' not set, cannot start tests");
+            }
+
+            Version upgradeFromVersion = Version.fromString(versionProperty);
+            if (upgradeFromVersion.before(Version.V_6_6_0)) {
+                templatesToWaitFor = XPackRestTestHelper.ML_PRE_V660_TEMPLATES;
+            }
+        }
+
+        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }
 
     @AfterClass
@@ -86,7 +103,6 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
                 // we increase the timeout here to 90 seconds to handle long waits for a green
                 // cluster health. the waits for green need to be longer than a minute to
                 // account for delayed shards
-                .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "90s")
                 .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
                 .build();
     }

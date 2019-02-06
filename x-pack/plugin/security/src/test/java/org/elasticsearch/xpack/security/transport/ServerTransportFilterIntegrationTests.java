@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
@@ -67,7 +68,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         settingsBuilder.put(super.nodeSettings(nodeOrdinal))
             .putList("transport.profiles.client.xpack.security.ssl.certificate_authorities",
-                Arrays.asList(certPath.toString())) // settings for client truststore
+                Collections.singletonList(certPath.toString())) // settings for client truststore
             .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
             .put("transport.profiles.client.xpack.security.type", "client")
             .put("transport.profiles.client.port", randomClientPortRange)
@@ -104,6 +105,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                         internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
                 .put("xpack.security.enabled", true)
                 .put("xpack.security.audit.enabled", false)
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put("path.home", home)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
@@ -115,7 +117,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
             "testnode",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+            Collections.singletonList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         try (Node node = new MockNode(nodeSettings.build(), Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class))) {
             node.start();
             ensureStableCluster(cluster().size() + 1);
@@ -146,6 +148,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                         internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
                 .put("xpack.security.enabled", true)
                 .put("xpack.security.audit.enabled", false)
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put("discovery.initial_state_timeout", "0s")
@@ -158,7 +161,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
             "testnode",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+            Collections.singletonList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         try (Node node = new MockNode(nodeSettings.build(), Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class))) {
             node.start();
             TransportService instance = node.injector().getInstance(TransportService.class);

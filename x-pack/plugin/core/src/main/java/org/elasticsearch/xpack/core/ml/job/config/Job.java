@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
@@ -142,6 +143,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     private final Date createTime;
     private final Date finishedTime;
     private final Date lastDataTime;
+    // TODO: Remove in 7.0
     private final Long establishedModelMemory;
     private final AnalysisConfig analysisConfig;
     private final AnalysisLimits analysisLimits;
@@ -195,7 +197,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             jobVersion = null;
         }
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            groups = Collections.unmodifiableList(in.readList(StreamInput::readString));
+            groups = Collections.unmodifiableList(in.readStringList());
         } else {
             groups = Collections.emptyList();
         }
@@ -224,6 +226,25 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     }
 
     /**
+     * Get the persisted job document name from the Job Id.
+     * Throws if {@code jobId} is not a valid job Id.
+     *
+     * @param jobId The job id
+     * @return The id of document the job is persisted in
+     */
+    public static String documentId(String jobId) {
+        if (!MlStrings.isValidId(jobId)) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), jobId));
+        }
+        if (!MlStrings.hasValidLengthForId(jobId)) {
+            throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
+        }
+
+        return ANOMALY_DETECTOR_JOB_TYPE + "-" + jobId;
+    }
+
+
+    /**
      * Return the Job Id.
      *
      * @return The job Id string
@@ -245,18 +266,24 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     }
 
     /**
-     * The name of the index storing the job's results and state.
-     * This defaults to {@link #getId()} if a specific index name is not set.
-     * @return The job's index name
+     * A good starting name for the index storing the job's results.
+     * This defaults to the shared results index if a specific index name is not set.
+     * This method must <em>only</em> be used during initial job creation.
+     * After that the read/write aliases must always be used to access the job's
+     * results index, as the underlying index may roll or be reindexed.
+     * @return The job's initial results index name
      */
-    public String getResultsIndexName() {
+    public String getInitialResultsIndexName() {
         return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + resultsIndexName;
     }
 
     /**
-     * Private version of getResultsIndexName so that a job can be built from another
-     * job and pass index name validation
-     * @return The job's index name, minus prefix
+     * Get the unmodified <code>results_index_name</code> field from the job.
+     * This is provided to allow a job to be copied via the builder.
+     * After creation this does not necessarily reflect the actual concrete
+     * index used by the job.  A job's results must always be read and written
+     * using the read and write aliases.
+     * @return The job's configured "index name"
      */
     private String getResultsIndexNameNoPrefix() {
         return resultsIndexName;
@@ -420,11 +447,18 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
      * program code and stack.
      * @return an estimate of the memory requirement of this job, in bytes
      */
+    // TODO: remove this method in 7.0
     public long estimateMemoryFootprint() {
         if (establishedModelMemory != null && establishedModelMemory > 0) {
             return establishedModelMemory + PROCESS_MEMORY_OVERHEAD.getBytes();
         }
-        return ByteSizeUnit.MB.toBytes(analysisLimits.getModelMemoryLimit()) + PROCESS_MEMORY_OVERHEAD.getBytes();
+        // Pre v6.1 jobs may have a null analysis limits object or
+        // a null model memory limit
+        long modelMemoryLimit = AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB;
+        if (analysisLimits != null && analysisLimits.getModelMemoryLimit() != null) {
+            modelMemoryLimit = analysisLimits.getModelMemoryLimit();
+        }
+        return ByteSizeUnit.MB.toBytes(modelMemoryLimit) + PROCESS_MEMORY_OVERHEAD.getBytes();
     }
 
     /**
@@ -457,7 +491,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             }
         }
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeStringList(groups);
+            out.writeStringCollection(groups);
         }
         out.writeOptionalString(description);
         out.writeVLong(createTime.getTime());
@@ -639,6 +673,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private Date createTime;
         private Date finishedTime;
         private Date lastDataTime;
+        // TODO: remove in 7.0
         private Long establishedModelMemory;
         private ModelPlotConfig modelPlotConfig;
         private Long renormalizationWindowDays;
@@ -688,7 +723,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
             }
             if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                groups = in.readList(StreamInput::readString);
+                groups = in.readStringList();
             } else {
                 groups = Collections.emptyList();
             }
@@ -736,6 +771,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         public void setGroups(List<String> groups) {
             this.groups = groups == null ? Collections.emptyList() : groups;
+        }
+
+        public List<String> getGroups() {
+            return groups;
         }
 
         public Builder setCustomSettings(Map<String, Object> customSettings) {
@@ -867,7 +906,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 }
             }
             if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeStringList(groups);
+                out.writeStringCollection(groups);
             }
             out.writeOptionalString(description);
             if (createTime != null) {
@@ -1062,6 +1101,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 if (MlStrings.isValidId(group) == false) {
                     throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_GROUP, group));
                 }
+                if (this.id.equals(group)) {
+                    // cannot have a group name the same as the job id
+                    throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, group));
+                }
             }
         }
 
@@ -1075,10 +1118,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public Job build(Date createTime) {
             setCreateTime(createTime);
             setJobVersion(Version.CURRENT);
-            // TODO: Maybe we _could_ accept a value for this supplied at create time - it would
-            // mean cloned jobs that hadn't been edited much would start with an accurate expected size.
-            // But on the other hand it would mean jobs that were cloned and then completely changed
-            // would start with a size that was completely wrong.
             setEstablishedModelMemory(null);
             return build();
         }

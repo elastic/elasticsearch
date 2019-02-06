@@ -74,6 +74,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     private String type;
 
     private String source;
+    private String origin = "";
 
     private boolean updateAllTypes = false;
     private Index concreteIndex;
@@ -185,6 +186,16 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return source(buildFromSimplifiedDef(type, source));
     }
 
+    public String origin() {
+        return origin;
+    }
+
+    public PutMappingRequest origin(String origin) {
+        // reserve "null" for bwc.
+        this.origin = Objects.requireNonNull(origin);
+        return this;
+    }
+
     /**
      * @param type
      *            the mapping type
@@ -255,7 +266,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * The mapping source definition.
      */
     public PutMappingRequest source(XContentBuilder mappingBuilder) {
-        return source(Strings.toString(mappingBuilder), mappingBuilder.contentType());
+        return source(BytesReference.bytes(mappingBuilder), mappingBuilder.contentType());
     }
 
     /**
@@ -266,7 +277,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return source(Strings.toString(builder), XContentType.JSON);
+            return source(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
@@ -320,6 +331,11 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         }
         updateAllTypes = in.readBoolean();
         concreteIndex = in.readOptionalWriteable(Index::new);
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+            origin = in.readOptionalString();
+        } else {
+            origin = null;
+        }
     }
 
     @Override
@@ -331,6 +347,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeString(source);
         out.writeBoolean(updateAllTypes);
         out.writeOptionalWriteable(concreteIndex);
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+            out.writeOptionalString(origin);
+        }
     }
 
     @Override

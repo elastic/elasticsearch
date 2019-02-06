@@ -24,9 +24,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.util.Objects;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * This request class contains the data needed to create a watch along with the name of the watch.
@@ -42,6 +46,9 @@ public final class PutWatchRequest implements Validatable {
     private final XContentType xContentType;
     private boolean active = true;
     private long version = Versions.MATCH_ANY;
+    private long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+    private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
+
 
     public PutWatchRequest(String id, BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(id, "watch id is missing");
@@ -97,6 +104,56 @@ public final class PutWatchRequest implements Validatable {
     public void setVersion(long version) {
         this.version = version;
     }
+
+    /**
+     * only performs this put request if the watch's last modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the watch's last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public PutWatchRequest setIfSeqNo(long seqNo) {
+        if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+        }
+        ifSeqNo = seqNo;
+        return this;
+    }
+
+    /**
+     * only performs this put request if the watch's last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the watch last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public PutWatchRequest setIfPrimaryTerm(long term) {
+        if (term < 0) {
+            throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
+        }
+        ifPrimaryTerm = term;
+        return this;
+    }
+
+    /**
+     * If set, only perform this put watch request if the watch's last modification was assigned this sequence number.
+     * If the watch last last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long ifSeqNo() {
+        return ifSeqNo;
+    }
+
+    /**
+     * If set, only perform this put watch request if the watch's last modification was assigned this primary term.
+     *
+     * If the watch's last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long ifPrimaryTerm() {
+        return ifPrimaryTerm;
+    }
+
 
     public static boolean isValidId(String id) {
         return Strings.isEmpty(id) == false && NO_WS_PATTERN.matcher(id).matches();

@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -52,9 +53,11 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -932,10 +935,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
             client().performRequest(createIndex);
         } else {
+            ensureGreenLongWait(index);
+
             Request statsRequest = new Request("GET", index + "/_stats");
             statsRequest.addParameter("level", "shards");
             Response response = client().performRequest(statsRequest);
             List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
+            assertThat(shardStats, notNullValue());
+            assertThat("Expected stats for 2 shards", shardStats, hasSize(2));
             String globalHistoryUUID = null;
             for (Object shard : shardStats) {
                 final String nodeId = ObjectPath.evaluate(shard, "routing.node");
@@ -1000,6 +1007,115 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         } else {
             int liveDocs = Integer.parseInt(loadInfoDocument("doc_count"));
             assertTotalHits(liveDocs, entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
+        }
+    }
+
+    public void testIncludeTypeNameOnMultiTypesIndices() throws IOException {
+        assumeTrue("This test only makes sense if the old cluster runs a version that supports types",
+                getOldClusterVersion().before(Version.V_6_0_0));
+        if (isRunningAgainstOldCluster()) {
+            String mapping = Strings.toString(JsonXContent.contentBuilder()
+                    .startObject()
+                        .startObject("mappings")
+                            .startObject("type1")
+                                .startObject("properties")
+                                    .startObject("foo")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                            .startObject("type2")
+                                .startObject("properties")
+                                    .startObject("foo")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject());
+            Request createIndexRequest = new Request("PUT", "/" + index);
+            createIndexRequest.setJsonEntity(mapping);
+            client().performRequest(createIndexRequest);
+        } else {
+            // GET mappings
+            Request getMappingsRequest = new Request("GET", index + "/_mappings");
+            getMappingsRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "false");
+            ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(getMappingsRequest));
+            assertThat(EntityUtils.toString(ex.getResponse().getEntity()), Matchers.containsString("has multiple mappings"));
+            
+            // PUT mappings
+            Request putMappingsRequest = new Request("PUT", index + "/_mappings");
+            putMappingsRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "false");
+            String mapping = Strings.toString(JsonXContent.contentBuilder()
+                    .startObject()
+                        .startObject("properties")
+                            .startObject("bar")
+                                .field("type", "long")
+                            .endObject()
+                        .endObject()
+                    .endObject());
+            putMappingsRequest.setJsonEntity(mapping);
+            client().performRequest(putMappingsRequest);
+
+            Request getMappingsRequest2 = new Request("GET", index + "/_mappings");
+            Response getMappingsResponse = client().performRequest(getMappingsRequest2);
+            String getMappingsResponseAsString = EntityUtils.toString(getMappingsResponse.getEntity());
+            // we introduced a _doc mapping
+            assertThat(getMappingsResponseAsString, Matchers.containsString("\"_doc\":{"));
+        }
+    }
+
+    public void testIncludeTypeNameOnSingleTypeIndices() throws IOException {
+        if (isRunningAgainstOldCluster()) {
+            String mapping = Strings.toString(JsonXContent.contentBuilder()
+                    .startObject()
+                        .startObject("mappings")
+                            .startObject("my_type")
+                                .startObject("properties")
+                                    .startObject("foo")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject());
+            Request request = new Request("PUT", "/" + index);
+            request.setJsonEntity(mapping);
+            client().performRequest(request);
+        } else {
+            // PUT mappings
+            Request putMappingsRequest = new Request("PUT", index + "/_mappings");
+            putMappingsRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "false");
+            String mapping = Strings.toString(JsonXContent.contentBuilder()
+                    .startObject()
+                        .startObject("properties")
+                            .startObject("bar")
+                                .field("type", "long")
+                            .endObject()
+                        .endObject()
+                    .endObject());
+            putMappingsRequest.setJsonEntity(mapping);
+            client().performRequest(putMappingsRequest);
+
+            // GET mappings
+            Request getMappingsRequest = new Request("GET", index + "/_mappings");
+            getMappingsRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "false");
+            if (getOldClusterVersion().before(Version.V_6_0_0)) {
+                ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(getMappingsRequest));
+                assertThat(EntityUtils.toString(ex.getResponse().getEntity()), Matchers.containsString("has multiple mappings"));
+                Request getMappingsRequest2 = new Request("GET", index + "/_mappings");
+                Response getMappingsResponse = client().performRequest(getMappingsRequest2);
+                String getMappingsResponseAsString = EntityUtils.toString(getMappingsResponse.getEntity());
+                // we introduced a _doc mapping
+                assertThat(getMappingsResponseAsString, Matchers.containsString("\"_doc\":{"));
+                assertThat(getMappingsResponseAsString, Matchers.containsString("\"my_type\":{"));
+            } else {
+                Response getMappingsResponse = client().performRequest(getMappingsRequest);
+                String getMappingsResponseAsString = EntityUtils.toString(getMappingsResponse.getEntity());
+                assertThat(getMappingsResponseAsString, Matchers.not(Matchers.containsString("my_type"))); // no type name
+                assertThat(getMappingsResponseAsString, Matchers.containsString("\"bar\":{\"type\":\"long\"}")); // new field is here
+                assertThat(getMappingsResponseAsString, Matchers.containsString("\"foo\":{\"type\":\"keyword\"}")); // old field is here too
+            }
         }
     }
 

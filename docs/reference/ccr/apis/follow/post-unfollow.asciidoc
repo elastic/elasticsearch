@@ -27,7 +27,7 @@ irreversible operation.
 
 [source,js]
 --------------------------------------------------
-PUT /follower_index/_ccr/follow
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "remote_cluster",
   "leader_index" : "leader_index"
@@ -50,7 +50,7 @@ POST /<follower_index>/_ccr/unfollow
 // CONSOLE
 // TEST[s/<follower_index>/follower_index/]
 
-==== Path Parmeters
+==== Path Parameters
 
 `follower_index` (required)::
   (string) the name of the follower index

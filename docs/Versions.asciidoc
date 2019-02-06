@@ -1,8 +1,8 @@
-:version:               6.6.0
-:major-version:         6.x
-:lucene_version:        7.6.0
-:lucene_version_path:   7_6_0
-:branch:                6.x
+:version:               6.7.0
+:major-version:         6.7
+:lucene_version:        7.7.0
+:lucene_version_path:   7_7_0
+:branch:                6.7
 :jdk:                   1.8.0_131
 :jdk_major:             8
 :build_flavor:          default

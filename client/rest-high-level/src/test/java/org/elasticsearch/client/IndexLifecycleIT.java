@@ -48,6 +48,7 @@ import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
+import org.elasticsearch.client.indexlifecycle.UnfollowAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.hamcrest.Matchers;
@@ -144,19 +145,20 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
     public void testExplainLifecycle() throws Exception {
         Map<String, Phase> lifecyclePhases = new HashMap<>();
-        Map<String, LifecycleAction> hotActions = Collections.singletonMap(
-            RolloverAction.NAME,
-            new RolloverAction(null, TimeValue.timeValueHours(50 * 24), null));
+        Map<String, LifecycleAction> hotActions = new HashMap<>();
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, TimeValue.timeValueHours(50 * 24), null));
         Phase hotPhase = new Phase("hot", randomFrom(TimeValue.ZERO, null), hotActions);
         lifecyclePhases.put("hot", hotPhase);
 
         Map<String, LifecycleAction> warmActions = new HashMap<>();
+        warmActions.put(UnfollowAction.NAME, new UnfollowAction());
         warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, null, Collections.singletonMap("_name", "node-1")));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1000));
         lifecyclePhases.put("warm", new Phase("warm", TimeValue.timeValueSeconds(1000), warmActions));
 
         Map<String, LifecycleAction> coldActions = new HashMap<>();
+        coldActions.put(UnfollowAction.NAME, new UnfollowAction());
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null));
         lifecyclePhases.put("cold", new Phase("cold", TimeValue.timeValueSeconds(2000), coldActions));
 
@@ -182,20 +184,15 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         createIndex("squash", Settings.EMPTY);
 
-        ExplainLifecycleRequest req = new ExplainLifecycleRequest("foo-01", "baz-01", "squash");
-        // Occasionally the explain is so fast that the indices have not yet left the "new" phase,
-        // so we assertBusy here in the event that they haven't progressed to the "hot" phase yet.
+        // The injected Unfollow step will run pretty rapidly here, so we need
+        // to wait for it to settle into the "stable" step of waiting to be
+        // ready to roll over
         assertBusy(() -> {
+            ExplainLifecycleRequest req = new ExplainLifecycleRequest("foo-01", "baz-01", "squash");
             ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
                 highLevelClient().indexLifecycle()::explainLifecycleAsync);
             Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();
             assertEquals(3, indexResponses.size());
-
-            IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
-            assertNotNull(squashResponse);
-            assertFalse(squashResponse.managedByILM());
-            assertEquals("squash", squashResponse.getIndex());
-
             IndexLifecycleExplainResponse fooResponse = indexResponses.get("foo-01");
             assertNotNull(fooResponse);
             assertTrue(fooResponse.managedByILM());
@@ -212,6 +209,11 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             assertEquals("hot", bazResponse.getPhase());
             assertEquals("rollover", bazResponse.getAction());
             assertEquals("check-rollover-ready", bazResponse.getStep());
+            IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
+            assertNotNull(squashResponse);
+            assertFalse(squashResponse.managedByILM());
+            assertEquals("squash", squashResponse.getIndex());
+
         });
     }
 

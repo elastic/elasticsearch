@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -53,7 +54,6 @@ import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -88,6 +88,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -99,6 +100,7 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.joda.time.DateTime.now;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -164,7 +166,7 @@ public class ExecutionServiceTests extends ESTestCase {
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
-        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         Condition.Result conditionResult = InternalAlwaysCondition.RESULT_INSTANCE;
         ExecutableCondition condition = mock(ExecutableCondition.class);
@@ -258,7 +260,7 @@ public class ExecutionServiceTests extends ESTestCase {
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
-        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         input = mock(ExecutableInput.class);
         Input.Result inputResult = mock(Input.Result.class);
@@ -327,7 +329,7 @@ public class ExecutionServiceTests extends ESTestCase {
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
-        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         ExecutableCondition condition = mock(ExecutableCondition.class);
         Condition.Result conditionResult = mock(Condition.Result.class);
@@ -392,7 +394,7 @@ public class ExecutionServiceTests extends ESTestCase {
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), now, event, timeValueSeconds(5));
-        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         Condition.Result conditionResult = InternalAlwaysCondition.RESULT_INSTANCE;
         ExecutableCondition condition = mock(ExecutableCondition.class);
@@ -452,7 +454,7 @@ public class ExecutionServiceTests extends ESTestCase {
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
         mockGetWatchResponse(client, "_id", getResponse);
-        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -826,7 +828,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(getResponse.isExists()).thenReturn(true);
         when(getResponse.getId()).thenReturn("foo");
         mockGetWatchResponse(client, "foo", getResponse);
-        when(parser.parseWithSecrets(eq("foo"), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq("foo"), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         // execute needs to fail as well as storing the history
         doThrow(new EsRejectedExecutionException()).when(executor).execute(any());
@@ -959,7 +961,7 @@ public class ExecutionServiceTests extends ESTestCase {
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
         mockGetWatchResponse(client, "_id", getResponse);
-        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq(watch.id()), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         WatchRecord.MessageWatchRecord record = mock(WatchRecord.MessageWatchRecord.class);
         when(record.state()).thenReturn(ExecutionState.EXECUTION_NOT_NEEDED);
@@ -972,7 +974,7 @@ public class ExecutionServiceTests extends ESTestCase {
     public void testUpdateWatchStatusDoesNotUpdateState() throws Exception {
         WatchStatus status = new WatchStatus(DateTime.now(UTC), Collections.emptyMap());
         Watch watch = new Watch("_id", new ManualTrigger(), new ExecutableNoneInput(), InternalAlwaysCondition.INSTANCE, null, null,
-                Collections.emptyList(), null, status, 1L);
+            Collections.emptyList(), null, status, 1L, 1L);
 
         final AtomicBoolean assertionsTriggered = new AtomicBoolean(false);
         doAnswer(invocation -> {
@@ -1137,7 +1139,8 @@ public class ExecutionServiceTests extends ESTestCase {
             if (request.id().equals(id)) {
                 listener.onResponse(response);
             } else {
-                GetResult notFoundResult = new GetResult(request.index(), request.type(), request.id(), -1, false, null, null);
+                GetResult notFoundResult =
+                    new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
                 listener.onResponse(new GetResponse(notFoundResult));
             }
             return null;
@@ -1151,7 +1154,8 @@ public class ExecutionServiceTests extends ESTestCase {
             if (request.id().equals(id)) {
                 listener.onFailure(e);
             } else {
-                GetResult notFoundResult = new GetResult(request.index(), request.type(), request.id(), -1, false, null, null);
+                GetResult notFoundResult =
+                    new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
                 listener.onResponse(new GetResponse(notFoundResult));
             }
             return null;

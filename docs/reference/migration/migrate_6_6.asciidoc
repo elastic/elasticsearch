@@ -7,9 +7,34 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 6.6.
 
+* <<breaking_66_api_changes>>
+* <<breaking_66_mapping_changes>>
 * <<breaking_66_search_changes>>
+* <<breaking_66_setting_changes>>
 
 See also <<release-highlights>> and <<es-release-notes>>.
+
+[float]
+[[breaking_66_api_changes]]
+=== API changes
+
+[float]
+==== Machine learning API changes
+
+The get jobs API and get job stats API can retrieve a maximum of 10,000 jobs.
+Likewise, the get datafeeds API and get datafeed stats API can retrieve a
+maximum of 10,000 datafeeds. Prior to version 6.6, there were no limits on the
+results from these APIs. 
+
+[float]
+==== {watcher} API changes
+
+If you used the `metric` parameter with the
+{ref}/watcher-api-stats.html[stats API], the response contained incorrect labels,
+which are fixed in 6.6 and later releases. If you choose to retrieve
+`queued_watches` metrics, it now returns a `queued_watches` list instead of a  `current_watches` list. Likewise, if you retrieve `pending_watches` metrics, it
+returns a `current_watches` list instead of a `queued_watches` list. The
+`pending_watches` metric is deprecated; use `current_watches` instead.
 
 [float]
 [[breaking_66_search_changes]]
@@ -79,3 +104,63 @@ GET /stackoverflow/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:stackoverflow]
+
+[float]
+[[breaking_66_setting_changes]]
+=== Settings changes
+
+[float]
+[[watcher-notifications-account-settings]]
+==== Watcher notifications account settings
+
+The following settings have been deprecated and the secure variants should
+be used instead. The <<secure-settings, secure settings>> have to be defined
+inside each cluster node's keystore, i.e., they are not to be specified via
+the cluster settings API.
+
+- `xpack.notification.email.account.<id>.smtp.password`, instead use
+`xpack.notification.email.account.<id>.smtp.secure_password`
+- `xpack.notification.hipchat.account.<id>.auth_token`, instead use
+`xpack.notification.hipchat.account.<id>.secure_auth_token`
+- `xpack.notification.jira.account.<id>.url`, instead use
+`xpack.notification.jira.account.<id>.secure_url`
+- `xpack.notification.jira.account.<id>.user`, instead use
+`xpack.notification.jira.account.<id>.secure_user`
+- `xpack.notification.jira.account.<id>.password`, instead use
+`xpack.notification.jira.account.<id>.secure_password`
+- `xpack.notification.pagerduty.account.<id>.service_api_key`, instead use
+`xpack.notification.pagerduty.account.<id>.secure_service_api_key`
+- `xpack.notification.slack.account.<id>.url`, instead use
+`xpack.notification.slack.account.<id>.secure_url`
+
+[float]
+[[breaking_66_mapping_changes]]
+=== Mappings changes
+
+[float]
+==== Changed default `geo_shape` indexing strategy
+
+`geo_shape` types now default to using a vector indexing approach based on Lucene's new
+`LatLonShape` field type. This indexes shapes as a triangular mesh instead of decomposing
+them into individual grid cells. To index using legacy prefix trees the `tree` parameter
+must be explicitly set to one of `quadtree` or `geohash`. Note that these strategies are
+now deprecated and will be removed in a future version.
+
+The impact of changing the default indexing strategy is as follows:
+
+* `CONTAINS` queries are not yet supported
+* `geo_shape` query does not support querying by `MULTIPOINT` type
+* `LINESTRING` and `MULTILINESTRING` queries do not yet support `WITHIN` relations
+
+*IMPORTANT NOTE*: If you are using any of the features listed above, newly created indexes
+with default `geo_shape` type (e.g., templates) might no longer work. It is recommended
+to update the `geo_shape` field mapping to explicitly define the `tree` parameter to one of
+`geohash` or `quadtree`. This will ensure newly created indexes are feature compatible with
+previously created indexes.
+
+[float]
+==== deprecated `geo_shape` parameters
+
+The following type parameters are deprecated for the `geo_shape` field type: `tree`,
+`precision`, `tree_levels`, `distance_error_pct`, `points_only`, and `strategy`. They
+will be removed in a future version.

@@ -297,6 +297,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.containsKey(clusterName);
     }
 
+    /**
+     * Returns the registered remote cluster names.
+     */
+    public Set<String> getRegisteredRemoteClusterNames() {
+        // remoteClusters is unmodifiable so its key set will be unmodifiable too
+        return remoteClusters.keySet();
+    }
+
     public void collectSearchShards(IndicesOptions indicesOptions, String preference, String routing,
                                     Map<String, OriginalIndices> remoteIndicesByCluster,
                                     ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
@@ -307,7 +315,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             final String clusterName = entry.getKey();
             RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterName);
             if (remoteClusterConnection == null) {
-                throw new IllegalArgumentException("no such remote cluster: " + clusterName);
+                throw new NoSuchRemoteClusterException(clusterName);
             }
             final String[] indices = entry.getValue().indices();
             ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
@@ -369,7 +377,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {
         RemoteClusterConnection connection = remoteClusters.get(cluster);
         if (connection == null) {
-            throw new IllegalArgumentException("no such remote cluster: " + cluster);
+            throw new NoSuchRemoteClusterException(cluster);
         }
         return connection;
     }
@@ -456,7 +464,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
         for (String cluster : clusters) {
             if (remoteClusters.containsKey(cluster) == false) {
-                listener.onFailure(new IllegalArgumentException("no such remote cluster: [" + cluster + "]"));
+                listener.onFailure(new NoSuchRemoteClusterException(cluster));
                 return;
             }
         }
@@ -497,7 +505,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
-            throw new IllegalArgumentException("unknown cluster alias [" + clusterAlias + "]");
+            throw new NoSuchRemoteClusterException(clusterAlias);
         }
         return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
     }

@@ -54,13 +54,14 @@ public class IndexLifecycleService extends AbstractComponent
     private final PolicyStepsRegistry policyRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
     private final Settings settings;
+    private final ThreadPool threadPool;
     private Client client;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
 
-    public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock, LongSupplier nowSupplier,
-                                 NamedXContentRegistry xContentRegistry) {
+    public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool, Clock clock,
+                                 LongSupplier nowSupplier, NamedXContentRegistry xContentRegistry) {
         this.settings = settings;
         this.client = client;
         this.clusterService = clusterService;
@@ -68,7 +69,8 @@ public class IndexLifecycleService extends AbstractComponent
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
         this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client);
-        this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, nowSupplier);
+        this.threadPool = threadPool;
+        this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, threadPool, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         clusterService.addStateApplier(this);
         clusterService.addListener(this);

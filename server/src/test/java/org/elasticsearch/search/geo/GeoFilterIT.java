@@ -375,6 +375,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject()
                 .startObject("location")
                 .field("type", "geo_shape")
+                .field("ignore_malformed", true)
                 .endObject()
                 .endObject()
                 .endObject()

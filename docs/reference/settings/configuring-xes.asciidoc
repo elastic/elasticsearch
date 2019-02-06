@@ -5,7 +5,7 @@
 <titleabbrev>{xpack} Settings</titleabbrev>
 ++++
 
-include::{asciidoc-dir}/../../shared/settings61.asciidoc[]
+include::{asciidoc-dir}/../../shared/settings.asciidoc[]
 include::license-settings.asciidoc[]
 include::ml-settings.asciidoc[]
 include::notification-settings.asciidoc[]

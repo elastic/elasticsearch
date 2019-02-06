@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.deprecation;
 
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -24,6 +23,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.index.mapper.MapperService.DEFAULT_MAPPING;
 
 /**
  * Index-specific deprecation checks
@@ -91,19 +93,42 @@ public class IndexDeprecationChecks {
         }
         if (issues.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Use of 'delimited_payload_filter'.",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_analysis_changes.html", issues.toString());
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#_literal_delimited_payload_filter_literal_renaming", issues.toString());
         }
         return null;
     }
 
     static DeprecationIssue oldIndicesCheck(IndexMetaData indexMetaData) {
         Version createdWith = indexMetaData.getCreationVersion();
+        boolean hasDefaultMapping = indexMetaData.getMappings().containsKey(DEFAULT_MAPPING);
+        int mappingCount = indexMetaData.getMappings().size();
         if (createdWith.before(Version.V_6_0_0)) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                "Index created before 6.0",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                    "breaking-changes-7.0.html",
-                "this index was created using version: " + createdWith);
+            if (".tasks".equals(indexMetaData.getIndex().getName())) {
+                return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                    ".tasks index must be re-created",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                        "#_indices_created_before_7_0",
+                    "The .tasks index was created before version 6.0 and cannot be opened in 7.0. " +
+                        "You must delete this index and allow it to be re-created by Elasticsearch. If you wish to preserve task history, "+
+                        "reindex this index to a new index before deleting it.");
+            }
+            if ((mappingCount == 2 && !hasDefaultMapping)
+                || mappingCount > 2) {
+                return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                    "Index has more than one mapping type",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html" +
+                        "#_migrating_multi_type_indices_to_single_type",
+                    "This index has more than one mapping type, which is not supported in 7.0. " +
+                        "This index must be reindexed into one or more single-type indices. Mapping types in use: " +
+                        indexMetaData.getMappings().keys());
+            } else {
+                return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                    "Index created before 6.0",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                        "#_indices_created_before_7_0",
+                    "This index was created using version: " + createdWith);
+            }
 
         }
         return null;
@@ -133,7 +158,38 @@ public class IndexDeprecationChecks {
         }
         return null;
     }
-	
+
+    static DeprecationIssue classicSimilarityMappingCheck(IndexMetaData indexMetaData) {
+        List<String> issues = new ArrayList<>();
+        fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> issues.addAll(
+            findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
+                property -> "classic".equals(property.get("similarity"))))));
+        if (issues.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Classic similarity has been removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#_the_literal_classic_literal_similarity_has_been_removed",
+                "Fields which use classic similarity: " + issues.toString());
+        }
+        return null;
+    }
+
+    static DeprecationIssue classicSimilaritySettingsCheck(IndexMetaData indexMetaData) {
+        Map<String, Settings> similarities = indexMetaData.getSettings().getGroups("index.similarity");
+        List<String> classicSimilarities = similarities.entrySet().stream()
+            .filter(entry -> "classic".equals(entry.getValue().get("type")))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+        if (classicSimilarities.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Classic similarity has been removed",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                    "#_the_literal_classic_literal_similarity_has_been_removed",
+                "Custom similarities defined using classic similarity: " + classicSimilarities.toString());
+        }
+        return null;
+    }
+
 	 static DeprecationIssue nodeLeftDelayedTimeCheck(IndexMetaData indexMetaData) {
         String setting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey();
         String value = indexMetaData.getSettings().get(setting);
@@ -150,7 +206,7 @@ public class IndexDeprecationChecks {
         }
         return null;
     }
-	
+
 	static DeprecationIssue shardOnStartupCheck(IndexMetaData indexMetaData) {
         String setting = IndexSettings.INDEX_CHECK_ON_STARTUP.getKey();
         String value = indexMetaData.getSettings().get(setting);

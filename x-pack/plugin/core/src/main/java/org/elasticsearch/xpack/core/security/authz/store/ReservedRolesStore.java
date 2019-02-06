@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.authz.store;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -32,7 +33,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor("superuser",
             new String[] { "all" },
             new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(true).build()},
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build()
             },
@@ -43,11 +44,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     private static Map<String, RoleDescriptor> initializeReservedRoles() {
         return MapBuilder.<String, RoleDescriptor>newMapBuilder()
-                .put("superuser", new RoleDescriptor("superuser", new String[] { "all" },
-                        new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
-                        new String[] { "*" },
-                        MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("superuser", SUPERUSER_ROLE_DESCRIPTOR)
                 .put("transport_client", new RoleDescriptor("transport_client", new String[] { "transport_client" }, null, null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("kibana_user", new RoleDescriptor("kibana_user", null, new RoleDescriptor.IndicesPrivileges[] {
@@ -58,7 +55,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         null, null,
                         MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .put("monitoring_user", new RoleDescriptor("monitoring_user",
-                        new String[] { "cluster:monitor/main" },
+                        new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info" },
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .indices(".monitoring-*").privileges("read", "read_cross_cluster").build()
@@ -82,8 +79,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             "monitor"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
-                            RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("monitor").build(),
-                            RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("read").build()
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("*").privileges("monitor").allowRestrictedIndices(true).build(),
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices(".kibana*").privileges("read").build()
                         },
                         null,
                         null,
@@ -136,13 +135,22 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put(UsernamesField.APM_ROLE, new RoleDescriptor(UsernamesField.APM_ROLE,
                         new String[] { "monitor", MonitoringBulkAction.NAME}, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("machine_learning_user", new RoleDescriptor("machine_learning_user", new String[] { "monitor_ml" },
-                        new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*",
-                                ".ml-notifications").privileges("view_index_metadata", "read").build() },
+                        new RoleDescriptor.IndicesPrivileges[] {
+                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*", ".ml-notifications*")
+                                        .privileges("view_index_metadata", "read").build(),
+                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
+                                        .privileges("view_index_metadata", "read", "write").build()
+                        },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("machine_learning_admin", new RoleDescriptor("machine_learning_admin", new String[] { "manage_ml" },
                         new RoleDescriptor.IndicesPrivileges[] {
-                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-*").privileges("view_index_metadata", "read")
-                                        .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices(".ml-anomalies*", ".ml-notifications*", ".ml-state*", ".ml-meta*")
+                                        .privileges("view_index_metadata", "read").build(),
+                                RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
+                                        .privileges("view_index_metadata", "read", "write").build()
+                        },
+                        null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("watcher_admin", new RoleDescriptor("watcher_admin", new String[] { "manage_watcher" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME,
@@ -164,6 +172,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("rollup_admin", new RoleDescriptor("rollup_admin", new String[] { "manage_rollup" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("snapshot_user", new RoleDescriptor("snapshot_user", new String[] { "create_snapshot", GetRepositoriesAction.NAME },
+                        new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("*")
+                                .privileges("view_index_metadata")
+                                .allowRestrictedIndices(true)
+                                .build() }, null, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .immutableMap();
     }
 

@@ -19,6 +19,7 @@ public class RestGetBasicStatus extends XPackRestHandler {
     RestGetBasicStatus(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, URI_BASE + "/license/basic_status", this);
+        controller.registerHandler(GET, "/_license/basic_status", this);
     }
 
     @Override

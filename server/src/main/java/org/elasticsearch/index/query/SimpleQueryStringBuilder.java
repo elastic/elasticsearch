@@ -163,6 +163,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         for (int i = 0; i < size; i++) {
             String field = in.readString();
             Float weight = in.readFloat();
+            checkNegativeBoost(weight);
             fields.put(field, weight);
         }
         fieldsAndWeights.putAll(fields);
@@ -258,6 +259,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (Strings.isEmpty(field)) {
             throw new IllegalArgumentException("supplied field is null or empty");
         }
+        checkNegativeBoost(boost);
         this.fieldsAndWeights.put(field, boost);
         return this;
     }
@@ -265,6 +267,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Add several fields to run the query against with a specific boost. */
     public SimpleQueryStringBuilder fields(Map<String, Float> fields) {
         Objects.requireNonNull(fields, "fields cannot be null");
+        for (float fieldBoost : fields.values()) {
+            checkNegativeBoost(fieldBoost);
+        }
         this.fieldsAndWeights.putAll(fields);
         return this;
     }

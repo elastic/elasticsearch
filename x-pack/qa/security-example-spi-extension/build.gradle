@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
   name 'spi-extension'
-  description 'An example spi extension pluing for xpack security'
+  description 'An example spi extension plugin for security'
   classname 'org.elasticsearch.example.SpiExtensionPlugin'
   extendedPlugins = ['x-pack-security']
 }

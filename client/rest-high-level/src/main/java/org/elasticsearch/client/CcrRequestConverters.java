@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.ccr.CcrStatsRequest;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.FollowStatsRequest;
@@ -46,6 +47,8 @@ final class CcrRequestConverters {
             .addPathPartAsIs("_ccr", "follow")
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        parameters.withWaitForActiveShards(putFollowRequest.waitForActiveShards(), ActiveShardCount.NONE);
         request.setEntity(createEntity(putFollowRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }

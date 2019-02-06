@@ -16,6 +16,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.index.VersionType;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
@@ -56,14 +58,10 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     private void preFlight(final Operation operation) {
-        /*
-         * We assert here so that this goes uncaught in unit tests and fails nodes in standalone tests (we want a harsh failure so that we
-         * do not have a situation where a shard fails and is recovered elsewhere and a test subsequently passes). We throw an exception so
-         * that we also prevent issues in production code.
-         */
-        assert operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
+        assert FollowingEngineAssertions.preFlight(operation);
         if (operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            throw new IllegalStateException("a following engine does not accept operations without an assigned sequence number");
+            throw new ElasticsearchStatusException("a following engine does not accept operations without an assigned sequence number",
+                RestStatus.FORBIDDEN);
         }
     }
 
@@ -74,6 +72,9 @@ public final class FollowingEngine extends InternalEngine {
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
         assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         if (hasBeenProcessedBefore(index)) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("index operation [id={} seq_no={} origin={}] was processed before", index.id(), index.seqNo(), index.origin());
+            }
             if (index.origin() == Operation.Origin.PRIMARY) {
                 /*
                  * The existing operation in this engine was probably assigned the term of the previous primary shard which is different
@@ -131,8 +132,7 @@ public final class FollowingEngine extends InternalEngine {
 
     @Override
     protected boolean assertPrimaryIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
-        // sequence number should be set when operation origin is primary
-        assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations on a following index must have an assigned sequence number";
+        assert FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(origin, seqNo);
         return true;
     }
 

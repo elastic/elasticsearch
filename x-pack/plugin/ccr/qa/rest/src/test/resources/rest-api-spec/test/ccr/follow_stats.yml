@@ -37,12 +37,19 @@
   - do:
       ccr.follow:
         index: bar
+        wait_for_active_shards: 1
         body:
           remote_cluster: local
           leader_index: foo
   - is_true: follow_index_created
   - is_true: follow_index_shards_acked
   - is_true: index_following_started
+
+  - do:
+      ccr.follow_stats:
+        index: _all
+  - length: { indices: 1 }
+  - match: { indices.0.index: "bar" }
 
   # we can not reliably wait for replication to occur so we test the endpoint without indexing any documents
   - do:
@@ -78,3 +85,7 @@
         index: bar
   - is_true: acknowledged
 
+  - do:
+      catch: missing
+      ccr.follow_stats:
+        index: unknown

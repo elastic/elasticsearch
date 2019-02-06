@@ -35,7 +35,8 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(settings.filter(k -> k.startsWith("xpack.ssl.") == false), false);
+        settingsBuilder.put(settings.filter(
+            k -> k.startsWith("xpack.security.transport.ssl.") == false || k.equals("xpack.security.transport.ssl.enabled")), false);
         Path keyPath;
         Path certPath;
         Path nodeCertPath;
@@ -89,7 +90,8 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
         Settings settings = super.transportClientSettings();
         // remove all ssl settings
         Settings.Builder builder = Settings.builder();
-        builder.put(settings.filter( k -> k.startsWith("xpack.ssl.") == false), false);
+        builder.put(settings.filter(
+            k -> k.startsWith("xpack.security.transport.ssl.") == false || k.equals("xpack.security.transport.ssl.enabled")), false);
 
         builder.put("xpack.ssl.verification_mode", "certificate")
             .put("xpack.ssl.key", keyPath.toAbsolutePath())

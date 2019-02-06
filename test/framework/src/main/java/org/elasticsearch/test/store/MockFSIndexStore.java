@@ -87,7 +87,7 @@ public class MockFSIndexStore extends IndexStore {
     }
 
     public DirectoryService newDirectoryService(ShardPath path) {
-        return new MockFSDirectoryService(indexSettings, this, path);
+        return new MockFSDirectoryService(indexSettings, path);
     }
 
     private static final EnumSet<IndexShardState> validCheckIndexStates = EnumSet.of(

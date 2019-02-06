@@ -3,12 +3,11 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.Version
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.Paths
 import java.util.regex.Matcher
 
 // Apply the java plugin to this project so the sources can be edited in an IDE
 apply plugin: 'elasticsearch.build'
-test.enabled = false
+unitTest.enabled = false
 
 dependencies {
     // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
@@ -89,6 +88,10 @@ licenseHeaders {
 forbiddenPatterns {
     exclude '**/system_key'
 }
+
+// tests are pushed down to subprojects
+testingConventions.enabled = false 
+
 /**
  * Subdirectories of this project are test rolling upgrades with various
  * configuration options based on their name.
@@ -174,8 +177,8 @@ subprojects {
 
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.transport.ssl.enabled', version.onOrAfter("5.2.0").toString()
-      setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      setting 'xpack.ssl.keystore.password', 'testnode'
+      setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+      setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
       if (version.onOrAfter('6.3.0')) {
         setting 'xpack.license.self_generated.type', 'trial'
       }
@@ -226,8 +229,8 @@ subprojects {
       // some tests rely on the translog not being flushed
       setting 'indices.memory.shard_inactive_time', '20m'
       setting 'xpack.security.enabled', 'true'
-      setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
+      setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+      keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'testnode'
       setting 'xpack.license.self_generated.type', 'trial'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
@@ -255,8 +258,8 @@ subprojects {
       bwcTest.dependsOn(versionBwcTest)
     }
   }
-
-  test.enabled = false // no unit tests for full cluster restarts, only the rest integration test
+    
+  unitTest.enabled = false // no unit tests for full cluster restarts, only the rest integration test
 
   // basic integ tests includes testing bwc against the most recent version
   task integTest {

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-calendar-event]]
-=== Delete Events from Calendar API
+=== Delete events from calendar API
 ++++
-<titleabbrev>Delete Events from Calendar</titleabbrev>
+<titleabbrev>Delete events from calendar</titleabbrev>
 ++++
 
 Deletes scheduled events from a calendar.

@@ -35,6 +35,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -43,7 +44,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -77,6 +80,18 @@ public final class EngineConfig {
     @Nullable
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
+    private final Supplier<RetentionLeases> retentionLeasesSupplier;
+
+    /**
+     * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
+     * soft deleted should be retained.
+     *
+     * @return a supplier of outstanding retention leases
+     */
+    public Supplier<RetentionLeases> retentionLeasesSupplier() {
+        return retentionLeasesSupplier;
+    }
+
     private final LongSupplier primaryTermSupplier;
     private final TombstoneDocSupplier tombstoneDocSupplier;
 
@@ -125,7 +140,9 @@ public final class EngineConfig {
                         List<ReferenceManager.RefreshListener> externalRefreshListener,
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
                         CircuitBreakerService circuitBreakerService, LongSupplier globalCheckpointSupplier,
-                        LongSupplier primaryTermSupplier, TombstoneDocSupplier tombstoneDocSupplier) {
+                        Supplier<RetentionLeases> retentionLeasesSupplier,
+                        LongSupplier primaryTermSupplier,
+                        TombstoneDocSupplier tombstoneDocSupplier) {
         this.shardId = shardId;
         this.allocationId = allocationId;
         this.indexSettings = indexSettings;
@@ -161,6 +178,7 @@ public final class EngineConfig {
         this.indexSort = indexSort;
         this.circuitBreakerService = circuitBreakerService;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.primaryTermSupplier = primaryTermSupplier;
         this.tombstoneDocSupplier = tombstoneDocSupplier;
     }

@@ -5,7 +5,7 @@
 To protect the user credentials that are sent for authentication in an LDAP 
 realm, it's highly recommended to encrypt communications between {es} and your 
 LDAP server. Connecting via SSL/TLS ensures that the identity of the LDAP server 
-is authenticated before {security} transmits the user credentials and the 
+is authenticated before {es} transmits the user credentials and the 
 contents of the connection are encrypted. Clients and nodes that connect via 
 TLS to the LDAP server need to have the LDAP server's certificate or the 
 server's root CA certificate installed in their keystore or truststore. 
@@ -15,7 +15,7 @@ For more information, see <<configuring-ldap-realm>>.
 . Configure the realm's TLS settings on each node to trust certificates signed 
 by the CA that signed your LDAP server certificates. The following example 
 demonstrates how to trust a CA certificate, `cacert.pem`, located within the 
-{xpack} configuration directory:
+{es} configuration directory (ES_PATH_CONF):
 +
 --
 [source,shell]
@@ -45,11 +45,11 @@ protocol and the secure port number. For example, `url: ldaps://ldap.example.com
 
 . Restart {es}.
 
-NOTE: By default, when you configure {security} to connect to an LDAP server
-      using SSL/TLS, {security} attempts to verify the hostname or IP address
+NOTE: By default, when you configure {es} to connect to an LDAP server
+      using SSL/TLS, it attempts to verify the hostname or IP address
       specified with the `url` attribute in the realm configuration with the
       values in the certificate. If the values in the certificate and realm
-      configuration do not match, {security} does not allow a connection to the
+      configuration do not match, {es} does not allow a connection to the
       LDAP server. This is done to protect against man-in-the-middle attacks. If
       necessary, you can disable this behavior by setting the
       `ssl.verification_mode` property to `certificate`.

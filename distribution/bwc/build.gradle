@@ -39,7 +39,6 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
     apply plugin: 'distribution'
     // Not published so no need to assemble
     assemble.enabled = false
-    assemble.dependsOn.remove('buildBwcVersion')
 
     File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
@@ -134,85 +133,90 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
         projectDirs.add("${baseDir}/${project}")
         artifactFiles.add(file("${checkoutDir}/${baseDir}/${project}/build/distributions/elasticsearch-${bwcVersion}-SNAPSHOT.${project}"))
     }
+    
+    Closure createRunBwcGradleTask = { name, extraConfig ->
+        task "$name"(type: Exec) {
+            dependsOn checkoutBwcBranch, writeBuildMetadata
+            workingDir = checkoutDir
+            doFirst {
+                // Execution time so that the checkouts are available
+                List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
+                environment(
+                        'JAVA_HOME',
+                        getJavaHome(it, Integer.parseInt(
+                                lines
+                                        .findAll({ it.startsWith("ES_BUILD_JAVA=java") })
+                                        .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
+                                        .join("!!")
+                        ))
+                )
+                environment(
+                        'RUNTIME_JAVA_HOME',
+                        getJavaHome(it, Integer.parseInt(
+                                lines
+                                        .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
+                                        .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })
+                                        .join("!!")
+                        ))
+                )
+            }
 
-    task buildBwcVersion(type: Exec) {
-        dependsOn checkoutBwcBranch, writeBuildMetadata
-        workingDir = checkoutDir
-        doFirst {
-            // Execution time so that the checkouts are available
-            List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
-            environment(
-                    'JAVA_HOME',
-                    getJavaHome(it, Integer.parseInt(
-                            lines
-                                    .findAll({ it.startsWith("ES_BUILD_JAVA=java") })
-                                    .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
-                                    .join("!!")
-                    ))
-            )
-            environment(
-                    'RUNTIME_JAVA_HOME',
-                    getJavaHome(it, Integer.parseInt(
-                            lines
-                                    .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
-                                    .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })
-                                    .join("!!")
-                    ))
-            )
-        }
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                executable 'cmd'
+                args '/C', 'call', new File(checkoutDir, 'gradlew').toString()
+            } else {
+                executable new File(checkoutDir, 'gradlew').toString()
+            }
+            if (gradle.startParameter.isOffline()) {
+                args "--offline"
+            }
 
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            executable 'cmd'
-            args '/C', 'call', new File(checkoutDir, 'gradlew').toString()
-        } else {
-            executable new File(checkoutDir, 'gradlew').toString()
+            args "-Dbuild.snapshot=true"
+            final LogLevel logLevel = gradle.startParameter.logLevel
+            if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
+                args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
+            }
+            final String showStacktraceName = gradle.startParameter.showStacktrace.name()
+            assert ["INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL"].contains(showStacktraceName)
+            if (showStacktraceName.equals("ALWAYS")) {
+                args "--stacktrace"
+            } else if (showStacktraceName.equals("ALWAYS_FULL")) {
+                args "--full-stacktrace"
+            }
+            standardOutput = new IndentingOutputStream(System.out, bwcVersion)
+            errorOutput = new IndentingOutputStream(System.err, bwcVersion)
+            configure extraConfig
         }
-        if (gradle.startParameter.isOffline()) {
-            args "--offline"
-        }
+    }
+
+    createRunBwcGradleTask("buildBwcVersion") {
         for (String dir : projectDirs) {
             args ":${dir.replace('/', ':')}:assemble"
         }
-        args "-Dbuild.snapshot=true"
-        final LogLevel logLevel = gradle.startParameter.logLevel
-        if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
-            args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
-        }
-        final String showStacktraceName = gradle.startParameter.showStacktrace.name()
-        assert ["INTERNAL_EXCEPTIONS", "ALWAYS", "ALWAYS_FULL"].contains(showStacktraceName)
-        if (showStacktraceName.equals("ALWAYS")) {
-            args "--stacktrace"
-        } else if (showStacktraceName.equals("ALWAYS_FULL")) {
-            args "--full-stacktrace"
-        }
-        standardOutput = new IndentingOutputStream(System.out, bwcVersion)
-        errorOutput = new IndentingOutputStream(System.err, bwcVersion)
         doLast {
             List missing = artifactFiles.grep { file ->
                 false == file.exists()
             }
             if (false == missing.empty) {
-                throw new InvalidUserDataException(
-                        "Building ${bwcVersion} didn't generate expected files ${missing}")
+                throw new InvalidUserDataException("Building ${bwcVersion} didn't generate expected files ${missing}")
             }
         }
     }
 
-    if (gradle.startParameter.taskNames == ["assemble"]) {
-        // Gradle needs the `artifacts` declaration, including `builtBy` bellow to make projects dependencies on this
-        // project work, but it will also trigger the build of these for the `assemble` task.
-        // Since these are only used for testing, we don't want to assemble them if `assemble` is the single command being
-        // ran.
-        logger.info("Skipping BWC builds since `assemble` is the only task name provided on the command line")
-    } else {
-        artifacts {
-            for (File artifactFile : artifactFiles) {
-                String artifactName = artifactFile.name.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
-                String suffix = artifactFile.toString()[-3..-1]
-                'default' file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion
-            }
-        }
+    createRunBwcGradleTask("resolveAllBwcDependencies") {
+        args 'resolveAllDependencies'
     }
+    resolveAllDependencies.dependsOn resolveAllBwcDependencies
+
+    artifacts {
+      for (File artifactFile : artifactFiles) {
+        String artifactName = artifactFile.name.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
+        String suffix = artifactFile.toString()[-3..-1]
+        'default' file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion
+      }
+    }
+    // make sure no dependencies were added to assemble; we want it to be a no-op
+    assemble.dependsOn = []
 }}
 
 class IndentingOutputStream extends OutputStream {

@@ -19,12 +19,8 @@
 
 package org.apache.lucene.queries;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.MappedFieldType;
 
 /**
  * Extended version of {@link CommonTermsQuery} that allows to pass in a
@@ -33,11 +29,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
  */
 public class ExtendedCommonTermsQuery extends CommonTermsQuery {
 
-    private final MappedFieldType fieldType;
-
-    public ExtendedCommonTermsQuery(Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, MappedFieldType fieldType) {
+    public ExtendedCommonTermsQuery(Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency) {
         super(highFreqOccur, lowFreqOccur, maxTermFrequency);
-        this.fieldType = fieldType;
     }
 
     private String lowFreqMinNumShouldMatchSpec;
@@ -80,16 +73,4 @@ public class ExtendedCommonTermsQuery extends CommonTermsQuery {
         return this.maxTermFrequency;
     }
 
-    @Override
-    protected Query newTermQuery(Term term, TermContext context) {
-        if (fieldType == null) {
-            return super.newTermQuery(term, context);
-        }
-        final Query query = fieldType.queryStringTermQuery(term);
-        if (query == null) {
-            return super.newTermQuery(term, context);
-        } else {
-            return query;
-        }
-    }
 }

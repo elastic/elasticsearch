@@ -52,8 +52,10 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
+import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -80,6 +82,7 @@ import javax.crypto.SecretKey;
 import static java.time.Clock.systemUTC;
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -199,6 +202,7 @@ public class TokenServiceTests extends ESTestCase {
         assertNotNull(token);
         mockGetTokenFromId(token);
         mockCheckTokenInvalidationFromId(token);
+        authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", randomFrom("Bearer ", "BEARER ", "bearer ") + tokenService.getUserTokenString(token));
@@ -247,6 +251,7 @@ public class TokenServiceTests extends ESTestCase {
         assertNotNull(token);
         mockGetTokenFromId(token);
         mockCheckTokenInvalidationFromId(token);
+        authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -280,7 +285,7 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             UserToken serialized = future.get();
-            assertEquals(authentication, serialized.getAuthentication());
+            assertAuthenticationEquals(authentication, serialized.getAuthentication());
         }
     }
 
@@ -308,6 +313,7 @@ public class TokenServiceTests extends ESTestCase {
         assertNotNull(token);
         mockGetTokenFromId(token);
         mockCheckTokenInvalidationFromId(token);
+        authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -340,6 +346,7 @@ public class TokenServiceTests extends ESTestCase {
         assertNotNull(token);
         mockGetTokenFromId(token);
         mockCheckTokenInvalidationFromId(token);
+        authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -402,6 +409,7 @@ public class TokenServiceTests extends ESTestCase {
         assertNotNull(token);
         mockGetTokenFromId(token);
         mockCheckTokenInvalidationFromId(token);
+        authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -495,6 +503,29 @@ public class TokenServiceTests extends ESTestCase {
         assertArrayEquals(key.getEncoded(), key2.getEncoded());
     }
 
+    public void testTokenExpiryConfig() {
+        TimeValue expiration =  TokenService.TOKEN_EXPIRATION.get(tokenServiceEnabledSettings);
+        assertThat(expiration, equalTo(TimeValue.timeValueMinutes(20L)));
+        // Configure Minimum expiration
+        tokenServiceEnabledSettings = Settings.builder().put(TokenService.TOKEN_EXPIRATION.getKey(), "1s").build();
+        expiration =  TokenService.TOKEN_EXPIRATION.get(tokenServiceEnabledSettings);
+        assertThat(expiration, equalTo(TimeValue.timeValueSeconds(1L)));
+        // Configure Maximum expiration
+        tokenServiceEnabledSettings = Settings.builder().put(TokenService.TOKEN_EXPIRATION.getKey(), "60m").build();
+        expiration =  TokenService.TOKEN_EXPIRATION.get(tokenServiceEnabledSettings);
+        assertThat(expiration, equalTo(TimeValue.timeValueHours(1L)));
+        // Outside range should fail
+        tokenServiceEnabledSettings = Settings.builder().put(TokenService.TOKEN_EXPIRATION.getKey(), "1ms").build();
+        IllegalArgumentException ile = expectThrows(IllegalArgumentException.class,
+                () -> TokenService.TOKEN_EXPIRATION.get(tokenServiceEnabledSettings));
+        assertThat(ile.getMessage(),
+                containsString("failed to parse value [1ms] for setting [xpack.security.authc.token.timeout], must be >= [1s]"));
+        tokenServiceEnabledSettings = Settings.builder().put(TokenService.TOKEN_EXPIRATION.getKey(), "120m").build();
+        ile = expectThrows(IllegalArgumentException.class, () -> TokenService.TOKEN_EXPIRATION.get(tokenServiceEnabledSettings));
+        assertThat(ile.getMessage(),
+                containsString("failed to parse value [120m] for setting [xpack.security.authc.token.timeout], must be <= [1h]"));
+    }
+
     public void testTokenExpiry() throws Exception {
         ClockMock clock = ClockMock.frozen();
         TokenService tokenService = new TokenService(tokenServiceEnabledSettings, clock, client, securityIndex, clusterService);
@@ -504,6 +535,7 @@ public class TokenServiceTests extends ESTestCase {
         final UserToken token = tokenFuture.get().v1();
         mockGetTokenFromId(token);
         mockCheckTokenInvalidationFromId(token);
+        authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -560,7 +592,7 @@ public class TokenServiceTests extends ESTestCase {
         assertNull(future.get());
 
         e = expectThrows(IllegalStateException.class, () -> {
-            PlainActionFuture<Boolean> invalidateFuture = new PlainActionFuture<>();
+            PlainActionFuture<TokensInvalidationResult> invalidateFuture = new PlainActionFuture<>();
             tokenService.invalidateAccessToken((String) null, invalidateFuture);
             invalidateFuture.actionGet();
         });
@@ -614,6 +646,7 @@ public class TokenServiceTests extends ESTestCase {
         final UserToken token = tokenFuture.get().v1();
         assertNotNull(token);
         mockGetTokenFromId(token);
+        authentication = token.getAuthentication();
 
         ThreadContext requestContext = new ThreadContext(Settings.EMPTY);
         requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(token));
@@ -650,7 +683,7 @@ public class TokenServiceTests extends ESTestCase {
             mockCheckTokenInvalidationFromId(token);
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
-            assertEquals(token.getAuthentication(), future.get().getAuthentication());
+            assertAuthenticationEquals(token.getAuthentication(), future.get().getAuthentication());
         }
     }
 
@@ -687,7 +720,7 @@ public class TokenServiceTests extends ESTestCase {
         PlainActionFuture<Tuple<Authentication, Map<String, Object>>> authFuture = new PlainActionFuture<>();
         tokenService.getAuthenticationAndMetaData(userTokenString, authFuture);
         Authentication retrievedAuth = authFuture.actionGet().v1();
-        assertAuthenticationEquals(authentication, retrievedAuth);
+        assertEquals(authentication, retrievedAuth);
     }
 
     private void mockGetTokenFromId(UserToken userToken) {
@@ -723,7 +756,11 @@ public class TokenServiceTests extends ESTestCase {
             assertEquals(expected.getAuthenticatedBy(), actual.getAuthenticatedBy());
             assertEquals(expected.getLookedUpBy(), actual.getLookedUpBy());
         } else {
-            assertEquals(expected, actual);
+            assertEquals(expected.getUser(), actual.getUser());
+            assertEquals(expected.getAuthenticatedBy(), actual.getAuthenticatedBy());
+            assertEquals(expected.getLookedUpBy(), actual.getLookedUpBy());
+            assertEquals(expected.getMetadata(), actual.getMetadata());
+            assertEquals(AuthenticationType.TOKEN, actual.getAuthenticationType());
         }
     }
 

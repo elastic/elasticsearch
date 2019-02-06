@@ -10,16 +10,16 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules.14.name: x-pack-ccr  }
-    - match:  { nodes.$master.modules.15.name: x-pack-core  }
-    - match:  { nodes.$master.modules.16.name: x-pack-deprecation  }
-    - match:  { nodes.$master.modules.17.name: x-pack-graph  }
-    - match:  { nodes.$master.modules.18.name: x-pack-ilm  }
-    - match:  { nodes.$master.modules.19.name: x-pack-logstash  }
-    - match:  { nodes.$master.modules.20.name: x-pack-ml  }
-    - match:  { nodes.$master.modules.21.name: x-pack-monitoring  }
-    - match:  { nodes.$master.modules.22.name: x-pack-rollup }
-    - match:  { nodes.$master.modules.23.name: x-pack-security  }
-    - match:  { nodes.$master.modules.24.name: x-pack-sql  }
-    - match:  { nodes.$master.modules.25.name: x-pack-upgrade  }
-    - match:  { nodes.$master.modules.26.name: x-pack-watcher  }
+    - match:  { nodes.$master.modules.16.name: x-pack-ccr  }
+    - match:  { nodes.$master.modules.17.name: x-pack-core  }
+    - match:  { nodes.$master.modules.18.name: x-pack-deprecation  }
+    - match:  { nodes.$master.modules.19.name: x-pack-graph  }
+    - match:  { nodes.$master.modules.20.name: x-pack-ilm  }
+    - match:  { nodes.$master.modules.21.name: x-pack-logstash  }
+    - match:  { nodes.$master.modules.22.name: x-pack-ml  }
+    - match:  { nodes.$master.modules.23.name: x-pack-monitoring  }
+    - match:  { nodes.$master.modules.24.name: x-pack-rollup }
+    - match:  { nodes.$master.modules.25.name: x-pack-security  }
+    - match:  { nodes.$master.modules.26.name: x-pack-sql  }
+    - match:  { nodes.$master.modules.27.name: x-pack-upgrade  }
+    - match:  { nodes.$master.modules.28.name: x-pack-watcher  }

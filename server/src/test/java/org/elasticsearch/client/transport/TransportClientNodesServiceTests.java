@@ -223,6 +223,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37567")
     public void testListenerFailures() throws InterruptedException {
         int iters = iterations(10, 100);
         for (int i = 0; i <iters; i++) {

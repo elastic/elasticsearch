@@ -1216,20 +1216,21 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field("unmapped_field")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new BooleanQuery.Builder().build(), query);
 
         // Unmapped prefix field
         query = new QueryStringQueryBuilder("unmapped_field:hello")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new BooleanQuery.Builder().build(), query);
 
         // Unmapped fields
         query = new QueryStringQueryBuilder("hello")
             .lenient(true)
             .field("unmapped_field")
+            .field("another_field")
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new BooleanQuery.Builder().build(), query);
     }
 
     public void testDefaultField() throws Exception {
@@ -1485,6 +1486,15 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .toQuery(createShardContext());
         Query expected = new PrefixQuery(new Term(STRING_FIELD_NAME, "quick"));
         assertEquals(expected, query);
+    }
+
+    public void testNegativeFieldBoost() throws IOException {
+        Query query =  new QueryStringQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME, -1.0f)
+            .field(STRING_FIELD_NAME_2)
+            .toQuery(createShardContext());
+        assertWarnings("setting a negative [boost] on a query is deprecated and will throw an error in the next major " +
+            "version. You can use a value between 0 and 1 to deboost.");
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

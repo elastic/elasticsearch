@@ -1,0 +1,56 @@
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: green
+          wait_for_nodes: 3
+          # wait for long enough that we give delayed unassigned shards to stop being delayed
+          timeout: 70s
+
+---
+"Test old cluster jobs and datafeeds":
+
+  - do:
+      xpack.ml.get_jobs:
+          job_id: migration*
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: migration-old-cluster-closed-job }
+  - match: { jobs.1.job_id: migration-old-cluster-open-job }
+
+  - do:
+      xpack.ml.get_job_stats:
+          job_id: migration*
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: migration-old-cluster-closed-job }
+  - match: { jobs.0.state: closed }
+  - is_false: jobs.0.node
+  - match: { jobs.1.job_id: migration-old-cluster-open-job }
+
+  - do:
+      xpack.ml.get_datafeeds:
+        datafeed_id: migration*
+  - match: { count: 2 }
+  - match: { datafeeds.0.datafeed_id: migration-old-cluster-started-datafeed }
+  - length: { datafeeds.0.indices: 1 }
+  - match: { datafeeds.1.datafeed_id: migration-old-cluster-stopped-datafeed }
+  - length: { datafeeds.1.indices: 1 }
+
+  - do:
+      xpack.ml.get_datafeed_stats:
+        datafeed_id: migration*
+  - match: { datafeeds.0.datafeed_id: migration-old-cluster-started-datafeed }
+  - match: { datafeeds.1.datafeed_id: migration-old-cluster-stopped-datafeed }
+  - match: { datafeeds.1.state: stopped }
+  - is_false: datafeeds.1.node
+
+  - do:
+      xpack.ml.stop_datafeed:
+        datafeed_id: migration-old-cluster-started-datafeed
+
+  - do:
+      xpack.ml.close_job:
+        job_id: migration-old-cluster-open-job
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: migration-old-cluster-open-job
+  - is_true: jobs.0.finished_time

@@ -256,7 +256,9 @@ public final class SSLConfiguration {
                         return trustStorePassword;
                     }
                 }
-                return systemTrustStorePassword;
+                // since we are in a try with resources block, we need to clone the value so it doesn't get
+                // cleared!
+                return systemTrustStorePassword.clone();
             }
         }
         return null;

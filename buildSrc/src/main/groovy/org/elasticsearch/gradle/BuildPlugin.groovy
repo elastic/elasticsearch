@@ -40,6 +40,7 @@ import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionGraph
+import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -149,7 +150,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
-            boolean inFipsJvm = Boolean.parseBoolean(runJavascript(project, runtimeJavaHome, inFipsJvmScript))
+            boolean inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript))
 
             // Build debugging info
             println '======================================='
@@ -292,18 +293,7 @@ class BuildPlugin implements Plugin<Project> {
                                 it.standardOutput = dockerVersionOutput
                             })
                     final String dockerVersion = dockerVersionOutput.toString().trim()
-                    final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-ce)?, build [0-9a-f]{7}/
-                    assert matcher.matches() : dockerVersion
-                    final dockerMajorMinorVersion = matcher.group(1)
-                    final String[] majorMinor = dockerMajorMinorVersion.split("\\.")
-                    if (Integer.parseInt(majorMinor[0]) < 17
-                            || (Integer.parseInt(majorMinor[0]) == 17 && Integer.parseInt(majorMinor[1]) < 5)) {
-                        final String message = String.format(
-                                Locale.ROOT,
-                                "building Docker images requires Docker version 17.05+ due to use of multi-stage builds yet was [%s]",
-                                dockerVersion)
-                        throwDockerRequiredException(message)
-                    }
+                    checkDockerVersionRecent(dockerVersion)
 
                     final ByteArrayOutputStream dockerImagesErrorOutput = new ByteArrayOutputStream()
                     // the Docker binary executes, check that we can execute a privileged command
@@ -335,6 +325,21 @@ class BuildPlugin implements Plugin<Project> {
             rootProject.requiresDocker.add(task)
         } else {
             task.enabled = false
+        }
+    }
+
+    protected static void checkDockerVersionRecent(String dockerVersion) {
+        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-ce)?, build [0-9a-f]{7,40}/
+        assert matcher.matches(): dockerVersion
+        final dockerMajorMinorVersion = matcher.group(1)
+        final String[] majorMinor = dockerMajorMinorVersion.split("\\.")
+        if (Integer.parseInt(majorMinor[0]) < 17
+                || (Integer.parseInt(majorMinor[0]) == 17 && Integer.parseInt(majorMinor[1]) < 5)) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "building Docker images requires Docker version 17.05+ due to use of multi-stage builds yet was [%s]",
+                    dockerVersion)
+            throwDockerRequiredException(message)
         }
     }
 
@@ -388,7 +393,7 @@ class BuildPlugin implements Plugin<Project> {
     static void requireJavaHome(Task task, int version) {
         Project rootProject = task.project.rootProject // use root project for global accounting
         if (rootProject.hasProperty('requiredJavaVersions') == false) {
-            rootProject.rootProject.ext.requiredJavaVersions = [:].withDefault{key -> return []}
+            rootProject.rootProject.ext.requiredJavaVersions = [:]
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
                 List<String> messages = []
                 for (entry in rootProject.requiredJavaVersions) {
@@ -403,9 +408,16 @@ class BuildPlugin implements Plugin<Project> {
                 if (messages.isEmpty() == false) {
                     throw new GradleException(messages.join('\n'))
                 }
+                rootProject.rootProject.ext.requiredJavaVersions = null // reset to null to indicate the pre-execution checks have executed
             }
+        } else if (rootProject.rootProject.requiredJavaVersions == null) {
+            // check directly if the version is present since we are already executing
+            if (rootProject.javaVersions.get(version) == null) {
+                throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
+            }
+        } else {
+            rootProject.requiredJavaVersions.getOrDefault(version, []).add(task)
         }
-        rootProject.requiredJavaVersions.get(version).add(task)
     }
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
@@ -427,28 +439,28 @@ class BuildPlugin implements Plugin<Project> {
         String versionInfoScript = 'print(' +
             'java.lang.System.getProperty("java.vendor") + " " + java.lang.System.getProperty("java.version") + ' +
             '" [" + java.lang.System.getProperty("java.vm.name") + " " + java.lang.System.getProperty("java.vm.version") + "]");'
-        return runJavascript(project, javaHome, versionInfoScript).trim()
+        return runJavaAsScript(project, javaHome, versionInfoScript).trim()
     }
 
     /** Finds the parsable java specification version */
     private static String findJavaSpecificationVersion(Project project, String javaHome) {
         String versionScript = 'print(java.lang.System.getProperty("java.specification.version"));'
-        return runJavascript(project, javaHome, versionScript)
+        return runJavaAsScript(project, javaHome, versionScript)
     }
 
     private static String findJavaVendor(Project project, String javaHome) {
         String vendorScript = 'print(java.lang.System.getProperty("java.vendor"));'
-        return runJavascript(project, javaHome, vendorScript)
+        return runJavaAsScript(project, javaHome, vendorScript)
     }
 
     /** Finds the parsable java specification version */
     private static String findJavaVersion(Project project, String javaHome) {
         String versionScript = 'print(java.lang.System.getProperty("java.version"));'
-        return runJavascript(project, javaHome, versionScript)
+        return runJavaAsScript(project, javaHome, versionScript)
     }
 
     /** Runs the given javascript using jjs from the jdk, and returns the output */
-    private static String runJavascript(Project project, String javaHome, String script) {
+    private static String runJavaAsScript(Project project, String javaHome, String script) {
         ByteArrayOutputStream stdout = new ByteArrayOutputStream()
         ByteArrayOutputStream stderr = new ByteArrayOutputStream()
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -887,16 +899,24 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.withType(RandomizedTestingTask) {task ->
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
+            ifNoTests 'fail'
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
+            project.sourceSets.matching { it.name == "test" }.all { test ->
+                task.testClassesDirs = test.output.classesDirs
+                task.classpath = test.runtimeClasspath
+            }
+            group =  JavaBasePlugin.VERIFICATION_GROUP
+            dependsOn 'testClasses'
 
             // Make sure all test tasks are configured properly
             if (name != "test") {
                 project.tasks.matching { it.name == "test"}.all { testTask ->
-                    task.testClassesDirs = testTask.testClassesDirs
-                    task.classpath = testTask.classpath
                     task.shouldRunAfter testTask
                 }
+            }
+            if (name == "unitTest") {
+                include("**/*Tests.class")
             }
 
             // TODO: why are we not passing maxmemory to junit4?
@@ -991,8 +1011,6 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             exclude '**/*$*.class'
-
-            dependsOn(project.tasks.testClasses)
 
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
                 // Test against a shadow jar if we made one

@@ -31,9 +31,13 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.BaseRestHandler;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class GetMappingsResponse extends ActionResponse implements ToXContentFragment {
 
@@ -44,7 +48,7 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     private ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.of();
 
-    GetMappingsResponse(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings) {
+    public GetMappingsResponse(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings) {
         this.mappings = mappings;
     }
 
@@ -120,10 +124,9 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, true);
-    }
+        boolean includeTypeName = params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER,
+            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeTypeName) throws IOException {
         for (final ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : getMappings()) {
             builder.startObject(indexEntry.key);
             {
@@ -131,7 +134,11 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                     MappingMetaData mappings = null;
                     for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
                         if (typeEntry.key.equals("_default_") == false) {
-                            assert mappings == null;
+                            if (mappings != null) {
+                                throw new IllegalArgumentException("Cannot use ["+
+                                        INCLUDE_TYPE_NAME_PARAMETER +"=false] on index [" + indexEntry.key +
+                                        "] that has multiple mappings: " + indexEntry.value.keys());
+                            }
                             mappings = typeEntry.value;
                         }
                     }

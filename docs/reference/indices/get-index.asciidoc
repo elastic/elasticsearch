@@ -15,3 +15,71 @@ alias or wildcard expression is required.
 
 The get index API can also be applied to more than one index, or on
 all indices by using `_all` or `*` as index.
+
+[float]
+=== Skipping types
+
+Types are being removed from Elasticsearch: in 7.0, the `mappings` element will no
+longer return the type name as a top-level key by default. You can already opt in for
+this behavior by setting `include_type_name=false` on the request.
+
+NOTE: Such calls will be rejected on indices that have multiple types as it
+introduces ambiguity as to which mapping should be returned. Only indices
+created by Elasticsearch 5.x may have multiple types.
+
+Here is an example:
+
+[source,js]
+--------------------------------------------------
+GET twitter?include_type_name=false
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+which returns
+
+[source,js]
+--------------------------------------------------
+{
+    "twitter": {
+        "aliases": {},
+        "mappings" : {
+            "properties" : {
+              "date" : {
+                "type" : "date"
+              },
+              "likes" : {
+                "type" : "long"
+              },
+              "message" : {
+                "type" : "text",
+                "fields" : {
+                  "keyword" : {
+                    "type" : "keyword",
+                    "ignore_above" : 256
+                  }
+                }
+              },
+              "user" : {
+                "type" : "keyword"
+              }
+            }
+        },
+        "settings": {
+            "index": {
+                "creation_date": "1547028674905",
+                "number_of_shards": "1",
+                "number_of_replicas": "1",
+                "uuid": "u1YpkPqLSqGIn3kNAvY8cA",
+                "version": {
+                    "created": ...
+                },
+                "provided_name": "twitter"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/1547028674905/$body.twitter.settings.index.creation_date/]
+// TESTRESPONSE[s/u1YpkPqLSqGIn3kNAvY8cA/$body.twitter.settings.index.uuid/]
+// TESTRESPONSE[s/"created": \.\.\./"created": $body.twitter.settings.index.version.created/]

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -417,14 +418,14 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         Job.Builder builder = buildJobBuilder("foo");
         Job job = builder.build();
         assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT,
-                job.getResultsIndexName());
+                job.getInitialResultsIndexName());
     }
 
     public void testBuilder_setsIndexName() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsIndexName("carol");
         Job job = builder.build();
-        assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-carol", job.getResultsIndexName());
+        assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-carol", job.getInitialResultsIndexName());
     }
 
     public void testBuilder_withInvalidIndexNameThrows() {
@@ -523,6 +524,13 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertThat(e.getMessage(), containsString("Invalid group id '$$$'"));
     }
 
+    public void testInvalidGroup_matchesJobId() {
+        Job.Builder builder = buildJobBuilder("foo");
+        builder.setGroups(Collections.singletonList("foo"));
+        ResourceAlreadyExistsException e = expectThrows(ResourceAlreadyExistsException.class, builder::build);
+        assertEquals(e.getMessage(), "job and group names must be unique but job [foo] and group [foo] have the same name");
+    }
+
     public void testEstimateMemoryFootprint_GivenEstablished() {
         Job.Builder builder = buildJobBuilder("established");
         long establishedModelMemory = randomIntBetween(10_000, 2_000_000_000);
@@ -553,7 +561,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setEstablishedModelMemory(0L);
         }
         assertEquals(ByteSizeUnit.MB.toBytes(AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB)
-                        + Job.PROCESS_MEMORY_OVERHEAD.getBytes(), builder.build().estimateMemoryFootprint());
+            + Job.PROCESS_MEMORY_OVERHEAD.getBytes(), builder.build().estimateMemoryFootprint());
     }
 
     public void testEarliestValidTimestamp_GivenEmptyDataCounts() {

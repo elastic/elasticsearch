@@ -15,7 +15,7 @@ import java.time.ZoneId;
 import java.util.Objects;
 
 /**
- * GROUP BY key based on histograms on date fields.
+ * GROUP BY key based on histograms on date/datetime fields.
  */
 public class GroupByDateHistogram extends GroupByKey {
 
@@ -36,6 +36,11 @@ public class GroupByDateHistogram extends GroupByKey {
         this.interval = interval;
         this.zoneId = zoneId;
 
+    }
+
+    // For testing
+    public long interval() {
+        return interval;
     }
 
     @Override

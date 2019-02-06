@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,16 +29,19 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
         ClearRealmCacheRequest.Node, ClearRealmCacheResponse.Node> {
 
     private final Realms realms;
+    private final AuthenticationService authenticationService;
 
     @Inject
     public TransportClearRealmCacheAction(Settings settings, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService,
                                           ActionFilters actionFilters, Realms realms,
-                                          IndexNameExpressionResolver indexNameExpressionResolver) {
+                                          IndexNameExpressionResolver indexNameExpressionResolver,
+                                          AuthenticationService authenticationService) {
         super(settings, ClearRealmCacheAction.NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, ClearRealmCacheRequest::new, ClearRealmCacheRequest.Node::new, ThreadPool.Names.MANAGEMENT,
               ClearRealmCacheResponse.Node.class);
         this.realms = realms;
+        this.authenticationService = authenticationService;
     }
 
     @Override
@@ -72,7 +76,21 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
             }
             clearCache(realm, nodeRequest.getUsernames());
         }
+        clearAuthenticationServiceCache(nodeRequest.getUsernames());
         return new ClearRealmCacheResponse.Node(clusterService.localNode());
+    }
+
+    private void clearAuthenticationServiceCache(String[] usernames) {
+        // this is heavy handed since we could also take realm into account but that would add
+        // complexity since we would need to iterate over the cache under a lock to remove all
+        // entries that referenced the specific realm
+        if (usernames != null && usernames.length != 0) {
+            for (String username : usernames) {
+                authenticationService.expire(username);
+            }
+        } else {
+            authenticationService.expireAll();
+        }
     }
 
     private void clearCache(Realm realm, String[] usernames) {

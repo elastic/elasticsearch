@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -34,20 +35,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
+import static org.mockito.Mockito.mock;
 
 /** Unit tests for {@link TcpTransport} */
 public class TcpTransportTests extends ESTestCase {
@@ -155,27 +157,8 @@ public class TcpTransportTests extends ESTestCase {
         assertEquals(102, addresses[2].getPort());
     }
 
-    public void testEnsureVersionCompatibility() {
-        TcpTransport.ensureVersionCompatibility(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
-            Version.CURRENT), Version.CURRENT, randomBoolean());
-
-        TcpTransport.ensureVersionCompatibility(Version.fromString("5.0.0"), Version.fromString("6.0.0"), true);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("5.0.0"), Version.fromString("6.0.0"), false));
-        assertEquals("Received message from unsupported version: [5.0.0] minimal compatible version is: [5.6.0]", ise.getMessage());
-
-        ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("6.0.0"), true));
-        assertEquals("Received handshake message from unsupported version: [2.3.0] minimal compatible version is: [5.6.0]",
-            ise.getMessage());
-
-        ise = expectThrows(IllegalStateException.class, () ->
-            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("6.0.0"), false));
-        assertEquals("Received message from unsupported version: [2.3.0] minimal compatible version is: [5.6.0]",
-            ise.getMessage());
-    }
-
-    public void testCompressRequest() throws IOException {
+    @SuppressForbidden(reason = "Allow accessing localhost")
+    public void testCompressRequestAndResponse() throws IOException {
         final boolean compressed = randomBoolean();
         Req request = new Req(randomRealisticUnicodeOfLengthBetween(10, 100));
         ThreadPool threadPool = new TestThreadPool(TcpTransportTests.class.getName());
@@ -191,7 +174,7 @@ public class TcpTransportTests extends ESTestCase {
 
                 @Override
                 protected FakeTcpChannel initiateChannel(DiscoveryNode node) throws IOException {
-                    return new FakeTcpChannel(true, messageCaptor);
+                    return new FakeTcpChannel(false);
                 }
 
                 @Override
@@ -224,11 +207,20 @@ public class TcpTransportTests extends ESTestCase {
             transport.openConnection(node, profileBuilder.build(), future);
             Transport.Connection connection = future.actionGet();
             connection.sendRequest(42, "foobar", request, TransportRequestOptions.EMPTY);
+            transport.registerRequestHandler(new RequestHandlerRegistry<>("foobar", Req::new, mock(TaskManager.class),
+                (request1, channel) -> channel.sendResponse(TransportResponse.Empty.INSTANCE), ThreadPool.Names.SAME,
+                true, true));
 
             BytesReference reference = messageCaptor.get();
             assertNotNull(reference);
 
-            StreamInput streamIn = reference.streamInput();
+            AtomicReference<BytesReference> responseCaptor = new AtomicReference<>();
+            InetSocketAddress address = new InetSocketAddress(InetAddress.getLocalHost(), 0);
+            FakeTcpChannel responseChannel = new FakeTcpChannel(true, address, address, "profile", responseCaptor);
+            transport.messageReceived(reference.slice(6, reference.length() - 6), responseChannel);
+
+
+            StreamInput streamIn = responseCaptor.get().streamInput();
             streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
             int len = streamIn.readInt();
             long requestId = streamIn.readLong();
@@ -237,17 +229,14 @@ public class TcpTransportTests extends ESTestCase {
             Version version = Version.fromId(streamIn.readInt());
             assertEquals(Version.CURRENT, version);
             assertEquals(compressed, TransportStatus.isCompress(status));
+            assertFalse(TransportStatus.isRequest(status));
             if (compressed) {
                 final int bytesConsumed = TcpHeader.HEADER_SIZE;
                 streamIn = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed))
                     .streamInput(streamIn);
                 }
             threadPool.getThreadContext().readHeaders(streamIn);
-            assertThat(streamIn.readStringArray(), equalTo(new String[0])); // features
-            assertEquals("foobar", streamIn.readString());
-            Req readReq = new Req("");
-            readReq.readFrom(streamIn);
-            assertEquals(request.value, readReq.value);
+            TransportResponse.Empty.INSTANCE.readFrom(streamIn);
 
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
@@ -285,6 +274,10 @@ public class TcpTransportTests extends ESTestCase {
 
         private Req(String value) {
             this.value = value;
+        }
+
+        private Req(StreamInput in) throws IOException {
+            value = in.readString();
         }
 
         @Override

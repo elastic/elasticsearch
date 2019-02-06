@@ -120,12 +120,30 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         return compareValues(currentValue, afterValue);
     }
 
+    @Override
+    int hashCode(int slot) {
+        if (missingBucket && bits.get(slot) == false) {
+            return 0;
+        } else {
+            return Long.hashCode(values.get(slot));
+        }
+    }
+
+    @Override
+    int hashCodeCurrent() {
+        if (missingCurrentValue) {
+            return 0;
+        } else {
+            return Long.hashCode(currentValue);
+        }
+    }
+
     private int compareValues(long v1, long v2) {
         return Long.compare(v1, v2) * reverseMul;
     }
 
     @Override
-    void setAfter(Comparable<?> value) {
+    void setAfter(Comparable value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value instanceof Number) {
@@ -169,7 +187,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable<?> value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
         if (value.getClass() != Long.class) {
             throw new IllegalArgumentException("Expected Long, got " + value.getClass());
         }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -16,30 +17,34 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigReader;
 
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAction<GetDatafeedsStatsAction.Request,
         GetDatafeedsStatsAction.Response> {
 
+    private final DatafeedConfigReader datafeedConfigReader;
+
     @Inject
     public TransportGetDatafeedsStatsAction(Settings settings, TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool,
                                             ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver) {
+                                            IndexNameExpressionResolver indexNameExpressionResolver,
+                                            Client client, NamedXContentRegistry xContentRegistry) {
         super(settings, GetDatafeedsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, GetDatafeedsStatsAction.Request::new);
+        this.datafeedConfigReader = new DatafeedConfigReader(client, xContentRegistry);
     }
 
     @Override
@@ -54,19 +59,21 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
 
     @Override
     protected void masterOperation(GetDatafeedsStatsAction.Request request, ClusterState state,
-                                   ActionListener<GetDatafeedsStatsAction.Response> listener) throws Exception {
+                                   ActionListener<GetDatafeedsStatsAction.Response> listener) {
         logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
 
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
-        Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds());
-
-        PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        List<GetDatafeedsStatsAction.Response.DatafeedStats> results = expandedDatafeedIds.stream()
-                .map(datafeedId -> getDatafeedStats(datafeedId, state, tasksInProgress))
-                .collect(Collectors.toList());
-        QueryPage<GetDatafeedsStatsAction.Response.DatafeedStats> statsPage = new QueryPage<>(results, results.size(),
-                DatafeedConfig.RESULTS_FIELD);
-        listener.onResponse(new GetDatafeedsStatsAction.Response(statsPage));
+        datafeedConfigReader.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds(), state, ActionListener.wrap(
+                expandedDatafeedIds -> {
+                    PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                    List<GetDatafeedsStatsAction.Response.DatafeedStats> results = expandedDatafeedIds.stream()
+                            .map(datafeedId -> getDatafeedStats(datafeedId, state, tasksInProgress))
+                            .collect(Collectors.toList());
+                    QueryPage<GetDatafeedsStatsAction.Response.DatafeedStats> statsPage = new QueryPage<>(results, results.size(),
+                            DatafeedConfig.RESULTS_FIELD);
+                    listener.onResponse(new GetDatafeedsStatsAction.Response(statsPage));
+                },
+                listener::onFailure
+        ));
     }
 
     private static GetDatafeedsStatsAction.Response.DatafeedStats getDatafeedStats(

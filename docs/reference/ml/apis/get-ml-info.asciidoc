@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[get-ml-info]]
-=== Get Machine Learning Info API
+=== Get machine learning info API
 ++++
-<titleabbrev>Get Machine Learning Info</titleabbrev>
+<titleabbrev>Get {ml} info</titleabbrev>
 ++++
 
 Returns defaults and limits used by machine learning.
@@ -54,6 +54,7 @@ This is a possible response:
       "scroll_size" : 1000
     }
   },
+  "upgrade_mode": false,
   "limits" : { }
 }
 ----

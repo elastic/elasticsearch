@@ -61,9 +61,9 @@ public class SysTablesTests extends ESTestCase {
     public void testSysTablesEnumerateTypes() throws Exception {
         executeCommand("SYS TABLES TYPE '%'", r -> {
             assertEquals(2, r.size());
-            assertEquals("ALIAS", r.column(3));
-            assertTrue(r.advanceRow());
             assertEquals("BASE TABLE", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("VIEW", r.column(3));
         });
     }
 
@@ -77,28 +77,28 @@ public class SysTablesTests extends ESTestCase {
     public void testSysTablesNoTypes() throws Exception {
         executeCommand("SYS TABLES", r -> {
             assertEquals(2, r.size());
-            assertEquals("ALIAS", r.column(3));
-            assertTrue(r.advanceRow());
             assertEquals("BASE TABLE", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("VIEW", r.column(3));
         }, index, alias);
     }
 
     public void testSysTablesPattern() throws Exception {
         executeCommand("SYS TABLES LIKE '%'", r -> {
-            assertEquals("alias", r.column(2));
+            assertEquals("test", r.column(2));
             assertTrue(r.advanceRow());
             assertEquals(2, r.size());
-            assertEquals("test", r.column(2));
+            assertEquals("alias", r.column(2));
         }, index, alias);
     }
 
     public void testSysTablesPatternParameterized() throws Exception {
         List<SqlTypedParamValue> params = asList(param("%"));
         executeCommand("SYS TABLES LIKE ?", params, r -> {
-            assertEquals("alias", r.column(2));
+            assertEquals("test", r.column(2));
             assertTrue(r.advanceRow());
             assertEquals(2, r.size());
-            assertEquals("test", r.column(2));
+            assertEquals("alias", r.column(2));
         }, alias, index);
     }
 
@@ -149,38 +149,38 @@ public class SysTablesTests extends ESTestCase {
     }
 
     public void testSysTablesOnlyIndicesAndAliases() throws Exception {
-        executeCommand("SYS TABLES LIKE 'test' TYPE 'ALIAS', 'BASE TABLE'", r -> {
-            assertEquals("alias", r.column(2));
-            assertTrue(r.advanceRow());
+        executeCommand("SYS TABLES LIKE 'test' TYPE 'VIEW', 'BASE TABLE'", r -> {
             assertEquals(2, r.size());
             assertEquals("test", r.column(2));
+            assertTrue(r.advanceRow());
+            assertEquals("alias", r.column(2));
         }, index, alias);
     }
 
     public void testSysTablesOnlyIndicesAndAliasesParameterized() throws Exception {
-        List<SqlTypedParamValue> params = asList(param("ALIAS"), param("BASE TABLE"));
+        List<SqlTypedParamValue> params = asList(param("VIEW"), param("BASE TABLE"));
         executeCommand("SYS TABLES LIKE 'test' TYPE ?, ?", params, r -> {
-            assertEquals("alias", r.column(2));
-            assertTrue(r.advanceRow());
             assertEquals(2, r.size());
             assertEquals("test", r.column(2));
+            assertTrue(r.advanceRow());
+            assertEquals("alias", r.column(2));
         }, index, alias);
     }
 
     public void testSysTablesOnlyIndicesLegacyAndAliasesParameterized() throws Exception {
-        List<SqlTypedParamValue> params = asList(param("ALIAS"), param("TABLE"));
+        List<SqlTypedParamValue> params = asList(param("VIEW"), param("TABLE"));
         executeCommand("SYS TABLES LIKE 'test' TYPE ?, ?", params, r -> {
-            assertEquals("alias", r.column(2));
-            assertEquals("ALIAS", r.column(3));
-            assertTrue(r.advanceRow());
             assertEquals(2, r.size());
             assertEquals("test", r.column(2));
             assertEquals("TABLE", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("alias", r.column(2));
+            assertEquals("VIEW", r.column(3));
         }, index, alias);
     }
 
     public void testSysTablesWithCatalogOnlyAliases() throws Exception {
-        executeCommand("SYS TABLES CATALOG LIKE '%' LIKE 'test' TYPE 'ALIAS'", r -> {
+        executeCommand("SYS TABLES CATALOG LIKE '%' LIKE 'test' TYPE 'VIEW'", r -> {
             assertEquals(1, r.size());
             assertEquals("alias", r.column(2));
         }, alias);
@@ -231,7 +231,7 @@ public class SysTablesTests extends ESTestCase {
     }
 
     private SqlTypedParamValue param(Object value) {
-        return new SqlTypedParamValue(DataTypes.fromJava(value).esType, value);
+        return new SqlTypedParamValue(DataTypes.fromJava(value).typeName, value);
     }
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params) {
@@ -243,7 +243,7 @@ public class SysTablesTests extends ESTestCase {
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
 
-        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null, null);
+        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 

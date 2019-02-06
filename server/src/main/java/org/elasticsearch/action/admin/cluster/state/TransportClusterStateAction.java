@@ -128,6 +128,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
         builder.stateUUID(currentState.stateUUID());
+        builder.minimumMasterNodesOnPublishingMaster(currentState.getMinimumMasterNodesOnPublishingMaster());
+
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
         }
@@ -154,6 +156,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.metaData()) {
             if (request.indices().length > 0) {
+                mdBuilder.version(currentState.metaData().version());
                 String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);

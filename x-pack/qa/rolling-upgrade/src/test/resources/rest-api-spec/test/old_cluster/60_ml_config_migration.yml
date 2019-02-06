@@ -1,0 +1,80 @@
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+          wait_for_nodes: 3
+          timeout: 70s
+
+  - do:
+      indices.create:
+        index: pet-data
+        body:
+          mappings:
+            doc:
+              properties:
+                time:
+                  type: date
+                airline:
+                  type: keyword
+                responsetime:
+                  type: float
+
+---
+"Create a job and datafeed in the old cluster and open":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: migration-old-cluster-open-job
+        body:  >
+          {
+            "description":"job migration",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: migration-old-cluster-open-job }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: migration-old-cluster-open-job
+
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: migration-old-cluster-started-datafeed
+        body:  >
+          {
+            "job_id":"migration-old-cluster-open-job",
+            "indices":["pet-data"],
+            "types":["response"]
+          }
+
+  - do:
+      xpack.ml.start_datafeed:
+        datafeed_id: migration-old-cluster-started-datafeed
+        start: 0
+
+  - do:
+      xpack.ml.put_job:
+        job_id: migration-old-cluster-closed-job
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"metric","field_name":"responsetime"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: migration-old-cluster-closed-job }
+
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: migration-old-cluster-stopped-datafeed
+        body:  >
+          {
+            "job_id":"migration-old-cluster-closed-job",
+            "indices":["pet-data"]
+          }

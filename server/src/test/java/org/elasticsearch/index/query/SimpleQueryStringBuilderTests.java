@@ -184,6 +184,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     // Check operator handling, and default field handling.
     public void testDefaultOperatorHandling() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.").field(STRING_FIELD_NAME);
         QueryShardContext shardContext = createShardContext();
         shardContext.setAllowUnmappedFields(true); // to avoid occasional cases
@@ -736,6 +737,15 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "second")), BooleanClause.Occur.MUST)
                 .build();
         assertEquals(expected, query);
+    }
+
+    public void testNegativeFieldBoost() throws IOException {
+        Query query =   new SimpleQueryStringBuilder("the quick fox")
+            .field(STRING_FIELD_NAME, -1.0f)
+            .field(STRING_FIELD_NAME_2)
+            .toQuery(createShardContext());
+        assertWarnings("setting a negative [boost] on a query is deprecated and will throw an error in the next major " +
+            "version. You can use a value between 0 and 1 to deboost.");
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

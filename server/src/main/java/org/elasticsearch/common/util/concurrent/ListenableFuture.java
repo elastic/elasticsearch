@@ -60,7 +60,13 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
                 if (done) {
                     run = true;
                 } else {
-                    listeners.add(new Tuple<>(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext), executor));
+                    final ActionListener<V> wrappedListener;
+                    if (threadContext == null) {
+                        wrappedListener = listener;
+                    } else {
+                        wrappedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+                    }
+                    listeners.add(new Tuple<>(wrappedListener, executor));
                     run = false;
                 }
             }

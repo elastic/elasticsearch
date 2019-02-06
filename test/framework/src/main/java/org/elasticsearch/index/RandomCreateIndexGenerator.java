@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -31,6 +32,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public final class RandomCreateIndexGenerator {
@@ -38,8 +40,10 @@ public final class RandomCreateIndexGenerator {
     private RandomCreateIndexGenerator() {}
 
     /**
-     * Returns a random {@link CreateIndexRequest}. Randomizes the index name, the aliases,
-     * mappings and settings associated with the index.
+     * Returns a random {@link CreateIndexRequest}.
+     *
+     * Randomizes the index name, the aliases, mappings and settings associated with the
+     * index. If present, the mapping definition will be nested under a type name.
      */
     public static CreateIndexRequest randomCreateIndexRequest() throws IOException {
         String index = randomAlphaOfLength(5);
@@ -76,8 +80,12 @@ public final class RandomCreateIndexGenerator {
         return builder.build();
     }
 
+    /**
+     * Creates a random mapping, with the mapping definition nested
+     * under the given type name.
+     */
     public static XContentBuilder randomMapping(String type) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.startObject().startObject(type);
 
         randomMappingFields(builder, true);
@@ -118,7 +126,7 @@ public final class RandomCreateIndexGenerator {
         }
     }
 
-    private static Alias randomAlias() {
+    public static Alias randomAlias() {
         Alias alias = new Alias(randomAlphaOfLength(5));
 
         if (randomBoolean()) {

@@ -65,7 +65,7 @@ public class EmailService extends NotificationService<Account> {
 
     private static final Setting.AffixSetting<String> SETTING_SMTP_PASSWORD =
             Setting.affixKeySetting("xpack.notification.email.account.", "smtp.password",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
 
     private static final Setting.AffixSetting<SecureString> SETTING_SECURE_PASSWORD =
         Setting.affixKeySetting("xpack.notification.email.account.", "smtp.secure_password",

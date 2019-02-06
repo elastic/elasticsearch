@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-filter]]
-=== Update Filter API
+=== Update filter API
 ++++
-<titleabbrev>Update Filter</titleabbrev>
+<titleabbrev>Update filter</titleabbrev>
 ++++
 
 Updates the description of a filter, adds items, or removes items. 

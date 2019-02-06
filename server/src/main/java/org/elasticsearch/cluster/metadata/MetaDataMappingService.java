@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
@@ -50,9 +51,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -239,6 +242,21 @@ public class MetaDataMappingService {
             }
         }
 
+        private DocumentMapper getMapperForUpdate(MapperService mapperService, String type) {
+            DocumentMapper mapper = mapperService.documentMapper(type);
+            if (mapper == null && type.equals(MapperService.SINGLE_MAPPING_NAME) &&
+                    mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0)) {
+                Iterator<DocumentMapper> docMappersIt = mapperService.docMappers(false).iterator();
+                if (docMappersIt.hasNext()) {
+                    mapper = docMappersIt.next();
+                }
+                if (docMappersIt.hasNext()) {
+                    throw new AssertionError("Index has multiple types: " + mapperService.types());
+                }
+            }
+            return mapper;
+        }
+
         private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request,
                                           Map<Index, MapperService> indexMapperServices) throws IOException {
             String mappingType = request.type();
@@ -256,8 +274,13 @@ public class MetaDataMappingService {
                 updateList.add(indexMetaData);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 DocumentMapper newMapper;
-                DocumentMapper existingMapper = mapperService.documentMapper(request.type());
-                if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
+                DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
+                if (existingMapper == null && isMappingSourceTyped(request.type(), mappingUpdateSource) == false) {
+                    existingMapper = getMapperForUpdate(mapperService, mappingType);
+                }
+                String typeForUpdate = existingMapper == null ? mappingType : existingMapper.type();
+
+                if (MapperService.DEFAULT_MAPPING.equals(typeForUpdate)) {
                     // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
                     newMapper = mapperService.parse(request.type(), mappingUpdateSource, false);
                 } else {
@@ -306,12 +329,21 @@ public class MetaDataMappingService {
                 // we use the exact same indexService and metadata we used to validate above here to actually apply the update
                 final Index index = indexMetaData.getIndex();
                 final MapperService mapperService = indexMapperServices.get(index);
+
+                // If the _type name is _doc and there is no _doc top-level key then this means that we
+                // are handling a typeless call. In such a case, we override _doc with the actual type
+                // name in the mappings. This allows to use typeless APIs on typed indices.
+                String typeForUpdate = mappingType;
                 CompressedXContent existingSource = null;
                 DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
+                if (existingMapper == null && isMappingSourceTyped(request.type(), mappingUpdateSource) == false) {
+                    existingMapper = getMapperForUpdate(mapperService, mappingType);
+                }
                 if (existingMapper != null) {
+                    typeForUpdate = existingMapper.type();
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = mapperService.merge(mappingType, mappingUpdateSource,
+                DocumentMapper mergedMapper = mapperService.merge(typeForUpdate, mappingUpdateSource,
                     MergeReason.MAPPING_UPDATE, request.updateAllTypes());
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 

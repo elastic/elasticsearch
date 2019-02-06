@@ -172,12 +172,29 @@ public class DocumentMapperParser {
         return extractMapping(type, root);
     }
 
+    /**
+     * Given an optional type name and mapping definition, returns the type and a normalized form of the mappings.
+     *
+     * The provided mapping definition may or may not contain the type name as the root key in the map. This method
+     * attempts to unwrap the mappings, so that they no longer contain a type name at the root. If no type name can
+     * be found, through either the 'type' parameter or by examining the provided mappings, then an exception will be
+     * thrown.
+     *
+     * @param type An optional type name.
+     * @param root The mapping definition.
+     *
+     * @return A tuple of the form (type, normalized mappings).
+     */
     @SuppressWarnings({"unchecked"})
     private Tuple<String, Map<String, Object>> extractMapping(String type, Map<String, Object> root) throws MapperParsingException {
         if (root.size() == 0) {
-            // if we don't have any keys throw an exception
-            throw new MapperParsingException("malformed mapping no root object found");
+            if (type != null) {
+                return new Tuple<>(type, root);
+            } else {
+                throw new MapperParsingException("malformed mapping, no type name found");
+            }
         }
+
         String rootName = root.keySet().iterator().next();
         Tuple<String, Map<String, Object>> mapping;
         if (type == null || type.equals(rootName)) {

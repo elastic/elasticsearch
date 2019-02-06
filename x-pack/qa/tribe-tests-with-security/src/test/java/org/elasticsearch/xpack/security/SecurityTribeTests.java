@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -258,9 +259,25 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
                 return false;
             } else if (k.equals("transport.tcp.port")) {
                 return false;
+            } else if (k.startsWith("xpack.security.transport.ssl.")) {
+                return false;
             }
             return true;
         });
+        if (useSSL) {
+            Settings.Builder addSSLBuilder = Settings.builder().put(tribeSettings, false);
+            SecuritySettingsSource.addSSLSettingsForPEMFiles(addSSLBuilder,
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
+                "testnode",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+                Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.crt",
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt",
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt",
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+            addSSLBuilder.put("xpack.security.transport.ssl.enabled", true);
+            tribeSettings = addSSLBuilder.build();
+        }
         tribe1Defaults.put(tribeSettings, false);
         tribe1Defaults.normalizePrefix("tribe.t1.");
         tribe2Defaults.put(tribeSettings, false);
@@ -271,6 +288,9 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         if (secureSettingsTemplate != null) {
             for (String settingName : secureSettingsTemplate.getSettingNames()) {
+                if (settingName.startsWith("xpack.security.transport.ssl.")) {
+                    continue;
+                }
                 String settingValue = secureSettingsTemplate.getString(settingName).toString();
                 secureSettings.setString(settingName, settingValue);
                 secureSettings.setString("tribe.t1." + settingName, settingValue);

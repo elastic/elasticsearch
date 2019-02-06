@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,7 +31,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ScheduledFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
@@ -121,7 +119,7 @@ public class Retry {
         // needed to construct the next bulk request based on the response to the previous one
         // volatile as we're called from a scheduled thread
         private volatile BulkRequest currentBulkRequest;
-        private volatile ScheduledFuture<?> scheduledRequestFuture;
+        private volatile Scheduler.Cancellable retryCancellable;
 
         RetryHandler(BackoffPolicy backoffPolicy, BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
                      ActionListener<BulkResponse> listener, Scheduler scheduler) {
@@ -155,7 +153,9 @@ public class Retry {
             try {
                 listener.onFailure(e);
             } finally {
-                FutureUtils.cancel(scheduledRequestFuture);
+                if (retryCancellable != null) {
+                    retryCancellable.cancel();
+                }
             }
         }
 
@@ -164,7 +164,7 @@ public class Retry {
             TimeValue next = backoff.next();
             logger.trace("Retry of bulk request scheduled in {} ms.", next.millis());
             Runnable command = scheduler.preserveContext(() -> this.execute(bulkRequestForRetry));
-            scheduledRequestFuture = scheduler.schedule(next, ThreadPool.Names.SAME, command);
+            retryCancellable = scheduler.schedule(command, next, ThreadPool.Names.SAME);
         }
 
         private BulkRequest createBulkRequestForRetry(BulkResponse bulkItemResponses) {
@@ -198,7 +198,9 @@ public class Retry {
             try {
                 listener.onResponse(getAccumulatedResponse());
             } finally {
-                FutureUtils.cancel(scheduledRequestFuture);
+                if (retryCancellable != null) {
+                    retryCancellable.cancel();
+                }
             }
         }
 

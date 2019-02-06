@@ -52,7 +52,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     public static class NodeView implements Writeable, ToXContentObject {
         private static final ObjectParser.NamedObjectParser<NodeView, Void> PARSER;
         static {
-            ObjectParser<NodeView, Void> internalParser = new ObjectParser<>(NODES);
+            ObjectParser<NodeView, Void> internalParser = new ObjectParser<>(NODES, true, null);
             internalParser.declareString(NodeView::setName, new ParseField(NAME));
             PARSER = (p, v, name) -> internalParser.parse(p, new NodeView(name), null);
         }
@@ -131,7 +131,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
 
     private static final ObjectParser<VerifyRepositoryResponse, Void> PARSER =
-        new ObjectParser<>(VerifyRepositoryResponse.class.getName(), VerifyRepositoryResponse::new);
+        new ObjectParser<>(VerifyRepositoryResponse.class.getName(), true, VerifyRepositoryResponse::new);
     static {
         PARSER.declareNamedObjects(VerifyRepositoryResponse::setNodes, NodeView.PARSER, new ParseField("nodes"));
     }
@@ -142,6 +142,10 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     public VerifyRepositoryResponse(ClusterName clusterName, DiscoveryNode[] nodes) {
         this.clusterName = clusterName;
         this.nodes = Arrays.asList(nodes);
+    }
+
+    public VerifyRepositoryResponse(List<NodeView> nodes) {
+        setNodes(nodes);
     }
 
     @Override
@@ -208,19 +212,15 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        VerifyRepositoryResponse other = (VerifyRepositoryResponse) obj;
-        return nodes.equals(other.nodes);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        VerifyRepositoryResponse that = (VerifyRepositoryResponse) o;
+        return Objects.equals(nodes, that.nodes);
     }
 
     @Override
     public int hashCode() {
-        return nodes.hashCode();
+        return Objects.hash(nodes);
     }
 }

@@ -69,7 +69,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     @Override
     public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion,
             IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
-        double realWordErrorLikelihood = suggestion.realworldErrorLikelyhood();
+        double realWordErrorLikelihood = suggestion.realworldErrorLikelihood();
         final PhraseSuggestion response = new PhraseSuggestion(name, suggestion.getSize());
         final IndexReader indexReader = searcher.getIndexReader();
         List<PhraseSuggestionContext.DirectCandidateGenerator>  generators = suggestion.generators();

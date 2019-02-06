@@ -111,7 +111,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
                         .put("xpack.security.audit.index.settings.index.number_of_shards", 1)
                         .put("xpack.security.audit.index.settings.index.number_of_replicas", 0);
 
-                addClientSSLSettings(builder, "xpack.security.audit.index.client.");
+                addClientSSLSettings(builder, "xpack.security.audit.index.client.xpack.security.transport.");
                 builder.put("xpack.security.audit.index.client.xpack.security.transport.ssl.enabled", sslEnabled);
                 return builder.build();
             }

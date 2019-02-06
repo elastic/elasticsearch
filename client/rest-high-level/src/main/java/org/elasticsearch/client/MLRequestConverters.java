@@ -24,7 +24,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
@@ -64,6 +64,7 @@ import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
+import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
@@ -490,7 +491,7 @@ final class MLRequestConverters {
         BytesReference content = postDataRequest.getContent();
         if (content != null) {
             BytesRef source = postDataRequest.getContent().toBytesRef();
-            HttpEntity byteEntity = new ByteArrayEntity(source.bytes,
+            HttpEntity byteEntity = new NByteArrayEntity(source.bytes,
                 source.offset,
                 source.length,
                 createContentType(postDataRequest.getXContentType()));
@@ -664,6 +665,17 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request setUpgradeMode(SetUpgradeModeRequest setUpgradeModeRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_xpack", "ml", "set_upgrade_mode").build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.putParam(SetUpgradeModeRequest.ENABLED.getPreferredName(), Boolean.toString(setUpgradeModeRequest.isEnabled()));
+        if (setUpgradeModeRequest.getTimeout() != null) {
+            params.putParam(SetUpgradeModeRequest.TIMEOUT.getPreferredName(), setUpgradeModeRequest.getTimeout().toString());
+        }
+        return request;
+    }
+
     static Request mlInfo(MlInfoRequest infoRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_xpack", "ml", "info")
@@ -727,7 +739,7 @@ final class MLRequestConverters {
 
         BytesReference sample = findFileStructureRequest.getSample();
         BytesRef source = sample.toBytesRef();
-        HttpEntity byteEntity = new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));
+        HttpEntity byteEntity = new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));
         request.setEntity(byteEntity);
         return request;
     }

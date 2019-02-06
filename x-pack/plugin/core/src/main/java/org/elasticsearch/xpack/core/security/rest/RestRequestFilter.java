@@ -65,7 +65,7 @@ public interface RestRequestFilter {
                 }
 
                 @Override
-                public BytesReference content() {
+                public BytesReference innerContent() {
                     if (filteredBytes == null) {
                         BytesReference content = restRequest.content();
                         Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(content, true);

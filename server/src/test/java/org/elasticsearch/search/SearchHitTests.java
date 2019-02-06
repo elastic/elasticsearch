@@ -19,23 +19,13 @@
 
 package org.elasticsearch.search;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Predicate;
-
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,6 +40,15 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightFieldTests;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.test.VersionUtils;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
@@ -64,7 +63,7 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
         return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
     }
 
-    public static SearchHit createTestItem(XContentType xContentType, boolean withOptionalInnerHits, boolean withShardTarget) {
+    public static SearchHit createTestItem(XContentType xContentType, boolean withOptionalInnerHits, boolean transportSerialization) {
         int internalId = randomInt();
         String uid = randomAlphaOfLength(10);
         Text type = new Text(randomAlphaOfLengthBetween(5, 10));
@@ -90,8 +89,13 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
         if (randomBoolean()) {
             hit.version(randomLong());
         }
+
         if (randomBoolean()) {
-            hit.sortValues(SearchSortValuesTests.createTestItem());
+            hit.version(randomNonNegativeLong());
+            hit.version(randomLongBetween(1, Long.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            hit.sortValues(SearchSortValuesTests.createTestItem(xContentType, transportSerialization));
         }
         if (randomBoolean()) {
             int size = randomIntBetween(0, 5);
@@ -119,12 +123,12 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
                 Map<String, SearchHits> innerHits = new HashMap<>(innerHitsSize);
                 for (int i = 0; i < innerHitsSize; i++) {
                     innerHits.put(randomAlphaOfLength(5),
-                        SearchHitsTests.createTestItem(xContentType, false, withShardTarget));
+                        SearchHitsTests.createTestItem(xContentType, false, transportSerialization));
                 }
                 hit.setInnerHits(innerHits);
             }
         }
-        if (withShardTarget && randomBoolean()) {
+        if (transportSerialization && randomBoolean()) {
             String index = randomAlphaOfLengthBetween(5, 10);
             String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
             hit.shard(new SearchShardTarget(randomAlphaOfLengthBetween(5, 10),
@@ -213,7 +217,8 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
 
     public void testSerializeShardTarget() throws Exception {
         String clusterAlias = randomBoolean() ? null : "cluster_alias";
-        SearchShardTarget target = new SearchShardTarget("_node_id", new Index("_index", "_na_"), 0, clusterAlias);
+        SearchShardTarget target = new SearchShardTarget("_node_id", new ShardId(new Index("_index", "_na_"), 0),
+            clusterAlias, OriginalIndices.NONE);
 
         Map<String, SearchHits> innerHits = new HashMap<>();
         SearchHit innerHit1 = new SearchHit(0, "_id", new Text("_type"), null);
@@ -239,12 +244,10 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
 
         SearchHits hits = new SearchHits(new SearchHit[]{hit1, hit2}, 2, 1f);
 
-
-        BytesStreamOutput output = new BytesStreamOutput();
-        hits.writeTo(output);
-        InputStream input = output.bytes().streamInput();
-        SearchHits results = SearchHits.readSearchHits(new InputStreamStreamInput(input));
-        assertThat(results.getAt(0).getShard(), equalTo(target));
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.CURRENT);
+        SearchHits results = copyStreamable(hits, getNamedWriteableRegistry(), SearchHits::new, version);
+        SearchShardTarget deserializedTarget = results.getAt(0).getShard();
+        assertThat(deserializedTarget, equalTo(target));
         assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
         assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
         assertThat(results.getAt(0).getInnerHits().get("1").getAt(1).getShard(), notNullValue());
@@ -259,7 +262,6 @@ public class SearchHitTests extends AbstractStreamableTestCase<SearchHit> {
                 }
             }
         }
-
         assertThat(results.getAt(1).getShard(), equalTo(target));
     }
 

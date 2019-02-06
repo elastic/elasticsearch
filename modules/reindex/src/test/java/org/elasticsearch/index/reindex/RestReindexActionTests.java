@@ -78,6 +78,8 @@ public class RestReindexActionTests extends ESTestCase {
 
     public void testBuildRemoteInfoWithoutAllParts() throws IOException {
         expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("example.com"));
+        expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase(":9200"));
+        expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("http://:9200"));
         expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("example.com:9200"));
         expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("http://example.com"));
     }
@@ -94,6 +96,14 @@ public class RestReindexActionTests extends ESTestCase {
         info = buildRemoteInfoHostTestCase("https://other.example.com:9201");
         assertEquals("https", info.getScheme());
         assertEquals("other.example.com", info.getHost());
+        assertEquals(9201, info.getPort());
+        assertNull(info.getPathPrefix());
+        assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
+        assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
+
+        info = buildRemoteInfoHostTestCase("https://[::1]:9201");
+        assertEquals("https", info.getScheme());
+        assertEquals("[::1]", info.getHost());
         assertEquals(9201, info.getPort());
         assertNull(info.getPathPrefix());
         assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());

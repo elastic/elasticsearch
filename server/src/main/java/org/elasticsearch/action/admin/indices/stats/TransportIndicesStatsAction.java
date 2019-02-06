@@ -35,6 +35,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -166,18 +167,25 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
 
         CommitStats commitStats;
         SeqNoStats seqNoStats;
+        RetentionLeaseStats retentionLeaseStats;
         try {
             commitStats = indexShard.commitStats();
             seqNoStats = indexShard.seqNoStats();
-        } catch (AlreadyClosedException e) {
+            retentionLeaseStats = indexShard.getRetentionLeaseStats();
+        } catch (final AlreadyClosedException e) {
             // shard is closed - no stats is fine
             commitStats = null;
             seqNoStats = null;
+            retentionLeaseStats = null;
         }
 
         return new ShardStats(
-            indexShard.routingEntry(),
-            indexShard.shardPath(),
-            new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags), commitStats, seqNoStats);
+                indexShard.routingEntry(),
+                indexShard.shardPath(),
+                new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                commitStats,
+                seqNoStats,
+                retentionLeaseStats);
     }
+
 }

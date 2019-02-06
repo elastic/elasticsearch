@@ -327,7 +327,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      *
      */
     public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
-        // It's possible for replicaNodeVersion to be null, when deassociating dead nodes
+        // It's possible for replicaNodeVersion to be null, when disassociating dead nodes
         // that have been removed, the shards are failed, and part of the shard failing
         // calls this method with an out-of-date RoutingNodes, where the version might not
         // be accessible. Therefore, we need to protect against the version being null

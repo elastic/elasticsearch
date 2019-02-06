@@ -33,9 +33,11 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqN
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 
 /** Utility class to do efficient primary-key (only 1 doc contains the
@@ -116,18 +118,18 @@ final class PerThreadIDVersionAndSeqNoLookup {
                 if (seqNos != null && seqNos.advanceExact(docID)) {
                     seqNo = seqNos.longValue();
                 } else {
-                    seqNo =  SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    seqNo =  UNASSIGNED_SEQ_NO;
                 }
                 NumericDocValues terms = context.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
                 if (terms != null && terms.advanceExact(docID)) {
                     term = terms.longValue();
                 } else {
-                    term = 0;
+                    term = UNASSIGNED_PRIMARY_TERM;
                 }
 
             } else {
-                seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-                term = 0;
+                seqNo = UNASSIGNED_SEQ_NO;
+                term = UNASSIGNED_PRIMARY_TERM;
             }
             return new DocIdAndVersion(docID, versions.longValue(), seqNo, term, context.reader(), context.docBase);
         } else {
@@ -175,7 +177,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
                     if (seqNoDV != null && seqNoDV.advanceExact(docID)) {
                         seqNo = seqNoDV.longValue();
                     } else {
-                        seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                        seqNo = UNASSIGNED_SEQ_NO;
                     }
                     final boolean isLive = (liveDocs == null || liveDocs.get(docID));
                     if (isLive) {

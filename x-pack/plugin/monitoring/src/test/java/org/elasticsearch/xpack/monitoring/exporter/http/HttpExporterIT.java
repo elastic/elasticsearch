@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -350,7 +351,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                                remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         MockRequest recordedRequest = assertBulk(webServer);
 
-        String indexName = indexName(DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC(), doc.getSystem(), doc.getTimestamp());
+        String indexName = indexName(DateFormatter.forPattern("YYYY.MM.dd"), doc.getSystem(), doc.getTimestamp());
 
         byte[] bytes = recordedRequest.getBody().getBytes(StandardCharsets.UTF_8);
         Map<String, Object> data = XContentHelper.convertToMap(new BytesArray(bytes), false, XContentType.JSON).v2();

@@ -46,6 +46,7 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -57,6 +58,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s, {@link DeleteRequest}s and {@link UpdateRequest}s
@@ -83,6 +85,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private static final ParseField PIPELINE = new ParseField("pipeline");
     private static final ParseField FIELDS = new ParseField("fields");
     private static final ParseField SOURCE = new ParseField("_source");
+    private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
+    private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
 
     /**
      * Requests that are part of this request. It is only possible to add things that are both {@link ActionRequest}s and
@@ -354,6 +358,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 String opType = null;
                 long version = Versions.MATCH_ANY;
                 VersionType versionType = VersionType.INTERNAL;
+                long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
                 int retryOnConflict = 0;
                 String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
 
@@ -386,6 +392,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 version = parser.longValue();
                             } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 versionType = VersionType.fromString(parser.text());
+                            } else if (IF_SEQ_NO.match(currentFieldName, parser.getDeprecationHandler())) {
+                                ifSeqNo = parser.longValue();
+                            } else if (IF_PRIMARY_TERM.match(currentFieldName, parser.getDeprecationHandler())) {
+                                ifPrimaryTerm = parser.longValue();
                             } else if (RETRY_ON_CONFLICT.match(currentFieldName, parser.getDeprecationHandler())) {
                                 retryOnConflict = parser.intValue();
                             } else if (PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -423,7 +433,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
                 if ("delete".equals(action)) {
                     add(new DeleteRequest(index, type, id).routing(routing).parent(parent).version(version)
-                        .versionType(versionType), payload);
+                        .versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm), payload);
                 } else {
                     nextMarker = findNextMarker(marker, from, data, length);
                     if (nextMarker == -1) {
@@ -436,20 +446,24 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                     if ("index".equals(action)) {
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version)
-                                    .versionType(versionType).setPipeline(pipeline)
+                                    .versionType(versionType).setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType), payload);
                         } else {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version)
                                     .versionType(versionType).create("create".equals(opType)).setPipeline(pipeline)
+                                    .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                         }
                     } else if ("create".equals(action)) {
                         internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version)
                                 .versionType(versionType).create(true).setPipeline(pipeline)
+                                .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                     } else if ("update".equals(action)) {
-                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).parent(parent)
-                                .retryOnConflict(retryOnConflict).version(version).versionType(versionType)
+                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing)
+                                .retryOnConflict(retryOnConflict)
+                                .version(version).versionType(versionType)
+                                .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .routing(routing)
                                 .parent(parent);
                         // EMPTY is safe here because we never call namedObject

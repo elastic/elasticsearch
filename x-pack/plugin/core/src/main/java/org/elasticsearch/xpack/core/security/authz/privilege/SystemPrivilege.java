@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collections;
@@ -14,7 +17,7 @@ public final class SystemPrivilege extends Privilege {
 
     public static SystemPrivilege INSTANCE = new SystemPrivilege();
 
-    private static final Predicate<String> PREDICATE = Automatons.predicate(Automatons.
+    private static final Predicate<String> ALLOWED_ACTIONS = Automatons.predicate(Automatons.
             minusAndMinimize(Automatons.patterns(
             "internal:*",
             "indices:monitor/*", // added for monitoring
@@ -24,8 +27,19 @@ public final class SystemPrivilege extends Privilege {
             "indices:admin/template/put", // needed for the TemplateUpgradeService
             "indices:admin/template/delete", // needed for the TemplateUpgradeService
             "indices:admin/seq_no/global_checkpoint_sync*", // needed for global checkpoint syncs
+            RetentionLeaseSyncAction.ACTION_NAME + "*", // needed for retention lease syncs
+            RetentionLeaseBackgroundSyncAction.ACTION_NAME + "*", // needed for background retention lease syncs
             "indices:admin/settings/update" // needed for DiskThresholdMonitor.markIndicesReadOnly
     ), Automatons.patterns("internal:transport/proxy/*"))); // no proxy actions for system user!
+
+    private static final Predicate<String> PREDICATE = (action) -> {
+        // Only allow a proxy action if the underlying action is allowed
+        if (TransportActionProxy.isProxyAction(action)) {
+            return ALLOWED_ACTIONS.test(TransportActionProxy.unwrapAction(action));
+        } else {
+            return ALLOWED_ACTIONS.test(action);
+        }
+    };
 
     private SystemPrivilege() {
         super(Collections.singleton("internal"));

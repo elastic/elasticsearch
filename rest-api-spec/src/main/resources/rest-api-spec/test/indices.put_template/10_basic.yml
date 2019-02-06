@@ -1,50 +1,87 @@
 ---
 "Put template":
-
   - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new API that has been added in 6.0
+      version: " - 6.6.99"
+      reason:  include_type_name was introduced in 6.7
 
   - do:
       indices.put_template:
+        include_type_name: false
         name: test
         body:
           index_patterns: test-*
           settings:
             number_of_shards:   1
             number_of_replicas: 0
+          mappings:
+            properties:
+              field:
+                type: keyword
 
   - do:
       indices.get_template:
+        include_type_name: false
         name: test
         flat_settings: true
 
   - match: {test.index_patterns: ["test-*"]}
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+  - match: {test.mappings: {properties: {field: {type: keyword}}}}
 
 ---
 "Put multiple template":
-
   - skip:
-      version: " - 5.99.99"
-      reason:  this uses a new API that has been added in 6.0
+      version: " - 6.6.99"
+      reason:  include_type_name was introduced in 6.7
 
   - do:
       indices.put_template:
+        include_type_name: false
         name: test
         body:
           index_patterns: [test-*, test2-*]
           settings:
             number_of_shards:   1
             number_of_replicas: 0
+          mappings:
+            properties:
+              field:
+                type: text
 
   - do:
       indices.get_template:
+        include_type_name: false
         name: test
         flat_settings: true
 
   - match: {test.index_patterns: ["test-*", "test2-*"]}
   - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+  - match: {test.mappings: {properties: {field: {type: text}}}}
+
+---
+"Put template with empty mappings":
+  - skip:
+      version: " - 6.6.99"
+      reason:  include_type_name was introduced in 6.7
+
+  - do:
+      indices.put_template:
+        include_type_name: false
+        name: test
+        body:
+          index_patterns: test-*
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+          mappings: {}
+
+  - do:
+      indices.get_template:
+        include_type_name: false
+        name: test
+        flat_settings: true
+
+  - match: {test.mappings: {}}
 
 ---
 "Put template with aliases":
@@ -223,3 +260,25 @@
       indices.put_template:
         name: test
         body: {}
+
+---
+"Put template with explicit _doc type":
+  - skip:
+      version: " - 6.6.99"
+      reason: include_type_name was introduced in 6.7.0
+
+  - do:
+      catch: bad_request
+      indices.put_template:
+        include_type_name: false
+        name: test
+        body:
+          index_patterns: test-*
+          mappings:
+            _doc:
+              properties:
+                field:
+                  type: keyword
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "The mapping definition cannot be nested under a type [_doc] unless include_type_name is set to true." }

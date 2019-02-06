@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -14,7 +15,9 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
@@ -28,8 +31,8 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -66,7 +69,7 @@ import static org.mockito.Mockito.when;
 
 public class AutoDetectResultProcessorTests extends ESTestCase {
 
-    private static final String JOB_ID = "_id";
+    private static final String JOB_ID = "valid_id";
     private static final long BUCKET_SPAN_MS = 1000;
 
     private ThreadPool threadPool;
@@ -81,14 +84,16 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        executor = new ScheduledThreadPoolExecutor(1);
+        executor = new Scheduler.SafeScheduledThreadPoolExecutor(1);
         client = mock(Client.class);
-        auditor = mock(Auditor.class);
         threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        auditor = mock(Auditor.class);
         renormalizer = mock(Renormalizer.class);
         persister = mock(JobResultsPersister.class);
+        when(persister.persistModelSnapshot(any(), any()))
+                .thenReturn(new IndexResponse(new ShardId("ml", "uid", 0), "doc", "1", 0L, 0L, 0L, true));
         jobResultsProvider = mock(JobResultsProvider.class);
         flushListener = mock(FlushListener.class);
         processorUnderTest = new AutoDetectResultProcessor(client, auditor, JOB_ID, renormalizer, persister, jobResultsProvider,
@@ -388,9 +393,9 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
             verify(persister, times(5)).persistModelSizeStats(any(ModelSizeStats.class));
             // ...but only the last should trigger an established model memory update
             verify(persister, times(1)).commitResultWrites(JOB_ID);
-            verifyNoMoreInteractions(persister);
             verify(jobResultsProvider, times(1)).getEstablishedMemoryUsage(eq(JOB_ID), eq(lastTimestamp), eq(lastModelSizeStats),
                 any(Consumer.class), any(Consumer.class));
+            verifyNoMoreInteractions(persister);
             verifyNoMoreInteractions(jobResultsProvider);
             assertEquals(lastModelSizeStats, processorUnderTest.modelSizeStats());
         });
@@ -464,10 +469,9 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AutodetectProcess process = mock(AutodetectProcess.class);
         when(process.readAutodetectResults()).thenReturn(iterator);
         processorUnderTest.process(process);
-
         processorUnderTest.awaitCompletion();
         assertEquals(0, processorUnderTest.completionLatch.getCount());
-        assertEquals(1, processorUnderTest.updateModelSnapshotIdSemaphore.availablePermits());
+        assertEquals(1, processorUnderTest.jobUpdateSemaphore.availablePermits());
     }
 
     public void testPersisterThrowingDoesntBlockProcessing() {
@@ -522,7 +526,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
         processorUnderTest.awaitCompletion();
         assertEquals(0, processorUnderTest.completionLatch.getCount());
-        assertEquals(1, processorUnderTest.updateModelSnapshotIdSemaphore.availablePermits());
+        assertEquals(1, processorUnderTest.jobUpdateSemaphore.availablePermits());
 
         verify(persister, times(1)).commitResultWrites(JOB_ID);
         verify(persister, times(1)).commitStateWrites(JOB_ID);
@@ -533,7 +537,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     }
 
     private void setupScheduleDelayTime(TimeValue delay) {
-        when(threadPool.schedule(any(TimeValue.class), anyString(), any(Runnable.class)))
-            .thenAnswer(i -> executor.schedule((Runnable) i.getArguments()[2], delay.nanos(), TimeUnit.NANOSECONDS));
+        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), anyString()))
+            .thenAnswer(i -> Scheduler.wrapAsScheduledCancellable(executor.schedule((Runnable) i.getArguments()[0],
+                delay.nanos(), TimeUnit.NANOSECONDS)));
     }
 }

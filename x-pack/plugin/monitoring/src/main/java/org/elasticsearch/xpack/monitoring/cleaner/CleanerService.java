@@ -13,8 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.joda.time.DateTime;
@@ -22,7 +22,6 @@ import org.joda.time.chrono.ISOChronology;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledFuture;
 
 /**
  * {@code CleanerService} takes care of deleting old monitoring indices.
@@ -40,7 +39,6 @@ public class CleanerService extends AbstractLifecycleComponent {
 
     CleanerService(Settings settings, ClusterSettings clusterSettings, XPackLicenseState licenseState, ThreadPool threadPool,
                    ExecutionScheduler executionScheduler) {
-        super(settings);
         this.licenseState = licenseState;
         this.threadPool = threadPool;
         this.executionScheduler = executionScheduler;
@@ -58,7 +56,7 @@ public class CleanerService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         logger.debug("starting cleaning service");
-        threadPool.schedule(executionScheduler.nextExecutionDelay(new DateTime(ISOChronology.getInstance())), executorName(), runnable);
+        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(new DateTime(ISOChronology.getInstance())), executorName());
         logger.debug("cleaning service started");
     }
 
@@ -154,7 +152,7 @@ public class CleanerService extends AbstractLifecycleComponent {
      */
     class IndicesCleaner extends AbstractLifecycleRunnable {
 
-        private volatile ScheduledFuture<?> future;
+        private volatile Scheduler.Cancellable cancellable;
 
         /**
          * Enable automatic logging and stopping of the runnable based on the {@link #lifecycle}.
@@ -198,7 +196,7 @@ public class CleanerService extends AbstractLifecycleComponent {
             logger.debug("scheduling next execution in [{}] seconds", delay.seconds());
 
             try {
-                future = threadPool.schedule(delay, executorName(), this);
+                cancellable = threadPool.schedule(this, delay, executorName());
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug("couldn't schedule new execution of the cleaner, executor is shutting down", e);
@@ -216,13 +214,13 @@ public class CleanerService extends AbstractLifecycleComponent {
         /**
          * Cancel/stop the cleaning service.
          * <p>
-         * This will kill any scheduled {@link #future} from running. It's possible that this will be executed concurrently with the
+         * This will kill any scheduled {@link #cancellable} from running. It's possible that this will be executed concurrently with the
          * {@link #onAfter() rescheduling code}, at which point it will be stopped during the next execution <em>if</em> the service is
          * stopped.
          */
         public void cancel() {
-            if (future != null && future.isCancelled() == false) {
-                FutureUtils.cancel(future);
+            if (cancellable != null && cancellable.isCancelled() == false) {
+                cancellable.cancel();
             }
         }
     }

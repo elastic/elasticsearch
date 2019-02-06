@@ -8,41 +8,37 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 
 import java.util.Collections;
-import java.util.List;
 
 public class TransportGetCalendarEventsAction extends HandledTransportAction<GetCalendarEventsAction.Request,
         GetCalendarEventsAction.Response> {
 
     private final JobResultsProvider jobResultsProvider;
-    private final ClusterService clusterService;
+    private final JobManager jobManager;
 
     @Inject
     public TransportGetCalendarEventsAction(Settings settings, ThreadPool threadPool,
                                             TransportService transportService, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                            ClusterService clusterService, JobResultsProvider jobResultsProvider) {
+                                            JobResultsProvider jobResultsProvider, JobManager jobManager) {
         super(settings, GetCalendarEventsAction.NAME, threadPool, transportService, actionFilters,
                 indexNameExpressionResolver, GetCalendarEventsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
-        this.clusterService = clusterService;
+        this.jobManager = jobManager;
     }
 
     @Override
@@ -68,26 +64,26 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                     );
 
                     if (request.getJobId() != null) {
-                        ClusterState state = clusterService.state();
-                        MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(state);
 
-                        List<String> jobGroups;
-                        String requestId = request.getJobId();
-
-                        Job job = currentMlMetadata.getJobs().get(request.getJobId());
-                        if (job == null) {
-                            // Check if the requested id is a job group
-                            if (currentMlMetadata.isGroupOrJob(request.getJobId()) == false) {
-                                listener.onFailure(ExceptionsHelper.missingJobException(request.getJobId()));
-                                return;
-                            }
-                            jobGroups = Collections.singletonList(request.getJobId());
-                            requestId = null;
-                        } else {
-                            jobGroups = job.getGroups();
-                        }
-
-                        jobResultsProvider.scheduledEventsForJob(requestId, jobGroups, query, eventsListener);
+                        jobManager.getJob(request.getJobId(), ActionListener.wrap(
+                                job -> {
+                                    jobResultsProvider.scheduledEventsForJob(request.getJobId(), job.getGroups(), query, eventsListener);
+                                },
+                                jobNotFound -> {
+                                    // is the request Id a group?
+                                    jobManager.groupExists(request.getJobId(), ActionListener.wrap(
+                                            groupExists -> {
+                                                if (groupExists) {
+                                                    jobResultsProvider.scheduledEventsForJob(
+                                                            null, Collections.singletonList(request.getJobId()), query, eventsListener);
+                                                } else {
+                                                    listener.onFailure(ExceptionsHelper.missingJobException(request.getJobId()));
+                                                }
+                                            },
+                                            listener::onFailure
+                                    ));
+                                }
+                        ));
                     } else {
                         jobResultsProvider.scheduledEvents(query, eventsListener);
                     }

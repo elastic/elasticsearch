@@ -1,0 +1,55 @@
+[[breaking-changes-6.7]]
+== Breaking changes in 6.7
+++++
+<titleabbrev>6.7</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 6.7.
+
+* <<breaking_67_indexing_changes>>
+* <<breaking_67_plugin_changes>>
+* <<breaking_67_settings_changes>>
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+[float]
+[[breaking_67_indexing_changes]]
+=== Indexing changes
+
+[float]
+==== Deprecated usage of `internal` versioning for optimistic concurrency control
+
+`internal` version may not uniquely identify a document's version if an indexed document
+wasn't fully replicated when a primary fails. As such it is unsafe to use for
+optimistic concurrency control, is deprecated and the option will no longer be available
+in Elasticsearch 7.0.0. Please use the `if_seq_no` and `if_primary_term` parameters instead.
+See <<optimistic-concurrency-control>> for more details.
+
+[float]
+[[breaking_67_plugin_changes]]
+=== Plugin changes
+
+[float]
+==== `ingest-geoip` and `ingest-user-agent` are no longer distributed as plugins
+
+The `ingest-geoip` and `ingest-user-agent` plugins have been converted to
+modules and are now included with all Elasticsearch distributions. Starting with
+Elasticsearch 6.7.0, attempting to install or remove these plugins will result
+in a no-op. In Elasticsearch 7.0.0, attempting to install or remove these plugins
+will result in an error. Additionally, there are two minor breaking changes here:
+- `elasticsearch-plugin list` will no longer output `ingest-geoip` nor
+  `ingest-user-agent`
+- `plugin.mandatory` is no longer compatible with `ingest-geoip` nor
+  `ingest-user-agent`
+
+
+[float]
+[[breaking_67_settings_changes]]
+=== Settings changes
+
+[float]
+==== Disabling memory-mapping
+
+The setting `node.store.allow_mmapfs` has been deprecated. Use
+`node.store.allow_mmap` instead.

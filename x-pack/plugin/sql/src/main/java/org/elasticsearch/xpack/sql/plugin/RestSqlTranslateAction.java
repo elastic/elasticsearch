@@ -14,6 +14,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateRequest;
+import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 
@@ -26,8 +27,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSqlTranslateAction extends BaseRestHandler {
     public RestSqlTranslateAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, "/_xpack/sql/translate", this);
-        controller.registerHandler(POST, "/_xpack/sql/translate", this);
+        controller.registerHandler(GET, Protocol.SQL_TRANSLATE_REST_ENDPOINT, this);
+        controller.registerHandler(POST, Protocol.SQL_TRANSLATE_REST_ENDPOINT, this);
     }
 
     @Override

@@ -21,6 +21,8 @@ The result of the above get operation is:
     "_type" : "_doc",
     "_id" : "0",
     "_version" : 1,
+    "_seq_no" : 10,
+    "_primary_term" : 1,
     "found": true,
     "_source" : {
         "user" : "kimchy",
@@ -30,7 +32,7 @@ The result of the above get operation is:
     }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 The above result includes the `_index`, `_type`, `_id` and `_version`
 of the document we wish to retrieve, including the actual `_source`
@@ -156,6 +158,8 @@ The result of the above get operation is:
    "_type": "_doc",
    "_id": "1",
    "_version": 1,
+   "_seq_no" : 22,
+   "_primary_term" : 1,
    "found": true,
    "fields": {
       "tags": [
@@ -164,7 +168,7 @@ The result of the above get operation is:
    }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 Field values fetched from the document itself are always returned as an array.
@@ -199,6 +203,8 @@ The result of the above get operation is:
    "_type": "_doc",
    "_id": "2",
    "_version": 1,
+   "_seq_no" : 13,
+   "_primary_term" : 1,
    "_routing": "user1",
    "found": true,
    "fields": {
@@ -208,7 +214,7 @@ The result of the above get operation is:
    }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Also only leaf fields can be returned via the `stored_field` option. So object fields can't be returned and such requests
 will fail.

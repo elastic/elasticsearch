@@ -91,7 +91,7 @@ public class RestClientDocumentation {
     // end::rest-client-options-singleton
 
     @SuppressWarnings("unused")
-    public void testUsage() throws IOException, InterruptedException {
+    public void usage() throws IOException, InterruptedException {
 
         //tag::rest-client-init
         RestClient restClient = RestClient.builder(
@@ -291,7 +291,7 @@ public class RestClientDocumentation {
     }
 
     @SuppressWarnings("unused")
-    public void testCommonConfiguration() throws Exception {
+    public void commonConfiguration() throws Exception {
         {
             //tag::rest-client-config-timeouts
             RestClientBuilder builder = RestClient.builder(
@@ -305,8 +305,7 @@ public class RestClientDocumentation {
                                 .setConnectTimeout(5000)
                                 .setSocketTimeout(60000);
                         }
-                    })
-                .setMaxRetryTimeoutMillis(60000);
+                    });
             //end::rest-client-config-timeouts
         }
         {

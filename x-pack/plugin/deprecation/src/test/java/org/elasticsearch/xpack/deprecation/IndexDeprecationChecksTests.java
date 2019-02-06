@@ -15,11 +15,15 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.index.mapper.MapperService.DEFAULT_MAPPING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 
 public class IndexDeprecationChecksTests extends ESTestCase {
 
@@ -33,11 +37,121 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             "Index created before 6.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                "breaking-changes-7.0.html",
-            "this index was created using version: " + createdWith);
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_indices_created_before_7_0",
+            "This index was created using version: " + createdWith);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
         assertEquals(singletonList(expected), issues);
+    }
+
+    public void testOldTasksIndexCheck() {
+        Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+            VersionUtils.getPreviousVersion(Version.V_6_0_0));
+        IndexMetaData indexMetaData = IndexMetaData.builder(".tasks")
+            .settings(settings(createdWith))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            ".tasks index must be re-created",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_indices_created_before_7_0",
+            "The .tasks index was created before version 6.0 and cannot be opened in 7.0. " +
+                "You must delete this index and allow it to be re-created by Elasticsearch. If you wish to preserve task history, " +
+                "reindex this index to a new index before deleting it.");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testMultipleTypesCheckWithDefaultMapping() throws IOException {
+        String mappingName1 = randomAlphaOfLengthBetween(2, 5);
+        String mappingJson1 = "{\n" +
+            "  \"properties\": {\n" +
+            "    \"field_a\": {\n" +
+            "      \"type\": \"text\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+        String defaultMappingJson = "{\n" +
+            "  \"properties\": {\n" +
+            "    \"field_b\": {\n" +
+            "      \"type\": \"keyword\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+
+        Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+            VersionUtils.getPreviousVersion(Version.V_6_0_0));
+        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+            .putMapping(mappingName1, mappingJson1)
+            .putMapping(DEFAULT_MAPPING, defaultMappingJson)
+            .settings(settings(createdWith))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "Index created before 6.0",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_indices_created_before_7_0",
+            "This index was created using version: " + createdWith);
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testMultipleTypesCheck() throws IOException {
+        String mappingName1 = randomAlphaOfLengthBetween(2, 5);
+        String mappingJson1 = "{\n" +
+            "  \"properties\": {\n" +
+            "    \"field_a\": {\n" +
+            "      \"type\": \"text\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+        String mappingName2 = randomAlphaOfLengthBetween(6, 10);
+        String mappingJson2 = "{\n" +
+            "  \"properties\": {\n" +
+            "    \"field_b\": {\n" +
+            "      \"type\": \"keyword\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+
+        Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+            VersionUtils.getPreviousVersion(Version.V_6_0_0));
+        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder("test")
+            .putMapping(mappingName1, mappingJson1)
+            .putMapping(mappingName2, mappingJson2)
+            .settings(settings(createdWith))
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+
+        if (randomBoolean()) {
+            String defaultMappingJson = "{\n" +
+                "  \"properties\": {\n" +
+                "    \"field_c\": {\n" +
+                "      \"type\": \"keyword\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+            indexMetaDataBuilder.putMapping(DEFAULT_MAPPING, defaultMappingJson);
+        }
+
+        IndexMetaData indexMetaData = indexMetaDataBuilder.build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        assertEquals(1, issues.size());
+        DeprecationIssue issue = issues.get(0);
+        assertEquals("Index has more than one mapping type", issue.getMessage());
+        assertEquals(DeprecationIssue.Level.CRITICAL, issue.getLevel());
+        assertEquals(
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html" +
+                "#_migrating_multi_type_indices_to_single_type",
+            issue.getUrl());
+        assertThat(issue.getDetails(), allOf(
+            containsString("This index has more than one mapping type, which is not supported in 7.0. " +
+                "This index must be reindexed into one or more single-type indices. Mapping types in use: ["),
+            containsString(mappingName1),
+            containsString(mappingName2)));
     }
 
     public void testDelimitedPayloadFilterCheck() {
@@ -48,7 +162,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .put("index.analysis.filter.my_delimited_payload_filter.encoding", "identity").build();
         IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING, "Use of 'delimited_payload_filter'.",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_analysis_changes.html",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_literal_delimited_payload_filter_literal_renaming",
             "[The filter [my_delimited_payload_filter] is of deprecated 'delimited_payload_filter' type. "
                 + "The filter type should be changed to 'delimited_payload'.]");
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
@@ -107,6 +222,53 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
         List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(goodIndex));
         assertTrue(noIssues.isEmpty());
+    }
+
+    public void testClassicSimilarityMappingCheck() throws IOException {
+        String mappingJson = "{\n" +
+            "  \"properties\": {\n" +
+            "    \"default_field\": {\n" +
+            "      \"type\": \"text\"\n" +
+            "    },\n" +
+            "    \"classic_sim_field\": {\n" +
+            "      \"type\": \"text\",\n" +
+            "      \"similarity\": \"classic\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+        IndexMetaData index = IndexMetaData.builder(randomAlphaOfLengthBetween(5,10))
+            .settings(settings(
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT))))
+            .numberOfShards(randomIntBetween(1,100))
+            .numberOfReplicas(randomIntBetween(1, 100))
+            .putMapping("_doc", mappingJson)
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "Classic similarity has been removed",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_the_literal_classic_literal_similarity_has_been_removed",
+            "Fields which use classic similarity: [[type: _doc, field: classic_sim_field]]");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(index));
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testClassicSimilaritySettingsCheck() {
+        IndexMetaData index = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT)))
+                .put("index.similarity.my_classic_similarity.type", "classic")
+                .put("index.similarity.my_okay_similarity.type", "BM25"))
+            .numberOfShards(randomIntBetween(1, 100))
+            .numberOfReplicas(randomIntBetween(1, 100))
+            .build();
+
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "Classic similarity has been removed",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "#_the_literal_classic_literal_similarity_has_been_removed",
+            "Custom similarities defined using classic similarity: [my_classic_similarity]");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(index));
+        assertEquals(singletonList(expected), issues);
     }
 
     public void testNodeLeftDelayedTimeCheck() {

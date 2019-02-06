@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
@@ -32,8 +32,8 @@ public class ShowColumns extends Command {
     private final String index;
     private final LikePattern pattern;
 
-    public ShowColumns(Location location, String index, LikePattern pattern) {
-        super(location);
+    public ShowColumns(Source source, String index, LikePattern pattern) {
+        super(source);
         this.index = index;
         this.pattern = pattern;
     }
@@ -53,9 +53,9 @@ public class ShowColumns extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(new FieldAttribute(location(), "column", new KeywordEsField("column")),
-                new FieldAttribute(location(), "type", new KeywordEsField("type")),
-                new FieldAttribute(location(), "mapping", new KeywordEsField("mapping")));
+        return asList(new FieldAttribute(source(), "column", new KeywordEsField("column")),
+                new FieldAttribute(source(), "type", new KeywordEsField("type")),
+                new FieldAttribute(source(), "mapping", new KeywordEsField("mapping")));
     }
 
     @Override
@@ -80,7 +80,8 @@ public class ShowColumns extends Command {
             DataType dt = field.getDataType();
             String name = e.getKey();
             if (dt != null) {
-                rows.add(asList(prefix != null ? prefix + "." + name : name, dt.sqlName(), dt.name()));
+                // show only fields that exist in ES
+                rows.add(asList(prefix != null ? prefix + "." + name : name, dt.sqlName(), dt.typeName));
                 if (field.getProperties().isEmpty() == false) {
                     String newPrefix = prefix != null ? prefix + "." + name : name;
                     fillInRows(field.getProperties(), newPrefix, rows);

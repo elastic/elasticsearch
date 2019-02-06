@@ -28,7 +28,7 @@ public class SlackService extends NotificationService<SlackAccount> {
 
     private static final Setting.AffixSetting<String> SETTING_URL =
             Setting.affixKeySetting("xpack.notification.slack.account.", "url",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
 
     private static final Setting.AffixSetting<SecureString> SETTING_URL_SECURE =
             Setting.affixKeySetting("xpack.notification.slack.account.", "secure_url", (key) -> SecureSetting.secureString(key, null));

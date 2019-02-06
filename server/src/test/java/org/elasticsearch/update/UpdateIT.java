@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -36,7 +37,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -379,6 +382,34 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getGetResult().sourceAsMap().size(), equalTo(1));
         assertThat(updateResponse.getGetResult().sourceAsMap().get("field1"), equalTo(2));
 
+        // check updates with null excludes
+        client().prepareIndex("test", "type1", "1").setSource("field1", 1, "field2", 2).execute().actionGet();
+        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field1")))
+            .setFetchSource("field1", null)
+            .get();
+        assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getGetResult(), notNullValue());
+        assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
+        assertThat(updateResponse.getGetResult().sourceRef(), notNullValue());
+        assertThat(updateResponse.getGetResult().field("field1"), nullValue());
+        assertThat(updateResponse.getGetResult().sourceAsMap().size(), equalTo(1));
+        assertThat(updateResponse.getGetResult().sourceAsMap().get("field1"), equalTo(2));
+
+        // check updates with null includes
+        client().prepareIndex("test", "type1", "1").setSource("field1", 1, "field2", 2).execute().actionGet();
+        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field1")))
+            .setFetchSource(null, "field1")
+            .get();
+        assertThat(updateResponse.getIndex(), equalTo("test"));
+        assertThat(updateResponse.getGetResult(), notNullValue());
+        assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
+        assertThat(updateResponse.getGetResult().sourceRef(), notNullValue());
+        assertThat(updateResponse.getGetResult().field("field2"), nullValue());
+        assertThat(updateResponse.getGetResult().sourceAsMap().size(), equalTo(1));
+        assertThat(updateResponse.getGetResult().sourceAsMap().get("field2"), equalTo(2));
+
         // check updates without script
         // add new field
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
@@ -425,6 +456,45 @@ public class UpdateIT extends ESIntegTestCase {
             assertThat(map2.containsKey("map2"), equalTo(true));
             assertThat(map2.containsKey("commonkey"), equalTo(true));
         }
+    }
+
+    public void testUpdateWithIfSeqNo() throws Exception {
+        createTestIndex();
+        ensureGreen();
+
+        IndexResponse result = client().prepareIndex("test", "type1", "1").setSource("field", 1).get();
+        expectThrows(VersionConflictEngineException.class, () ->
+            client().prepareUpdate(indexOrAlias(), "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+                .setIfSeqNo(result.getSeqNo() + 1)
+                .setIfPrimaryTerm(result.getPrimaryTerm())
+                .get()
+        );
+
+        expectThrows(VersionConflictEngineException.class, () ->
+            client().prepareUpdate(indexOrAlias(), "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+                .setIfSeqNo(result.getSeqNo())
+                .setIfPrimaryTerm(result.getPrimaryTerm() + 1)
+                .get()
+        );
+
+        expectThrows(VersionConflictEngineException.class, () ->
+            client().prepareUpdate(indexOrAlias(), "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+                .setIfSeqNo(result.getSeqNo() + 1)
+                .setIfPrimaryTerm(result.getPrimaryTerm() + 1)
+                .get()
+        );
+
+        UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 2).endObject())
+            .setIfSeqNo(result.getSeqNo())
+            .setIfPrimaryTerm(result.getPrimaryTerm())
+            .get();
+
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+        assertThat(updateResponse.getSeqNo(), equalTo(result.getSeqNo() + 1));
     }
 
     public void testUpdateRequestWithBothScriptAndDoc() throws Exception {

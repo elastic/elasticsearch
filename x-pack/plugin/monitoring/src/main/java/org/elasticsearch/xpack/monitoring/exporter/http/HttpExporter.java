@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -38,11 +39,12 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.TLSv1DeprecationHandler;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
-import org.joda.time.format.DateTimeFormatter;
 
+import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -54,8 +56,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import javax.net.ssl.SSLContext;
 
 /**
  * {@code HttpExporter} uses the low-level {@link RestClient} to connect to a user-specified set of nodes for exporting Monitoring
@@ -194,7 +194,7 @@ public class HttpExporter extends Exporter {
     private final AtomicBoolean clusterAlertsAllowed = new AtomicBoolean(false);
 
     private final ThreadContext threadContext;
-    private final DateTimeFormatter dateTimeFormatter;
+    private final DateFormatter dateTimeFormatter;
 
     /**
      * Create an {@link HttpExporter}.
@@ -475,17 +475,19 @@ public class HttpExporter extends Exporter {
     private static void configureSecurity(final RestClientBuilder builder, final Config config, final SSLService sslService) {
         final Setting<Settings> concreteSetting = SSL_SETTING.getConcreteSettingForNamespace(config.name());
         final Settings sslSettings = concreteSetting.get(config.settings());
+        final TLSv1DeprecationHandler tlsDeprecationHandler = new TLSv1DeprecationHandler(concreteSetting.getKey(), config.settings(),
+            logger);
         final SSLIOSessionStrategy sslStrategy;
         if (SSLConfigurationSettings.withoutPrefix().getSecureSettingsInUse(sslSettings).isEmpty()) {
             // This configuration does not use secure settings, so it is possible that is has been dynamically updated.
             // We need to load a new SSL strategy in case these settings differ from the ones that the SSL service was configured with.
-            sslStrategy = sslService.sslIOSessionStrategy(sslSettings);
+            sslStrategy = sslService.sslIOSessionStrategy(sslSettings, tlsDeprecationHandler);
         } else {
             // This configuration uses secure settings. We cannot load a new SSL strategy, as the secure settings have already been closed.
             // Due to #registerSettingValidators we know that the settings not been dynamically updated, and the pre-configured strategy
             // is still the correct configuration for use in this exporter.
             final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(concreteSetting.getKey());
-            sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
+            sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration, tlsDeprecationHandler);
         }
         final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
         List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());

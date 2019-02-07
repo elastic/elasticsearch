@@ -662,7 +662,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     void assertTotalHits(int expectedTotalHits, Map<?, ?> response) {
         int actualTotalHits = extractTotalHits(response);
-        assertEquals(expectedTotalHits, actualTotalHits);
+        assertEquals(response.toString(), expectedTotalHits, actualTotalHits);
     }
 
     int extractTotalHits(Map<?, ?> response) {
@@ -770,8 +770,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // Count the documents in the index to make sure we have as many as we put there
         Request countRequest = new Request("GET", "/" + index + "/_search");
         countRequest.addParameter("size", "0");
-        Map<String, Object> countResponse = entityAsMap(client().performRequest(countRequest));
         refresh();
+        Map<String, Object> countResponse = entityAsMap(client().performRequest(countRequest));
         assertTotalHits(count, countResponse);
 
         if (false == isRunningAgainstOldCluster()) {

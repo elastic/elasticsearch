@@ -73,7 +73,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final Setting<Integer> REMOTE_CONNECTIONS_PER_CLUSTER =
             Setting.intSetting(
                     "cluster.remote.connections_per_cluster",
-                3,
+                    3,
                     1,
                     Setting.Property.NodeScope);
 
@@ -105,7 +105,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final Setting<Boolean> ENABLE_REMOTE_CLUSTERS =
             Setting.boolSetting(
                     "cluster.remote.connect",
-                true,
+                    true,
                     Setting.Property.NodeScope);
 
 
@@ -115,7 +115,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                     "skip_unavailable",
                     key -> boolSetting(
                             key,
-                        false,
+                            false,
                             Setting.Property.Dynamic,
                             Setting.Property.NodeScope),
                     REMOTE_CLUSTERS_SEEDS);

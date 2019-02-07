@@ -33,12 +33,16 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -59,7 +63,10 @@ public abstract class RemoteClusterAware {
             key -> Setting.listSetting(
                     key,
                     Collections.emptyList(),
-                    Function.identity(),
+                    s -> {
+                        parsePort(s);
+                        return s;
+                    },
                     Setting.Property.Dynamic,
                     Setting.Property.NodeScope));
 
@@ -98,11 +105,18 @@ public abstract class RemoteClusterAware {
      * {@link TransportAddress#META_ADDRESS} and their configured address will be used as the hostname for the generated discovery node.
      */
     protected static Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> buildRemoteClustersDynamicConfig(
-            final Settings settings) {
-        final Stream<Setting<List<String>>> allConcreteSettings = REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(settings);
+        final Settings settings) {
+        final Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> remoteSeeds =
+            buildRemoteClustersDynamicConfig(settings, REMOTE_CLUSTERS_SEEDS);
+        return remoteSeeds;
+    }
+
+    private static Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> buildRemoteClustersDynamicConfig(
+        final Settings settings, final Setting.AffixSetting<List<String>> seedsSetting) {
+        final Stream<Setting<List<String>>> allConcreteSettings = seedsSetting.getAllConcreteSettings(settings);
         return allConcreteSettings.collect(
-            Collectors.toMap(REMOTE_CLUSTERS_SEEDS::getNamespace, concreteSetting -> {
-                String clusterName = REMOTE_CLUSTERS_SEEDS.getNamespace(concreteSetting);
+            Collectors.toMap(seedsSetting::getNamespace, concreteSetting -> {
+                String clusterName = seedsSetting.getNamespace(concreteSetting);
                 List<String> addresses = concreteSetting.get(settings);
                 final boolean proxyMode =
                     REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterName).existsOrFallbackExists(settings);

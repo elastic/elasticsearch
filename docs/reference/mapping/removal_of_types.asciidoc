@@ -4,7 +4,8 @@
 IMPORTANT: Indices created in Elasticsearch 6.0.0 or later may only contain a
 single <<mapping-type,mapping type>>.  Indices created in 5.x with multiple
 mapping types will continue to function as before in Elasticsearch 6.x.
-Mapping types will be completely removed in Elasticsearch 7.0.0.
+Types will be deprecated in APIs in Elasticsearch 7.0.0, and completely
+removed in 8.0.0.
 
 [float]
 === What are mapping types?
@@ -256,30 +257,28 @@ Elasticsearch 6.x::
 
 * The `_default_` mapping type is deprecated.
 
+* In 6.7, the index creation, index template, and mapping APIs support a query
+  string parameter (`include_type_name`) which indicates whether requests and
+  responses should include a type name. It defaults to `true`, and not setting
+  `include_type_name=false` will result in a deprecation warning. Indices which
+  don't have an explicit type will use the dummy type name `_doc`.
+
 Elasticsearch 7.x::
 
-* The `type` parameter in URLs are deprecated.  For instance, indexing
-  a document no longer requires a document `type`.  The new index APIs
+* Specifying types in requests is deprecated. For instance, indexing a
+  document no longer requires a document `type`.  The new index APIs
   are `PUT {index}/_doc/{id}` in case of explicit ids and `POST {index}/_doc`
   for auto-generated ids.
 
-* The index creation, `GET|PUT _mapping` and document APIs support a query
-  string parameter (`include_type_name`) which indicates whether requests and
-  responses should include a type name. It defaults to `true`.
-  7.x indices which don't have an explicit type will use the dummy type name
-  `_doc`. Not setting `include_type_name=false` will result in a deprecation
-  warning.
+* The `include_type_name` parameter in the index creation, index template,
+  and mapping APIs will default to `false`. Setting the parameter will result
+  in a deprecation warning.
 
 * The `_default_` mapping type is removed.
 
 Elasticsearch 8.x::
 
-* The `type` parameter is no longer supported in URLs.
-
-* The `include_type_name` parameter is deprecated, default to `false` and fails
-  the request when set to `true`.
-
-Elasticsearch 9.x::
+* Specifying types in requests is no longer supported.
 
 * The `include_type_name` parameter is removed.
 
@@ -423,4 +422,3 @@ POST _reindex
 }
 ----
 // NOTCONSOLE
-

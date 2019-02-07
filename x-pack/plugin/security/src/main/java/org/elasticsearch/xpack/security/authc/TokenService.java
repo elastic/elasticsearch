@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -40,10 +37,12 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
@@ -66,9 +65,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.XPackField;
@@ -869,6 +870,10 @@ public final class TokenService extends AbstractComponent {
                                         .setDoc("refresh_token", Collections.singletonMap("refreshed", true))
                                         .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
                                 if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0)) {
+                                    assert response.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                                        : "reading a token [" + tokenDocId + "] with no sequence number";
+                                    assert response.getPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM :
+                                        "reading a token [" + tokenDocId + "] with no primary term";
                                     updateRequest.setIfSeqNo(response.getSeqNo());
                                     updateRequest.setIfPrimaryTerm(response.getPrimaryTerm());
                                 } else {

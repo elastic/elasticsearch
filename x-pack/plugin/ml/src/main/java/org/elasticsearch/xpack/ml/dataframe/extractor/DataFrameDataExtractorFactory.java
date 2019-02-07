@@ -86,12 +86,11 @@ public class DataFrameDataExtractorFactory {
     public static void create(Client client, Map<String, String> headers, DataFrameAnalyticsConfig config,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
 
-        final String index = config.getSource();
         // Step 2. Construct the factory and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
                 fieldCapabilitiesResponse -> {
-                    listener.onResponse(new DataFrameDataExtractorFactory(client, config.getId(), index,
-                        detectExtractedFields(index, fieldCapabilitiesResponse), config.getParsedQuery()));
+                    listener.onResponse(new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(),
+                        detectExtractedFields(config.getSource(), fieldCapabilitiesResponse), config.getParsedQuery()));
                 }, e -> {
                     if (e instanceof IndexNotFoundException) {
                         listener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "
@@ -104,7 +103,7 @@ public class DataFrameDataExtractorFactory {
 
         // Step 1. Get field capabilities necessary to build the information of how to extract fields
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
-        fieldCapabilitiesRequest.indices(index);
+        fieldCapabilitiesRequest.indices(config.getSource());
         fieldCapabilitiesRequest.fields("*");
         ClientHelper.executeWithHeaders(headers, ClientHelper.ML_ORIGIN, client, () -> {
             client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);
@@ -114,7 +113,7 @@ public class DataFrameDataExtractorFactory {
     }
 
     // Visible for testing
-    static ExtractedFields detectExtractedFields(String index, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+    static ExtractedFields detectExtractedFields(String sourceIndex, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Set<String> fields = fieldCapabilitiesResponse.get().keySet();
         fields.removeAll(IGNORE_FIELDS);
         removeFieldsWithIncompatibleTypes(fields, fieldCapabilitiesResponse);
@@ -124,7 +123,7 @@ public class DataFrameDataExtractorFactory {
         ExtractedFields extractedFields = ExtractedFields.build(sortedFields, Collections.emptySet(), fieldCapabilitiesResponse)
                 .filterFields(ExtractedField.ExtractionMethod.DOC_VALUE);
         if (extractedFields.getAllFields().isEmpty()) {
-            throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index [{}]", index);
+            throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index [{}]", sourceIndex);
         }
         return extractedFields;
     }

@@ -30,7 +30,7 @@ RUN groupadd -g 1000 elasticsearch && \
 
 WORKDIR /usr/share/elasticsearch
 
-${source_elasticsearch}
+COPY ${elasticsearch} /opt/
 
 RUN tar zxf /opt/${elasticsearch} --strip-components=1
 RUN mkdir -p config data logs

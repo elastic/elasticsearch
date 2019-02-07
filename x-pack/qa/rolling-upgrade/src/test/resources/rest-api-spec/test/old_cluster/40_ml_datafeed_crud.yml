@@ -1,5 +1,8 @@
 ---
-"Put job and datafeed in old cluster":
+"Put job and datafeed in old cluster pre 7.0":
+  - skip:
+      version: " - 6.99.99"
+      reason: "types field was allowed in < 7"
 
   - do:
       ml.put_job:
@@ -37,3 +40,46 @@
         datafeed_id: old-cluster-datafeed
   - match: { datafeeds.0.state: stopped}
   - is_false: datafeeds.0.node
+
+---
+"Put job and datafeed in old cluster":
+  - skip:
+      version: "6.99.99 - "
+      reason: "types field is not allowed in >= 7"
+
+  - do:
+      ml.put_job:
+        job_id: old-cluster-datafeed-job
+        body:  >
+          {
+            "description":"Cluster upgrade",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
+  - match: { job_id: old-cluster-datafeed-job }
+
+  - do:
+      ml.put_datafeed:
+        datafeed_id: old-cluster-datafeed
+        body:  >
+          {
+            "job_id":"old-cluster-datafeed-job",
+            "indices":["airline-data"],
+            "scroll_size": 2000
+          }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: old-cluster-datafeed
+  - match: { datafeeds.0.state: stopped}
+  - is_false: datafeeds.0.node
+

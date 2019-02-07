@@ -497,12 +497,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                         if (hadAbortedInitializations) {
                             final SnapshotsInProgress snapshotsInProgress = newState.custom(SnapshotsInProgress.TYPE);
-                            if (snapshotsInProgress != null) {
-                                final SnapshotsInProgress.Entry entry = snapshotsInProgress.snapshot(snapshot.snapshot());
-                                if (entry != null) {
-                                    endSnapshot(entry);
-                                }
-                            }
+                            assert snapshotsInProgress != null;
+                            final SnapshotsInProgress.Entry entry = snapshotsInProgress.snapshot(snapshot.snapshot());
+                            assert entry != null;
+                            endSnapshot(entry);
                         }
                     }
                 });

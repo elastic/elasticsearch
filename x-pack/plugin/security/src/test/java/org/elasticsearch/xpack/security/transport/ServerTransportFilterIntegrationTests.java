@@ -42,7 +42,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;

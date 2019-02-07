@@ -29,9 +29,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CombinedRateLimiter;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardRecoveryException;
@@ -72,6 +72,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
+
 
 /**
  * This repository relies on a remote cluster for Ccr restores. It is read-only so it can only be used to
@@ -288,11 +290,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         String name = metadata.name();
         try (RestoreSession restoreSession = openSession(name, remoteClient, leaderShardId, indexShard, recoveryState)) {
             restoreSession.restoreFiles();
+            updateMappings(remoteClient, leaderIndex, restoreSession.mappingVersion, client, indexShard.routingEntry().index());
         } catch (Exception e) {
             throw new IndexShardRestoreFailedException(indexShard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
         }
-
-        maybeUpdateMappings(client, remoteClient, leaderIndex, indexShard.indexSettings());
     }
 
     @Override
@@ -300,18 +301,21 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
-    private void maybeUpdateMappings(Client localClient, Client remoteClient, Index leaderIndex, IndexSettings followerIndexSettings) {
-        ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
-        ClusterStateResponse clusterState = remoteClient.admin().cluster().state(clusterStateRequest)
-            .actionGet(ccrSettings.getRecoveryActionTimeout());
-        IndexMetaData leaderIndexMetadata = clusterState.getState().metaData().getIndexSafe(leaderIndex);
-        long leaderMappingVersion = leaderIndexMetadata.getMappingVersion();
-
-        if (leaderMappingVersion > followerIndexSettings.getIndexMetaData().getMappingVersion()) {
-            Index followerIndex = followerIndexSettings.getIndex();
-            MappingMetaData mappingMetaData = leaderIndexMetadata.mapping();
-            PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData);
-            localClient.admin().indices().putMapping(putMappingRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
+    private void updateMappings(Client leaderClient, Index leaderIndex, long leaderMappingVersion,
+                                Client followerClient, Index followerIndex) {
+        final PlainActionFuture<IndexMetaData> indexMetadataFuture = new PlainActionFuture<>();
+        final long startTimeInNanos = System.nanoTime();
+        final Supplier<TimeValue> timeout = () -> {
+            final long elapsedInNanos = System.nanoTime() - startTimeInNanos;
+            return TimeValue.timeValueNanos(ccrSettings.getRecoveryActionTimeout().nanos() - elapsedInNanos);
+        };
+        CcrRequests.getIndexMetadata(leaderClient, leaderIndex, leaderMappingVersion, 0L, timeout, indexMetadataFuture);
+        final IndexMetaData leaderIndexMetadata = indexMetadataFuture.actionGet(ccrSettings.getRecoveryActionTimeout());
+        final MappingMetaData mappingMetaData = leaderIndexMetadata.mapping();
+        if (mappingMetaData != null) {
+            final PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetaData)
+                .masterNodeTimeout(TimeValue.timeValueMinutes(30));
+            followerClient.admin().indices().putMapping(putMappingRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
         }
     }
 
@@ -321,28 +325,28 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse response = remoteClient.execute(PutCcrRestoreSessionAction.INSTANCE,
             new PutCcrRestoreSessionRequest(sessionUUID, leaderShardId)).actionGet(ccrSettings.getRecoveryActionTimeout());
         return new RestoreSession(repositoryName, remoteClient, sessionUUID, response.getNode(), indexShard, recoveryState,
-            response.getStoreFileMetaData(), ccrSettings, throttledTime::inc);
+            response.getStoreFileMetaData(), response.getMappingVersion(), ccrSettings, throttledTime::inc);
     }
 
     private static class RestoreSession extends FileRestoreContext implements Closeable {
-
-        private static final int BUFFER_SIZE = 1 << 16;
 
         private final Client remoteClient;
         private final String sessionUUID;
         private final DiscoveryNode node;
         private final Store.MetadataSnapshot sourceMetaData;
+        private final long mappingVersion;
         private final CcrSettings ccrSettings;
         private final LongConsumer throttleListener;
 
         RestoreSession(String repositoryName, Client remoteClient, String sessionUUID, DiscoveryNode node, IndexShard indexShard,
-                       RecoveryState recoveryState, Store.MetadataSnapshot sourceMetaData, CcrSettings ccrSettings,
-                       LongConsumer throttleListener) {
-            super(repositoryName, indexShard, SNAPSHOT_ID, recoveryState, BUFFER_SIZE);
+                       RecoveryState recoveryState, Store.MetadataSnapshot sourceMetaData, long mappingVersion,
+                       CcrSettings ccrSettings, LongConsumer throttleListener) {
+            super(repositoryName, indexShard, SNAPSHOT_ID, recoveryState, Math.toIntExact(ccrSettings.getChunkSize().getBytes()));
             this.remoteClient = remoteClient;
             this.sessionUUID = sessionUUID;
             this.node = node;
             this.sourceMetaData = sourceMetaData;
+            this.mappingVersion = mappingVersion;
             this.ccrSettings = ccrSettings;
             this.throttleListener = throttleListener;
         }

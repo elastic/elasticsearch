@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -58,6 +59,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
+import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction.IncomingClusterStateListener;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.tasks.Task;
@@ -120,6 +122,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private final TransportService transportService;
     private final MasterService masterService;
     private final DiscoverySettings discoverySettings;
+    private final NoMasterBlockService noMasterBlockService;
     protected final ZenPing zenPing; // protected to allow tests access
     private final MasterFaultDetection masterFD;
     private final NodesFaultDetection nodesFD;
@@ -160,13 +163,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     public ZenDiscovery(Settings settings, ThreadPool threadPool, TransportService transportService,
                         NamedWriteableRegistry namedWriteableRegistry, MasterService masterService, ClusterApplier clusterApplier,
-                        ClusterSettings clusterSettings, UnicastHostsProvider hostsProvider, AllocationService allocationService,
+                        ClusterSettings clusterSettings, SeedHostsProvider hostsProvider, AllocationService allocationService,
                         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators, GatewayMetaState gatewayMetaState) {
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.masterService = masterService;
         this.clusterApplier = clusterApplier;
         this.transportService = transportService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
+        this.noMasterBlockService = new NoMasterBlockService(settings, clusterSettings);
         this.zenPing = newZenPing(settings, threadPool, transportService, hostsProvider);
         this.electMaster = new ElectMasterService(settings);
         this.pingTimeout = PING_TIMEOUT_SETTING.get(settings);
@@ -236,7 +240,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     // protected to allow overriding in tests
     protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                 UnicastHostsProvider hostsProvider) {
+                                 SeedHostsProvider hostsProvider) {
         return new UnicastZenPing(settings, threadPool, transportService, hostsProvider, this);
     }
 
@@ -252,7 +256,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             ClusterState initialState = builder
                 .blocks(ClusterBlocks.builder()
                     .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-                    .addGlobalBlock(discoverySettings.getNoMasterBlock()))
+                    .addGlobalBlock(noMasterBlockService.getNoMasterBlock()))
                 .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
                 .build();
             committedState.set(initialState);
@@ -640,7 +644,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
 
         assert newClusterState.nodes().getMasterNode() != null : "received a cluster state without a master";
-        assert !newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) :
+        assert !newClusterState.blocks().hasGlobalBlock(noMasterBlockService.getNoMasterBlock()) :
             "received a cluster state with a master block";
 
         if (currentState.nodes().isLocalNodeElectedMaster() && newClusterState.nodes().isLocalNodeElectedMaster() == false) {
@@ -670,7 +674,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             return false;
         }
 
-        if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
+        if (currentState.blocks().hasGlobalBlock(noMasterBlockService.getNoMasterBlock())) {
             // its a fresh update from the master as we transition from a start of not having a master to having one
             logger.debug("got first state from fresh master [{}]", newClusterState.nodes().getMasterNodeId());
         }
@@ -898,10 +902,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         if (clusterState.nodes().getMasterNodeId() != null) {
             // remove block if it already exists before adding new one
-            assert clusterState.blocks().hasGlobalBlockWithId(discoverySettings.getNoMasterBlock().id()) == false :
+            assert clusterState.blocks().hasGlobalBlockWithId(noMasterBlockService.getNoMasterBlock().id()) == false :
                 "NO_MASTER_BLOCK should only be added by ZenDiscovery";
             ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(clusterState.blocks())
-                .addGlobalBlock(discoverySettings.getNoMasterBlock())
+                .addGlobalBlock(noMasterBlockService.getNoMasterBlock())
                 .build();
 
             DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder(clusterState.nodes()).masterNodeId(null).build();

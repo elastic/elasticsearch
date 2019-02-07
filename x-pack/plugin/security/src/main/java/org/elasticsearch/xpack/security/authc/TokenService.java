@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
@@ -73,6 +74,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
@@ -156,7 +158,7 @@ public final class TokenService {
 
     public static final String THREAD_POOL_NAME = XPackField.SECURITY + "-token-key";
     public static final Setting<TimeValue> TOKEN_EXPIRATION = Setting.timeSetting("xpack.security.authc.token.timeout",
-            TimeValue.timeValueMinutes(20L), TimeValue.timeValueSeconds(1L), Property.NodeScope);
+            TimeValue.timeValueMinutes(20L), TimeValue.timeValueSeconds(1L), TimeValue.timeValueHours(1L), Property.NodeScope);
     public static final Setting<TimeValue> DELETE_INTERVAL = Setting.timeSetting("xpack.security.authc.token.delete.interval",
             TimeValue.timeValueMinutes(30L), Property.NodeScope);
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.token.delete.timeout",
@@ -235,10 +237,9 @@ public final class TokenService {
             final Instant created = clock.instant();
             final Instant expiration = getExpirationTime(created);
             final Version version = clusterService.state().nodes().getMinNodeVersion();
-            final Authentication matchingVersionAuth = version.equals(authentication.getVersion()) ? authentication :
-                    new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(), authentication.getLookedUpBy(),
-                            version);
-            final UserToken userToken = new UserToken(version, matchingVersionAuth, expiration, metadata);
+            final Authentication tokenAuth = new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
+                authentication.getLookedUpBy(), version, AuthenticationType.TOKEN, authentication.getMetadata());
+            final UserToken userToken = new UserToken(version, tokenAuth, expiration, metadata);
             final String refreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -327,7 +328,7 @@ public final class TokenService {
         ));
     }
 
-    /*
+    /**
      * Asynchronously decodes the string representation of a {@link UserToken}. The process for
      * this is asynchronous as we may need to compute a key, which can be computationally expensive
      * so this should not block the current thread, which is typically a network thread. A second
@@ -749,12 +750,8 @@ public final class TokenService {
                                     client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
                                         .setDoc("refresh_token", Collections.singletonMap("refreshed", true))
                                         .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-                                if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0)) {
-                                    updateRequest.setIfSeqNo(response.getSeqNo());
-                                    updateRequest.setIfPrimaryTerm(response.getPrimaryTerm());
-                                } else {
-                                    updateRequest.setVersion(response.getVersion());
-                                }
+                                updateRequest.setIfSeqNo(response.getSeqNo());
+                                updateRequest.setIfPrimaryTerm(response.getPrimaryTerm());
                                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
                                     ActionListener.<UpdateResponse>wrap(
                                         updateResponse -> createUserToken(authentication, userAuth, listener, metadata, true),

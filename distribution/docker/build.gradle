@@ -19,15 +19,30 @@ dependencies {
 }
 
 ext.expansions = { oss ->
+  final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}.tar.gz"
+  final String ingestGeoip = "ingest-geoip-${VersionProperties.elasticsearch}.zip"
+  final String ingestUserAgent = "ingest-user-agent-${VersionProperties.elasticsearch}.zip"
   return [
-    'elasticsearch' : oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}.tar.gz",
-    'jdkUrl' : 'https://download.java.net/java/GA/jdk11/13/GPL/openjdk-11.0.1_linux-x64_bin.tar.gz',
-    'jdkVersion' : '11.0.1',
-    'license': oss ? 'Apache-2.0' : 'Elastic License',
-    'ingest-geoip' : "ingest-geoip-${VersionProperties.elasticsearch}.zip",
-    'ingest-user-agent' : "ingest-user-agent-${VersionProperties.elasticsearch}.zip",
-    'version' : VersionProperties.elasticsearch
+    'elasticsearch'       : elasticsearch,
+    'jdkUrl'              : 'https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz',
+    'jdkVersion'          : '11.0.2',
+    'license'             : oss ? 'Apache-2.0' : 'Elastic License',
+    'source_elasticsearch': local() ? "COPY $elasticsearch $ingestGeoip $ingestUserAgent /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
+    'ingest-geoip-plugin' : local() ? "file:///opt/$ingestGeoip" : "ingest-geoip",
+    'ingest-user-agent-plugin' : local() ? "file:///opt/$ingestUserAgent" : "ingest-user-agent",
+    'version'             : VersionProperties.elasticsearch
   ]
+}
+
+private static boolean local() {
+  final String buildDockerSource = System.getProperty("build.docker.source")
+  if (buildDockerSource == null || "local".equals(buildDockerSource)) {
+    return true
+  } else if ("remote".equals(buildDockerSource)) {
+    return false
+  } else {
+    throw new IllegalArgumentException("expected build.docker.source to be [local] or [remote] but was [" + buildDockerSource + "]")
+  }
 }
 
 private static String files(final boolean oss) {
@@ -50,19 +65,21 @@ void addCopyDockerContextTask(final boolean oss) {
       from 'src/docker/config'
     }
 
-    if (oss) {
-      from configurations.ossDockerSource
-    } else {
-      from configurations.dockerSource
-    }
+    if (local()) {
+      if (oss) {
+        from configurations.ossDockerSource
+      } else {
+        from configurations.dockerSource
+      }
 
-    from configurations.dockerPlugins
+      from configurations.dockerPlugins
+    }
   }
 }
 
 void addCopyDockerfileTask(final boolean oss) {
   task(taskName("copy", oss, "Dockerfile"), type: Copy) {
-    mustRunAfter(taskName("copy", oss, "DockerContext"))
+    dependsOn taskName("copy", oss, "DockerContext")
     into files(oss)
 
     from('src/docker/Dockerfile') {
@@ -73,7 +90,6 @@ void addCopyDockerfileTask(final boolean oss) {
 
 void addBuildDockerImage(final boolean oss) {
   final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
-    dependsOn taskName("copy", oss, "DockerContext")
     dependsOn taskName("copy", oss, "Dockerfile")
     List<String> tags
     if (oss) {

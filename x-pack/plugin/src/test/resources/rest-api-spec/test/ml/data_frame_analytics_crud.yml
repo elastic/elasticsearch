@@ -35,12 +35,14 @@
           {
             "source": "source_index",
             "dest": "dest_index",
-            "analyses": [{"outlier_detection":{}}]
+            "analyses": [{"outlier_detection":{}}],
+            "query": {"term" : { "user" : "Kimchy" }}
           }
   - match: { id: "simple-outlier-detection" }
   - match: { source: "source_index" }
   - match: { dest: "dest_index" }
   - match: { analyses: [{"outlier_detection":{}}] }
+  - match: { query: {"term" : { "user" : { "value" : "Kimchy", "boost" : 1.0 }}}}
 
 ---
 "Test put config with inconsistent body/param ids":

@@ -14,8 +14,10 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
@@ -57,12 +59,15 @@ public class DataFrameDataExtractorFactory {
     private final String analyticsId;
     private final String index;
     private final ExtractedFields extractedFields;
+    private final QueryBuilder query;
 
-    private DataFrameDataExtractorFactory(Client client, String analyticsId, String index, ExtractedFields extractedFields) {
+    private DataFrameDataExtractorFactory(Client client, String analyticsId, String index, ExtractedFields extractedFields,
+                                          QueryBuilder query) {
         this.client = Objects.requireNonNull(client);
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.index = Objects.requireNonNull(index);
         this.extractedFields = Objects.requireNonNull(extractedFields);
+        this.query = query;
     }
 
     public DataFrameDataExtractor newExtractor(boolean includeSource) {
@@ -70,7 +75,7 @@ public class DataFrameDataExtractorFactory {
                 analyticsId,
                 extractedFields,
                 Arrays.asList(index),
-                QueryBuilders.matchAllQuery(),
+                query == null ? QueryBuilders.matchAllQuery() : query,
                 1000,
                 Collections.emptyMap(),
                 includeSource
@@ -78,14 +83,15 @@ public class DataFrameDataExtractorFactory {
         return new DataFrameDataExtractor(client, context);
     }
 
-    public static void create(Client client, Map<String, String> headers, String analyticsId, String index,
+    public static void create(Client client, Map<String, String> headers, DataFrameAnalyticsConfig config,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
 
-        // Step 2. Contruct the factory and notify listener
+        final String index = config.getSource();
+        // Step 2. Construct the factory and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
                 fieldCapabilitiesResponse -> {
-                    listener.onResponse(new DataFrameDataExtractorFactory(client, analyticsId, index,
-                        detectExtractedFields(index, fieldCapabilitiesResponse)));
+                    listener.onResponse(new DataFrameDataExtractorFactory(client, config.getId(), index,
+                        detectExtractedFields(index, fieldCapabilitiesResponse), config.getParsedQuery()));
                 }, e -> {
                     if (e instanceof IndexNotFoundException) {
                         listener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "

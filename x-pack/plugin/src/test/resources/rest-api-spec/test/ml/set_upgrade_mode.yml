@@ -6,6 +6,10 @@ setup:
       indices.create:
         index: airline-data
         body:
+          settings:
+            index:
+              number_of_replicas: 0
+              number_of_shards: 1
           mappings:
             response:
               properties:
@@ -44,7 +48,8 @@ setup:
         body:  >
           {
             "job_id":"set-upgrade-mode-job",
-            "indexes":["airline-data"]
+            "indexes":["airline-data"],
+            "types": ["response"]
           }
 
   - do:
@@ -54,10 +59,9 @@ setup:
         job_id: set-upgrade-mode-job
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.start_datafeed:
-        datafeed_id: set-upgrade-mode-job-datafeed
+      cluster.health:
+        index: airline-data
+        wait_for_status: green
 
 ---
 teardown:
@@ -71,6 +75,10 @@ teardown:
 
 ---
 "Test setting upgrade_mode to false when it is already false":
+  - do:
+      xpack.ml.start_datafeed:
+        datafeed_id: set-upgrade-mode-job-datafeed
+
   - do:
       xpack.ml.set_upgrade_mode:
         enabled: false
@@ -93,6 +101,10 @@ teardown:
 
 ---
 "Setting upgrade_mode to enabled":
+  - do:
+      xpack.ml.start_datafeed:
+        datafeed_id: set-upgrade-mode-job-datafeed
+
   - do:
       cat.tasks: {}
   - match:
@@ -138,6 +150,10 @@ teardown:
 
 ---
 "Setting upgrade mode to disabled from enabled":
+  - do:
+      xpack.ml.start_datafeed:
+        datafeed_id: set-upgrade-mode-job-datafeed
+
   - do:
       cat.tasks: {}
   - match:

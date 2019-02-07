@@ -14,10 +14,10 @@ Instantiates a job.
 
 ===== Description
 
-IMPORTANT:  Putting a job must be done via this API only. Do not put a job
-            directly to the `.ml-config` index using the Elasticsearch Index API.
-            If {es} {security-features} are enabled, make sure no `write`
-            privileges are granted to anyone over the `.ml-config` index.
+IMPORTANT: You must use {kib} or this API to create a {ml} job. Do not put a job
+            directly to the `.ml-config` index using the Elasticsearch index API.
+            If {es} {security-features} are enabled, do not give users `write`
+            privileges on the `.ml-config` index.
 
 
 ==== Path Parameters

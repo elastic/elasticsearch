@@ -510,7 +510,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"test\":\"test\"}\n");
         }
-        Request bulkRequest = new Request("POST", "/" + index + "_write/_doc/_bulk");
+        Request bulkRequest = new Request("POST", "/" + index + "_write/doc/_bulk");
         bulkRequest.setJsonEntity(bulk.toString());
         bulkRequest.addParameter("refresh", "");
         bulkRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
@@ -644,12 +644,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Map<?, ?> hit = (Map<?, ?>) ((List<?>)(XContentMapValues.extractValue("hits.hits", searchResponse))).get(0);
         String docId = (String) hit.get("_id");
 
-        Request updateRequest = new Request("POST", "/" + index + "/_doc/" + docId + "/_update");
+        Request updateRequest = new Request("POST", "/" + index + "/doc/" + docId + "/_update");
         updateRequest.setOptions(expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE));
         updateRequest.setJsonEntity("{ \"doc\" : { \"foo\": \"bar\"}}");
         client().performRequest(updateRequest);
 
-        Request getRequest = new Request("GET", "/" + index + "/_doc/" + docId);
+        Request getRequest = new Request("GET", "/" + index + "/doc/" + docId);
         getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         Map<String, Object> getRsp = entityAsMap(client().performRequest(getRequest));
         Map<?, ?> source = (Map<?, ?>) getRsp.get("_source");
@@ -704,7 +704,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * Tests that a single document survives. Super basic smoke test.
      */
     public void testSingleDoc() throws IOException {
-        String docLocation = "/" + index + "/_doc/1";
+        String docLocation = "/" + index + "/doc/1";
         String doc = "{\"test\": \"test\"}";
 
         if (isRunningAgainstOldCluster()) {
@@ -1016,7 +1016,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             int numDocs = between(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v1").endObject());
-                Request request = new Request("POST", "/" + index + "/_doc/" + i);
+                Request request = new Request("POST", "/" + index + "/doc/" + i);
                 request.setJsonEntity(doc);
                 client().performRequest(request);
                 if (rarely()) {
@@ -1029,11 +1029,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             for (int i = 0; i < numDocs; i++) {
                 if (randomBoolean()) {
                     String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v2").endObject());
-                    Request request = new Request("POST", "/" + index + "/_doc/" + i);
+                    Request request = new Request("POST", "/" + index + "/doc/" + i);
                     request.setJsonEntity(doc);
                     client().performRequest(request);
                 } else if (randomBoolean()) {
-                    client().performRequest(new Request("DELETE", "/" + index + "/_doc/" + i));
+                    client().performRequest(new Request("DELETE", "/" + index + "/doc/" + i));
                     liveDocs--;
                 }
             }
@@ -1103,7 +1103,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             bulk.append("{\"index\":{\"_id\":\"").append(count + i).append("\"}}\n");
             bulk.append("{\"test\":\"test\"}\n");
         }
-        Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/_doc/_bulk");
+        Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/doc/_bulk");
         writeToRestoredRequest.addParameter("refresh", "true");
         writeToRestoredRequest.setJsonEntity(bulk.toString());
         writeToRestoredRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
@@ -1166,7 +1166,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         logger.info("Indexing {} random documents", count);
         for (int i = 0; i < count; i++) {
             logger.debug("Indexing document [{}]", i);
-            Request createDocument = new Request("POST", "/" + index + "/_doc/" + i);
+            Request createDocument = new Request("POST", "/" + index + "/doc/" + i);
             createDocument.setJsonEntity(Strings.toString(docSupplier.apply(i)));
             client().performRequest(createDocument);
             if (rarely()) {
@@ -1191,14 +1191,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         infoDoc.field("value", value);
         infoDoc.endObject();
         // Only create the first version so we know how many documents are created when the index is first created
-        Request request = new Request("PUT", "/info/_doc/" + index + "_" + type);
+        Request request = new Request("PUT", "/info/doc/" + index + "_" + type);
         request.addParameter("op_type", "create");
         request.setJsonEntity(Strings.toString(infoDoc));
         client().performRequest(request);
     }
 
     private String loadInfoDocument(String type) throws IOException {
-        Request request = new Request("GET", "/info/_doc/" + index + "_" + type);
+        Request request = new Request("GET", "/info/doc/" + index + "_" + type);
         request.addParameter("filter_path", "_source");
         request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         String doc = toStr(client().performRequest(request));

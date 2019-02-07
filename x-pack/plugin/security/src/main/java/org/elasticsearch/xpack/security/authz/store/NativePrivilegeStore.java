@@ -34,9 +34,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
@@ -46,6 +48,7 @@ import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -61,6 +64,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE;
+import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.Fields.APPLICATION;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 
 /**
@@ -96,7 +100,7 @@ public class NativePrivilegeStore {
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
-        } else if (applications != null && applications.size() == 1 && names != null && names.size() == 1) {
+        } else if (isSinglePrivilegeMatch(applications, names)) {
             getPrivilege(Objects.requireNonNull(Iterables.get(applications, 0)), Objects.requireNonNull(Iterables.get(names, 0)),
                 ActionListener.wrap(privilege ->
                         listener.onResponse(privilege == null ? Collections.emptyList() : Collections.singletonList(privilege)),
@@ -109,11 +113,14 @@ public class NativePrivilegeStore {
                 if (isEmpty(applications) && isEmpty(names)) {
                     query = typeQuery;
                 } else if (isEmpty(names)) {
-                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(
-                        QueryBuilders.termsQuery(ApplicationPrivilegeDescriptor.Fields.APPLICATION.getPreferredName(), applications));
+                    query = QueryBuilders.boolQuery().filter(typeQuery).filter(getApplicationNameQuery(applications));
                 } else if (isEmpty(applications)) {
                     query = QueryBuilders.boolQuery().filter(typeQuery)
-                        .filter(QueryBuilders.termsQuery(ApplicationPrivilegeDescriptor.Fields.NAME.getPreferredName(), names));
+                        .filter(getPrivilegeNameQuery(names));
+                } else if (hasWildcard(applications)) {
+                    query = QueryBuilders.boolQuery().filter(typeQuery)
+                        .filter(getApplicationNameQuery(applications))
+                        .filter(getPrivilegeNameQuery(names));
                 } else {
                     final String[] docIds = applications.stream()
                         .flatMap(a -> names.stream().map(n -> toDocId(a, n)))
@@ -136,6 +143,46 @@ public class NativePrivilegeStore {
                 }
             });
         }
+    }
+
+    private boolean isSinglePrivilegeMatch(Collection<String> applications, Collection<String> names) {
+        return applications != null && applications.size() == 1 && hasWildcard(applications) == false && names != null && names.size() == 1;
+    }
+
+    private boolean hasWildcard(Collection<String> applications) {
+        return applications.stream().anyMatch(n -> n.endsWith("*"));
+    }
+
+    private QueryBuilder getPrivilegeNameQuery(Collection<String> names) {
+        return QueryBuilders.termsQuery(ApplicationPrivilegeDescriptor.Fields.NAME.getPreferredName(), names);
+    }
+
+    private QueryBuilder getApplicationNameQuery(Collection<String> applications) {
+        final List<String> rawNames = new ArrayList<>(applications.size());
+        final List<String> wildcardNames = new ArrayList<>(applications.size());
+        for (String name : applications) {
+            if (name.endsWith("*")) {
+                wildcardNames.add(name);
+            } else {
+                rawNames.add(name);
+            }
+        }
+
+        assert rawNames.isEmpty() == false || wildcardNames.isEmpty() == false;
+
+        TermsQueryBuilder termsQuery = rawNames.isEmpty() ? null : QueryBuilders.termsQuery(APPLICATION.getPreferredName(), rawNames);
+        if (wildcardNames.isEmpty()) {
+            return termsQuery;
+        }
+        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+        if (termsQuery != null) {
+            boolQuery.filter(termsQuery);
+        }
+        for (String wildcard : wildcardNames) {
+            final String prefix = wildcard.substring(0, wildcard.length() - 1);
+            boolQuery.filter(QueryBuilders.prefixQuery(APPLICATION.getPreferredName(), prefix));
+        }
+        return boolQuery;
     }
 
     private static boolean isEmpty(Collection<String> collection) {

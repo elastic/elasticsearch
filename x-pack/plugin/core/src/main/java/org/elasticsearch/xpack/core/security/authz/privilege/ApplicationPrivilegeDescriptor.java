@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
+
 /**
  * An {@code ApplicationPrivilegeDescriptor} is a representation of a <em>stored</em> {@link ApplicationPrivilege}.
  * A user (via a role) can be granted an application privilege by name (e.g. ("myapp", "read").
@@ -102,6 +104,11 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
             builder.field(Fields.TYPE.getPreferredName(), DOC_TYPE_VALUE);
         }
         return builder.endObject();
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "{[" + application + "],[" + name + "],[" + collectionToCommaDelimitedString(actions) + "]}";
     }
 
     /**

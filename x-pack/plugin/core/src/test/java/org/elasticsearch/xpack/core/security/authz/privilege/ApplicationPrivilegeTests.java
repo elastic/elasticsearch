@@ -10,6 +10,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 
 import java.util.Arrays;
@@ -22,6 +23,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -113,10 +115,12 @@ public class ApplicationPrivilegeTests extends ESTestCase {
         final ApplicationPrivilegeDescriptor yourRead = descriptor("your-app", "read", "data:read/*", "action:login");
         final Set<ApplicationPrivilegeDescriptor> stored = Sets.newHashSet(descriptor, myWrite, myAdmin, yourRead);
 
-        assertEqual(ApplicationPrivilege.get("my-app", Collections.singleton("read"), stored), descriptor);
-        assertEqual(ApplicationPrivilege.get("my-app", Collections.singleton("write"), stored), myWrite);
+        assertThat(ApplicationPrivilege.get("my-app", Collections.singleton("read"), stored), contains(descriptor));
+        assertThat(ApplicationPrivilege.get("my-app", Collections.singleton("write"), stored), contains(myWrite));
 
-        final ApplicationPrivilege readWrite = ApplicationPrivilege.get("my-app", Sets.newHashSet("read", "write"), stored);
+        final Set<ApplicationPrivilege> myReadWrite = ApplicationPrivilege.get("my-app", Sets.newHashSet("read", "write"), stored);
+        assertThat(myReadWrite, Matchers.hasSize(1));
+        final ApplicationPrivilege readWrite = myReadWrite.iterator().next();
         assertThat(readWrite.getApplication(), equalTo("my-app"));
         assertThat(readWrite.name(), containsInAnyOrder("read", "write"));
         assertThat(readWrite.getPatterns(), arrayContainingInAnyOrder("data:read/*", "data:write/*", "action:login"));

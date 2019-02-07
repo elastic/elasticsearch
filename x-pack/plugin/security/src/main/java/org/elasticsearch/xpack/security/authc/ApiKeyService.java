@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import javax.crypto.SecretKeyFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -91,6 +90,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.crypto.SecretKeyFactory;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -692,7 +693,6 @@ public class ApiKeyService {
             expiredQuery.should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
             boolQuery.filter(expiredQuery);
         }
-
         final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
             .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
             .setQuery(boolQuery)
@@ -852,8 +852,14 @@ public class ApiKeyService {
         return exception;
     }
 
+    // pkg scoped for testing
     boolean isExpirationInProgress() {
         return expiredApiKeysRemover.isExpirationInProgress();
+    }
+
+    // pkg scoped for testing
+    long lastTimeWhenApiKeysRemoverWasTriggered() {
+        return lastExpirationRunMs;
     }
 
     private void maybeStartApiKeyRemover() {

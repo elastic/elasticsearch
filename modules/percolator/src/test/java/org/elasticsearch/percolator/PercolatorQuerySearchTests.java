@@ -18,17 +18,24 @@
  */
 package org.elasticsearch.percolator;
 
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -46,9 +53,14 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.equalTo;
 
 public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
 
@@ -64,7 +76,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             scripts.put("1==1", vars -> Boolean.TRUE);
             scripts.put("use_fielddata_please", vars -> {
                 LeafDocLookup leafDocLookup = (LeafDocLookup) vars.get("_doc");
-                ScriptDocValues scriptDocValues = leafDocLookup.get("employees.name");
+                ScriptDocValues<?> scriptDocValues = leafDocLookup.get("employees.name");
                 return "virginia_potts".equals(scriptDocValues.get(0));
             });
             return scripts;
@@ -79,7 +91,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute().actionGet();
         SearchResponse response = client().prepareSearch("index")
-            .setQuery(new PercolateQueryBuilder("query", jsonBuilder().startObject().field("field1", "b").endObject().bytes(),
+            .setQuery(new PercolateQueryBuilder("query", BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
                 XContentType.JSON))
             .get();
         assertHitCount(response, 1);
@@ -108,13 +120,13 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         for (int i = 0; i < 32; i++) {
             SearchResponse response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query",
-                    XContentFactory.jsonBuilder()
+                    BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject().field("companyname", "stark")
                         .startArray("employee")
                         .startObject().field("name", "virginia potts").endObject()
                         .startObject().field("name", "tony stark").endObject()
                         .endArray()
-                        .endObject().bytes(), XContentType.JSON))
+                        .endObject()), XContentType.JSON))
                 .addSort("_doc", SortOrder.ASC)
                 // size 0, because other wise load bitsets for normal document in FetchPhase#findRootDocumentIfNested(...)
                 .setSize(0)
@@ -192,7 +204,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         doc.endObject();
         for (int i = 0; i < 32; i++) {
             SearchResponse response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", doc.bytes(), XContentType.JSON))
+                .setQuery(new PercolateQueryBuilder("query", BytesReference.bytes(doc), XContentType.JSON))
                 .addSort("_doc", SortOrder.ASC)
                 .get();
             assertHitCount(response, 1);
@@ -212,11 +224,61 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
 
         SearchResponse response = client().prepareSearch("test")
-                .setQuery(new PercolateQueryBuilder("query", jsonBuilder().startObject().field("field1", "value").endObject().bytes(),
-                    XContentType.JSON))
+                .setQuery(new PercolateQueryBuilder("query",
+                                BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
+                                XContentType.JSON))
             .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "1");
+    }
+
+    public void testRangeQueriesWithNow() throws Exception {
+        IndexService indexService = createIndex("test", Settings.builder().put("index.number_of_shards", 1).build(), "_doc",
+            "field1", "type=keyword", "field2", "type=date", "query", "type=percolator");
+
+        client().prepareIndex("test", "_doc", "1")
+            .setSource(jsonBuilder().startObject().field("query", rangeQuery("field2").from("now-1h").to("now+1h")).endObject())
+            .get();
+        client().prepareIndex("test", "_doc", "2")
+            .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                .filter(termQuery("field1", "value"))
+                .filter(rangeQuery("field2").from("now-1h").to("now+1h"))
+            ).endObject())
+            .get();
+
+
+        Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, "1==1", Collections.emptyMap());
+        client().prepareIndex("test", "_doc", "3")
+            .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                .filter(scriptQuery(script))
+                .filter(rangeQuery("field2").from("now-1h").to("now+1h"))
+            ).endObject())
+            .get();
+        client().admin().indices().prepareRefresh().get();
+
+        try (Engine.Searcher engineSearcher = indexService.getShard(0).acquireSearcher("test")) {
+            IndexSearcher indexSearcher = engineSearcher.searcher();
+            long[] currentTime = new long[] {System.currentTimeMillis()};
+            QueryShardContext queryShardContext =
+                indexService.newQueryShardContext(0, engineSearcher.reader(), () -> currentTime[0], null);
+
+            BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
+                .field("field1", "value")
+                .field("field2", currentTime[0])
+                .endObject());
+            QueryBuilder queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
+            Query query = queryBuilder.toQuery(queryShardContext);
+            assertThat(indexSearcher.count(query), equalTo(3));
+
+            currentTime[0] = currentTime[0] + 10800000; // + 3 hours
+            source = BytesReference.bytes(jsonBuilder().startObject()
+                .field("field1", "value")
+                .field("field2", currentTime[0])
+                .endObject());
+            queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
+            query = queryBuilder.toQuery(queryShardContext);
+            assertThat(indexSearcher.count(query), equalTo(3));
+        }
     }
 
 }

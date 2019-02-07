@@ -37,10 +37,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.MockKeywordPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -58,6 +61,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(MockKeywordPlugin.class);
+    }
+
     public void testNoSuchDoc() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
@@ -188,7 +197,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .addAlias(new Alias("alias"))
                 .setSettings(Settings.builder()
                         .put(indexSettings())
-                        .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
+                        .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                         .putList("index.analysis.analyzer.tv_test.filter", "lowercase")));
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
@@ -260,7 +269,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping)
                 .setSettings(Settings.builder()
-                        .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
+                        .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                         .putList("index.analysis.analyzer.tv_test.filter", "lowercase")));
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
@@ -394,7 +403,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .addMapping("type1", mapping)
                 .setSettings(Settings.builder()
                         .put(indexSettings())
-                        .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
+                        .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                         .putList("index.analysis.analyzer.tv_test.filter", "lowercase")));
 
         ensureGreen();
@@ -497,7 +506,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         for (int id = 0; id < content.length; id++) {
             Fields[] fields = new Fields[2];
             for (int j = 0; j < indexNames.length; j++) {
-                TermVectorsResponse resp = client().prepareTermVector(indexNames[j], "type1", String.valueOf(id))
+                TermVectorsResponse resp = client().prepareTermVectors(indexNames[j], "type1", String.valueOf(id))
                         .setOffsets(true)
                         .setPositions(true)
                         .setSelectedFields("field1")
@@ -756,7 +765,8 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
             // check overridden by keyword analyzer ...
             if (perFieldAnalyzer.containsKey(fieldName)) {
                 TermsEnum iterator = terms.iterator();
-                assertThat("Analyzer for " + fieldName + " should have been overridden!", iterator.next().utf8ToString(), equalTo("some text here"));
+                assertThat("Analyzer for " + fieldName + " should have been overridden!",
+                    iterator.next().utf8ToString(), equalTo("some text here"));
                 assertThat(iterator.next(), nullValue());
             }
             validFields.add(fieldName);
@@ -1059,7 +1069,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         for (int id = 0; id < content.length; id++) {
             Fields[] fields = new Fields[2];
             for (int j = 0; j < indexNames.length; j++) {
-                TermVectorsResponse resp = client().prepareTermVector(indexNames[j], "type1", String.valueOf(id))
+                TermVectorsResponse resp = client().prepareTermVectors(indexNames[j], "type1", String.valueOf(id))
                     .setOffsets(true)
                     .setPositions(true)
                     .setSelectedFields("field1", "field2")

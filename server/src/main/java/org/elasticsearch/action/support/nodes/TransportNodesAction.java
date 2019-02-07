@@ -22,14 +22,12 @@ package org.elasticsearch.action.support.nodes;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
@@ -41,6 +39,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -55,19 +54,19 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                                            NodeResponse extends BaseNodeResponse>
     extends HandledTransportAction<NodesRequest, NodesResponse> {
 
+    protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final Class<NodeResponse> nodeResponseClass;
 
     final String transportNodeAction;
 
-    protected TransportNodesAction(Settings settings, String actionName, ThreadPool threadPool,
+    protected TransportNodesAction(String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                   Supplier<NodesRequest> request, Supplier<NodeRequest> nodeRequest,
-                                   String nodeExecutor,
+                                   Supplier<NodesRequest> request, Supplier<NodeRequest> nodeRequest, String nodeExecutor,
                                    Class<NodeResponse> nodeResponseClass) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+        super(actionName, transportService, actionFilters, request);
+        this.threadPool = threadPool;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
         this.nodeResponseClass = Objects.requireNonNull(nodeResponseClass);
@@ -79,18 +78,8 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
     }
 
     @Override
-    protected final void doExecute(NodesRequest request, ActionListener<NodesResponse> listener) {
-        logger.warn("attempt to execute a transport nodes operation without a task");
-        throw new UnsupportedOperationException("task parameter is required for this operation");
-    }
-
-    @Override
     protected void doExecute(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
         new AsyncAction(task, request, listener).start();
-    }
-
-    protected boolean transportCompress() {
-        return false;
     }
 
     /**
@@ -180,43 +169,40 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             if (request.timeout() != null) {
                 builder.withTimeout(request.timeout());
             }
-            builder.withCompress(transportCompress());
             for (int i = 0; i < nodes.length; i++) {
                 final int idx = i;
                 final DiscoveryNode node = nodes[i];
                 final String nodeId = node.getId();
                 try {
-                    if (node == null) {
-                        onFailure(idx, nodeId, new NoSuchNodeException(nodeId));
-                    } else {
-                        TransportRequest nodeRequest = newNodeRequest(nodeId, request);
-                        if (task != null) {
-                            nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                        }
-
-                        transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
-                                                     new TransportResponseHandler<NodeResponse>() {
-                            @Override
-                            public NodeResponse newInstance() {
-                                return newNodeResponse();
-                            }
-
-                            @Override
-                            public void handleResponse(NodeResponse response) {
-                                onOperation(idx, response);
-                            }
-
-                            @Override
-                            public void handleException(TransportException exp) {
-                                onFailure(idx, node.getId(), exp);
-                            }
-
-                            @Override
-                            public String executor() {
-                                return ThreadPool.Names.SAME;
-                            }
-                        });
+                    TransportRequest nodeRequest = newNodeRequest(nodeId, request);
+                    if (task != null) {
+                        nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     }
+
+                    transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
+                            new TransportResponseHandler<NodeResponse>() {
+                                @Override
+                                public NodeResponse read(StreamInput in) throws IOException {
+                                    NodeResponse nodeResponse = newNodeResponse();
+                                    nodeResponse.readFrom(in);
+                                    return nodeResponse;
+                                }
+
+                                @Override
+                                public void handleResponse(NodeResponse response) {
+                                    onOperation(idx, response);
+                                }
+
+                                @Override
+                                public void handleException(TransportException exp) {
+                                    onFailure(idx, node.getId(), exp);
+                                }
+
+                                @Override
+                                public String executor() {
+                                    return ThreadPool.Names.SAME;
+                                }
+                            });
                 } catch (Exception e) {
                     onFailure(idx, nodeId, e);
                 }
@@ -232,9 +218,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
         private void onFailure(int idx, String nodeId, Throwable t) {
             if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
-                logger.debug(
-                    (org.apache.logging.log4j.util.Supplier<?>)
-                        () -> new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
+                logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
             }
             responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
             if (counter.incrementAndGet() == responses.length()) {
@@ -261,12 +245,6 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
             channel.sendResponse(nodeOperation(request, task));
         }
-
-        @Override
-        public void messageReceived(NodeRequest request, TransportChannel channel) throws Exception {
-            channel.sendResponse(nodeOperation(request));
-        }
-
     }
 
 }

@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
@@ -81,27 +80,23 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
     private final ClusterService clusterService;
     private final TransportService transportService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     final String transportNodeBroadcastAction;
 
     public TransportBroadcastByNodeAction(
-        Settings settings,
         String actionName,
-        ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<Request> request,
         String executor) {
-        this(settings, actionName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, request,
-            executor, true);
+        this(actionName, clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor, true);
     }
 
     public TransportBroadcastByNodeAction(
-            Settings settings,
             String actionName,
-            ThreadPool threadPool,
             ClusterService clusterService,
             TransportService transportService,
             ActionFilters actionFilters,
@@ -109,11 +104,11 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             Supplier<Request> request,
             String executor,
             boolean canTripCircuitBreaker) {
-        super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-            request);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
 
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
 
         transportNodeBroadcastAction = actionName + "[n]";
 
@@ -145,7 +140,8 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 successfulShards += response.getSuccessfulShards();
                 for (BroadcastShardOperationFailedException throwable : response.getExceptions()) {
                     if (!TransportActions.isShardNotAvailableException(throwable)) {
-                        exceptions.add(new DefaultShardOperationFailedException(throwable.getShardId().getIndexName(), throwable.getShardId().getId(), throwable));
+                        exceptions.add(new DefaultShardOperationFailedException(throwable.getShardId().getIndexName(),
+                            throwable.getShardId().getId(), throwable));
                     }
                 }
             }
@@ -175,7 +171,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      * @param clusterState     the cluster state
      * @return the response
      */
-    protected abstract Response newResponse(Request request, int totalShards, int successfulShards, int failedShards, List<ShardOperationResult> results, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState);
+    protected abstract Response newResponse(Request request, int totalShards, int successfulShards, int failedShards,
+                                            List<ShardOperationResult> results, List<DefaultShardOperationFailedException> shardFailures,
+                                            ClusterState clusterState);
 
     /**
      * Deserialize a request from an input stream
@@ -222,11 +220,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      * @return a non-null exception if the operation if blocked
      */
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
-
-    @Override
-    protected final void doExecute(Request request, ActionListener<Response> listener) {
-        throw new UnsupportedOperationException("the task parameter is required for this operation");
-    }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
@@ -320,8 +313,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 }
                 transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new TransportResponseHandler<NodeResponse>() {
                     @Override
-                    public NodeResponse newInstance() {
-                        return new NodeResponse();
+                    public NodeResponse read(StreamInput in) throws IOException {
+                        NodeResponse nodeResponse = new NodeResponse();
+                        nodeResponse.readFrom(in);
+                        return nodeResponse;
                     }
 
                     @Override
@@ -362,9 +357,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         protected void onNodeFailure(DiscoveryNode node, int nodeIndex, Throwable t) {
             String nodeId = node.getId();
             if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
-                logger.debug(
-                    (org.apache.logging.log4j.util.Supplier<?>)
-                        () -> new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
+                logger.debug(new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
             }
 
             // this is defensive to protect against the possibility of double invocation
@@ -397,7 +390,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
     class BroadcastByNodeTransportRequestHandler implements TransportRequestHandler<NodeRequest> {
         @Override
-        public void messageReceived(final NodeRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(final NodeRequest request, TransportChannel channel, Task task) throws Exception {
             List<ShardRouting> shards = request.getShards();
             final int totalShards = shards.size();
             if (logger.isTraceEnabled()) {
@@ -424,7 +417,8 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             channel.sendResponse(new NodeResponse(request.getNodeId(), totalShards, results, accumulatedExceptions));
         }
 
-        private void onShardOperation(final NodeRequest request, final Object[] shardResults, final int shardIndex, final ShardRouting shardRouting) {
+        private void onShardOperation(final NodeRequest request, final Object[] shardResults, final int shardIndex,
+                                      final ShardRouting shardRouting) {
             try {
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
@@ -441,23 +435,13 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 shardResults[shardIndex] = failure;
                 if (TransportActions.isShardNotAvailableException(e)) {
                     if (logger.isTraceEnabled()) {
-                        logger.trace(
-                            (org.apache.logging.log4j.util.Supplier<?>)
-                                () -> new ParameterizedMessage(
-                                    "[{}] failed to execute operation for shard [{}]",
-                                    actionName,
-                                    shardRouting.shortSummary()),
-                            e);
+                        logger.trace(new ParameterizedMessage(
+                            "[{}] failed to execute operation for shard [{}]", actionName, shardRouting.shortSummary()), e);
                     }
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            (org.apache.logging.log4j.util.Supplier<?>)
-                                () -> new ParameterizedMessage(
-                                    "[{}] failed to execute operation for shard [{}]",
-                                    actionName,
-                                    shardRouting.shortSummary()),
-                            e);
+                        logger.debug(new ParameterizedMessage(
+                            "[{}] failed to execute operation for shard [{}]", actionName, shardRouting.shortSummary()), e);
                     }
                 }
             }

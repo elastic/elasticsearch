@@ -20,6 +20,7 @@
 package org.elasticsearch.qa.verify_version_constants;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -32,7 +33,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class VerifyVersionConstantsIT extends ESRestTestCase {
 
     public void testLuceneVersionConstant() throws IOException, ParseException {
-        final Response response = client().performRequest("GET", "/");
+        final Response response = client().performRequest(new Request("GET", "/"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         final ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final String elasticsearchVersionString = objectPath.evaluate("version.number").toString();
@@ -42,4 +43,14 @@ public class VerifyVersionConstantsIT extends ESRestTestCase {
         assertThat(elasticsearchVersion.luceneVersion, equalTo(luceneVersion));
     }
 
+    @Override
+    public boolean preserveClusterUponCompletion() {
+        /*
+         * We don't perform any writes to the cluster so there won't be anything
+         * to clean up. Also, our cleanup code is really only compatible with
+         * *write* compatible versions but this runs with *index* compatible
+         * versions.
+         */
+        return true;
+    }
 }

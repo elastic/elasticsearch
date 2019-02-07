@@ -17,9 +17,7 @@
  * under the License.
  */
 
-
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-import org.elasticsearch.gradle.BuildPlugin
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.optional-base'
@@ -45,14 +43,29 @@ if (!isEclipse && !isIdea) {
       }
     }
   }
+  
+  configurations {
+    java9Compile.extendsFrom(compile)
+  }
+  
+  dependencies {
+    java9Compile sourceSets.main.output
+  }
 
   compileJava9Java {
     sourceCompatibility = 9
     targetCompatibility = 9
   }
 
+  forbiddenApisJava9 {
+    if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
+      targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
+    }
+  }
+
   jar {
-    into('META-INF/versions/9') {
+    metaInf {
+      into 'versions/9'
       from sourceSets.java9.output
     }
     manifest.attributes('Multi-Release': 'true')
@@ -63,7 +76,9 @@ dependencies {
 
   compile "org.elasticsearch:elasticsearch-core:${version}"
   compile "org.elasticsearch:elasticsearch-secure-sm:${version}"
-
+  compile "org.elasticsearch:elasticsearch-x-content:${version}"
+  compile "org.elasticsearch:elasticsearch-geo:${version}"
+  
   compileOnly project(':libs:plugin-classloader')
   testRuntime project(':libs:plugin-classloader')
 
@@ -89,14 +104,7 @@ dependencies {
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
-  compile 'joda-time:joda-time:2.9.9'
-
-  // json and yaml
-  compile "org.yaml:snakeyaml:${versions.snakeyaml}"
-  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  compile "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.2'
@@ -105,7 +113,7 @@ dependencies {
 
   // lucene spatial
   compile "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
-  compile "com.vividsolutions:jts:${versions.jts}", optional
+  compile "org.locationtech.jts:jts-core:${versions.jts}", optional
 
   // logging
   compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
@@ -149,10 +157,27 @@ compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-tr
 forbiddenPatterns {
   exclude '**/*.json'
   exclude '**/*.jmx'
+  exclude '**/*.dic'
+  exclude '**/*.binary'
+  exclude '**/*.st'
+}
+
+testingConventions {
+  naming.clear()
+  naming {
+    Tests {
+      baseClass "org.apache.lucene.util.LuceneTestCase"
+    }
+    IT {
+      baseClass "org.elasticsearch.test.ESIntegTestCase"
+      baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
+    }
+  }
 }
 
 task generateModulesList {
   List<String> modules = project(':modules').subprojects.collect { it.name }
+  modules.add('x-pack')
   File modulesFile = new File(buildDir, 'generated-resources/modules.txt')
   processResources.from(modulesFile)
   inputs.property('modules', modules)
@@ -164,9 +189,9 @@ task generateModulesList {
 }
 
 task generatePluginsList {
-  List<String> plugins = project(':plugins').subprojects
-    .findAll { it.name.contains('example') == false }
-    .collect { it.name }
+  Set<String> plugins = new TreeSet<>(project(':plugins').childProjects.keySet())
+  plugins.remove('example')
+
   File pluginsFile = new File(buildDir, 'generated-resources/plugins.txt')
   processResources.from(pluginsFile)
   inputs.property('plugins', plugins)
@@ -181,9 +206,7 @@ processResources {
   dependsOn generateModulesList, generatePluginsList
 }
 
-thirdPartyAudit.excludes = [
-  // classes are missing!
-
+thirdPartyAudit.ignoreMissingClasses (
   // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
   'com.fasterxml.jackson.databind.ObjectMapper',
 
@@ -209,7 +232,6 @@ thirdPartyAudit.excludes = [
   'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
   'com.fasterxml.jackson.dataformat.xml.XmlMapper',
   'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-  'com.fasterxml.jackson.databind.node.JsonNodeFactory',
   'com.fasterxml.jackson.databind.node.ObjectNode',
   'org.fusesource.jansi.Ansi',
   'org.fusesource.jansi.AnsiRenderer$Code',
@@ -251,12 +273,6 @@ thirdPartyAudit.excludes = [
   'javax.mail.internet.MimeMultipart',
   'javax.mail.internet.MimeUtility',
   'javax.mail.util.ByteArrayDataSource',
-  'javax.persistence.AttributeConverter',
-  'javax.persistence.EntityManager',
-  'javax.persistence.EntityManagerFactory',
-  'javax.persistence.EntityTransaction',
-  'javax.persistence.Persistence',
-  'javax.persistence.PersistenceException',
   'org.apache.commons.compress.compressors.CompressorStreamFactory',
   'org.apache.commons.compress.utils.IOUtils',
   'org.apache.commons.csv.CSVFormat',
@@ -287,15 +303,25 @@ thirdPartyAudit.excludes = [
 
   // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
   'org.noggit.JSONParser',
-]
 
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
+  // from lucene-spatial
+  'com.fasterxml.jackson.databind.JsonSerializer',
+  'com.fasterxml.jackson.databind.JsonDeserializer',
+  'com.fasterxml.jackson.databind.node.ArrayNode',
+  'com.google.common.geometry.S2Cell',
+  'com.google.common.geometry.S2CellId',
+  'com.google.common.geometry.S2Projections',
+  'com.google.common.geometry.S2Point',
+  'com.google.common.geometry.S2$Metric',
+  'com.google.common.geometry.S2LatLng'
+)
+
+if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 }
 
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
-  mapping from: /jackson-.*/, to: 'jackson'
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false ||
             // keep the following org.elasticsearch jars in
@@ -308,10 +334,7 @@ if (isEclipse == false || project.path == ":server-tests") {
   task integTest(type: RandomizedTestingTask,
                  group: JavaBasePlugin.VERIFICATION_GROUP,
                  description: 'Multi-node tests',
-                 dependsOn: test.dependsOn) {
-    configure(BuildPlugin.commonTestConfig(project))
-    classpath = project.test.classpath
-    testClassesDir = project.test.testClassesDir
+                 dependsOn: unitTest.dependsOn) {
     include '**/*IT.class'
   }
   check.dependsOn integTest

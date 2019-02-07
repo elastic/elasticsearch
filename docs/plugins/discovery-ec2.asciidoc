@@ -11,11 +11,12 @@ include::install_remove.asciidoc[]
 [[discovery-ec2-usage]]
 ==== Getting started with AWS
 
-The plugin provides a hosts provider for zen discovery named `ec2`. This hosts provider
-finds other Elasticsearch instances in EC2 through AWS metadata. Authentication is done using 
-http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[IAM Role]
-credentials by default. The only necessary configuration change to enable the plugin
-is setting the unicast host provider for zen discovery:
+The plugin provides a hosts provider for zen discovery named `ec2`. This hosts
+provider finds other Elasticsearch instances in EC2 through AWS metadata.
+Authentication is done using
+http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[IAM
+Role] credentials by default. To enable the plugin, set the unicast host
+provider for Zen discovery to `ec2`:
 
 [source,yaml]
 ----
@@ -37,14 +38,17 @@ bin/elasticsearch-keystore add discovery.ec2.secret_key
 The following are the available discovery settings. All should be prefixed with `discovery.ec2.`.
 Those that must be stored in the keystore are marked as `Secure`.
 
-
 `access_key`::
 
-    An s3 access key. The `secret_key` setting must also be specified. (Secure)
+    An ec2 access key. The `secret_key` setting must also be specified. (Secure)
 
 `secret_key`::
 
-    An s3 secret key. The `access_key` setting must also be specified. (Secure)
+    An ec2 secret key. The `access_key` setting must also be specified. (Secure)
+
+`session_token`::
+    An ec2 session token. The `access_key` and `secret_key` settings must also
+    be specified. (Secure)
 
 `endpoint`::
 
@@ -117,6 +121,10 @@ Defaults to `private_ip`.
     How long the list of hosts is cached to prevent further requests to the AWS API.
     Defaults to `10s`.
 
+*All* secure settings of this plugin are {ref}/secure-settings.html#reloadable-secure-settings[reloadable].
+After you reload the settings, an aws sdk client with the latest settings
+from the keystore will be used.
+
 [IMPORTANT]
 .Binding the network host
 ==============================================
@@ -176,9 +184,9 @@ Management Console. It should look similar to this.
 ===== Filtering by Tags
 
 The ec2 discovery can also filter machines to include in the cluster based on tags (and not just groups). The settings
-to use include the `discovery.ec2.tag.` prefix. For example, setting `discovery.ec2.tag.stage` to `dev` will only
-filter instances with a tag key set to `stage`, and a value of `dev`. Several tags set will require all of those tags
-to be set for the instance to be included.
+to use include the `discovery.ec2.tag.` prefix. For example, if you defined a tag `stage` in EC2 and set it to `dev`,
+setting `discovery.ec2.tag.stage` to `dev` will only filter instances with a tag key set to `stage`, and a value
+of `dev`. Adding multiple `discovery.ec2.tag` settings will require all of those tags to be set for the instance to be included.
 
 One practical use for tag filtering is when an ec2 cluster contains many nodes that are not running Elasticsearch. In
 this case (particularly with high `discovery.zen.ping_timeout` values) there is a risk that a new node's discovery phase

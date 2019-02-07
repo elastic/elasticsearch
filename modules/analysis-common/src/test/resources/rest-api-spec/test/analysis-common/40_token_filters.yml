@@ -161,6 +161,26 @@
         indices.analyze:
           body:
             text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:
+              - type: word_delimiter_graph
+                adjust_offsets: false
+    - length: { tokens: 6 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu }
+    - match:  { tokens.1.start_offset: 4 }
+    - match:  { tokens.1.end_offset: 9 }
+    - match:  { tokens.2.token: "1" }
+    - match:  { tokens.2.start_offset: 4 }
+    - match:  { tokens.2.end_offset: 9 }
+    - match:  { tokens.3.token: ck }
+    - match:  { tokens.3.start_offset: 4 }
+    - match:  { tokens.3.end_offset: 9 }
+
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
             explain:   true
             tokenizer: standard
             filter:    [word_delimiter_graph]
@@ -222,6 +242,68 @@
     - length: { tokens: 2 }
     - match:  { tokens.0.token: Foo }
     - match:  { tokens.1.token: Bar! }
+
+---
+"synonym":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_synonym:
+                    type: synonym
+                    synonyms: ["car,auto"]
+
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: what car magazine
+            tokenizer: whitespace
+            filter: [ my_synonym ]
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: what }
+    - match:  { tokens.0.position: 0 }
+    - match:  { tokens.1.token: car }
+    - match:  { tokens.1.position: 1 }
+    - match:  { tokens.2.token: auto }
+    - match:  { tokens.2.position: 1 }
+    - match:  { tokens.3.token: magazine }
+    - match:  { tokens.3.position: 2 }
+
+---
+"synonym_graph":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_graph_synonym:
+                    type: synonym_graph
+                    synonyms: [ "guinea pig,cavy" ]
+
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: my guinea pig snores
+            tokenizer: whitespace
+            filter: [ my_graph_synonym ]
+    - length: { tokens: 5 }
+    - match:  { tokens.0.token: my }
+    - match:  { tokens.1.token: cavy }
+    - match:  { tokens.1.position: 1 }
+    - match:  { tokens.1.positionLength: 2 }
+    - match:  { tokens.2.token: guinea }
+    - match:  { tokens.2.position: 1 }
+    - match:  { tokens.3.token: pig }
+    - match:  { tokens.3.position: 2 }
+    - match:  { tokens.4.token: snores }
+    - match:  { tokens.4.position: 3 }
 
 ---
 "synonym_graph and flatten_graph":
@@ -1026,15 +1108,13 @@
     - match:  { tokens.10.token: ちた }
 
 ---
-"delimited_payload_filter":
+"delimited_payload_filter_error":
     - skip:
-        version: " - 6.1.99"
-        reason:  delimited_payload_filter deprecated in 6.2, replaced by delimited_payload
-        features: "warnings"
+        version: " - 6.99.99"
+        reason:  using delimited_payload_filter throws error from 7.0 on
 
     - do:
-        warnings:
-          - "Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]"
+        catch: /\[delimited_payload_filter\] is not supported for new indices, use \[delimited_payload\] instead/
         indices.create:
           index: test
           body:
@@ -1045,29 +1125,15 @@
                     type: delimited_payload_filter
                     delimiter: ^
                     encoding: identity
-    - do:
-        warnings:
-          - "Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]"
-        indices.analyze:
-          index: test
-          body:
-            text:      foo^bar
-            tokenizer: keyword
-            filter:    [my_delimited_payload_filter]
-    - length: { tokens: 1 }
-    - match:  { tokens.0.token: foo }
 
     # Test pre-configured token filter too:
     - do:
-        warnings:
-          - "Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]"
+        catch: /\[delimited_payload_filter\] is not supported for new indices, use \[delimited_payload\] instead/
         indices.analyze:
           body:
             text:      foo|5
             tokenizer: keyword
             filter:    [delimited_payload_filter]
-    - length: { tokens: 1 }
-    - match:  { tokens.0.token: foo }
 
 ---
 "delimited_payload":
@@ -1573,3 +1639,18 @@
             filter:    [my_bengali_stem]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: কর }
+
+---
+"multiplexer":
+    - do:
+        indices.analyze:
+          body:
+            text: "The quick fox"
+            tokenizer: "standard"
+            filter:
+              - type: multiplexer
+                filters: [ lowercase, uppercase ]
+                preserve_original: false
+    - length: { tokens: 6 }
+    - match: { tokens.0.token: the }
+    - match: { tokens.1.token: THE }

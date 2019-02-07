@@ -19,8 +19,9 @@
 
 package org.elasticsearch.tasks;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -30,7 +31,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -56,7 +57,10 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEAD
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes
  */
-public class TaskManager extends AbstractComponent implements ClusterStateApplier {
+public class TaskManager implements ClusterStateApplier {
+
+    private static final Logger logger = LogManager.getLogger(TaskManager.class);
+
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
     /** Rest headers that are copied to the task */
@@ -79,7 +83,6 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
     private final ByteSizeValue maxHeaderSize;
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        super(settings);
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
@@ -92,8 +95,6 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
 
     /**
      * Registers a task without parent task
-     * <p>
-     * Returns the task manager tracked task or null if the task doesn't support the task manager
      */
     public Task register(String type, String action, TaskAwareRequest request) {
         Map<String, String> headers = new HashMap<>();
@@ -111,9 +112,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
             }
         }
         Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
-        if (task == null) {
-            return null;
-        }
+        Objects.requireNonNull(task);
         assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
         if (logger.isTraceEnabled()) {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
@@ -197,8 +196,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
         try {
             taskResult = task.result(localNode, error);
         } catch (IOException ex) {
-            logger.warn(
-                (Supplier<?>) () -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), ex);
+            logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), ex);
             listener.onFailure(ex);
             return;
         }
@@ -210,8 +208,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), e);
+                logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), e);
                 listener.onFailure(e);
             }
         });
@@ -232,7 +229,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
         try {
             taskResult = task.result(localNode, response);
         } catch (IOException ex) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("couldn't store response {}", response), ex);
+            logger.warn(() -> new ParameterizedMessage("couldn't store response {}", response), ex);
             listener.onFailure(ex);
             return;
         }
@@ -245,7 +242,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("couldn't store response {}", response), e);
+                logger.warn(() -> new ParameterizedMessage("couldn't store response {}", response), e);
                 listener.onFailure(e);
             }
         });

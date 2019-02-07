@@ -27,7 +27,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.search.query.CancellableCollector;
 import org.elasticsearch.tasks.TaskCancelledException;

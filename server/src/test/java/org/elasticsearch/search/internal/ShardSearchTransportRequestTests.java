@@ -28,9 +28,6 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -59,27 +56,26 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
 
     public void testSerialization() throws Exception {
         ShardSearchTransportRequest shardSearchTransportRequest = createShardSearchTransportRequest();
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            shardSearchTransportRequest.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                ShardSearchTransportRequest deserializedRequest = new ShardSearchTransportRequest(in);
-                assertEquals(deserializedRequest.scroll(), shardSearchTransportRequest.scroll());
-                assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
-                assertArrayEquals(deserializedRequest.indices(), shardSearchTransportRequest.indices());
-                assertArrayEquals(deserializedRequest.types(), shardSearchTransportRequest.types());
-                assertEquals(deserializedRequest.indicesOptions(), shardSearchTransportRequest.indicesOptions());
-                assertEquals(deserializedRequest.isProfile(), shardSearchTransportRequest.isProfile());
-                assertEquals(deserializedRequest.nowInMillis(), shardSearchTransportRequest.nowInMillis());
-                assertEquals(deserializedRequest.source(), shardSearchTransportRequest.source());
-                assertEquals(deserializedRequest.searchType(), shardSearchTransportRequest.searchType());
-                assertEquals(deserializedRequest.shardId(), shardSearchTransportRequest.shardId());
-                assertEquals(deserializedRequest.numberOfShards(), shardSearchTransportRequest.numberOfShards());
-                assertEquals(deserializedRequest.cacheKey(), shardSearchTransportRequest.cacheKey());
-                assertNotSame(deserializedRequest, shardSearchTransportRequest);
-                assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
-                assertEquals(deserializedRequest.indexBoost(), shardSearchTransportRequest.indexBoost(), 0.0f);
-            }
-        }
+        ShardSearchTransportRequest deserializedRequest =
+            copyWriteable(shardSearchTransportRequest, namedWriteableRegistry, ShardSearchTransportRequest::new);
+        assertEquals(deserializedRequest.scroll(), shardSearchTransportRequest.scroll());
+        assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
+        assertArrayEquals(deserializedRequest.indices(), shardSearchTransportRequest.indices());
+        assertArrayEquals(deserializedRequest.types(), shardSearchTransportRequest.types());
+        assertEquals(deserializedRequest.indicesOptions(), shardSearchTransportRequest.indicesOptions());
+        assertEquals(deserializedRequest.isProfile(), shardSearchTransportRequest.isProfile());
+        assertEquals(deserializedRequest.nowInMillis(), shardSearchTransportRequest.nowInMillis());
+        assertEquals(deserializedRequest.source(), shardSearchTransportRequest.source());
+        assertEquals(deserializedRequest.searchType(), shardSearchTransportRequest.searchType());
+        assertEquals(deserializedRequest.shardId(), shardSearchTransportRequest.shardId());
+        assertEquals(deserializedRequest.numberOfShards(), shardSearchTransportRequest.numberOfShards());
+        assertArrayEquals(deserializedRequest.indexRoutings(), shardSearchTransportRequest.indexRoutings());
+        assertEquals(deserializedRequest.preference(), shardSearchTransportRequest.preference());
+        assertEquals(deserializedRequest.cacheKey(), shardSearchTransportRequest.cacheKey());
+        assertNotSame(deserializedRequest, shardSearchTransportRequest);
+        assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
+        assertEquals(deserializedRequest.indexBoost(), shardSearchTransportRequest.indexBoost(), 0.0f);
+        assertEquals(deserializedRequest.getClusterAlias(), shardSearchTransportRequest.getClusterAlias());
     }
 
     private ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {
@@ -92,8 +88,10 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         } else {
             filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
         }
+        final String[] routings = generateRandomStringArray(5, 10, false, true);
         return new ShardSearchTransportRequest(new OriginalIndices(searchRequest), searchRequest, shardId,
-                randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(), Math.abs(randomLong()), null);
+            randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(),
+            Math.abs(randomLong()), randomAlphaOfLengthBetween(3, 10), routings);
     }
 
     public void testFilteringAliases() throws Exception {
@@ -146,12 +144,11 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
-        return new CompressedXContent(builder.string());
+        return new CompressedXContent(Strings.toString(builder));
     }
 
     private IndexMetaData remove(IndexMetaData indexMetaData, String alias) {
-        IndexMetaData build = IndexMetaData.builder(indexMetaData).removeAlias(alias).build();
-        return build;
+        return IndexMetaData.builder(indexMetaData).removeAlias(alias).build();
     }
 
     private IndexMetaData add(IndexMetaData indexMetaData, String alias, @Nullable CompressedXContent filter) {

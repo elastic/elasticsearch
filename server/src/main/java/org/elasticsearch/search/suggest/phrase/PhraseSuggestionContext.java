@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -32,7 +31,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 class PhraseSuggestionContext extends SuggestionContext {
     static final boolean DEFAULT_COLLATE_PRUNE = false;
@@ -42,8 +40,8 @@ class PhraseSuggestionContext extends SuggestionContext {
     static final float DEFAULT_RWE_ERRORLIKELIHOOD = 0.95f;
     static final float DEFAULT_MAX_ERRORS = 0.5f;
     static final String DEFAULT_SEPARATOR = " ";
-    static final WordScorer.WordScorerFactory DEFAULT_SCORER = (IndexReader reader, Terms terms, String field, double realWordLikelyhood,
-            BytesRef separator) -> new StupidBackoffScorer(reader, terms, field, realWordLikelyhood, separator, 0.4f);
+    static final WordScorer.WordScorerFactory DEFAULT_SCORER = (IndexReader reader, Terms terms, String field, double realWordLikelihood,
+            BytesRef separator) -> new StupidBackoffScorer(reader, terms, field, realWordLikelihood, separator, 0.4f);
 
     private float maxErrors = DEFAULT_MAX_ERRORS;
     private BytesRef separator = new BytesRef(DEFAULT_SEPARATOR);
@@ -80,7 +78,7 @@ class PhraseSuggestionContext extends SuggestionContext {
         this.separator = separator;
     }
 
-    public Float realworldErrorLikelyhood() {
+    public Float realworldErrorLikelihood() {
         return realworldErrorLikelihood;
     }
 

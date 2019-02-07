@@ -20,6 +20,7 @@
 package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
@@ -27,7 +28,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -54,7 +54,7 @@ public class BytesRestResponse extends RestResponse {
      * Creates a new response based on {@link XContentBuilder}.
      */
     public BytesRestResponse(RestStatus status, XContentBuilder builder) {
-        this(status, builder.contentType().mediaType(), builder.bytes());
+        this(status, builder.contentType().mediaType(), BytesReference.bytes(builder));
     }
 
     /**
@@ -94,7 +94,7 @@ public class BytesRestResponse extends RestResponse {
     public BytesRestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         this.status = status;
         try (XContentBuilder builder = build(channel, status, e)) {
-            this.content = builder.bytes();
+            this.content = BytesReference.bytes(builder);
             this.contentType = builder.contentType().mediaType();
         }
         if (e instanceof ElasticsearchException) {
@@ -117,7 +117,7 @@ public class BytesRestResponse extends RestResponse {
         return this.status;
     }
 
-    private static final Logger SUPPRESSED_ERROR_LOGGER = ESLoggerFactory.getLogger("rest.suppressed");
+    private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
 
     private static XContentBuilder build(RestChannel channel, RestStatus status, Exception e) throws IOException {
         ToXContent.Params params = channel.request();

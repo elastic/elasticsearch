@@ -19,52 +19,65 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.hamcrest.CoreMatchers.equalTo;
+public class ClusterUpdateSettingsResponseTests extends AbstractStreamableXContentTestCase<ClusterUpdateSettingsResponse> {
 
-public class ClusterUpdateSettingsResponseTests extends ESTestCase {
-
-    public void testFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(false);
+    @Override
+    protected ClusterUpdateSettingsResponse doParseInstance(XContentParser parser) {
+        return ClusterUpdateSettingsResponse.fromXContent(parser);
     }
 
-    public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(true);
-    }
-
-    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        final ClusterUpdateSettingsResponse response = createTestItem();
-        boolean humanReadable = randomBoolean();
-        final XContentType xContentType = XContentType.JSON;
-
-        BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        BytesReference mutated;
-        if (addRandomFields) {
-            mutated = insertRandomFields(xContentType, originalBytes, p -> p.startsWith("transient") || p.startsWith("persistent"),
-                    random());
-        } else {
-            mutated = originalBytes;
+    @Override
+    protected ClusterUpdateSettingsResponse mutateInstance(ClusterUpdateSettingsResponse response) {
+        int i = randomIntBetween(0, 2);
+        switch(i) {
+            case 0:
+                return new ClusterUpdateSettingsResponse(response.isAcknowledged() == false,
+                        response.transientSettings, response.persistentSettings);
+            case 1:
+                return new ClusterUpdateSettingsResponse(response.isAcknowledged(), mutateSettings(response.transientSettings),
+                        response.persistentSettings);
+            case 2:
+                return new ClusterUpdateSettingsResponse(response.isAcknowledged(), response.transientSettings,
+                        mutateSettings(response.persistentSettings));
+            default:
+                throw new UnsupportedOperationException();
         }
+    }
 
-        XContentParser parser = createParser(xContentType.xContent(), mutated);
-        ClusterUpdateSettingsResponse parsedResponse = ClusterUpdateSettingsResponse.fromXContent(parser);
+    private static Settings mutateSettings(Settings settings) {
+        if (settings.isEmpty()) {
+            return randomClusterSettings(1, 3);
+        }
+        Set<String> allKeys = settings.keySet();
+        List<String> keysToBeModified = randomSubsetOf(randomIntBetween(1, allKeys.size()), allKeys);
+        Builder builder = Settings.builder();
+        for (String key : allKeys) {
+            String value = settings.get(key);
+            if (keysToBeModified.contains(key)) {
+                value += randomAlphaOfLengthBetween(2, 5);
+            }
+            builder.put(key, value);
+        }
+        return builder.build();
+    }
 
-        assertNull(parser.nextToken());
-        assertThat(parsedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
-        assertThat(response.transientSettings, equalTo(response.transientSettings));
-        assertThat(response.persistentSettings, equalTo(response.persistentSettings));
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return p -> p.startsWith("transient") || p.startsWith("persistent");
     }
 
     public static Settings randomClusterSettings(int min, int max) {
@@ -77,7 +90,18 @@ public class ClusterUpdateSettingsResponseTests extends ESTestCase {
         return builder.build();
     }
 
-    private static ClusterUpdateSettingsResponse createTestItem() {
+    @Override
+    protected ClusterUpdateSettingsResponse createTestInstance() {
         return new ClusterUpdateSettingsResponse(randomBoolean(), randomClusterSettings(0, 2), randomClusterSettings(0, 2));
+    }
+
+    @Override
+    protected ClusterUpdateSettingsResponse createBlankInstance() {
+        return new ClusterUpdateSettingsResponse();
+    }
+
+    public void testOldSerialisation() throws IOException {
+        ClusterUpdateSettingsResponse original = createTestInstance();
+        assertSerialization(original, VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0));
     }
 }

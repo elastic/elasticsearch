@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -201,10 +200,6 @@ public abstract class ScrollableHitSource {
          */
         @Nullable XContentType getXContentType();
         /**
-         * The document id of the parent of the hit if there is a parent or null if there isn't.
-         */
-        @Nullable String getParent();
-        /**
          * The routing on the hit if there is any or null if there isn't.
          */
         @Nullable String getRouting();
@@ -221,7 +216,6 @@ public abstract class ScrollableHitSource {
 
         private BytesReference source;
         private XContentType xContentType;
-        private String parent;
         private String routing;
 
         public BasicHit(String index, String type, String id, long version) {
@@ -268,16 +262,6 @@ public abstract class ScrollableHitSource {
         }
 
         @Override
-        public String getParent() {
-            return parent;
-        }
-
-        public BasicHit setParent(String parent) {
-            this.parent = parent;
-            return this;
-        }
-
-        @Override
         public String getRouting() {
             return routing;
         }
@@ -299,6 +283,11 @@ public abstract class ScrollableHitSource {
         private final Integer shardId;
         @Nullable
         private final String nodeId;
+
+        public static final String INDEX_FIELD = "index";
+        public static final String SHARD_FIELD = "shard";
+        public static final String NODE_FIELD = "node";
+        public static final String REASON_FIELD = "reason";
 
         public SearchFailure(Throwable reason, @Nullable String index, @Nullable Integer shardId, @Nullable String nodeId) {
             this.index = index;
@@ -353,15 +342,15 @@ public abstract class ScrollableHitSource {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (index != null) {
-                builder.field("index", index);
+                builder.field(INDEX_FIELD, index);
             }
             if (shardId != null) {
-                builder.field("shard", shardId);
+                builder.field(SHARD_FIELD, shardId);
             }
             if (nodeId != null) {
-                builder.field("node", nodeId);
+                builder.field(NODE_FIELD, nodeId);
             }
-            builder.field("reason");
+            builder.field(REASON_FIELD);
             {
                 builder.startObject();
                 ElasticsearchException.generateThrowableXContent(builder, params, reason);

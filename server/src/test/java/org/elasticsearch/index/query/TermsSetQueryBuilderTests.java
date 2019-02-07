@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
@@ -29,15 +28,18 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CoveringQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MapperService;
@@ -59,7 +61,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -74,28 +78,23 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         String docType = "_doc";
-        mapperService.merge(docType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(docType,
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
                 "m_s_m", "type=long"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override
     protected TermsSetQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName;
-        do {
-            fieldName = randomFrom(MAPPED_FIELD_NAMES);
-        } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME));
-        int numValues = randomIntBetween(0, 10);
-        List<Object> randomTerms = new ArrayList<>(numValues);
-        for (int i = 0; i < numValues; i++) {
-            randomTerms.add(getRandomValueForFieldName(fieldName));
-        }
+        String fieldName = randomValueOtherThanMany(
+            value -> value.equals(GEO_POINT_FIELD_NAME) || value.equals(GEO_SHAPE_FIELD_NAME),
+            () -> randomFrom(MAPPED_FIELD_NAMES));
+        List<?> randomTerms = randomValues(fieldName);
         TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(STRING_FIELD_NAME, randomTerms);
         if (randomBoolean()) {
             queryBuilder.setMinimumShouldMatchField("m_s_m");
         } else {
             queryBuilder.setMinimumShouldMatchScript(
-                    new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", Collections.emptyMap()));
+                    new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
         }
         return queryBuilder;
     }
@@ -112,7 +111,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     }
 
     @Override
-    protected boolean isCachable(TermsSetQueryBuilder queryBuilder) {
+    protected boolean isCacheable(TermsSetQueryBuilder queryBuilder) {
         return queryBuilder.getMinimumShouldMatchField() != null ||
                 (queryBuilder.getMinimumShouldMatchScript() != null && queryBuilder.getValues().isEmpty());
     }
@@ -120,6 +119,41 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     @Override
     protected boolean builderGeneratesCacheableQueries() {
         return false;
+    }
+
+    @Override
+    public TermsSetQueryBuilder mutateInstance(final TermsSetQueryBuilder instance) throws IOException {
+        String fieldName = instance.getFieldName();
+        List<?> values = instance.getValues();
+        String minimumShouldMatchField = null;
+        Script minimumShouldMatchScript = null;
+
+        switch (randomIntBetween(0, 3)) {
+            case 0:
+                Predicate<String> predicate = s -> s.equals(instance.getFieldName()) == false && s.equals(GEO_POINT_FIELD_NAME) == false
+                    && s.equals(GEO_SHAPE_FIELD_NAME) == false;
+                fieldName = randomValueOtherThanMany(predicate, () -> randomFrom(MAPPED_FIELD_NAMES));
+                values = randomValues(fieldName);
+                break;
+            case 1:
+                values = randomValues(fieldName);
+                break;
+            case 2:
+                minimumShouldMatchField = randomAlphaOfLengthBetween(1, 10);
+                break;
+            case 3:
+                minimumShouldMatchScript = new Script(ScriptType.INLINE, MockScriptEngine.NAME, randomAlphaOfLength(10), emptyMap());
+                break;
+        }
+
+        TermsSetQueryBuilder newInstance = new TermsSetQueryBuilder(fieldName, values);
+        if (minimumShouldMatchField != null) {
+            newInstance.setMinimumShouldMatchField(minimumShouldMatchField);
+        }
+        if (minimumShouldMatchScript != null) {
+            newInstance.setMinimumShouldMatchScript(minimumShouldMatchScript);
+        }
+        return newInstance;
     }
 
     public void testBothFieldAndScriptSpecified() {
@@ -174,7 +208,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                         .setMinimumShouldMatchField("m_s_m").doToQuery(context);
                 IndexSearcher searcher = new IndexSearcher(ir);
                 TopDocs topDocs = searcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-                assertThat(topDocs.totalHits, equalTo(3L));
+                assertThat(topDocs.totalHits.value, equalTo(3L));
                 assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
                 assertThat(topDocs.scoreDocs[1].doc, equalTo(3));
                 assertThat(topDocs.scoreDocs[2].doc, equalTo(4));
@@ -215,17 +249,43 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
             try (IndexReader ir = DirectoryReader.open(directory)) {
                 QueryShardContext context = createShardContext();
-                Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", Collections.emptyMap());
+                Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap());
                 Query query = new TermsSetQueryBuilder("message", Arrays.asList("a", "b", "c", "d"))
                         .setMinimumShouldMatchScript(script).doToQuery(context);
                 IndexSearcher searcher = new IndexSearcher(ir);
                 TopDocs topDocs = searcher.search(query, 10, new Sort(SortField.FIELD_DOC));
-                assertThat(topDocs.totalHits, equalTo(3L));
+                assertThat(topDocs.totalHits.value, equalTo(3L));
                 assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
                 assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
                 assertThat(topDocs.scoreDocs[2].doc, equalTo(4));
             }
         }
+    }
+
+    public void testFieldAlias() {
+        List<String> randomTerms = Arrays.asList(generateRandomStringArray(5, 10, false, false));
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(STRING_ALIAS_FIELD_NAME, randomTerms)
+            .setMinimumShouldMatchField("m_s_m");
+
+        QueryShardContext context = createShardContext();
+        List<Query> termQueries = queryBuilder.createTermQueries(context);
+        assertEquals(randomTerms.size(), termQueries.size());
+
+        String expectedFieldName = expectedFieldName(queryBuilder.getFieldName());
+        for (int i = 0; i < randomTerms.size(); i++) {
+            Term term = new Term(expectedFieldName, randomTerms.get(i));
+            assertThat(termQueries.get(i), equalTo(new TermQuery(term)));
+        }
+    }
+
+    private static List<?> randomValues(final String fieldName) {
+        final int numValues = randomIntBetween(0, 10);
+        final List<Object> values = new ArrayList<>(numValues);
+
+        for (int i = 0; i < numValues; i++) {
+            values.add(getRandomValueForFieldName(fieldName));
+        }
+        return values;
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

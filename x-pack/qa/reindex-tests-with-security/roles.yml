@@ -1,0 +1,111 @@
+# All cluster rights
+# All operations on all indices
+# Run as all users
+admin:
+  cluster:
+    - all
+  indices:
+    - names: '*'
+      privileges: [ all ]
+  run_as:
+    - '*'
+
+# Search and write on both source and destination indices. It should work if you could just search on the source and
+# write to the destination but that isn't how security works.
+minimal:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: source
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+    - names: dest
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
+# Search and write on both source and destination indices. It should work if you could just search on the source and
+# write to the destination but that isn't how security works.
+minimal_with_task:
+  cluster:
+    - cluster:monitor/main
+    - cluster:monitor/task/get
+  indices:
+    - names: source
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+    - names: dest
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
+# Read only operations on indices
+readonly:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: '*'
+      privileges: [ read ]
+
+# Write operations on destination index, none on source index
+dest_only:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: dest
+      privileges: [ write ]
+
+# Search and write on both source and destination indices with document level security filtering out some docs.
+can_not_see_hidden_docs:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: source
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+      query:
+        bool:
+          must_not:
+            match:
+              hidden: true
+    - names: dest
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
+# Search and write on both source and destination indices with field level security.
+can_not_see_hidden_fields:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: source
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+      field_security:
+        grant:
+          - foo
+          - bar
+    - names: dest
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh

@@ -22,21 +22,22 @@ package org.elasticsearch.common.geo.builders;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.LineString;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geo.geometry.MultiLine;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.LineString;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 
-public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, MultiLineStringBuilder> {
+public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geo.geometry.Geometry, MultiLineStringBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTILINESTRING;
 
@@ -101,6 +102,14 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, MultiLineS
         return sb;
     }
 
+    public int numDimensions() {
+        if (lines == null || lines.isEmpty()) {
+            throw new IllegalStateException("unable to get number of dimensions, " +
+                "LineStrings have not yet been initialized");
+        }
+        return lines.get(0).numDimensions();
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -116,12 +125,12 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, MultiLineS
     }
 
     @Override
-    public JtsGeometry build() {
+    public JtsGeometry buildS4J() {
         final Geometry geometry;
         if(wrapdateline) {
             ArrayList<LineString> parts = new ArrayList<>();
             for (LineStringBuilder line : lines) {
-                LineStringBuilder.decompose(FACTORY, line.coordinates(false), parts);
+                LineStringBuilder.decomposeS4J(FACTORY, line.coordinates(false), parts);
             }
             if(parts.size() == 1) {
                 geometry = parts.get(0);
@@ -138,6 +147,27 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, MultiLineS
             geometry = FACTORY.createMultiLineString(lineStrings);
         }
         return jtsGeometry(geometry);
+    }
+
+    @Override
+    public org.elasticsearch.geo.geometry.Geometry buildGeometry() {
+        if (wrapdateline) {
+            List<org.elasticsearch.geo.geometry.Line> parts = new ArrayList<>();
+            for (LineStringBuilder line : lines) {
+                LineStringBuilder.decomposeGeometry(line.coordinates(false), parts);
+            }
+            if (parts.size() == 1) {
+                return parts.get(0);
+            }
+            return new MultiLine(parts);
+        }
+        List<org.elasticsearch.geo.geometry.Line> linestrings = new ArrayList<>(lines.size());
+        for (int i = 0; i < lines.size(); ++i) {
+            LineStringBuilder lsb = lines.get(i);
+            linestrings.add(new org.elasticsearch.geo.geometry.Line(lsb.coordinates.stream().mapToDouble(c->c.y).toArray(),
+                lsb.coordinates.stream().mapToDouble(c->c.x).toArray()));
+        }
+        return new MultiLine(linestrings);
     }
 
     @Override

@@ -21,7 +21,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
@@ -259,7 +258,7 @@ public class RecoveriesCollection {
         private final long recoveryId;
         private final TimeValue checkInterval;
 
-        private long lastSeenAccessTime;
+        private volatile long lastSeenAccessTime;
 
         private RecoveryMonitor(long recoveryId, long lastSeenAccessTime, TimeValue checkInterval) {
             this.recoveryId = recoveryId;
@@ -269,7 +268,7 @@ public class RecoveriesCollection {
 
         @Override
         public void onFailure(Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected error while monitoring recovery [{}]", recoveryId), e);
+            logger.error(() -> new ParameterizedMessage("unexpected error while monitoring recovery [{}]", recoveryId), e);
         }
 
         @Override

@@ -3,7 +3,8 @@
 
 While the <<full-text-queries,full text queries>> will analyze the query
 string before executing, the _term-level queries_ operate on the exact terms
-that are stored in the inverted index.
+that are stored in the inverted index, and will normalize terms before executing 
+only for <<keyword,`keyword`>> fields with <<normalizer,`normalizer`>> property.
 
 These queries are usually used for structured data like numbers, dates, and
 enums, rather than full text fields.  Alternatively, they allow you to craft

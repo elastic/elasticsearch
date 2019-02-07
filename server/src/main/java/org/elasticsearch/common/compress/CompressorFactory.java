@@ -21,11 +21,11 @@ package org.elasticsearch.common.compress;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -44,11 +44,11 @@ public class CompressorFactory {
                 // bytes should be either detected as compressed or as xcontent,
                 // if we have bytes that can be either detected as compressed or
                 // as a xcontent, we have a problem
-                assert XContentFactory.xContentType(bytes) == null;
+                assert XContentHelper.xContentType(bytes) == null;
                 return COMPRESSOR;
             }
 
-        XContentType contentType = XContentFactory.xContentType(bytes);
+        XContentType contentType = XContentHelper.xContentType(bytes);
         if (contentType == null) {
             if (isAncient(bytes)) {
                 throw new IllegalStateException("unsupported compression: index was created before v2.0.0.beta1 and wasn't upgraded?");

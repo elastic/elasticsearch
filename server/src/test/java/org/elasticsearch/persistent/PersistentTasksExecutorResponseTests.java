@@ -26,7 +26,6 @@ import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTask
 
 import java.util.Collections;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 
 public class PersistentTasksExecutorResponseTests extends AbstractStreamableTestCase<PersistentTaskResponse> {
 

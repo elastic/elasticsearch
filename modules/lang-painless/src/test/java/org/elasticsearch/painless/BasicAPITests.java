@@ -67,7 +67,8 @@ public class BasicAPITests extends ScriptTestCase {
         ctx.put("_source", _source);
         params.put("ctx", ctx);
 
-        assertEquals("testvalue", exec("ctx._source['load'].5 = ctx._source['load'].remove('load5')", params, true));
+        assertEquals("testvalue", exec("params.ctx._source['load'].5 = params.ctx._source['load'].remove('load5')",
+            params, true));
     }
 
     /** Test loads and stores with a list */
@@ -128,5 +129,14 @@ public class BasicAPITests extends ScriptTestCase {
     public void testPublicMemberAccess() {
         assertEquals(5, exec("org.elasticsearch.painless.FeatureTest ft = new org.elasticsearch.painless.FeatureTest();" +
             "ft.z = 5; return ft.z;"));
+    }
+
+    public void testNoSemicolon() {
+        assertEquals(true, exec("def x = true; if (x) return x"));
+    }
+
+    public void testStatic() {
+        assertEquals(10, exec("staticAddIntsTest(7, 3)"));
+        assertEquals(15.5f, exec("staticAddFloatsTest(6.5f, 9.0f)"));
     }
 }

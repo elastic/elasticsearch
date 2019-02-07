@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -38,9 +37,8 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -106,7 +104,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
+                logger.warn(() -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
                 onCompletion.run();
             }
         });
@@ -155,12 +153,11 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
                     if (retries.hasNext()) {
                         retryCount += 1;
                         TimeValue delay = retries.next();
-                        logger.trace((Supplier<?>) () -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
+                        logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
                         countSearchRetry.run();
                         threadPool.schedule(delay, ThreadPool.Names.SAME, retryWithContext);
                     } else {
-                        logger.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
+                        logger.warn(() -> new ParameterizedMessage(
                                 "giving up on search because we retried [{}] times without success", retryCount), e);
                         fail.accept(e);
                     }
@@ -201,7 +198,8 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
             }
             hits = unmodifiableList(hits);
         }
-        return new Response(response.isTimedOut(), failures, response.getHits().getTotalHits(),
+        long total = response.getHits().getTotalHits().value;
+        return new Response(response.isTimedOut(), failures, total,
                 hits, response.getScrollId());
     }
 
@@ -236,16 +234,11 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
         @Override
         public XContentType getXContentType() {
-            return XContentFactory.xContentType(source);
+            return XContentHelper.xContentType(source);
         }
         @Override
         public long getVersion() {
             return delegate.getVersion();
-        }
-
-        @Override
-        public String getParent() {
-            return fieldValue(ParentFieldMapper.NAME);
         }
 
         @Override

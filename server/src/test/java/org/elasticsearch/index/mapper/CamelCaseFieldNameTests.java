@@ -19,26 +19,27 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 public class CamelCaseFieldNameTests extends ESSingleNodeTestCase {
     public void testCamelCaseFieldNameStaysAsIs() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .endObject().endObject());
 
         IndexService index = createIndex("test");
         client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping, XContentType.JSON).get();
         DocumentMapper documentMapper = index.mapperService().documentMapper("type");
 
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder().startObject()
-                .field("thisIsCamelCase", "value1")
-                .endObject().bytes(),
-                XContentType.JSON));
+        ParsedDocument doc = documentMapper.parse(new SourceToParse("test", "type", "1",
+                        BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+                                .field("thisIsCamelCase", "value1")
+                                .endObject()),
+                        XContentType.JSON));
 
         assertNotNull(doc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type")

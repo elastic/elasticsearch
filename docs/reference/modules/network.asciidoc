@@ -19,10 +19,12 @@ Never expose an unprotected node to the public internet.
 
 `network.host`::
 
-The node will bind to this hostname or IP address and _publish_ (advertise)
-this host to other nodes in the cluster. Accepts an IP address, hostname, a
-<<network-interface-values,special value>>, or an array of any combination
-of these.
+The node will bind to this hostname or IP address and _publish_ (advertise) this
+host to other nodes in the cluster. Accepts an IP address, hostname, a
+<<network-interface-values,special value>>, or an array of any combination of
+these. Note that any values containing a `:` (e.g., an IPv6 address or
+containing one of the <<network-interface-values,special value>>) must be quoted
+because `:` is a special character in YAML.
 +
 Defaults to `_local_`.
 
@@ -48,7 +50,7 @@ range.
 +
 Defaults to `9200-9300`.
 
-`transport.tcp.port`::
+`transport.port`::
 
 Port to bind for communication between nodes. Accepts a single value or a
 range. If a range is specified, the node will bind to the first available port

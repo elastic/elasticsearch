@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
@@ -61,6 +61,6 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
         PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, context, content, request.getXContentType(), source);
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.timeout(request.paramAsTime("timeout", putRequest.timeout()));
-        return channel -> client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.admin().cluster().putStoredScript(putRequest, new RestToXContentListener<>(channel));
     }
 }

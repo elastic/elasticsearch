@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -37,7 +38,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoGridAggregationBuilder.parse("geohash_grid", stParser));
+        assertNotNull(GeoHashGridAggregationBuilder.parse("geohash_grid", stParser));
     }
 
     public void testParseValidFromStrings() throws Exception {
@@ -47,7 +48,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoGridAggregationBuilder.parse("geohash_grid", stParser));
+        assertNotNull(GeoHashGridAggregationBuilder.parse("geohash_grid", stParser));
     }
 
     public void testParseDistanceUnitPrecision() throws Exception {
@@ -62,7 +63,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        GeoGridAggregationBuilder builder = GeoGridAggregationBuilder.parse("geohash_grid", stParser);
+        GeoGridAggregationBuilder builder = GeoHashGridAggregationBuilder.parse("geohash_grid", stParser);
         assertNotNull(builder);
         assertThat(builder.precision(), greaterThanOrEqualTo(0));
         assertThat(builder.precision(), lessThanOrEqualTo(12));
@@ -73,8 +74,9 @@ public class GeoHashGridParserTests extends ESTestCase {
                 "{\"field\":\"my_loc\", \"precision\": \"10kg\", \"size\": \"500\", \"shard_size\": \"550\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
-        ParsingException ex = expectThrows(ParsingException.class, () -> GeoGridAggregationBuilder.parse("geohash_grid", stParser));
-        assertEquals("[geohash_grid] failed to parse field [precision]", ex.getMessage());
+        XContentParseException ex = expectThrows(XContentParseException.class,
+                () -> GeoHashGridAggregationBuilder.parse("geohash_grid", stParser));
+        assertThat(ex.getMessage(), containsString("[geohash_grid] failed to parse field [precision]"));
         assertThat(ex.getCause(), instanceOf(NumberFormatException.class));
         assertEquals("For input string: \"10kg\"", ex.getCause().getMessage());
     }
@@ -84,8 +86,9 @@ public class GeoHashGridParserTests extends ESTestCase {
                 "{\"field\":\"my_loc\", \"precision\": \"1cm\", \"size\": \"500\", \"shard_size\": \"550\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
-        ParsingException ex = expectThrows(ParsingException.class, () -> GeoGridAggregationBuilder.parse("geohash_grid", stParser));
-        assertEquals("[geohash_grid] failed to parse field [precision]", ex.getMessage());
+        XContentParseException ex = expectThrows(XContentParseException.class,
+                () -> GeoHashGridAggregationBuilder.parse("geohash_grid", stParser));
+        assertThat(ex.getMessage(), containsString("[geohash_grid] failed to parse field [precision]"));
         assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
         assertEquals("precision too high [1cm]", ex.getCause().getMessage());
     }
@@ -94,8 +97,10 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":false}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
-        Exception e = expectThrows(ParsingException.class, () -> GeoGridAggregationBuilder.parse("geohash_grid", stParser));
-        assertThat(e.getMessage(), containsString("[geohash_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
+        XContentParseException e = expectThrows(XContentParseException.class,
+                () -> GeoHashGridAggregationBuilder.parse("geohash_grid", stParser));
+        assertThat(ExceptionsHelper.detailedMessage(e),
+                containsString("[geohash_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
     }
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {
@@ -103,9 +108,9 @@ public class GeoHashGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {
-            GeoGridAggregationBuilder.parse("geohash_grid", stParser);
+            GeoHashGridAggregationBuilder.parse("geohash_grid", stParser);
             fail();
-        } catch (ParsingException ex) {
+        } catch (XContentParseException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             assertEquals("Invalid geohash aggregation precision of 13. Must be between 1 and 12.", ex.getCause().getMessage());
         }

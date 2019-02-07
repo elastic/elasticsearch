@@ -23,6 +23,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -62,10 +63,15 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
         final SearchRequest request = new SearchRequest();
         request.allowPartialSearchResults(true);
+        request.preference("_shards:1,3");
         return new AbstractSearchAsyncAction<SearchPhaseResult>("test", null, null, null,
-                Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f), null,
-                request, null, new GroupShardsIterator<>(Collections.singletonList(
-                new SearchShardIterator(null, null, Collections.emptyList(), null))), timeProvider, 0, null,
+                Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f),
+                Collections.singletonMap("name", Sets.newHashSet("bar", "baz")),null, request, null,
+                new GroupShardsIterator<>(
+                    Collections.singletonList(
+                        new SearchShardIterator(null, null, Collections.emptyList(), null)
+                    )
+                ), timeProvider, 0, null,
                 new InitialSearchPhase.ArraySearchPhaseResults<>(10), request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
             @Override
@@ -110,12 +116,17 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     public void testBuildShardSearchTransportRequest() {
         final AtomicLong expected = new AtomicLong();
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(false, expected);
-        SearchShardIterator iterator = new SearchShardIterator("test-cluster", new ShardId(new Index("name", "foo"), 1),
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
+        SearchShardIterator iterator = new SearchShardIterator(clusterAlias, new ShardId(new Index("name", "foo"), 1),
             Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));
         ShardSearchTransportRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
         assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
         assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.getAliasFilter().getQueryBuilder());
         assertEquals(2.0f, shardSearchTransportRequest.indexBoost(), 0.0f);
+        assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
+        assertArrayEquals(new String[] {"bar", "baz"}, shardSearchTransportRequest.indexRoutings());
+        assertEquals("_shards:1,3", shardSearchTransportRequest.preference());
+        assertEquals(clusterAlias, shardSearchTransportRequest.getClusterAlias());
     }
 }

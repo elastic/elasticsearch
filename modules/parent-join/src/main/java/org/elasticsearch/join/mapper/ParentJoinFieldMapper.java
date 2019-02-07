@@ -96,10 +96,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             throw new IllegalStateException("cannot create join field [" + name + "] " +
                 "for the partitioned index " + "[" + settings.getIndex().getName() + "]");
         }
-        if (settings.isSingleType() == false) {
-            throw new IllegalStateException("cannot create join field [" + name + "] " +
-                "on multi-types index [" + settings.getIndex().getName() + "]");
-        }
     }
 
     private static void checkObjectOrNested(ContentPath path, String name) {
@@ -379,7 +375,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         context.path().add(simpleName());
         XContentParser.Token token = context.parser().currentToken();
         String name = null;
@@ -441,7 +437,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
         context.path().remove();
-        return null;
     }
 
     @Override

@@ -22,7 +22,9 @@ package org.elasticsearch.action.termvectors;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.SlowImpactsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostAttribute;
@@ -44,7 +46,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * exactly like the {@link Fields} class except for one thing: It can return
  * offsets and payloads even if positions are not present. You must call
  * nextPosition() anyway to move the counter although this method only returns
- * <tt>-1,</tt>, if no positions were returned by the {@link TermVectorsRequest}.
+ * {@code -1,}, if no positions were returned by the {@link TermVectorsRequest}.
  * <p>
  * The data is stored in two byte arrays ({@code headerRef} and
  * {@code termVectors}, both {@link BytesRef}) that have the following format:
@@ -130,21 +132,21 @@ public final class TermVectorsFields extends Fields {
      * @param termVectors Stores the actual term vectors as a {@link BytesRef}.
      */
     public TermVectorsFields(BytesReference headerRef, BytesReference termVectors) throws IOException {
-        StreamInput header = headerRef.streamInput();
-        fieldMap = new ObjectLongHashMap<>();
-        // here we read the header to fill the field offset map
-        String headerString = header.readString();
-        assert headerString.equals("TV");
-        int version = header.readInt();
-        assert version == -1;
-        hasTermStatistic = header.readBoolean();
-        hasFieldStatistic = header.readBoolean();
-        hasScores = header.readBoolean();
-        final int numFields = header.readVInt();
-        for (int i = 0; i < numFields; i++) {
-            fieldMap.put((header.readString()), header.readVLong());
+        try (StreamInput header = headerRef.streamInput()) {
+            fieldMap = new ObjectLongHashMap<>();
+            // here we read the header to fill the field offset map
+            String headerString = header.readString();
+            assert headerString.equals("TV");
+            int version = header.readInt();
+            assert version == -1;
+            hasTermStatistic = header.readBoolean();
+            hasFieldStatistic = header.readBoolean();
+            hasScores = header.readBoolean();
+            final int numFields = header.readVInt();
+            for (int i = 0; i < numFields; i++) {
+                fieldMap.put((header.readString()), header.readVLong());
+            }
         }
-        header.close();
         // reference to the term vector data
         this.termVectors = termVectors;
     }
@@ -346,6 +348,11 @@ public final class TermVectorsFields extends Fields {
                             : new TermVectorPostingsEnum());
                     return retVal.reset(hasPositions ? positions : null, hasOffsets ? startOffsets : null, hasOffsets ? endOffsets
                             : null, hasPayloads ? payloads : null, freq);
+                }
+
+                @Override
+                public ImpactsEnum impacts(int flags) throws IOException {
+                    return new SlowImpactsEnum(postings(null, flags));
                 }
 
             };

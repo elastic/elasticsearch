@@ -24,16 +24,21 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
 /**
  * Matches spans which are near one another. One can specify slop, the maximum number
@@ -163,9 +168,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         QueryBuilder query = parseInnerQueryBuilder(parser);
                         if (query instanceof SpanQueryBuilder == false) {
-                            throw new ParsingException(parser.getTokenLocation(), "spanNear [clauses] must be of type span query");
+                            throw new ParsingException(parser.getTokenLocation(), "span_near [clauses] must be of type span query");
                         }
-                        clauses.add((SpanQueryBuilder) query);
+                        final SpanQueryBuilder clause = (SpanQueryBuilder) query;
+                        checkNoBoost(NAME, currentFieldName, parser, clause);
+                        clauses.add(clause);
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
@@ -203,18 +210,62 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        if (clauses.size() == 1) {
-            Query query = clauses.get(0).toQuery(context);
+        SpanQueryBuilder queryBuilder = clauses.get(0);
+        boolean isGap = queryBuilder instanceof SpanGapQueryBuilder;
+        Query query = null;
+        if (!isGap) {
+            query = queryBuilder.toQuery(context);
             assert query instanceof SpanQuery;
+        }
+        if (clauses.size() == 1) {
+            assert !isGap;
             return query;
         }
-        SpanQuery[] spanQueries = new SpanQuery[clauses.size()];
-        for (int i = 0; i < clauses.size(); i++) {
-            Query query = clauses.get(i).toQuery(context);
-            assert query instanceof SpanQuery;
-            spanQueries[i] = (SpanQuery) query;
+        String spanNearFieldName = null;
+        if (isGap) {
+            String fieldName = ((SpanGapQueryBuilder) queryBuilder).fieldName();
+            spanNearFieldName = queryFieldName(context, fieldName);
+        } else {
+            spanNearFieldName = ((SpanQuery) query).getField();
         }
-        return new SpanNearQuery(spanQueries, slop, inOrder);
+
+        SpanNearQuery.Builder builder = new SpanNearQuery.Builder(spanNearFieldName, inOrder);
+        builder.setSlop(slop);
+        /*
+         * Lucene SpanNearQuery throws exceptions for certain use cases like adding gap to a
+         * unordered SpanNearQuery. Should ES have the same checks or wrap those thrown exceptions?
+         */
+        if (isGap) {
+            int gap = ((SpanGapQueryBuilder) queryBuilder).width();
+            builder.addGap(gap);
+        } else {
+            builder.addClause((SpanQuery) query);
+        }
+
+        for (int i = 1; i < clauses.size(); i++) {
+            queryBuilder = clauses.get(i);
+            isGap = queryBuilder instanceof SpanGapQueryBuilder;
+            if (isGap) {
+                String fieldName = ((SpanGapQueryBuilder) queryBuilder).fieldName();
+                String spanGapFieldName = queryFieldName(context, fieldName);
+
+                if (!spanNearFieldName.equals(spanGapFieldName)) {
+                    throw new IllegalArgumentException("[span_near] clauses must have same field");
+                }
+                int gap = ((SpanGapQueryBuilder) queryBuilder).width();
+                builder.addGap(gap);
+            } else {
+                query = clauses.get(i).toQuery(context);
+                assert query instanceof SpanQuery;
+                builder.addClause((SpanQuery)query);
+            }
+        }
+        return builder.build();
+    }
+
+    private String queryFieldName(QueryShardContext context, String fieldName) {
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        return fieldType != null ? fieldType.name() : fieldName;
     }
 
     @Override
@@ -232,5 +283,164 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    /**
+     * SpanGapQueryBuilder enables gaps in a SpanNearQuery.
+     * Since, SpanGapQuery is private to SpanNearQuery, SpanGapQueryBuilder cannot
+     * be used to generate a Query (SpanGapQuery) like another QueryBuilder.
+     * Instead, it just identifies a span_gap clause so that SpanNearQuery.addGap(int)
+     * can be invoked for it.
+     * This QueryBuilder is only applicable as a clause in SpanGapQueryBuilder but
+     * yet to enforce this restriction.
+     */
+    public static class SpanGapQueryBuilder implements SpanQueryBuilder {
+        public static final String NAME = "span_gap";
+
+        /** Name of field to match against. */
+        private final String fieldName;
+
+        /** Width of the gap introduced. */
+        private final int width;
+
+        /**
+         * Constructs a new SpanGapQueryBuilder term query.
+         *
+         * @param fieldName  The name of the field
+         * @param width The width of the gap introduced
+         */
+        public SpanGapQueryBuilder(String fieldName, int width) {
+            if (Strings.isEmpty(fieldName)) {
+                throw new IllegalArgumentException("[span_gap] field name is null or empty");
+            }
+            //lucene has not coded any restriction on value of width.
+            //to-do : find if theoretically it makes sense to apply restrictions.
+            this.fieldName = fieldName;
+            this.width = width;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public SpanGapQueryBuilder(StreamInput in) throws IOException {
+            fieldName = in.readString();
+            width = in.readInt();
+        }
+
+        /**
+         * @return fieldName  The name of the field
+         */
+        public String fieldName() {
+            return fieldName;
+        }
+
+        /**
+         * @return width The width of the gap introduced
+         */
+        public int width() {
+            return width;
+        }
+
+        @Override
+        public Query toQuery(QueryShardContext context) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String queryName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public QueryBuilder queryName(String queryName) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public float boost() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public QueryBuilder boost(float boost) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public final void writeTo(StreamOutput out) throws IOException {
+            out.writeString(fieldName);
+            out.writeInt(width);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject(getName());
+            builder.field(fieldName, width);
+            builder.endObject();
+            builder.endObject();
+            return builder;
+        }
+
+        public static SpanGapQueryBuilder fromXContent(XContentParser parser) throws IOException {
+            String fieldName = null;
+            int width = 0;
+            String currentFieldName = null;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                    throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
+                    fieldName = currentFieldName;
+                } else if (token.isValue()) {
+                    width = parser.intValue();
+                }
+            }
+            SpanGapQueryBuilder result = new SpanGapQueryBuilder(fieldName, width);
+            return result;
+        }
+
+        @Override
+        public final boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            SpanGapQueryBuilder other = (SpanGapQueryBuilder) obj;
+            return Objects.equals(fieldName, other.fieldName) &&
+                Objects.equals(width, other.width);
+        }
+
+        @Override
+        public final int hashCode() {
+            return Objects.hash(getClass(), fieldName, width);
+        }
+
+
+        @Override
+        public final String toString() {
+            return Strings.toString(this, true, true);
+        }
+
+        //copied from AbstractQueryBuilder
+        protected static void throwParsingExceptionOnMultipleFields(String queryName, XContentLocation contentLocation,
+                String processedFieldName, String currentFieldName) {
+            if (processedFieldName != null) {
+                throw new ParsingException(contentLocation, "[" + queryName + "] query doesn't support multiple fields, found ["
+                        + processedFieldName + "] and [" + currentFieldName + "]");
+            }
+        }
     }
 }

@@ -32,6 +32,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
@@ -44,6 +46,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -122,11 +125,12 @@ public class InnerHitBuilderTests extends ESTestCase {
             innerHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
             //fields is printed out as an object but parsed into a List where order matters, we disable shuffling
             XContentBuilder shuffled = shuffleXContent(builder, "fields");
-            XContentParser parser = createParser(shuffled);
-            InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(parser);
-            assertThat(innerHit, not(sameInstance(secondInnerHits)));
-            assertThat(innerHit, equalTo(secondInnerHits));
-            assertThat(innerHit.hashCode(), equalTo(secondInnerHits.hashCode()));
+            try (XContentParser parser = createParser(shuffled)) {
+                InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(parser);
+                assertThat(innerHit, not(sameInstance(secondInnerHits)));
+                assertThat(innerHit, equalTo(secondInnerHits));
+                assertThat(innerHit.hashCode(), equalTo(secondInnerHits.hashCode()));
+            }
         }
     }
 
@@ -136,6 +140,11 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
     }
 
+    public static InnerHitBuilder randomNestedInnerHits() {
+        InnerHitBuilder innerHitBuilder = randomInnerHits();
+        innerHitBuilder.setSeqNoAndPrimaryTerm(false); // not supported by nested queries
+        return innerHitBuilder;
+    }
     public static InnerHitBuilder randomInnerHits() {
         InnerHitBuilder innerHits = new InnerHitBuilder();
         innerHits.setName(randomAlphaOfLengthBetween(1, 16));
@@ -143,11 +152,14 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHits.setSize(randomIntBetween(0, 32));
         innerHits.setExplain(randomBoolean());
         innerHits.setVersion(randomBoolean());
+        innerHits.setSeqNoAndPrimaryTerm(randomBoolean());
         innerHits.setTrackScores(randomBoolean());
         if (randomBoolean()) {
             innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
         }
-        innerHits.setDocValueFields(randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16)));
+        innerHits.setDocValueFields(randomListStuff(16,
+                () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16),
+                        randomBoolean() ? null : DocValueFieldsContext.USE_DEFAULT_FORMAT)));
         // Random script fields deduped on their field name.
         Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
         for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
@@ -183,13 +195,14 @@ public class InnerHitBuilderTests extends ESTestCase {
         modifiers.add(() -> copy.setSize(randomValueOtherThan(copy.getSize(), () -> randomIntBetween(0, 128))));
         modifiers.add(() -> copy.setExplain(!copy.isExplain()));
         modifiers.add(() -> copy.setVersion(!copy.isVersion()));
+        modifiers.add(() -> copy.setSeqNoAndPrimaryTerm(!copy.isSeqNoAndPrimaryTerm()));
         modifiers.add(() -> copy.setTrackScores(!copy.isTrackScores()));
         modifiers.add(() -> copy.setName(randomValueOtherThan(copy.getName(), () -> randomAlphaOfLengthBetween(1, 16))));
         modifiers.add(() -> {
             if (randomBoolean()) {
-                copy.setDocValueFields(randomValueOtherThan(copy.getDocValueFields(), () -> {
-                    return randomListStuff(16, () -> randomAlphaOfLengthBetween(1, 16));
-                }));
+                copy.setDocValueFields(randomValueOtherThan(copy.getDocValueFields(),
+                        () -> randomListStuff(16, () -> new FieldAndFormat(randomAlphaOfLengthBetween(1, 16),
+                                randomBoolean() ? null : DocValueFieldsContext.USE_DEFAULT_FORMAT))));
             } else {
                 copy.addDocValueField(randomAlphaOfLengthBetween(1, 16));
             }
@@ -274,4 +287,12 @@ public class InnerHitBuilderTests extends ESTestCase {
         return ESTestCase.copyWriteable(original, namedWriteableRegistry, InnerHitBuilder::new);
     }
 
+    public void testSetDocValueFormat() {
+        InnerHitBuilder innerHit = new InnerHitBuilder();
+        innerHit.addDocValueField("foo");
+        innerHit.addDocValueField("@timestamp", "epoch_millis");
+        assertEquals(
+                Arrays.asList(new FieldAndFormat("foo", null), new FieldAndFormat("@timestamp", "epoch_millis")),
+                innerHit.getDocValueFields());
+    }
 }

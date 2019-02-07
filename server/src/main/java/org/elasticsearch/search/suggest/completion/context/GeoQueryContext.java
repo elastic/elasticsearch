@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.common.geo.GeoUtils.parsePrecision;
 import static org.elasticsearch.search.suggest.completion.context.GeoContextMapping.CONTEXT_BOOST;
 import static org.elasticsearch.search.suggest.completion.context.GeoContextMapping.CONTEXT_NEIGHBOURS;
 import static org.elasticsearch.search.suggest.completion.context.GeoContextMapping.CONTEXT_PRECISION;
@@ -113,12 +114,14 @@ public final class GeoQueryContext implements ToXContentObject {
 
     private static ObjectParser<GeoQueryContext.Builder, Void> GEO_CONTEXT_PARSER = new ObjectParser<>(NAME, null);
     static {
-        GEO_CONTEXT_PARSER.declareField((parser, geoQueryContext, geoContextMapping) -> geoQueryContext.setGeoPoint(GeoUtils.parseGeoPoint(parser)), new ParseField(CONTEXT_VALUE), ObjectParser.ValueType.OBJECT);
+        GEO_CONTEXT_PARSER.declareField((parser, geoQueryContext,
+                geoContextMapping) -> geoQueryContext.setGeoPoint(GeoUtils.parseGeoPoint(parser)),
+                new ParseField(CONTEXT_VALUE), ObjectParser.ValueType.OBJECT);
         GEO_CONTEXT_PARSER.declareInt(GeoQueryContext.Builder::setBoost, new ParseField(CONTEXT_BOOST));
-        // TODO : add string support for precision for GeoUtils.geoHashLevelsForPrecision()
-        GEO_CONTEXT_PARSER.declareInt(GeoQueryContext.Builder::setPrecision, new ParseField(CONTEXT_PRECISION));
-        // TODO : add string array support for precision for GeoUtils.geoHashLevelsForPrecision()
-        GEO_CONTEXT_PARSER.declareIntArray(GeoQueryContext.Builder::setNeighbours, new ParseField(CONTEXT_NEIGHBOURS));
+        GEO_CONTEXT_PARSER.declareField((parser, builder, context) -> builder.setPrecision(parsePrecision(parser)),
+            new ParseField(CONTEXT_PRECISION), ObjectParser.ValueType.INT);
+        GEO_CONTEXT_PARSER.declareFieldArray(GeoQueryContext.Builder::setNeighbours, (parser, builder) -> parsePrecision(parser),
+            new ParseField(CONTEXT_NEIGHBOURS), ObjectParser.ValueType.INT_ARRAY);
         GEO_CONTEXT_PARSER.declareDouble(GeoQueryContext.Builder::setLat, new ParseField("lat"));
         GEO_CONTEXT_PARSER.declareDouble(GeoQueryContext.Builder::setLon, new ParseField("lon"));
     }

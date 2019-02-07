@@ -23,10 +23,12 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -39,7 +41,7 @@ import java.util.stream.Stream;
  * which allows to fan out to more shards at the same time without running into rejections even if we are hitting a
  * large portion of the clusters indices.
  */
-final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<SearchTransportService.CanMatchResponse> {
+final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<SearchService.CanMatchResponse> {
 
     private final Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory;
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
@@ -47,31 +49,29 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
     CanMatchPreFilterSearchPhase(Logger logger, SearchTransportService searchTransportService,
                                         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                                         Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
+                                        Map<String, Set<String>> indexRoutings,
                                         Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                         TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
                                         SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
                                         SearchResponse.Clusters clusters) {
-        /*
-         * We set max concurrent shard requests to the number of shards to otherwise avoid deep recursing that would occur if the local node
-         * is the coordinating node for the query, holds all the shards for the request, and there are a lot of shards.
-         */
-        super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor, request,
-            listener, shardsIts, timeProvider, clusterStateVersion, task, new BitSetSearchPhaseResults(shardsIts.size()), shardsIts.size(),
-                clusters);
+        //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
+        super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
+                executor, request, listener, shardsIts, timeProvider, clusterStateVersion, task,
+                new BitSetSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;
     }
 
     @Override
     protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
-                                       SearchActionListener<SearchTransportService.CanMatchResponse> listener) {
+                                       SearchActionListener<SearchService.CanMatchResponse> listener) {
         getSearchTransport().sendCanMatch(getConnection(shardIt.getClusterAlias(), shard.currentNodeId()),
             buildShardSearchRequest(shardIt), getTask(), listener);
     }
 
     @Override
-    protected SearchPhase getNextPhase(SearchPhaseResults<SearchTransportService.CanMatchResponse> results,
+    protected SearchPhase getNextPhase(SearchPhaseResults<SearchService.CanMatchResponse> results,
                                        SearchPhaseContext context) {
 
         return phaseFactory.apply(getIterator((BitSetSearchPhaseResults) results, shardsIts));
@@ -98,7 +98,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
     }
 
     private static final class BitSetSearchPhaseResults extends InitialSearchPhase.
-        SearchPhaseResults<SearchTransportService.CanMatchResponse> {
+        SearchPhaseResults<SearchService.CanMatchResponse> {
 
         private final FixedBitSet possibleMatches;
         private int numPossibleMatches;
@@ -109,7 +109,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
         }
 
         @Override
-        void consumeResult(SearchTransportService.CanMatchResponse result) {
+        void consumeResult(SearchService.CanMatchResponse result) {
             if (result.canMatch()) {
                 consumeShardFailure(result.getShardIndex());
             }
@@ -137,7 +137,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<Searc
         }
 
         @Override
-        Stream<SearchTransportService.CanMatchResponse> getSuccessfulResults() {
+        Stream<SearchService.CanMatchResponse> getSuccessfulResults() {
             return Stream.empty();
         }
     }

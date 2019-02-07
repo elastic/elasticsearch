@@ -19,8 +19,9 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -54,6 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * A fault detection that pings the master periodically to see if its alive.
  */
 public class MasterFaultDetection extends FaultDetection {
+
+    private static final Logger logger = LogManager.getLogger(MasterFaultDetection.class);
 
     public static final String MASTER_PING_ACTION_NAME = "internal:discovery/zen/fd/master_ping";
 
@@ -225,8 +229,8 @@ public class MasterFaultDetection extends FaultDetection {
             transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options,
                 new TransportResponseHandler<MasterPingResponseResponse>() {
                         @Override
-                        public MasterPingResponseResponse newInstance() {
-                            return new MasterPingResponseResponse();
+                        public MasterPingResponseResponse read(StreamInput in) throws IOException {
+                            return new MasterPingResponseResponse(in);
                         }
 
                         @Override
@@ -270,13 +274,9 @@ public class MasterFaultDetection extends FaultDetection {
                                     }
 
                                     int retryCount = ++MasterFaultDetection.this.retryCount;
-                                    logger.trace(
-                                        (Supplier<?>) () -> new ParameterizedMessage(
+                                    logger.trace(() -> new ParameterizedMessage(
                                             "[master] failed to ping [{}], retry [{}] out of [{}]",
-                                            masterNode,
-                                            retryCount,
-                                            pingRetryCount),
-                                        exp);
+                                            masterNode, retryCount, pingRetryCount), exp);
                                     if (retryCount >= pingRetryCount) {
                                         logger.debug("[master] failed to ping [{}], tried [{}] times, each with maximum [{}] timeout",
                                             masterNode, pingRetryCount, pingRetryTimeout);
@@ -301,13 +301,13 @@ public class MasterFaultDetection extends FaultDetection {
     }
 
     /** Thrown when a ping reaches the wrong node */
-    static class ThisIsNotTheMasterYouAreLookingForException extends IllegalStateException {
+    public static class ThisIsNotTheMasterYouAreLookingForException extends IllegalStateException {
 
-        ThisIsNotTheMasterYouAreLookingForException(String msg) {
+        public ThisIsNotTheMasterYouAreLookingForException(String msg) {
             super(msg);
         }
 
-        ThisIsNotTheMasterYouAreLookingForException() {
+        public ThisIsNotTheMasterYouAreLookingForException() {
         }
 
         @Override
@@ -326,7 +326,7 @@ public class MasterFaultDetection extends FaultDetection {
     private class MasterPingRequestHandler implements TransportRequestHandler<MasterPingRequest> {
 
         @Override
-        public void messageReceived(final MasterPingRequest request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final MasterPingRequest request, final TransportChannel channel, Task task) throws Exception {
             final DiscoveryNodes nodes = clusterStateSupplier.get().nodes();
             // check if we are really the same master as the one we seemed to be think we are
             // this can happen if the master got "kill -9" and then another node started using the same port
@@ -401,7 +401,7 @@ public class MasterFaultDetection extends FaultDetection {
 
     public static class MasterPingRequest extends TransportRequest {
 
-        private DiscoveryNode sourceNode;
+        public DiscoveryNode sourceNode;
 
         private DiscoveryNode masterNode;
         private ClusterName clusterName;
@@ -409,7 +409,7 @@ public class MasterFaultDetection extends FaultDetection {
         public MasterPingRequest() {
         }
 
-        private MasterPingRequest(DiscoveryNode sourceNode, DiscoveryNode masterNode, ClusterName clusterName) {
+        public MasterPingRequest(DiscoveryNode sourceNode, DiscoveryNode masterNode, ClusterName clusterName) {
             this.sourceNode = sourceNode;
             this.masterNode = masterNode;
             this.clusterName = clusterName;
@@ -432,19 +432,13 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    private static class MasterPingResponseResponse extends TransportResponse {
+    public static class MasterPingResponseResponse extends TransportResponse {
 
-        private MasterPingResponseResponse() {
+        public MasterPingResponseResponse() {
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        public MasterPingResponseResponse(StreamInput in) throws IOException {
+            super(in);
         }
     }
 }

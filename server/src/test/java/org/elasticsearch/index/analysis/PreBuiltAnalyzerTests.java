@@ -21,11 +21,11 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -42,6 +42,11 @@ import static org.hamcrest.Matchers.is;
 public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
 
     @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
     }
@@ -56,18 +61,21 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
 
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
         assertThat(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT),
-                is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.V_5_0_0)));
+                is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.V_6_0_0)));
     }
 
     public void testThatInstancesAreCachedAndReused() {
-        assertSame(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.CURRENT),
-                PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.CURRENT));
-        // same lucene version should be cached
-        assertSame(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_5_2_1),
-                PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_5_2_2));
+        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT),
+                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT));
+        // same es version should be cached
+        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_2_1),
+                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_2_1));
+        assertNotSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_0_0),
+                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_0_1));
 
-        assertNotSame(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_5_0_0),
-                PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_5_0_1));
+        // Same Lucene version should be cached:
+        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_6_2_1),
+            PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_6_2_2));
     }
 
     public void testThatAnalyzersAreUsedInMapping() throws IOException {
@@ -78,16 +86,17 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         Version randomVersion = randomVersion(random());
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build();
 
-        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX, randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
+        NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX,
+            randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "text").field("analyzer", analyzerName).endObject().endObject()
-                .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "text")
+                .field("analyzer", analyzerName).endObject().endObject().endObject().endObject();
+        MapperService mapperService = createIndex("test", indexSettings, "type", mapping).mapperService();
 
-        FieldMapper fieldMapper = docMapper.mappers().getMapper("field");
-        assertThat(fieldMapper.fieldType().searchAnalyzer(), instanceOf(NamedAnalyzer.class));
-        NamedAnalyzer fieldMapperNamedAnalyzer = fieldMapper.fieldType().searchAnalyzer();
+        MappedFieldType fieldType = mapperService.fullName("field");
+        assertThat(fieldType.searchAnalyzer(), instanceOf(NamedAnalyzer.class));
+        NamedAnalyzer fieldMapperNamedAnalyzer = fieldType.searchAnalyzer();
 
         assertThat(fieldMapperNamedAnalyzer.analyzer(), is(namedAnalyzer.analyzer()));
     }

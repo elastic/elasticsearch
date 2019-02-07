@@ -52,7 +52,7 @@ public class UsageServiceTests extends ESTestCase {
         BaseRestHandler handlerD = new MockRestHandler("d", settings);
         BaseRestHandler handlerE = new MockRestHandler("e", settings);
         BaseRestHandler handlerF = new MockRestHandler("f", settings);
-        UsageService usageService = new UsageService(settings);
+        UsageService usageService = new UsageService();
         usageService.addRestHandler(handlerA);
         usageService.addRestHandler(handlerB);
         usageService.addRestHandler(handlerC);

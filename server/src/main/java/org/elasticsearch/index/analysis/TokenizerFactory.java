@@ -21,6 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 
-public interface TokenizerFactory { // TODO replace with Supplier<Tokenizer>
+public interface TokenizerFactory {
     Tokenizer create();
 }

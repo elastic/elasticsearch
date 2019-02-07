@@ -38,7 +38,9 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -53,6 +55,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Objects;
 
 public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>> extends ScoreFunctionBuilder<DFB> {
@@ -103,7 +106,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             }
             builder.field(DECAY, decay);
             builder.endObject();
-            this.functionBytes = builder.bytes();
+            this.functionBytes = BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new IllegalArgumentException("unable to build inner function object",e);
         }
@@ -148,7 +151,9 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-        builder.rawField(fieldName, functionBytes);
+        try (InputStream stream = functionBytes.streamInput()) {
+            builder.rawField(fieldName, stream);
+        }
         builder.field(DecayFunctionParser.MULTI_VALUE_MODE.getPreferredName(), multiValueMode.name());
         builder.endObject();
     }
@@ -182,8 +187,9 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     protected ScoreFunction doToFunction(QueryShardContext context) throws IOException {
         AbstractDistanceScoreFunction scoreFunction;
         // EMPTY is safe because parseVariable doesn't use namedObject
-        try (XContentParser parser = XContentFactory.xContent(functionBytes)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, functionBytes)) {
+        try (InputStream stream = functionBytes.streamInput();
+             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(functionBytes))
+                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             scoreFunction = parseVariable(fieldName, parser, context, multiValueMode);
         }
         return scoreFunction;
@@ -349,7 +355,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final MultiGeoPointValues geoPointValues = fieldData.load(context).getGeoPointValues();
-            return mode.select(new SortingNumericDoubleValues() {
+            return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (geoPointValues.advanceExact(docId)) {
@@ -367,7 +373,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                         return false;
                     }
                 }
-            }, 0.0);
+            }), 0);
         }
 
         @Override
@@ -431,7 +437,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         @Override
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final SortedNumericDoubleValues doubleValues = fieldData.load(context).getDoubleValues();
-            return mode.select(new SortingNumericDoubleValues() {
+            return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (doubleValues.advanceExact(docId)) {
@@ -446,7 +452,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                         return false;
                     }
                 }
-            }, 0.0);
+            }), 0);
         }
 
         @Override
@@ -548,7 +554,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                     }
                     double value = distance.doubleValue();
                     return Explanation.match(
-                            (float) score(docId, subQueryScore.getValue()),
+                            (float) score(docId, subQueryScore.getValue().floatValue()),
                             "Function for field " + getFieldName() + ":",
                             func.explainFunction(getDistanceString(ctx, docId), value, scale));
                 }

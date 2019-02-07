@@ -35,8 +35,9 @@ import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyM
 import org.elasticsearch.search.aggregations.bucket.composite.InternalCompositeTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFiltersTests;
-import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGridTests;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridTests;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissingTests;
@@ -54,26 +55,28 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMaxTests;
+import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviationTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMinTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsBucketTests;
 import org.elasticsearch.search.aggregations.metrics.InternalStatsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalSumTests;
-import org.elasticsearch.search.aggregations.metrics.avg.InternalAvgTests;
-import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardinalityTests;
-import org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBoundsTests;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.InternalGeoCentroidTests;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentilesRanksTests;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentilesTests;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentilesRanksTests;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentilesTests;
-import org.elasticsearch.search.aggregations.metrics.scripted.InternalScriptedMetricTests;
-import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHitsTests;
-import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCountTests;
+import org.elasticsearch.search.aggregations.metrics.InternalAvgTests;
+import org.elasticsearch.search.aggregations.metrics.InternalCardinalityTests;
+import org.elasticsearch.search.aggregations.metrics.InternalGeoBoundsTests;
+import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroidTests;
+import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentilesRanksTests;
+import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentilesTests;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentilesRanksTests;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentilesTests;
+import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetricTests;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHitsTests;
+import org.elasticsearch.search.aggregations.metrics.InternalValueCountTests;
+import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvgTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValueTests;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.InternalPercentilesBucketTests;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.InternalExtendedStatsBucketTests;
-import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivativeTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValueTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalDerivativeTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
@@ -99,10 +102,10 @@ import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
  */
 public class AggregationsTests extends ESTestCase {
 
-    private static final List<InternalAggregationTestCase> aggsTests = getAggsTests();
+    private static final List<InternalAggregationTestCase<?>> aggsTests = getAggsTests();
 
-    private static List<InternalAggregationTestCase> getAggsTests() {
-        List<InternalAggregationTestCase> aggsTests = new ArrayList<>();
+    private static List<InternalAggregationTestCase<?>> getAggsTests() {
+        List<InternalAggregationTestCase<?>> aggsTests = new ArrayList<>();
         aggsTests.add(new InternalCardinalityTests());
         aggsTests.add(new InternalTDigestPercentilesTests());
         aggsTests.add(new InternalTDigestPercentilesRanksTests());
@@ -112,6 +115,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalMinTests());
         aggsTests.add(new InternalMaxTests());
         aggsTests.add(new InternalAvgTests());
+        aggsTests.add(new InternalWeightedAvgTests());
         aggsTests.add(new InternalSumTests());
         aggsTests.add(new InternalValueCountTests());
         aggsTests.add(new InternalSimpleValueTests());
@@ -125,6 +129,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalGeoCentroidTests());
         aggsTests.add(new InternalHistogramTests());
         aggsTests.add(new InternalDateHistogramTests());
+        aggsTests.add(new InternalAutoDateHistogramTests());
         aggsTests.add(new LongTermsTests());
         aggsTests.add(new DoubleTermsTests());
         aggsTests.add(new StringTermsTests());
@@ -134,7 +139,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalGlobalTests());
         aggsTests.add(new InternalFilterTests());
         aggsTests.add(new InternalSamplerTests());
-        aggsTests.add(new InternalGeoHashGridTests());
+        aggsTests.add(new GeoHashGridTests());
         aggsTests.add(new InternalRangeTests());
         aggsTests.add(new InternalDateRangeTests());
         aggsTests.add(new InternalGeoDistanceTests());
@@ -146,6 +151,7 @@ public class AggregationsTests extends ESTestCase {
         aggsTests.add(new InternalBinaryRangeTests());
         aggsTests.add(new InternalTopHitsTests());
         aggsTests.add(new InternalCompositeTests());
+        aggsTests.add(new InternalMedianAbsoluteDeviationTests());
         return Collections.unmodifiableList(aggsTests);
     }
 
@@ -156,11 +162,11 @@ public class AggregationsTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        for (InternalAggregationTestCase aggsTest : aggsTests) {
+        for (InternalAggregationTestCase<?> aggsTest : aggsTests) {
             if (aggsTest instanceof InternalMultiBucketAggregationTestCase) {
                 // Lower down the number of buckets generated by multi bucket aggregation tests in
                 // order to avoid too many aggregations to be created.
-                ((InternalMultiBucketAggregationTestCase) aggsTest).setMaxNumberOfBuckets(3);
+                ((InternalMultiBucketAggregationTestCase<?>) aggsTest).setMaxNumberOfBuckets(3);
             }
             aggsTest.setUp();
         }
@@ -168,7 +174,7 @@ public class AggregationsTests extends ESTestCase {
 
     @After
     public void cleanUp() throws Exception {
-        for (InternalAggregationTestCase aggsTest : aggsTests) {
+        for (InternalAggregationTestCase<?> aggsTest : aggsTests) {
             aggsTest.tearDown();
         }
     }
@@ -252,7 +258,7 @@ public class AggregationsTests extends ESTestCase {
             builder.endObject();
         }
         builder.endObject();
-        BytesReference originalBytes = builder.bytes();
+        BytesReference originalBytes = BytesReference.bytes(builder);
         try (XContentParser parser = createParser(builder.contentType().xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             ParsingException ex = expectThrows(ParsingException.class, () -> Aggregations.fromXContent(parser));
@@ -268,9 +274,9 @@ public class AggregationsTests extends ESTestCase {
         int numAggs = randomIntBetween(minNumAggs, 4);
         List<InternalAggregation> aggs = new ArrayList<>(numAggs);
         for (int i = 0; i < numAggs; i++) {
-            InternalAggregationTestCase testCase = randomFrom(aggsTests);
+            InternalAggregationTestCase<?> testCase = randomFrom(aggsTests);
             if (testCase instanceof InternalMultiBucketAggregationTestCase) {
-                InternalMultiBucketAggregationTestCase multiBucketAggTestCase = (InternalMultiBucketAggregationTestCase) testCase;
+                InternalMultiBucketAggregationTestCase<?> multiBucketAggTestCase = (InternalMultiBucketAggregationTestCase<?>) testCase;
                 if (currentDepth < maxDepth) {
                     multiBucketAggTestCase.setSubAggregationsSupplier(
                         () -> createTestInstance(0, currentDepth + 1, maxDepth)
@@ -281,7 +287,7 @@ public class AggregationsTests extends ESTestCase {
                     );
                 }
             } else if (testCase instanceof InternalSingleBucketAggregationTestCase) {
-                InternalSingleBucketAggregationTestCase singleBucketAggTestCase = (InternalSingleBucketAggregationTestCase) testCase;
+                InternalSingleBucketAggregationTestCase<?> singleBucketAggTestCase = (InternalSingleBucketAggregationTestCase<?>) testCase;
                 if (currentDepth < maxDepth) {
                     singleBucketAggTestCase.subAggregationsSupplier = () -> createTestInstance(0, currentDepth + 1, maxDepth);
                 } else {

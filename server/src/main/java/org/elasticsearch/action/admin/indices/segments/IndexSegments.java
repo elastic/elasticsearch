@@ -45,7 +45,8 @@ public class IndexSegments implements Iterable<IndexShardSegments> {
         }
         indexShards = new HashMap<>();
         for (Map.Entry<Integer, List<ShardSegments>> entry : tmpIndexShards.entrySet()) {
-            indexShards.put(entry.getKey(), new IndexShardSegments(entry.getValue().get(0).getShardRouting().shardId(), entry.getValue().toArray(new ShardSegments[entry.getValue().size()])));
+            indexShards.put(entry.getKey(), new IndexShardSegments(entry.getValue().get(0).getShardRouting().shardId(),
+                entry.getValue().toArray(new ShardSegments[entry.getValue().size()])));
         }
     }
 

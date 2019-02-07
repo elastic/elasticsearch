@@ -39,3 +39,5 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+
+This query also accepts `zero_terms_query`, as explained in <<query-dsl-match-query, `match` query>>.

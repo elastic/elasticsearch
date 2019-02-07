@@ -39,18 +39,18 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.fetch.subphase.ParentFieldSubFetchPhase;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,21 +64,28 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     private final IndexShard indexShard;
 
     public ShardGetService(IndexSettings indexSettings, IndexShard indexShard,
-                           MapperService mapperService) {
+                             MapperService mapperService) {
         super(indexShard.shardId(), indexSettings);
         this.mapperService = mapperService;
         this.indexShard = indexShard;
     }
 
     public GetStats stats() {
-        return new GetStats(existsMetric.count(), TimeUnit.NANOSECONDS.toMillis(existsMetric.sum()), missingMetric.count(), TimeUnit.NANOSECONDS.toMillis(missingMetric.sum()), currentMetric.count());
+        return new GetStats(existsMetric.count(), TimeUnit.NANOSECONDS.toMillis(existsMetric.sum()),
+            missingMetric.count(), TimeUnit.NANOSECONDS.toMillis(missingMetric.sum()), currentMetric.count());
     }
 
-    public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext) {
+    public GetResult get(String type, String id, String[] gFields, boolean realtime, long version,
+                            VersionType versionType, FetchSourceContext fetchSourceContext) {
+        return get(type, id, gFields, realtime, version, versionType, fetchSourceContext, false);
+    }
+
+    private GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType,
+            FetchSourceContext fetchSourceContext, boolean readFromTranslog) {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
-            GetResult getResult = innerGet(type, id, gFields, realtime, version, versionType, fetchSourceContext);
+            GetResult getResult = innerGet(type, id, gFields, realtime, version, versionType, fetchSourceContext, readFromTranslog);
 
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
@@ -91,6 +98,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
+    public GetResult getForUpdate(String type, String id, long version, VersionType versionType) {
+        return get(type, id, new String[]{RoutingFieldMapper.NAME}, true, version, versionType,
+            FetchSourceContext.FETCH_SOURCE, true);
+    }
+
     /**
      * Returns {@link GetResult} based on the specified {@link org.elasticsearch.index.engine.Engine.GetResult} argument.
      * This method basically loads specified fields for the associated document in the engineGetResult.
@@ -98,9 +110,10 @@ public final class ShardGetService extends AbstractIndexShardComponent {
      * <p>
      * Note: Call <b>must</b> release engine searcher associated with engineGetResult!
      */
-    public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields, FetchSourceContext fetchSourceContext) {
+    public GetResult get(Engine.GetResult engineGetResult, String id, String type,
+                            String[] fields, FetchSourceContext fetchSourceContext) {
         if (!engineGetResult.exists()) {
-            return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
         }
 
         currentMetric.inc();
@@ -137,50 +150,45 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         return FetchSourceContext.DO_NOT_FETCH_SOURCE;
     }
 
-    private GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext) {
+    private GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType,
+                               FetchSourceContext fetchSourceContext, boolean readFromTranslog) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
-        final Collection<String> types;
         if (type == null || type.equals("_all")) {
-            types = mapperService.types();
-        } else {
-            types = Collections.singleton(type);
+            DocumentMapper mapper = mapperService.documentMapper();
+            type = mapper == null ? null : mapper.type();
         }
 
         Engine.GetResult get = null;
-        for (String typeX : types) {
-            Term uidTerm = mapperService.createUidTerm(typeX, id);
-            if (uidTerm != null) {
-                get = indexShard.get(new Engine.Get(realtime, typeX, id, uidTerm)
-                        .version(version).versionType(versionType));
-                if (get.exists()) {
-                    type = typeX;
-                    break;
-                } else {
-                    get.release();
-                }
+        if (type != null) {
+            Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+            get = indexShard.get(new Engine.Get(realtime, readFromTranslog, type, id, uidTerm)
+                    .version(version).versionType(versionType));
+            if (get.exists() == false) {
+                get.close();
             }
         }
 
         if (get == null || get.exists() == false) {
-            return new GetResult(shardId.getIndexName(), type, id, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, -1, false, null, null);
         }
 
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService);
         } finally {
-            get.release();
+            get.close();
         }
     }
 
-    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, MapperService mapperService) {
+    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext,
+                                                        Engine.GetResult get, MapperService mapperService) {
         Map<String, DocumentField> fields = null;
         BytesReference source = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields, fetchSourceContext);
         if (fieldVisitor != null) {
             try {
-                docIdAndVersion.context.reader().document(docIdAndVersion.docId, fieldVisitor);
+                docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
             }
@@ -195,18 +203,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        DocumentMapper docMapper = mapperService.documentMapper(type);
-        if (docMapper.parentFieldMapper().active()) {
-            String parentId = ParentFieldSubFetchPhase.getParentId(docMapper.parentFieldMapper(), docIdAndVersion.context.reader(), docIdAndVersion.docId);
-            if (fields == null) {
-                fields = new HashMap<>(1);
-            }
-            fields.put(ParentFieldMapper.NAME, new DocumentField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
-        }
+        DocumentMapper docMapper = mapperService.documentMapper();
 
         if (gFields != null && gFields.length > 0) {
             for (String field : gFields) {
-                FieldMapper fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
+                Mapper fieldMapper = docMapper.mappers().getMapper(field);
                 if (fieldMapper == null) {
                     if (docMapper.objectMappers().get(field) != null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
@@ -227,13 +228,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             sourceAsMap = typeMapTuple.v2();
             sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
             try {
-                source = XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap).bytes();
+                source = BytesReference.bytes(XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap));
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
             }
         }
 
-        return new GetResult(shardId.getIndexName(), type, id, get.version(), get.exists(), source, fields);
+        return new GetResult(shardId.getIndexName(), type, id, get.docIdAndVersion().seqNo, get.docIdAndVersion().primaryTerm,
+            get.version(), get.exists(), source, fields);
     }
 
     private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {

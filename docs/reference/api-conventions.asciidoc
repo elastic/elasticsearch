@@ -1,5 +1,5 @@
 [[api-conventions]]
-= API Conventions
+= API conventions
 
 [partintro]
 --
@@ -84,6 +84,9 @@ Where:
 `date_math_expr`:: is a dynamic date math expression that computes the date dynamically
 `date_format`:: is the optional format in which the computed date should be rendered. Defaults to `YYYY.MM.dd`.
 `time_zone`:: is the optional time zone . Defaults to `utc`.
+
+Date math expressions are resolved locale-independent. Consequently, it is not possible to use any other
+calendars than the Gregorian calendar.
 
 You must enclose date math index name expressions within angle brackets, and
 all special characters should be URI encoded. For example:
@@ -220,7 +223,7 @@ Assuming `now` is `2001-01-01 12:00:00`, some examples are:
 `now+1h`:: `now` in milliseconds plus one hour. Resolves to: `2001-01-01 13:00:00`
 `now-1h`:: `now` in milliseconds minus one hour. Resolves to: `2001-01-01 11:00:00`
 `now-1h/d`:: `now` in milliseconds minus one hour, rounded down to UTC 00:00. Resolves to: `2001-01-01 00:00:00``
- `2001-01-01\|\|+1M/d`:: `now` in milliseconds plus one month. Resolves to: `2001-02-01 00:00:00`
+ `2001.02.01\|\|+1M/d`:: `2001-02-01` in milliseconds plus one month. Resolves to: `2001-03-01 00:00:00`
 
 [float]
 [[common-options-response-filtering]]
@@ -300,11 +303,7 @@ Responds:
     "indices": {
       "twitter": {
         "shards": {
-          "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "1": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "2": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "3": [{"state": "STARTED"}, {"state": "UNASSIGNED"}],
-          "4": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
+          "0": [{"state": "STARTED"}, {"state": "UNASSIGNED"}]
         }
       }
     }

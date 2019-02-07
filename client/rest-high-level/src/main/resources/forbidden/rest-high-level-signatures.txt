@@ -19,3 +19,18 @@ org.apache.http.entity.ContentType#create(java.lang.String)
 org.apache.http.entity.ContentType#create(java.lang.String,java.lang.String)
 org.apache.http.entity.ContentType#create(java.lang.String,java.nio.charset.Charset)
 org.apache.http.entity.ContentType#create(java.lang.String,org.apache.http.NameValuePair[])
+
+@defaultMessage ES's logging infrastructure uses log4j2 which we don't want to force on high level rest client users
+org.elasticsearch.common.logging.DeprecationLogger
+org.elasticsearch.common.logging.LogConfigurator
+org.elasticsearch.common.logging.LoggerMessageFormat
+org.elasticsearch.common.logging.Loggers
+org.elasticsearch.common.logging.NodeNamePatternConverter
+org.elasticsearch.common.logging.PrefixLogger
+
+@defaultMessage We can't rely on log4j2 being on the classpath so don't log deprecations!
+org.elasticsearch.common.xcontent.LoggingDeprecationHandler
+
+@defaultMessage Use Nonblocking org.apache.http.nio.entity.NByteArrayEntity
+org.apache.http.entity.ByteArrayEntity
+org.apache.http.entity.StringEntity

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
@@ -28,10 +27,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -49,8 +46,8 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         PARSER.declareString(Builder::setId, new ParseField("id"));
         PARSER.declareField((parser, builder, aVoid) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
-            XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
-            builder.setConfig(contentBuilder.bytes(), contentBuilder.contentType());
+            contentBuilder.generator().copyCurrentStructure(parser);
+            builder.setConfig(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
 
     }
@@ -119,13 +116,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            return new PipelineConfiguration(in.readString(), in.readBytesReference(), XContentType.readFrom(in));
-        } else {
-            final String id = in.readString();
-            final BytesReference config = in.readBytesReference();
-            return new PipelineConfiguration(id, config, XContentFactory.xContentType(config));
-        }
+        return new PipelineConfiguration(in.readString(), in.readBytesReference(), in.readEnum(XContentType.class));
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
@@ -136,9 +127,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType.writeTo(out);
-        }
+        out.writeEnum(xContentType);
     }
 
     @Override
@@ -149,14 +138,14 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         PipelineConfiguration that = (PipelineConfiguration) o;
 
         if (!id.equals(that.id)) return false;
-        return config.equals(that.config);
+        return getConfigAsMap().equals(that.getConfigAsMap());
 
     }
 
     @Override
     public int hashCode() {
         int result = id.hashCode();
-        result = 31 * result + config.hashCode();
+        result = 31 * result + getConfigAsMap().hashCode();
         return result;
     }
 }

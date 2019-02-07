@@ -10,17 +10,17 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -46,17 +46,17 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -83,17 +83,17 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -130,17 +130,17 @@
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
+        type:    _doc
         body:    { "text": "test" }
   - do:
       indices.refresh: {}

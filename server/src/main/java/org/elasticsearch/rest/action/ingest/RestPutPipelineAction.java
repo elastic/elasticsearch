@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
@@ -50,7 +50,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
         PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), sourceTuple.v2(), sourceTuple.v1());
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
-        return channel -> client.admin().cluster().putPipeline(request, new AcknowledgedRestListener<>(channel));
+        return channel -> client.admin().cluster().putPipeline(request, new RestToXContentListener<>(channel));
     }
 
 }

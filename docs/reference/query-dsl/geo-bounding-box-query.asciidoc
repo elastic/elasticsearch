@@ -9,13 +9,11 @@ bounding box. Assuming the following indexed document:
 PUT /my_locations
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "pin": {
-                    "properties": {
-                        "location": {
-                            "type": "geo_point"
-                        }
+        "properties": {
+            "pin": {
+                "properties": {
+                    "location": {
+                        "type": "geo_point"
                     }
                 }
             }
@@ -231,6 +229,38 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+
+When geohashes are used to specify the bounding the edges of the
+bounding box, the geohashes are treated as rectangles. The bounding
+box is defined in such a way that its top left corresponds to the top
+left corner of the geohash specified in the `top_left` parameter and
+its bottom right is defined as the bottom right of the geohash
+specified in the `bottom_right` parameter.
+
+In order to specify a bounding box that would match entire area of a
+geohash the geohash can be specified in both `top_left` and
+`bottom_right` parameters:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "geo_bounding_box" : {
+            "pin.location" : {
+                "top_left" : "dr",
+                "bottom_right" : "dr"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+In this example, the geohash `dr` will produce the bounding box
+query with the top left corner at `45.0,-78.75` and the bottom right
+corner at `39.375,-67.5`.
+
 [float]
 ==== Vertices
 
@@ -329,3 +359,16 @@ and will not match any documents for this query. This can be useful when
 querying multiple indexes which might have different mappings. When set to
 `false` (the default value) the query will throw an exception if the field
 is not mapped.
+
+[float]
+==== Notes on Precision
+
+Geopoints have limited precision and are always rounded down during index time.
+During the query time, upper boundaries of the bounding boxes are rounded down,
+while lower boundaries are rounded up. As a result, the points along on the
+lower bounds (bottom and left edges of the bounding box) might not make it into
+the bounding box due to the rounding error. At the same time points alongside
+the upper bounds (top and right edges) might be selected by the query even if
+they are located slightly outside the edge. The rounding error should be less
+than 4.20e-8 degrees on the latitude and less than 8.39e-8 degrees on the
+longitude, which translates to less than 1cm error even at the equator.

@@ -37,7 +37,6 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 
 import java.io.IOException;
@@ -49,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Subclass of the {@link UnifiedHighlighter} that works for a single field in a single document.
@@ -68,7 +68,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final BreakIterator breakIterator;
     private final Locale breakIteratorLocale;
     private final int noMatchSize;
-    private final int maxAnalyzedOffset;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -83,7 +82,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      *                    If null {@link BreakIterator#getSentenceInstance(Locale)} is used.
      * @param fieldValue the original field values delimited by MULTIVAL_SEP_CHAR.
      * @param noMatchSize The size of the text that should be returned when no highlighting can be performed.
-     * @param maxAnalyzedOffset The maximum number of characters that will be analyzed for highlighting.
      */
     public CustomUnifiedHighlighter(IndexSearcher searcher,
                                     Analyzer analyzer,
@@ -92,8 +90,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                                     @Nullable Locale breakIteratorLocale,
                                     @Nullable BreakIterator breakIterator,
                                     String fieldValue,
-                                    int noMatchSize,
-                                    int maxAnalyzedOffset) {
+                                    int noMatchSize) {
         super(searcher, analyzer);
         this.offsetSource = offsetSource;
         this.breakIterator = breakIterator;
@@ -101,7 +98,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.passageFormatter = passageFormatter;
         this.fieldValue = fieldValue;
         this.noMatchSize = noMatchSize;
-        this.maxAnalyzedOffset = maxAnalyzedOffset;
     }
 
     /**
@@ -125,13 +121,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     @Override
     protected List<CharSequence[]> loadFieldValues(String[] fields, DocIdSetIterator docIter,
                                                    int cacheCharsThreshold) throws IOException {
-        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValue.length() > maxAnalyzedOffset)) {
-            throw new IllegalArgumentException(
-                "The length of the text to be analyzed for highlighting has exceeded the allowed maximum of [" +
-                    maxAnalyzedOffset + "]. " + "This maximum can be set by changing the [" +
-                    IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] index level setting. " +
-                    "For large texts, indexing with offsets or term vectors is recommended!");
-        }
         // we only highlight one field, one document at a time
         return Collections.singletonList(new String[]{fieldValue});
     }
@@ -148,15 +137,16 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
 
     @Override
     protected FieldHighlighter getFieldHighlighter(String field, Query query, Set<Term> allTerms, int maxPassages) {
-        BytesRef[] terms = filterExtractedTerms(getFieldMatcher(field), allTerms);
+        Predicate<String> fieldMatcher = getFieldMatcher(field);
+        BytesRef[] terms = filterExtractedTerms(fieldMatcher, allTerms);
         Set<HighlightFlag> highlightFlags = getFlags(field);
         PhraseHelper phraseHelper = getPhraseHelper(field, query, highlightFlags);
         CharacterRunAutomaton[] automata = getAutomata(field, query, highlightFlags);
         OffsetSource offsetSource = getOptimizedOffsetSource(field, terms, phraseHelper, automata);
         BreakIterator breakIterator = new SplittingBreakIterator(getBreakIterator(field),
             UnifiedHighlighter.MULTIVAL_SEP_CHAR);
-        FieldOffsetStrategy strategy =
-            getOffsetStrategy(offsetSource, field, terms, phraseHelper, automata, highlightFlags);
+        UHComponents components = new UHComponents(field, fieldMatcher, query, terms, phraseHelper, automata, highlightFlags);
+        FieldOffsetStrategy strategy = getOffsetStrategy(offsetSource, components);
         return new CustomFieldHighlighter(field, strategy, breakIteratorLocale, breakIterator,
             getScorer(field), maxPassages, (noMatchSize > 0 ? 1 : 0), getFormatter(field), noMatchSize, fieldValue);
     }
@@ -185,7 +175,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 SpanQuery[] innerQueries = new SpanQuery[terms[i].length];
                 for (int j = 0; j < terms[i].length; j++) {
                     if (i == sizeMinus1) {
-                        innerQueries[j] = new SpanMultiTermQueryWrapper(new PrefixQuery(terms[i][j]));
+                        innerQueries[j] = new SpanMultiTermQueryWrapper<PrefixQuery>(new PrefixQuery(terms[i][j]));
                     } else {
                         innerQueries[j] = new SpanTermQuery(terms[i][j]);
                     }

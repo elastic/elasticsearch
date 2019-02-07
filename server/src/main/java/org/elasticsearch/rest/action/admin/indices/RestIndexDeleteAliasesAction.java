@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
@@ -53,6 +53,6 @@ public class RestIndexDeleteAliasesAction extends BaseRestHandler {
         indicesAliasesRequest.addAliasAction(AliasActions.remove().indices(indices).aliases(aliases));
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
 
-        return channel -> client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.admin().indices().aliases(indicesAliasesRequest, new RestToXContentListener<>(channel));
     }
 }

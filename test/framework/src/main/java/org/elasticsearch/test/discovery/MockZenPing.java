@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.test.discovery;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.zen.PingContextProvider;
@@ -36,7 +36,9 @@ import java.util.function.Consumer;
  * A {@link ZenPing} implementation which returns results based on a static in-memory map. This allows pinging
  * to be immediate and can be used to speed up tests.
  */
-public final class MockZenPing extends AbstractComponent implements ZenPing {
+public final class MockZenPing implements ZenPing {
+    
+    private static final Logger logger = LogManager.getLogger(MockZenPing.class);
 
     static final Map<ClusterName, Set<MockZenPing>> activeNodesPerCluster = new HashMap<>();
 
@@ -45,8 +47,7 @@ public final class MockZenPing extends AbstractComponent implements ZenPing {
 
     private final PingContextProvider contextProvider;
 
-    public MockZenPing(Settings settings, PingContextProvider contextProvider) {
-        super(settings);
+    public MockZenPing(PingContextProvider contextProvider) {
         this.contextProvider = contextProvider;
     }
 

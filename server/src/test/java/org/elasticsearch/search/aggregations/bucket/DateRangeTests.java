@@ -19,7 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
@@ -35,7 +36,7 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
     @Override
     protected DateRangeAggregationBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
-        DateRangeAggregationBuilder factory = new DateRangeAggregationBuilder("foo");
+        DateRangeAggregationBuilder factory = new DateRangeAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
@@ -64,7 +65,7 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
             factory.missing(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
-            factory.timeZone(randomDateTimeZone());
+            factory.timeZone(randomZone());
         }
         return factory;
     }
@@ -78,8 +79,9 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
                 "]\n" +
             "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
-        ParsingException ex = expectThrows(ParsingException.class, () -> DateRangeAggregationBuilder.parse("aggregationName", parser));
-        assertThat(ex.getDetailedMessage(), containsString("badField"));
+        XContentParseException ex = expectThrows(XContentParseException.class,
+                () -> DateRangeAggregationBuilder.parse("aggregationName", parser));
+        assertThat(ExceptionsHelper.detailedMessage(ex), containsString("badField"));
     }
 
 }

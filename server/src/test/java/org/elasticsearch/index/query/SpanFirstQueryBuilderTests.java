@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.internal.SearchContext;
@@ -30,6 +31,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQueryBuilder> {
@@ -57,8 +59,8 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
             builder.endObject();
             builder.endObject();
 
-            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(builder.string()));
-            assertTrue(e.getMessage().contains("spanFirst must have [end] set"));
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(Strings.toString(builder)));
+            assertTrue(e.getMessage().contains("span_first must have [end] set"));
         }
         {
             XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -68,8 +70,8 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
             builder.endObject();
             builder.endObject();
 
-            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(builder.string()));
-            assertTrue(e.getMessage().contains("spanFirst must have [match] span query clause"));
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(Strings.toString(builder)));
+            assertTrue(e.getMessage().contains("span_first must have [match] span query clause"));
         }
     }
 
@@ -95,5 +97,28 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
 
         assertEquals(json, 3, parsed.end());
         assertEquals(json, "kimchy", ((SpanTermQueryBuilder) parsed.innerQuery()).value());
+    }
+
+
+    public void testFromJsonWithNonDefaultBoostInMatchQuery() {
+        String json =
+                "{\n" +
+                "  \"span_first\" : {\n" +
+                "    \"match\" : {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"user\" : {\n" +
+                "          \"value\" : \"kimchy\",\n" +
+                "          \"boost\" : 2.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"end\" : 3,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+
+        Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(exception.getMessage(),
+            equalTo("span_first [match] as a nested span clause can't have non-default boost value [2.0]"));
     }
 }

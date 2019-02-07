@@ -19,22 +19,31 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.RoaringDocIdSet;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.MultiBucketCollector;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -43,98 +52,88 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
 final class CompositeAggregator extends BucketsAggregator {
     private final int size;
-    private final CompositeValuesSourceConfig[] sources;
+    private final SortedDocsProducer sortedDocsProducer;
     private final List<String> sourceNames;
+    private final int[] reverseMuls;
     private final List<DocValueFormat> formats;
-    private final boolean canEarlyTerminate;
 
-    private final TreeMap<Integer, Integer> keys;
-    private final CompositeValuesComparator array;
+    private final SingleDimensionValuesSource<?>[] sources;
+    private final CompositeValuesCollectorQueue queue;
 
-    private final List<LeafContext> contexts = new ArrayList<>();
-    private LeafContext leaf;
-    private RoaringDocIdSet.Builder builder;
+    private final List<Entry> entries = new ArrayList<>();
+    private LeafReaderContext currentLeaf;
+    private RoaringDocIdSet.Builder docIdSetBuilder;
+    private BucketCollector deferredCollectors;
 
     CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-                            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
-                            int size, CompositeValuesSourceConfig[] sources, CompositeKey rawAfterKey) throws IOException {
+                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+                        int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.size = size;
-        this.sources = sources;
-        this.sourceNames = Arrays.stream(sources).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
-        this.formats = Arrays.stream(sources).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
-        // we use slot 0 to fill the current document (size+1).
-        this.array = new CompositeValuesComparator(context.searcher().getIndexReader(), sources, size+1);
-        if (rawAfterKey != null) {
-            array.setTop(rawAfterKey.values());
+        this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
+        this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
+        this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
+        this.sources = new SingleDimensionValuesSource[sourceConfigs.length];
+        // check that the provided size is not greater than the search.max_buckets setting
+        int bucketLimit = context.aggregations().multiBucketConsumer().getLimit();
+        if (size > bucketLimit) {
+            throw new MultiBucketConsumerService.TooManyBucketsException("Trying to create too many buckets. Must be less than or equal" +
+                " to: [" + bucketLimit + "] but was [" + size + "]. This limit can be set by changing the [" + MAX_BUCKET_SETTING.getKey() +
+                "] cluster level setting.", bucketLimit);
         }
-        this.keys = new TreeMap<>(array::compare);
-        this.canEarlyTerminate = Arrays.stream(sources)
-            .allMatch(CompositeValuesSourceConfig::canEarlyTerminate);
+        for (int i = 0; i < sourceConfigs.length; i++) {
+            this.sources[i] = createValuesSource(context.bigArrays(), context.searcher().getIndexReader(), sourceConfigs[i], size);
+        }
+        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
+        this.sortedDocsProducer = sources[0].createSortedDocsProducerOrNull(context.searcher().getIndexReader(), context.query());
     }
 
-    boolean canEarlyTerminate() {
-        return canEarlyTerminate;
+    @Override
+    protected void doClose() {
+        try {
+            Releasables.close(queue);
+        } finally {
+            Releasables.close(sources);
+        }
     }
 
-    private int[] getReverseMuls() {
-        return Arrays.stream(sources).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
+    @Override
+    protected void doPreCollection() throws IOException {
+        List<BucketCollector> collectors = Arrays.asList(subAggregators);
+        deferredCollectors = MultiBucketCollector.wrap(collectors);
+        collectableSubAggregators = BucketCollector.NO_OP_COLLECTOR;
+    }
+
+    @Override
+    protected void doPostCollection() throws IOException {
+        finishLeaf();
     }
 
     @Override
     public InternalAggregation buildAggregation(long zeroBucket) throws IOException {
         assert zeroBucket == 0L;
-        consumeBucketsAndMaybeBreak(keys.size());
+        consumeBucketsAndMaybeBreak(queue.size());
 
-        // Replay all documents that contain at least one top bucket (collected during the first pass).
-        grow(keys.size()+1);
-        final boolean needsScores = needsScores();
-        Weight weight = null;
-        if (needsScores) {
-            Query query = context.query();
-            weight = context.searcher().createNormalizedWeight(query, true);
-        }
-        for (LeafContext context : contexts) {
-            DocIdSetIterator docIdSetIterator = context.docIdSet.iterator();
-            if (docIdSetIterator == null) {
-                continue;
-            }
-            final CompositeValuesSource.Collector collector =
-                array.getLeafCollector(context.ctx, getSecondPassCollector(context.subCollector));
-            int docID;
-            DocIdSetIterator scorerIt = null;
-            if (needsScores) {
-                Scorer scorer = weight.scorer(context.ctx);
-                // We don't need to check if the scorer is null
-                // since we are sure that there are documents to replay (docIdSetIterator it not empty).
-                scorerIt = scorer.iterator();
-                context.subCollector.setScorer(scorer);
-            }
-            while ((docID = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                if (needsScores) {
-                    assert scorerIt.docID() < docID;
-                    scorerIt.advance(docID);
-                    // aggregations should only be replayed on matching documents
-                    assert scorerIt.docID() == docID;
-                }
-                collector.collect(docID);
-            }
+        if (deferredCollectors != NO_OP_COLLECTOR) {
+            // Replay all documents that contain at least one top bucket (collected during the first pass).
+            runDeferredCollections();
         }
 
-        int num = Math.min(size, keys.size());
+        int num = Math.min(size, queue.size());
         final InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
-        final int[] reverseMuls = getReverseMuls();
-        int pos = 0;
-        for (int slot : keys.keySet()) {
-            CompositeKey key = array.toCompositeKey(slot);
+        while (queue.size() > 0) {
+            int slot = queue.pop();
+            CompositeKey key = queue.toCompositeKey(slot);
             InternalAggregations aggs = bucketAggregations(slot);
-            int docCount = bucketDocCount(slot);
-            buckets[pos++] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
+            int docCount = queue.getDocCount(slot);
+            buckets[queue.size()] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
         }
         CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
         return new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
@@ -143,125 +142,208 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        final int[] reverseMuls = getReverseMuls();
         return new InternalComposite(name, size, sourceNames, formats, Collections.emptyList(), null, reverseMuls,
             pipelineAggregators(), metaData());
     }
 
-    @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (leaf != null) {
-            leaf.docIdSet = builder.build();
-            contexts.add(leaf);
+    private void finishLeaf() {
+        if (currentLeaf != null) {
+            DocIdSet docIdSet = docIdSetBuilder.build();
+            entries.add(new Entry(currentLeaf, docIdSet));
+            currentLeaf = null;
+            docIdSetBuilder = null;
         }
-        leaf = new LeafContext(ctx, sub);
-        builder = new RoaringDocIdSet.Builder(ctx.reader().maxDoc());
-        final CompositeValuesSource.Collector inner = array.getLeafCollector(ctx, getFirstPassCollector());
-        return new LeafBucketCollector() {
-            @Override
-            public void collect(int doc, long zeroBucket) throws IOException {
-                assert zeroBucket == 0L;
-                inner.collect(doc);
-            }
-        };
     }
 
     @Override
-    protected void doPostCollection() throws IOException {
-        if (leaf != null) {
-            leaf.docIdSet = builder.build();
-            contexts.add(leaf);
+    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        finishLeaf();
+        boolean fillDocIdSet = deferredCollectors != NO_OP_COLLECTOR;
+        if (sortedDocsProducer != null) {
+            /*
+              The producer will visit documents sorted by the leading source of the composite definition
+              and terminates when the leading source value is guaranteed to be greater than the lowest
+              composite bucket in the queue.
+             */
+            DocIdSet docIdSet = sortedDocsProducer.processLeaf(context.query(), queue, ctx, fillDocIdSet);
+            if (fillDocIdSet) {
+                entries.add(new Entry(ctx, docIdSet));
+            }
+
+            /*
+              We can bypass search entirely for this segment, all the processing has been done in the previous call.
+              Throwing this exception will terminate the execution of the search for this root aggregation,
+              see {@link org.apache.lucene.search.MultiCollector} for more details on how we handle early termination in aggregations.
+             */
+            throw new CollectionTerminatedException();
+        } else {
+            if (fillDocIdSet) {
+                currentLeaf = ctx;
+                docIdSetBuilder = new RoaringDocIdSet.Builder(ctx.reader().maxDoc());
+            }
+            final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder));
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long zeroBucket) throws IOException {
+                    assert zeroBucket == 0L;
+                    inner.collect(doc);
+                }
+            };
         }
     }
 
     /**
-     * The first pass selects the top N composite buckets from all matching documents.
-     * It also records all doc ids that contain a top N composite bucket in a {@link RoaringDocIdSet} in order to be
-     * able to replay the collection filtered on the best buckets only.
+     * The first pass selects the top composite buckets from all matching documents.
      */
-    private CompositeValuesSource.Collector getFirstPassCollector() {
-        return new CompositeValuesSource.Collector() {
+    private LeafBucketCollector getFirstPassCollector(RoaringDocIdSet.Builder builder) {
+        return new LeafBucketCollector() {
             int lastDoc = -1;
 
             @Override
-            public void collect(int doc) throws IOException {
-
-                // Checks if the candidate key in slot 0 is competitive.
-                if (keys.containsKey(0)) {
-                    // This key is already in the top N, skip it for now.
-                    if (doc != lastDoc) {
+            public void collect(int doc, long bucket) throws IOException {
+                int slot = queue.addIfCompetitive();
+                if (slot != -1) {
+                    if (builder != null && lastDoc != doc) {
                         builder.add(doc);
                         lastDoc = doc;
                     }
-                    return;
-                }
-                if (array.hasTop() && array.compareTop(0) <= 0) {
-                    // This key is greater than the top value collected in the previous round.
-                    if (canEarlyTerminate) {
-                        // The index sort matches the composite sort, we can early terminate this segment.
-                        throw new CollectionTerminatedException();
-                    }
-                    // just skip this key for now
-                    return;
-                }
-                if (keys.size() >= size) {
-                    // The tree map is full, check if the candidate key should be kept.
-                    if (array.compare(0, keys.lastKey()) > 0) {
-                        // The candidate key is not competitive
-                        if (canEarlyTerminate) {
-                            // The index sort matches the composite sort, we can early terminate this segment.
-                            throw new CollectionTerminatedException();
-                        }
-                        // just skip this key
-                        return;
-                    }
-                }
-
-                // The candidate key is competitive
-                final int newSlot;
-                if (keys.size() >= size) {
-                    // the tree map is full, we replace the last key with this candidate.
-                    int slot = keys.pollLastEntry().getKey();
-                    // and we recycle the deleted slot
-                    newSlot = slot;
-                } else {
-                    newSlot = keys.size() + 1;
-                }
-                // move the candidate key to its new slot.
-                array.move(0, newSlot);
-                keys.put(newSlot, newSlot);
-                if (doc != lastDoc) {
-                    builder.add(doc);
-                    lastDoc = doc;
                 }
             }
         };
     }
-
 
     /**
-     * The second pass delegates the collection to sub-aggregations but only if the collected composite bucket is a top bucket (selected
-     *  in the first pass).
+     * Replay the documents that might contain a top bucket and pass top buckets to
+     * the {@link #deferredCollectors}.
      */
-    private CompositeValuesSource.Collector getSecondPassCollector(LeafBucketCollector subCollector) throws IOException {
-        return doc -> {
-            Integer bucket = keys.get(0);
-            if (bucket != null) {
-                // The candidate key in slot 0 is a top bucket.
-                // We can defer the collection of this document/bucket to the sub collector
-                collectExistingBucket(subCollector, doc, bucket);
+    private void runDeferredCollections() throws IOException {
+        final boolean needsScores = scoreMode().needsScores();
+        Weight weight = null;
+        if (needsScores) {
+            Query query = context.query();
+            weight = context.searcher().createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
+        }
+        deferredCollectors.preCollection();
+        for (Entry entry : entries) {
+            DocIdSetIterator docIdSetIterator = entry.docIdSet.iterator();
+            if (docIdSetIterator == null) {
+                continue;
+            }
+            final LeafBucketCollector subCollector = deferredCollectors.getLeafCollector(entry.context);
+            final LeafBucketCollector collector = queue.getLeafCollector(entry.context, getSecondPassCollector(subCollector));
+            DocIdSetIterator scorerIt = null;
+            if (needsScores) {
+                Scorer scorer = weight.scorer(entry.context);
+                if (scorer != null) {
+                    scorerIt = scorer.iterator();
+                    subCollector.setScorer(scorer);
+                }
+            }
+            int docID;
+            while ((docID = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                if (needsScores) {
+                    assert scorerIt != null && scorerIt.docID() < docID;
+                    scorerIt.advance(docID);
+                    // aggregations should only be replayed on matching documents
+                    assert scorerIt.docID() == docID;
+                }
+                collector.collect(docID);
+            }
+        }
+        deferredCollectors.postCollection();
+    }
+
+    /**
+     * Replay the top buckets from the matching documents.
+     */
+    private LeafBucketCollector getSecondPassCollector(LeafBucketCollector subCollector) {
+        return new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long zeroBucket) throws IOException {
+                assert zeroBucket == 0;
+                Integer slot = queue.compareCurrent();
+                if (slot != null) {
+                    // The candidate key is a top bucket.
+                    // We can defer the collection of this document/bucket to the sub collector
+                    subCollector.collect(doc, slot);
+                }
             }
         };
     }
 
-    static class LeafContext {
-        final LeafReaderContext ctx;
-        final LeafBucketCollector subCollector;
-        DocIdSet docIdSet;
+    private SingleDimensionValuesSource<?> createValuesSource(BigArrays bigArrays, IndexReader reader,
+                                                              CompositeValuesSourceConfig config, int size) {
 
-        LeafContext(LeafReaderContext ctx, LeafBucketCollector subCollector) {
-            this.ctx = ctx;
-            this.subCollector = subCollector;
+        final int reverseMul = config.reverseMul();
+        if (config.valuesSource() instanceof ValuesSource.Bytes.WithOrdinals && reader instanceof DirectoryReader) {
+            ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) config.valuesSource();
+            return new GlobalOrdinalValuesSource(
+                bigArrays,
+                config.fieldType(),
+                vs::globalOrdinalsValues,
+                config.format(),
+                config.missingBucket(),
+                size,
+                reverseMul
+            );
+        } else if (config.valuesSource() instanceof ValuesSource.Bytes) {
+            ValuesSource.Bytes vs = (ValuesSource.Bytes) config.valuesSource();
+            return new BinaryValuesSource(
+                bigArrays,
+                this::addRequestCircuitBreakerBytes,
+                config.fieldType(),
+                vs::bytesValues,
+                config.format(),
+                config.missingBucket(),
+                size,
+                reverseMul
+            );
+
+        } else if (config.valuesSource() instanceof ValuesSource.Numeric) {
+            final ValuesSource.Numeric vs = (ValuesSource.Numeric) config.valuesSource();
+            if (vs.isFloatingPoint()) {
+                return new DoubleValuesSource(
+                    bigArrays,
+                    config.fieldType(),
+                    vs::doubleValues,
+                    config.format(),
+                    config.missingBucket(),
+                    size,
+                    reverseMul
+                );
+
+            } else {
+                final LongUnaryOperator rounding;
+                if (vs instanceof RoundingValuesSource) {
+                    rounding = ((RoundingValuesSource) vs)::round;
+                } else {
+                    rounding = LongUnaryOperator.identity();
+                }
+                return new LongValuesSource(
+                    bigArrays,
+                    config.fieldType(),
+                    vs::longValues,
+                    rounding,
+                    config.format(),
+                    config.missingBucket(),
+                    size,
+                    reverseMul
+                );
+            }
+        } else {
+            throw new IllegalArgumentException("Unknown values source type: " + config.valuesSource().getClass().getName() +
+                " for source: " + config.name());
+        }
+    }
+
+    private static class Entry {
+        final LeafReaderContext context;
+        final DocIdSet docIdSet;
+
+        Entry(LeafReaderContext context, DocIdSet docIdSet) {
+            this.context = context;
+            this.docIdSet = docIdSet;
         }
     }
 }
+

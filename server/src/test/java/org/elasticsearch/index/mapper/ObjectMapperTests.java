@@ -19,37 +19,31 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.hamcrest.Matchers.containsString;
 
 public class ObjectMapperTests extends ESSingleNodeTestCase {
     public void testDifferentInnerObjectTokenFailure() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            defaultMapper.parse(SourceToParse.source("test", "type", "1", new BytesArray(" {\n" +
+            defaultMapper.parse(new SourceToParse("test", "type", "1", new BytesArray(" {\n" +
                 "      \"object\": {\n" +
                 "        \"array\":[\n" +
                 "        {\n" +
@@ -68,31 +62,31 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEmptyArrayProperties() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startArray("properties").endArray()
-                .endObject().endObject().string();
+                .endObject().endObject());
         createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
     }
 
     public void testEmptyFieldsArrayMultiFields() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-                                        .startObject()
-                                            .startObject("tweet")
-                                                .startObject("properties")
-                                                    .startObject("name")
-                                                        .field("type", "text")
-                                                        .startArray("fields")
-                                                        .endArray()
-                                                    .endObject()
-                                                .endObject()
-                                            .endObject()
-                                        .endObject()
-                                        .string();
+        String mapping =
+            Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("tweet")
+                        .startObject("properties")
+                            .startObject("name")
+                                .field("type", "text")
+                                .startArray("fields")
+                                .endArray()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject());
         createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
     }
 
     public void testFieldsArrayMultiFieldsShouldThrowException() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("tweet")
                         .startObject("properties")
@@ -105,8 +99,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                             .endObject()
                         .endObject()
                     .endObject()
-                .endObject()
-                .string();
+                .endObject());
         try {
             createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
             fail("Expected MapperParsingException");
@@ -117,21 +110,20 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEmptyFieldsArray() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-                                        .startObject()
-                                            .startObject("tweet")
-                                                .startObject("properties")
-                                                    .startArray("fields")
-                                                    .endArray()
-                                                .endObject()
-                                            .endObject()
-                                        .endObject()
-                                        .string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("tweet")
+                        .startObject("properties")
+                            .startArray("fields")
+                            .endArray()
+                        .endObject()
+                    .endObject()
+                .endObject());
         createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
     }
 
     public void testFieldsWithFilledArrayShouldThrowException() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("tweet")
                         .startObject("properties")
@@ -141,8 +133,7 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                             .endArray()
                         .endObject()
                     .endObject()
-                .endObject()
-                .string();
+                .endObject());
         try {
             createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
             fail("Expected MapperParsingException");
@@ -152,54 +143,54 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldPropertiesArray() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-                                        .startObject()
-                                            .startObject("tweet")
-                                                .startObject("properties")
-                                                    .startObject("name")
-                                                        .field("type", "text")
-                                                        .startObject("fields")
-                                                            .startObject("raw")
-                                                                .field("type", "keyword")
-                                                            .endObject()
-                                                        .endObject()
-                                                    .endObject()
-                                                .endObject()
-                                            .endObject()
-                                        .endObject()
-                                        .string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("tweet")
+                        .startObject("properties")
+                            .startObject("name")
+                                .field("type", "text")
+                                .startObject("fields")
+                                    .startObject("raw")
+                                        .field("type", "keyword")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject());
         createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
     }
 
     public void testMerge() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                     .startObject("properties")
                         .startObject("foo")
                             .field("type", "keyword")
                         .endObject()
                     .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertNull(mapper.root().dynamic());
-        String update = XContentFactory.jsonBuilder().startObject()
+        String update = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                     .field("dynamic", "strict")
-                .endObject().endObject().string();
+                .endObject().endObject());
         mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.MAPPING_UPDATE);
         assertEquals(Dynamic.STRICT, mapper.root().dynamic());
     }
 
     public void testEmptyName() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
                 .startObject("")
                     .startObject("properties")
                         .startObject("name")
                             .field("type", "text")
                         .endObject()
                     .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         // Empty name not allowed in index created after 5.0
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {

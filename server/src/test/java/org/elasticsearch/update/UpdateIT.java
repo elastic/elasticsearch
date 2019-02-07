@@ -19,21 +19,7 @@
 
 package org.elasticsearch.update;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
@@ -56,6 +42,19 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -94,6 +93,7 @@ public class UpdateIT extends ESIntegTestCase {
                 }
 
                 Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                params.remove("ctx");
                 source.putAll(params);
 
                 return ctx;
@@ -141,8 +141,7 @@ public class UpdateIT extends ESIntegTestCase {
 
     private void createTestIndex() throws Exception {
         logger.info("--> creating index test");
-
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias").writeIndex(randomFrom(true, null))));
     }
 
     public void testUpsert() throws Exception {
@@ -225,7 +224,7 @@ public class UpdateIT extends ESIntegTestCase {
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setDocAsUpsert(true)
-                .setFields("_source")
+                .setFetchSource(true)
                 .execute().actionGet();
         assertThat(updateResponse.getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult(), notNullValue());
@@ -241,7 +240,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThrows(client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setDocAsUpsert(false)
-                .setFields("_source")
+                .setFetchSource(true)
                 .execute(), DocumentMissingException.class);
     }
 
@@ -264,7 +263,7 @@ public class UpdateIT extends ESIntegTestCase {
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, PUT_VALUES_SCRIPT, Collections.singletonMap("extra", "foo")))
-                .setFields("_source")
+                .setFetchSource(true)
                 .execute().actionGet();
 
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -293,12 +292,9 @@ public class UpdateIT extends ESIntegTestCase {
         ensureGreen();
 
         Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
-        try {
-            client().prepareUpdate(indexOrAlias(), "type1", "1").setScript(fieldIncScript).execute().actionGet();
-            fail();
-        } catch (DocumentMissingException e) {
-            // all is well
-        }
+        DocumentMissingException ex = expectThrows(DocumentMissingException.class,
+            () -> client().prepareUpdate(indexOrAlias(), "type1", "1").setScript(fieldIncScript).execute().actionGet());
+        assertEquals("[type1][1]: document missing", ex.getMessage());
 
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
 
@@ -353,19 +349,6 @@ public class UpdateIT extends ESIntegTestCase {
             assertThat(getResponse.isExists(), equalTo(false));
         }
 
-        // check fields parameter
-        client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-            .setScript(fieldIncScript)
-            .setFields("field")
-            .setFetchSource(true)
-            .execute().actionGet();
-        assertThat(updateResponse.getIndex(), equalTo("test"));
-        assertThat(updateResponse.getGetResult(), notNullValue());
-        assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
-        assertThat(updateResponse.getGetResult().sourceRef(), notNullValue());
-        assertThat(updateResponse.getGetResult().field("field").getValue(), notNullValue());
-
         // check _source parameter
         client().prepareIndex("test", "type1", "1").setSource("field1", 1, "field2", 2).execute().actionGet();
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
@@ -383,7 +366,8 @@ public class UpdateIT extends ESIntegTestCase {
         // check updates without script
         // add new field
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
@@ -391,7 +375,8 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         // change existing field
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("3"));
@@ -409,7 +394,8 @@ public class UpdateIT extends ESIntegTestCase {
         testMap.put("map1", 8);
 
         client().prepareIndex("test", "type1", "1").setSource("map", testMap).execute().actionGet();
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "type1", "1")
+            .setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             Map map1 = (Map) getResponse.getSourceAsMap().get("map");
@@ -462,19 +448,8 @@ public class UpdateIT extends ESIntegTestCase {
 
     public void testContextVariables() throws Exception {
         assertAcked(prepareCreate("test")
-                        .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
                         .addAlias(new Alias("alias"))
-                        .addMapping("type1", XContentFactory.jsonBuilder()
-                                .startObject()
-                                .startObject("type1")
-                                .endObject()
-                                .endObject())
-                        .addMapping("subtype1", XContentFactory.jsonBuilder()
-                                .startObject()
-                                .startObject("subtype1")
-                                .startObject("_parent").field("type", "type1").endObject()
-                                .endObject()
-                                .endObject())
+                        .addMapping("type1")
         );
         ensureGreen();
 
@@ -482,50 +457,47 @@ public class UpdateIT extends ESIntegTestCase {
         client().prepareIndex()
                 .setIndex("test")
                 .setType("type1")
-                .setId("parentId1")
-                .setSource("field1", 0, "content", "bar")
-                .execute().actionGet();
-
-        client().prepareIndex()
-                .setIndex("test")
-                .setType("subtype1")
                 .setId("id1")
-                .setParent("parentId1")
                 .setRouting("routing1")
                 .setSource("field1", 1, "content", "foo")
                 .execute().actionGet();
 
+        client().prepareIndex()
+                .setIndex("test")
+                .setType("type1")
+                .setId("id2")
+                .setSource("field1", 0, "content", "bar")
+                .execute().actionGet();
+
         // Update the first object and note context variables values
-        UpdateResponse updateResponse = client().prepareUpdate("test", "subtype1", "id1")
+        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "id1")
                 .setRouting("routing1")
                 .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, EXTRACT_CTX_SCRIPT, Collections.emptyMap()))
                 .execute().actionGet();
 
         assertEquals(2, updateResponse.getVersion());
 
-        GetResponse getResponse = client().prepareGet("test", "subtype1", "id1").setRouting("routing1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "type1", "id1").setRouting("routing1").execute().actionGet();
         Map<String, Object> updateContext = (Map<String, Object>) getResponse.getSourceAsMap().get("update_context");
         assertEquals("test", updateContext.get("_index"));
-        assertEquals("subtype1", updateContext.get("_type"));
+        assertEquals("type1", updateContext.get("_type"));
         assertEquals("id1", updateContext.get("_id"));
         assertEquals(1, updateContext.get("_version"));
-        assertEquals("parentId1", updateContext.get("_parent"));
         assertEquals("routing1", updateContext.get("_routing"));
 
         // Idem with the second object
-        updateResponse = client().prepareUpdate("test", "type1", "parentId1")
+        updateResponse = client().prepareUpdate("test", "type1", "id2")
                 .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, EXTRACT_CTX_SCRIPT, Collections.emptyMap()))
                 .execute().actionGet();
 
         assertEquals(2, updateResponse.getVersion());
 
-        getResponse = client().prepareGet("test", "type1", "parentId1").execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "id2").execute().actionGet();
         updateContext = (Map<String, Object>) getResponse.getSourceAsMap().get("update_context");
         assertEquals("test", updateContext.get("_index"));
         assertEquals("type1", updateContext.get("_type"));
-        assertEquals("parentId1", updateContext.get("_id"));
+        assertEquals("id2", updateContext.get("_id"));
         assertEquals(1, updateContext.get("_version"));
-        assertNull(updateContext.get("_parent"));
         assertNull(updateContext.get("_routing"));
         assertNull(updateContext.get("_ttl"));
     }
@@ -550,10 +522,12 @@ public class UpdateIT extends ESIntegTestCase {
                         startLatch.await();
                         for (int i = 0; i < numberOfUpdatesPerThread; i++) {
                             if (i % 100 == 0) {
-                                logger.debug("Client [{}] issued [{}] of [{}] requests", Thread.currentThread().getName(), i, numberOfUpdatesPerThread);
+                                logger.debug("Client [{}] issued [{}] of [{}] requests",
+                                    Thread.currentThread().getName(), i, numberOfUpdatesPerThread);
                             }
                             if (useBulkApi) {
-                                UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "type1", Integer.toString(i))
+                                UpdateRequestBuilder updateRequestBuilder = client()
+                                        .prepareUpdate(indexOrAlias(), "type1", Integer.toString(i))
                                         .setScript(fieldIncScript)
                                         .setRetryOnConflict(Integer.MAX_VALUE)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject());
@@ -569,7 +543,8 @@ public class UpdateIT extends ESIntegTestCase {
                         logger.info("Client [{}] issued all [{}] requests.", Thread.currentThread().getName(), numberOfUpdatesPerThread);
                     } catch (InterruptedException e) {
                         // test infrastructure kills long-running tests by interrupting them, thus we handle this case separately
-                        logger.warn("Test was forcefully stopped. Client [{}] may still have outstanding requests.", Thread.currentThread().getName());
+                        logger.warn("Test was forcefully stopped. Client [{}] may still have outstanding requests.",
+                            Thread.currentThread().getName());
                         failures.add(e);
                         Thread.currentThread().interrupt();
                     } catch (Exception e) {
@@ -595,7 +570,7 @@ public class UpdateIT extends ESIntegTestCase {
             assertThat(response.getId(), equalTo(Integer.toString(i)));
             assertThat(response.isExists(), equalTo(true));
             assertThat(response.getVersion(), equalTo((long) numberOfThreads));
-            assertThat((Integer) response.getSource().get("field"), equalTo(numberOfThreads));
+            assertThat(response.getSource().get("field"), equalTo(numberOfThreads));
         }
     }
 
@@ -617,15 +592,13 @@ public class UpdateIT extends ESIntegTestCase {
         final class UpdateThread extends Thread {
             final Map<Integer,Integer> failedMap = new HashMap<>();
             final int numberOfIds;
-            final int updatesPerId;
             final int maxUpdateRequests = numberOfIdsPerThread*numberOfUpdatesPerId;
             final int maxDeleteRequests = numberOfIdsPerThread*numberOfUpdatesPerId;
             private final Semaphore updateRequestsOutstanding = new Semaphore(maxUpdateRequests);
             private final Semaphore deleteRequestsOutstanding = new Semaphore(maxDeleteRequests);
 
-            UpdateThread(int numberOfIds, int updatesPerId) {
+            UpdateThread(int numberOfIds) {
                 this.numberOfIds = numberOfIds;
-                this.updatesPerId = updatesPerId;
             }
 
             final class UpdateListener implements ActionListener<UpdateResponse> {
@@ -742,7 +715,8 @@ public class UpdateIT extends ESIntegTestCase {
                 long start = System.currentTimeMillis();
                 do {
                     long msRemaining = timeOut.getMillis() - (System.currentTimeMillis() - start);
-                    logger.info("[{}] going to try and acquire [{}] in [{}]ms [{}] available to acquire right now",name, maxRequests,msRemaining, requestsOutstanding.availablePermits());
+                    logger.info("[{}] going to try and acquire [{}] in [{}]ms [{}] available to acquire right now",
+                        name, maxRequests,msRemaining, requestsOutstanding.availablePermits());
                     try {
                         requestsOutstanding.tryAcquire(maxRequests, msRemaining, TimeUnit.MILLISECONDS );
                         return;
@@ -750,13 +724,14 @@ public class UpdateIT extends ESIntegTestCase {
                         //Just keep swimming
                     }
                 } while ((System.currentTimeMillis() - start) < timeOut.getMillis());
-                throw new ElasticsearchTimeoutException("Requests were still outstanding after the timeout [" + timeOut + "] for type [" + name + "]" );
+                throw new ElasticsearchTimeoutException("Requests were still outstanding after the timeout [" + timeOut + "] for type [" +
+                    name + "]" );
             }
         }
         final List<UpdateThread> threads = new ArrayList<>();
 
         for (int i = 0; i < numberOfThreads; i++) {
-            UpdateThread ut = new UpdateThread(numberOfIdsPerThread, numberOfUpdatesPerId);
+            UpdateThread ut = new UpdateThread(numberOfIdsPerThread);
             ut.start();
             threads.add(ut);
         }
@@ -780,7 +755,7 @@ public class UpdateIT extends ESIntegTestCase {
         //This means that we add 1 to the expected versions and attempts
         //All the previous operations should be complete or failed at this point
         for (int i = 0; i < numberOfIdsPerThread; ++i) {
-            UpdateResponse ur = client().prepareUpdate("test", "type1", Integer.toString(i))
+            client().prepareUpdate("test", "type1", Integer.toString(i))
                     .setScript(fieldIncScript)
                 .setRetryOnConflict(Integer.MAX_VALUE)
                 .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
@@ -801,7 +776,8 @@ public class UpdateIT extends ESIntegTestCase {
                     }
                 }
                 expectedVersion -= totalFailures;
-                logger.error("Actual version [{}] Expected version [{}] Total failures [{}]", response.getVersion(), expectedVersion, totalFailures);
+                logger.error("Actual version [{}] Expected version [{}] Total failures [{}]",
+                    response.getVersion(), expectedVersion, totalFailures);
                 assertThat(response.getVersion(), equalTo((long) expectedVersion));
                 assertThat(response.getVersion() + totalFailures,
                         equalTo(

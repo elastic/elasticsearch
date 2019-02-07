@@ -19,15 +19,10 @@
 
 package org.elasticsearch.index.translog;
 
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.InputStreamDataInput;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -35,16 +30,15 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.index.translog.Translog.getCommitCheckpointFileName;
 
 /**
  * an immutable translog filereader
  */
 public class TranslogReader extends BaseTranslogReader implements Closeable {
-
-    private static final byte LUCENE_CODEC_HEADER_BYTE = 0x3f;
-    private static final byte UNVERSIONED_TRANSLOG_HEADER_BYTE = 0x00;
-
     protected final long length;
     private final int totalOperations;
     private final Checkpoint checkpoint;
@@ -53,13 +47,13 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     /**
      * Create a translog writer against the specified translog file channel.
      *
-     * @param checkpoint           the translog checkpoint
-     * @param channel              the translog file channel to open a translog reader against
-     * @param path                 the path to the translog
-     * @param firstOperationOffset the offset to the first operation
+     * @param checkpoint the translog checkpoint
+     * @param channel    the translog file channel to open a translog reader against
+     * @param path       the path to the translog
+     * @param header     the header of the translog file
      */
-    TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final long firstOperationOffset) {
-        super(checkpoint.generation, channel, path, firstOperationOffset);
+    TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final TranslogHeader header) {
+        super(checkpoint.generation, channel, path, header);
         this.length = checkpoint.offset;
         this.totalOperations = checkpoint.numOps;
         this.checkpoint = checkpoint;
@@ -77,74 +71,40 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      */
     public static TranslogReader open(
             final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID) throws IOException {
+        final TranslogHeader header = TranslogHeader.read(translogUUID, path, channel);
+        return new TranslogReader(checkpoint, channel, path, header);
+    }
 
-        try {
-            InputStreamStreamInput headerStream = new InputStreamStreamInput(java.nio.channels.Channels.newInputStream(channel),
-                channel.size()); // don't close
-            // Lucene's CodecUtil writes a magic number of 0x3FD76C17 with the
-            // header, in binary this looks like:
-            //
-            // binary: 0011 1111 1101 0111 0110 1100 0001 0111
-            // hex   :    3    f    d    7    6    c    1    7
-            //
-            // With version 0 of the translog, the first byte is the
-            // Operation.Type, which will always be between 0-4, so we know if
-            // we grab the first byte, it can be:
-            // 0x3f => Lucene's magic number, so we can assume it's version 1 or later
-            // 0x00 => version 0 of the translog
-            //
-            // otherwise the first byte of the translog is corrupted and we
-            // should bail
-            byte b1 = headerStream.readByte();
-            if (b1 == LUCENE_CODEC_HEADER_BYTE) {
-                // Read 3 more bytes, meaning a whole integer has been read
-                byte b2 = headerStream.readByte();
-                byte b3 = headerStream.readByte();
-                byte b4 = headerStream.readByte();
-                // Convert the 4 bytes that were read into an integer
-                int header = ((b1 & 0xFF) << 24) + ((b2 & 0xFF) << 16) + ((b3 & 0xFF) << 8) + ((b4 & 0xFF) << 0);
-                // We confirm CodecUtil's CODEC_MAGIC number (0x3FD76C17)
-                // ourselves here, because it allows us to read the first
-                // byte separately
-                if (header != CodecUtil.CODEC_MAGIC) {
-                    throw new TranslogCorruptedException("translog looks like version 1 or later, but has corrupted header. path:" + path);
-                }
-                // Confirm the rest of the header using CodecUtil, extracting
-                // the translog version
-                int version = CodecUtil.checkHeaderNoMagic(new InputStreamDataInput(headerStream), TranslogWriter.TRANSLOG_CODEC, 1, Integer.MAX_VALUE);
-                switch (version) {
-                    case TranslogWriter.VERSION_CHECKSUMS:
-                        throw new IllegalStateException("pre-2.0 translog found [" + path + "]");
-                    case TranslogWriter.VERSION_CHECKPOINTS:
-                        assert path.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX) : "new file ends with old suffix: " + path;
-                        assert checkpoint.numOps >= 0 : "expected at least 0 operation but got: " + checkpoint.numOps;
-                        assert checkpoint.offset <= channel.size() : "checkpoint is inconsistent with channel length: " + channel.size() + " " + checkpoint;
-                        int len = headerStream.readInt();
-                        if (len > channel.size()) {
-                            throw new TranslogCorruptedException("uuid length can't be larger than the translog");
-                        }
-                        BytesRef ref = new BytesRef(len);
-                        ref.length = len;
-                        headerStream.read(ref.bytes, ref.offset, ref.length);
-                        BytesRef uuidBytes = new BytesRef(translogUUID);
-                        if (uuidBytes.bytesEquals(ref) == false) {
-                            throw new TranslogCorruptedException("expected shard UUID " + uuidBytes + " but got: " + ref +
-                                            " this translog file belongs to a different translog. path:" + path);
-                        }
-                        final long firstOperationOffset;
-                        firstOperationOffset = ref.length + CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC) + Integer.BYTES;
-                        return new TranslogReader(checkpoint, channel, path, firstOperationOffset);
+    /**
+     * Closes current reader and creates new one with new checkoint and same file channel
+     */
+    TranslogReader closeIntoTrimmedReader(long aboveSeqNo, ChannelFactory channelFactory) throws IOException {
+        if (closed.compareAndSet(false, true)) {
+            Closeable toCloseOnFailure = channel;
+            final TranslogReader newReader;
+            try {
+                if (aboveSeqNo < checkpoint.trimmedAboveSeqNo
+                    || aboveSeqNo < checkpoint.maxSeqNo && checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    final Path checkpointFile = path.getParent().resolve(getCommitCheckpointFileName(checkpoint.generation));
+                    final Checkpoint newCheckpoint = new Checkpoint(checkpoint.offset, checkpoint.numOps,
+                        checkpoint.generation, checkpoint.minSeqNo, checkpoint.maxSeqNo,
+                        checkpoint.globalCheckpoint, checkpoint.minTranslogGeneration, aboveSeqNo);
+                    Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
 
-                    default:
-                        throw new TranslogCorruptedException("No known translog stream version: " + version + " path:" + path);
+                    IOUtils.fsync(checkpointFile, false);
+                    IOUtils.fsync(checkpointFile.getParent(), true);
+
+                    newReader = new TranslogReader(newCheckpoint, channel, path, header);
+                } else {
+                    newReader = new TranslogReader(checkpoint, channel, path, header);
                 }
-            } else if (b1 == UNVERSIONED_TRANSLOG_HEADER_BYTE) {
-                throw new IllegalStateException("pre-1.4 translog found [" + path + "]");
-            } else {
-                throw new TranslogCorruptedException("Invalid first byte in translog file, got: " + Long.toHexString(b1) + ", expected 0x00 or 0x3f. path:" + path);
+                toCloseOnFailure = null;
+                return newReader;
+            } finally {
+                IOUtils.close(toCloseOnFailure);
             }
-        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
-            throw new TranslogCorruptedException("Translog header corrupted. path:" + path, e);
+        } else {
+            throw new AlreadyClosedException(toString() + " is already closed");
         }
     }
 
@@ -168,8 +128,9 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
         if (position >= length) {
             throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "]");
         }
-        if (position < firstOperationOffset) {
-            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" + firstOperationOffset + "]");
+        if (position < getFirstOperationOffset()) {
+            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" +
+                getFirstOperationOffset() + "]");
         }
         Channels.readFromFileChannelWithEofException(channel, position, buffer);
     }

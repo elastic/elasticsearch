@@ -1,0 +1,28 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-rollup'
+    description 'Elasticsearch Expanded Pack Plugin - Rollup'
+    classname 'org.elasticsearch.xpack.rollup.Rollup'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-rollup'
+
+compileJava.options.compilerArgs << "-Xlint:-rawtypes"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
+
+
+dependencies {
+    compileOnly "org.elasticsearch:elasticsearch:${version}"
+
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+run {
+    plugin xpackModule('core')
+}
+
+integTest.enabled = false

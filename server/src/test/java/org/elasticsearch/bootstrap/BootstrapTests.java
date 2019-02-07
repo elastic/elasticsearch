@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.bootstrap;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.settings.KeyStoreCommandTestCase;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;

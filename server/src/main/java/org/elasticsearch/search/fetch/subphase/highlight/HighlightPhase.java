@@ -20,29 +20,23 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
+public class HighlightPhase implements FetchSubPhase {
     private final Map<String, Highlighter> highlighters;
 
-    public HighlightPhase(Settings settings, Map<String, Highlighter> highlighters) {
-        super(settings);
+    public HighlightPhase(Map<String, Highlighter> highlighters) {
         this.highlighters = highlighters;
     }
 
@@ -55,8 +49,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
         for (SearchContextHighlight.Field field : context.highlight().fields()) {
             Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
-                DocumentMapper documentMapper = context.mapperService().documentMapper(hitContext.hit().getType());
-                fieldNamesToHighlight = documentMapper.mappers().simpleMatchToFullName(field.field());
+                fieldNamesToHighlight = context.mapperService().simpleMatchToFullName(field.field());
             } else {
                 fieldNamesToHighlight = Collections.singletonList(field.field());
             }
@@ -71,8 +64,8 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
             boolean fieldNameContainsWildcards = field.field().contains("*");
             for (String fieldName : fieldNamesToHighlight) {
-                FieldMapper fieldMapper = getMapperForField(fieldName, context, hitContext);
-                if (fieldMapper == null) {
+                MappedFieldType fieldType = context.mapperService().fullName(fieldName);
+                if (fieldType == null) {
                     continue;
                 }
 
@@ -85,8 +78,8 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 // If the field was explicitly given we assume that whoever issued the query knew
                 // what they were doing and try to highlight anyway.
                 if (fieldNameContainsWildcards) {
-                    if (fieldMapper.fieldType().typeName().equals(TextFieldMapper.CONTENT_TYPE) == false &&
-                        fieldMapper.fieldType().typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false) {
+                    if (fieldType.typeName().equals(TextFieldMapper.CONTENT_TYPE) == false &&
+                        fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false) {
                         continue;
                     }
                 }
@@ -104,25 +97,23 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 if (highlightQuery == null) {
                     highlightQuery = context.parsedQuery().query();
                 }
-                HighlighterContext highlighterContext = new HighlighterContext(fieldName, field, fieldMapper, context,
-                        hitContext, highlightQuery);
+                HighlighterContext highlighterContext = new HighlighterContext(fieldType.name(),
+                    field, fieldType, context, hitContext, highlightQuery);
 
-                if ((highlighter.canHighlight(fieldMapper) == false) && fieldNameContainsWildcards) {
+                if ((highlighter.canHighlight(fieldType) == false) && fieldNameContainsWildcards) {
                     // if several fieldnames matched the wildcard then we want to skip those that we cannot highlight
                     continue;
                 }
                 HighlightField highlightField = highlighter.highlight(highlighterContext);
                 if (highlightField != null) {
-                    highlightFields.put(highlightField.name(), highlightField);
+                    // Note that we make sure to use the original field name in the response. This is because the
+                    // original field could be an alias, and highlighter implementations may instead reference the
+                    // concrete field it points to.
+                    highlightFields.put(fieldName,
+                        new HighlightField(fieldName, highlightField.fragments()));
                 }
             }
         }
         hitContext.hit().highlightFields(highlightFields);
-    }
-
-    private FieldMapper getMapperForField(String fieldName, SearchContext searchContext, HitContext hitContext) {
-        DocumentMapper documentMapper = searchContext.mapperService().documentMapper(hitContext.hit().getType());
-        // TODO: no need to lookup the doc mapper with unambiguous field names? just look at the mapper service
-        return documentMapper.mappers().smartNameFieldMapper(fieldName);
     }
 }

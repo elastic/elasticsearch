@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,8 +34,6 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 
 public class BulkByScrollTaskTests extends ESTestCase {
     public void testStatusHatesNegatives() {
@@ -68,7 +67,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(null, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0),
                 Float.POSITIVE_INFINITY, null, timeValueMillis(0));
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(builder.string(), containsString("\"requests_per_second\":-1"));
+        assertThat(Strings.toString(builder), containsString("\"requests_per_second\":-1"));
     }
 
     public void testXContentRepresentationOfUnfinishedSlices() throws IOException {
@@ -78,7 +77,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(
                 Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(completedStatus)), null);
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(builder.string(), containsString("\"slices\":[null,null,{\"slice_id\":2"));
+        assertThat(Strings.toString(builder), containsString("\"slices\":[null,null,{\"slice_id\":2"));
     }
 
     public void testXContentRepresentationOfSliceFailures() throws IOException {
@@ -87,7 +86,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(e)),
                 null);
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(builder.string(), containsString("\"slices\":[null,null,{\"type\":\"exception\""));
+        assertThat(Strings.toString(builder), containsString("\"slices\":[null,null,{\"type\":\"exception\""));
     }
 
     public void testMergeStatuses() {

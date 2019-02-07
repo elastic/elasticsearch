@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.indices;
 
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -27,9 +29,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
@@ -41,6 +48,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -49,12 +61,14 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.similarity.BM25SimilarityProvider;
+import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,14 +77,19 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
@@ -88,9 +107,70 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
-        plugins.add(TestPlugin.class);
-        return plugins;
+        return Stream.concat(
+                super.getPlugins().stream(),
+                Stream.of(TestPlugin.class, FooEnginePlugin.class, BarEnginePlugin.class))
+                .collect(Collectors.toList());
+    }
+
+    public static class FooEnginePlugin extends Plugin implements EnginePlugin {
+
+        static class FooEngineFactory implements EngineFactory {
+
+            @Override
+            public Engine newReadWriteEngine(final EngineConfig config) {
+                return new InternalEngine(config);
+            }
+
+        }
+
+        private static final Setting<Boolean> FOO_INDEX_SETTING =
+                Setting.boolSetting("index.foo_index", false, Setting.Property.IndexScope);
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(FOO_INDEX_SETTING);
+        }
+
+        @Override
+        public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
+            if (FOO_INDEX_SETTING.get(indexSettings.getSettings())) {
+                return Optional.of(new FooEngineFactory());
+            } else {
+                return Optional.empty();
+            }
+        }
+
+    }
+
+    public static class BarEnginePlugin extends Plugin implements EnginePlugin {
+
+        static class BarEngineFactory implements EngineFactory {
+
+            @Override
+            public Engine newReadWriteEngine(final EngineConfig config) {
+                return new InternalEngine(config);
+            }
+
+        }
+
+        private static final Setting<Boolean> BAR_INDEX_SETTING =
+                Setting.boolSetting("index.bar_index", false, Setting.Property.IndexScope);
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(BAR_INDEX_SETTING);
+        }
+
+        @Override
+        public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
+            if (BAR_INDEX_SETTING.get(indexSettings.getSettings())) {
+                return Optional.of(new BarEngineFactory());
+            } else {
+                return Optional.empty();
+            }
+        }
+
     }
 
     public static class TestPlugin extends Plugin implements MapperPlugin {
@@ -106,7 +186,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         public void onIndexModule(IndexModule indexModule) {
             super.onIndexModule(indexModule);
             indexModule.addSimilarity("fake-similarity",
-                    (name, settings, indexSettings, scriptService) -> new BM25SimilarityProvider(name, settings, indexSettings));
+                    (settings, indexCreatedVersion, scriptService) -> new BM25Similarity());
         }
     }
 
@@ -151,12 +231,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
-        MetaData meta = gwMetaState.loadMetaState();
+        MetaData meta = gwMetaState.getMetaData();
         assertNotNull(meta);
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
 
-        meta = gwMetaState.loadMetaState();
+        meta = gwMetaState.getMetaData();
         assertNotNull(meta);
         assertNull(meta.index("test"));
 
@@ -375,8 +455,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
         MapperService mapperService = indicesService.createIndexMapperService(indexMetaData);
         assertNotNull(mapperService.documentMapperParser().parserContext("type").typeParser("fake-mapper"));
-        assertThat(mapperService.documentMapperParser().parserContext("type").getSimilarity("test"),
-            instanceOf(BM25SimilarityProvider.class));
+        Similarity sim = mapperService.documentMapperParser().parserContext("type").getSimilarity("test").get();
+        assertThat(sim, instanceOf(NonNegativeScoresSimilarity.class));
+        sim = ((NonNegativeScoresSimilarity) sim).getDelegate();
+        assertThat(sim, instanceOf(BM25Similarity.class));
     }
 
     public void testStatsByShardDoesNotDieFromExpectedExceptions() {
@@ -438,4 +520,125 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertTrue(indicesService.isMetaDataField(builtIn));
         }
     }
+
+    public void testGetEngineFactory() throws IOException {
+        final IndicesService indicesService = getIndicesService();
+
+        final Boolean[] values = new Boolean[] { true, false, null };
+        for (final Boolean value : values) {
+            final String indexName = "foo-" + value;
+            final Index index = new Index(indexName, UUIDs.randomBase64UUID());
+            final Settings.Builder builder = Settings.builder()
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
+            if (value != null) {
+                builder.put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), value);
+            }
+
+            final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
+                    .settings(builder.build())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build();
+            final IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+            if (value != null && value) {
+                assertThat(indexService.getEngineFactory(), instanceOf(FooEnginePlugin.FooEngineFactory.class));
+            } else {
+                assertThat(indexService.getEngineFactory(), instanceOf(InternalEngineFactory.class));
+            }
+        }
+    }
+
+    public void testConflictingEngineFactories() throws IOException {
+        final String indexName = "foobar";
+        final Index index = new Index(indexName, UUIDs.randomBase64UUID());
+        final Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
+                .put(FooEnginePlugin.FOO_INDEX_SETTING.getKey(), true)
+                .put(BarEnginePlugin.BAR_INDEX_SETTING.getKey(), true)
+                .build();
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
+                .settings(settings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+
+        final IndicesService indicesService = getIndicesService();
+        final IllegalStateException e =
+                expectThrows(IllegalStateException.class, () -> indicesService.createIndex(indexMetaData, Collections.emptyList()));
+        final String pattern =
+                ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
+        assertThat(e, hasToString(new RegexMatcher(pattern)));
+    }
+
+    public void testOverShardLimit() {
+        int nodesInCluster = randomIntBetween(1,100);
+        ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
+
+        Settings clusterSettings = Settings.builder()
+            .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
+            .build();
+
+        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
+            clusterSettings);
+
+        int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
+        Optional<String> errorMessage = IndicesService.checkShardLimit(shardsToAdd, state);
+
+        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
+        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
+        int maxShards = counts.getShardsPerNode() * nodesInCluster;
+        assertTrue(errorMessage.isPresent());
+        assertEquals("this action would add [" + totalShards + "] total shards, but this cluster currently has [" + currentShards
+            + "]/[" + maxShards + "] maximum shards open", errorMessage.get());
+    }
+
+    public void testUnderShardLimit() {
+        int nodesInCluster = randomIntBetween(2,100);
+        // Calculate the counts for a cluster 1 node smaller than we have to ensure we have headroom
+        ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster - 1);
+
+        Settings clusterSettings = Settings.builder()
+            .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
+            .build();
+
+        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
+            clusterSettings);
+
+        int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
+        int shardsToAdd = randomIntBetween(1, (counts.getShardsPerNode() * nodesInCluster) - existingShards);
+        Optional<String> errorMessage = IndicesService.checkShardLimit(shardsToAdd, state);
+
+        assertFalse(errorMessage.isPresent());
+    }
+
+    public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int shardsInIndex, int replicas,
+                                                              Settings clusterSettings) {
+        ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodes = ImmutableOpenMap.builder();
+        for (int i = 0; i < nodesInCluster; i++) {
+            dataNodes.put(randomAlphaOfLengthBetween(5,15), mock(DiscoveryNode.class));
+        }
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(nodes.getDataNodes()).thenReturn(dataNodes.build());
+
+        IndexMetaData.Builder indexMetaData = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 15))
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .creationDate(randomLong())
+            .numberOfShards(shardsInIndex)
+            .numberOfReplicas(replicas);
+        MetaData.Builder metaData = MetaData.builder().put(indexMetaData);
+        if (randomBoolean()) {
+            metaData.transientSettings(clusterSettings);
+        } else {
+            metaData.persistentSettings(clusterSettings);
+        }
+
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(metaData)
+            .nodes(nodes)
+            .build();
+    }
+
+
 }

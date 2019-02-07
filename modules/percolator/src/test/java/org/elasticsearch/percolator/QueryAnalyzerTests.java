@@ -44,6 +44,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.spans.SpanFirstQuery;
@@ -64,6 +65,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -73,7 +75,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.percolator.QueryAnalyzer.UnsupportedQueryException;
 import static org.elasticsearch.percolator.QueryAnalyzer.analyze;
-import static org.elasticsearch.percolator.QueryAnalyzer.selectBestExtraction;
+import static org.elasticsearch.percolator.QueryAnalyzer.selectBestResult;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -162,6 +164,20 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(terms.get(0).bytes().utf8ToString(), equalTo("_very_long_term"));
     }
 
+    public void testExtractQueryMetadata_multiPhraseQuery_dups() {
+        MultiPhraseQuery multiPhraseQuery = new MultiPhraseQuery.Builder()
+            .add(new Term("_field", "_term1"))
+            .add(new Term[] {new Term("_field", "_term1"), new Term("_field", "_term2")})
+            .build();
+
+        Result result = analyze(multiPhraseQuery, Version.CURRENT);
+        assertFalse(result.matchAllDocs);
+        assertFalse(result.verified);
+        assertTermsEqual(result.extractions, new Term("_field", "_term1"), new Term("_field", "_term2"));
+        assertEquals(1, result.minimumShouldMatch); // because of the dup term
+    }
+
+
     public void testExtractQueryMetadata_booleanQuery() {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         TermQuery termQuery1 = new TermQuery(new Term("_field", "term0"));
@@ -227,23 +243,87 @@ public class QueryAnalyzerTests extends ESTestCase {
     public void testExtractQueryMetadata_booleanQuery_msm() {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.setMinimumNumberShouldMatch(2);
-        TermQuery termQuery1 = new TermQuery(new Term("_field", "_term1"));
+        Term term1 = new Term("_field", "_term1");
+        TermQuery termQuery1 = new TermQuery(term1);
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
-        TermQuery termQuery2 = new TermQuery(new Term("_field", "_term2"));
+        Term term2 = new Term("_field", "_term2");
+        TermQuery termQuery2 = new TermQuery(term2);
         builder.add(termQuery2, BooleanClause.Occur.SHOULD);
-        TermQuery termQuery3 = new TermQuery(new Term("_field", "_term3"));
+        Term term3 = new Term("_field", "_term3");
+        TermQuery termQuery3 = new TermQuery(term3);
         builder.add(termQuery3, BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
         Result result = analyze(booleanQuery, Version.CURRENT);
         assertThat(result.verified, is(true));
         assertThat(result.minimumShouldMatch, equalTo(2));
-        List<QueryExtraction> extractions = new ArrayList<>(result.extractions);
-        extractions.sort(Comparator.comparing(extraction -> extraction.term));
-        assertThat(extractions.size(), equalTo(3));
-        assertThat(extractions.get(0).term, equalTo(new Term("_field", "_term1")));
-        assertThat(extractions.get(1).term, equalTo(new Term("_field", "_term2")));
-        assertThat(extractions.get(2).term, equalTo(new Term("_field", "_term3")));
+        assertTermsEqual(result.extractions, term1, term2, term3);
+
+        builder = new BooleanQuery.Builder()
+                .add(new BooleanQuery.Builder()
+                        .add(termQuery1, Occur.SHOULD)
+                        .add(termQuery2, Occur.SHOULD)
+                        .build(), Occur.SHOULD)
+                .add(termQuery3, Occur.SHOULD)
+                .setMinimumNumberShouldMatch(2);
+        booleanQuery = builder.build();
+        result = analyze(booleanQuery, Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertTermsEqual(result.extractions, term1, term2, term3);
+
+        Term term4 = new Term("_field", "_term4");
+        TermQuery termQuery4 = new TermQuery(term4);
+        builder = new BooleanQuery.Builder()
+                .add(new BooleanQuery.Builder()
+                        .add(termQuery1, Occur.MUST)
+                        .add(termQuery2, Occur.FILTER)
+                        .build(), Occur.SHOULD)
+                .add(new BooleanQuery.Builder()
+                        .add(termQuery3, Occur.MUST)
+                        .add(termQuery4, Occur.FILTER)
+                        .build(), Occur.SHOULD);
+        booleanQuery = builder.build();
+        result = analyze(booleanQuery, Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertTermsEqual(result.extractions, term1, term2, term3, term4);
+
+        Term term5 = new Term("_field", "_term5");
+        TermQuery termQuery5 = new TermQuery(term5);
+        builder.add(termQuery5, Occur.SHOULD);
+        booleanQuery = builder.build();
+        result = analyze(booleanQuery, Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertTermsEqual(result.extractions, term1, term2, term3, term4, term5);
+
+        builder.setMinimumNumberShouldMatch(2);
+        booleanQuery = builder.build();
+        result = analyze(booleanQuery, Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(3));
+        assertTermsEqual(result.extractions, term1, term2, term3, term4, term5);
+
+        builder.setMinimumNumberShouldMatch(3);
+        booleanQuery = builder.build();
+        result = analyze(booleanQuery, Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(5));
+        assertTermsEqual(result.extractions, term1, term2, term3, term4, term5);
+
+        builder = new BooleanQuery.Builder()
+                .add(new BooleanQuery.Builder()
+                        .add(termQuery1, Occur.SHOULD)
+                        .add(termQuery2, Occur.SHOULD)
+                        .build(), Occur.SHOULD)
+                .add(new BooleanQuery.Builder().setMinimumNumberShouldMatch(1).build(), Occur.SHOULD)
+                .setMinimumNumberShouldMatch(2);
+        booleanQuery = builder.build();
+        result = analyze(booleanQuery, Version.CURRENT);
+        // ideally it would return no extractions, but the fact
+        // that it doesn't consider them verified is probably good enough
+        assertFalse(result.verified);
     }
 
     public void testExtractQueryMetadata_booleanQuery_msm_pre6dot1() {
@@ -305,18 +385,28 @@ public class QueryAnalyzerTests extends ESTestCase {
         builder.add(termQuery1, BooleanClause.Occur.MUST_NOT);
         PhraseQuery phraseQuery = new PhraseQuery("_field", "_term1", "term2");
         builder.add(phraseQuery, BooleanClause.Occur.SHOULD);
-
         BooleanQuery booleanQuery = builder.build();
+
         Result result = analyze(booleanQuery, Version.CURRENT);
         assertThat(result.verified, is(false));
         assertThat(result.minimumShouldMatch, equalTo(2));
-        List<QueryExtraction> terms = new ArrayList<>(result.extractions);
-        assertThat(terms.size(), equalTo(2));
-        terms.sort(Comparator.comparing(qt -> qt.term));
-        assertThat(terms.get(0).field(), equalTo(phraseQuery.getTerms()[0].field()));
-        assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
-        assertThat(terms.get(1).field(), equalTo(phraseQuery.getTerms()[1].field()));
-        assertThat(terms.get(1).bytes(), equalTo(phraseQuery.getTerms()[1].bytes()));
+        assertTermsEqual(result.extractions, phraseQuery.getTerms());
+
+        builder = new BooleanQuery.Builder();
+        builder.add(termQuery1, BooleanClause.Occur.MUST_NOT);
+        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        booleanQuery = builder.build();
+        result = analyze(booleanQuery, Version.CURRENT);
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertTermsEqual(result.extractions);
+
+        result = analyze(booleanQuery, Version.V_6_0_0);
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertTermsEqual(result.extractions);
     }
 
     public void testExactMatch_booleanQuery() {
@@ -353,12 +443,15 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.minimumShouldMatch, equalTo(1));
 
         builder = new BooleanQuery.Builder();
-        builder.setMinimumNumberShouldMatch(randomIntBetween(2, 32));
+        int msm = randomIntBetween(2, 3);
+        builder.setMinimumNumberShouldMatch(msm);
+        TermQuery termQuery3 = new TermQuery(new Term("_field", "_term3"));
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         builder.add(termQuery2, BooleanClause.Occur.SHOULD);
+        builder.add(termQuery3, BooleanClause.Occur.SHOULD);
         result = analyze(builder.build(), Version.CURRENT);
         assertThat("Minimum match has not impact on whether the result is verified", result.verified, is(true));
-        assertThat("msm is at least two so result.minimumShouldMatch should 2 too", result.minimumShouldMatch, equalTo(2));
+        assertThat("msm is at least two so result.minimumShouldMatch should 2 too", result.minimumShouldMatch, equalTo(msm));
 
         builder = new BooleanQuery.Builder();
         builder.add(termQuery1, randomBoolean() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER);
@@ -378,6 +471,53 @@ public class QueryAnalyzerTests extends ESTestCase {
         builder.add(termQuery2, BooleanClause.Occur.MUST_NOT);
         result = analyze(builder.build(), Version.CURRENT);
         assertThat("Prohibited clause, so candidate matches are not verified", result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+
+        builder = new BooleanQuery.Builder();
+        builder.add(termQuery1, randomBoolean() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER);
+        builder.add(termQuery2, BooleanClause.Occur.MUST_NOT);
+        result = analyze(builder.build(), Version.CURRENT);
+        assertThat("Prohibited clause, so candidate matches are not verified", result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+
+        builder = new BooleanQuery.Builder()
+                .add(new BooleanQuery.Builder()
+                        .add(termQuery1, Occur.FILTER)
+                        .add(termQuery2, Occur.FILTER)
+                        .build(), Occur.SHOULD)
+                .add(termQuery3, Occur.SHOULD);
+        result = analyze(builder.build(), Version.CURRENT);
+        assertThat("Inner clause that is not a pure disjunction, so candidate matches are not verified", result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+
+        builder = new BooleanQuery.Builder()
+                .add(new BooleanQuery.Builder()
+                        .add(termQuery1, Occur.SHOULD)
+                        .add(termQuery2, Occur.SHOULD)
+                        .build(), Occur.SHOULD)
+                .add(termQuery3, Occur.SHOULD);
+        result = analyze(builder.build(), Version.CURRENT);
+        assertThat("Inner clause that is a pure disjunction, so candidate matches are verified", result.verified, is(true));
+        assertThat(result.minimumShouldMatch, equalTo(1));
+
+        builder = new BooleanQuery.Builder()
+                .add(new BooleanQuery.Builder()
+                        .add(termQuery1, Occur.SHOULD)
+                        .add(termQuery2, Occur.SHOULD)
+                        .build(), Occur.MUST)
+                .add(termQuery3, Occur.FILTER);
+        result = analyze(builder.build(), Version.CURRENT);
+        assertThat("Disjunctions of conjunctions can't be verified", result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(2));
+
+        builder = new BooleanQuery.Builder()
+                .add(new BooleanQuery.Builder()
+                        .add(termQuery1, Occur.MUST)
+                        .add(termQuery2, Occur.FILTER)
+                        .build(), Occur.SHOULD)
+                .add(termQuery3, Occur.SHOULD);
+        result = analyze(builder.build(), Version.CURRENT);
+        assertThat("Conjunctions of disjunctions can't be verified", result.verified, is(false));
         assertThat(result.minimumShouldMatch, equalTo(1));
     }
 
@@ -399,10 +539,8 @@ public class QueryAnalyzerTests extends ESTestCase {
         builder.setMinimumNumberShouldMatch(1);
         result = analyze(builder.build(), Version.CURRENT);
         assertThat("Must clause is exact, but m_s_m is 1 so one should clause must match too", result.verified, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(1));
-        assertThat(result.extractions.size(), equalTo(1));
-        extractions = new ArrayList<>(result.extractions);
-        assertThat(extractions.get(0).term, equalTo(new Term("_field", "_term3")));
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertTermsEqual(result.extractions, termQuery1.getTerm(), termQuery2.getTerm(), termQuery3.getTerm());
 
         builder = new BooleanQuery.Builder();
         BooleanQuery.Builder innerBuilder = new BooleanQuery.Builder();
@@ -536,7 +674,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         SpanTermQuery spanTermQuery2 = new SpanTermQuery(new Term("_field", "_very_long_term"));
         SpanOrQuery spanOrQuery = new SpanOrQuery(spanTermQuery1, spanTermQuery2);
         Result result = analyze(spanOrQuery, Version.CURRENT);
-        assertThat(result.verified, is(false));
+        assertThat(result.verified, is(true));
         assertThat(result.minimumShouldMatch, equalTo(1));
         assertTermsEqual(result.extractions, spanTermQuery1.getTerm(), spanTermQuery2.getTerm());
     }
@@ -564,16 +702,15 @@ public class QueryAnalyzerTests extends ESTestCase {
         Result result = analyze(new MatchNoDocsQuery("sometimes there is no reason at all"), Version.CURRENT);
         assertThat(result.verified, is(true));
         assertEquals(0, result.extractions.size());
-        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertThat(result.minimumShouldMatch, equalTo(0));
 
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
         bq.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.MUST);
         bq.add(new MatchNoDocsQuery("sometimes there is no reason at all"), BooleanClause.Occur.MUST);
         result = analyze(bq.build(), Version.CURRENT);
         assertThat(result.verified, is(true));
-        assertEquals(1, result.extractions.size());
-        assertThat(result.minimumShouldMatch, equalTo(2));
-        assertTermsEqual(result.extractions, new Term("field", "value"));
+        assertEquals(0, result.extractions.size());
+        assertThat(result.minimumShouldMatch, equalTo(0));
 
         bq = new BooleanQuery.Builder();
         bq.add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.SHOULD);
@@ -785,7 +922,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         SynonymQuery query = new SynonymQuery();
         Result result = analyze(query, Version.CURRENT);
         assertThat(result.verified, is(true));
-        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertThat(result.minimumShouldMatch, equalTo(0));
         assertThat(result.extractions.isEmpty(), is(true));
 
         query = new SynonymQuery(new Term("_field", "_value1"), new Term("_field", "_value2"));
@@ -811,64 +948,129 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertTermsEqual(result.extractions, new Term("_field", "_value"));
     }
 
-    public void testSelectBestExtraction() {
-        Set<QueryExtraction> queryTerms1 = terms(new int[0], "12", "1234", "12345");
-        Set<QueryAnalyzer.QueryExtraction> queryTerms2 = terms(new int[0], "123", "1234", "12345");
-        Set<QueryExtraction> result = selectBestExtraction(queryTerms1, queryTerms2);
-        assertSame(queryTerms2, result);
+    public void testFunctionScoreQuery_withMatchAll() {
+        MatchAllDocsQuery innerQuery = new MatchAllDocsQuery();
+        FunctionScoreQuery functionScoreQuery1 = new FunctionScoreQuery(innerQuery, new RandomScoreFunction(0, 0, null));
+        Result result = analyze(functionScoreQuery1, Version.CURRENT);
+        assertThat(result.verified, is(true));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.extractions.isEmpty(), is(true));
 
-        queryTerms1 = terms(new int[]{1, 2, 3});
-        queryTerms2 = terms(new int[]{2, 3, 4});
-        result = selectBestExtraction(queryTerms1, queryTerms2);
-        assertSame(queryTerms1, result);
-
-        queryTerms1 = terms(new int[]{4, 5, 6});
-        queryTerms2 = terms(new int[]{1, 2, 3});
-        result = selectBestExtraction(queryTerms1, queryTerms2);
-        assertSame(queryTerms2, result);
-
-        queryTerms1 = terms(new int[]{1, 2, 3}, "123", "456");
-        queryTerms2 = terms(new int[]{2, 3, 4}, "123", "456");
-        result = selectBestExtraction(queryTerms1, queryTerms2);
-        assertSame(queryTerms1, result);
-
-        queryTerms1 = terms(new int[]{10});
-        queryTerms2 = terms(new int[]{1});
-        result = selectBestExtraction(queryTerms1, queryTerms2);
-        assertSame(queryTerms2, result);
-
-        queryTerms1 = terms(new int[]{10}, "123");
-        queryTerms2 = terms(new int[]{1});
-        result = selectBestExtraction(queryTerms1, queryTerms2);
-        assertSame(queryTerms1, result);
-
-        queryTerms1 = terms(new int[]{10}, "1", "123");
-        queryTerms2 = terms(new int[]{1}, "1", "2");
-        result = selectBestExtraction(queryTerms1, queryTerms2);
-        assertSame(queryTerms1, result);
-
-        queryTerms1 = terms(new int[]{1, 2, 3}, "123", "456");
-        queryTerms2 = terms(new int[]{2, 3, 4}, "1", "456");
-        result = selectBestExtraction(queryTerms1, queryTerms2);
-        assertSame("Ignoring ranges, so then prefer queryTerms1, because it has the longest shortest term", queryTerms1, result);
-
-        queryTerms1 = terms(new int[]{});
-        queryTerms2 = terms(new int[]{});
-        result = selectBestExtraction(queryTerms1, queryTerms2);
-        assertSame("In case query extractions are empty", queryTerms2, result);
-
-        queryTerms1 = terms(new int[]{1});
-        queryTerms2 = terms(new int[]{});
-        result = selectBestExtraction(queryTerms1, queryTerms2);
-        assertSame("In case query a single extraction is empty", queryTerms1, result);
-
-        queryTerms1 = terms(new int[]{});
-        queryTerms2 = terms(new int[]{1});
-        result = selectBestExtraction(queryTerms1, queryTerms2);
-        assertSame("In case query a single extraction is empty", queryTerms2, result);
+        FunctionScoreQuery functionScoreQuery2 =
+            new FunctionScoreQuery(innerQuery, new RandomScoreFunction(0, 0, null), CombineFunction.MULTIPLY, 1f, 10f);
+        result = analyze(functionScoreQuery2, Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.extractions.isEmpty(), is(true));
     }
 
-    public void testSelectBestExtraction_random() {
+    public void testSelectBestResult() {
+        Set<QueryExtraction> queryTerms1 = terms(new int[0], "12", "1234", "12345");
+        Result result1 = new Result(true, queryTerms1, 1);
+        Set<QueryAnalyzer.QueryExtraction> queryTerms2 = terms(new int[0], "123", "1234", "12345");
+        Result result2 = new Result(true, queryTerms2, 1);
+        Result result = selectBestResult(result1, result2);
+        assertSame(queryTerms2, result.extractions);
+        assertFalse(result.verified);
+
+        queryTerms1 = terms(new int[]{1, 2, 3});
+        result1 = new Result(true, queryTerms1, 1);
+        queryTerms2 = terms(new int[]{2, 3, 4});
+        result2 = new Result(true, queryTerms2, 1);
+        result = selectBestResult(result1, result2);
+        assertSame(queryTerms1, result.extractions);
+        assertFalse(result.verified);
+
+        queryTerms1 = terms(new int[]{4, 5, 6});
+        result1 = new Result(true, queryTerms1, 1);
+        queryTerms2 = terms(new int[]{1, 2, 3});
+        result2 = new Result(true, queryTerms2, 1);
+        result = selectBestResult(result1, result2);
+        assertSame(queryTerms2, result.extractions);
+        assertFalse(result.verified);
+
+        queryTerms1 = terms(new int[]{1, 2, 3}, "123", "456");
+        result1 = new Result(true, queryTerms1, 1);
+        queryTerms2 = terms(new int[]{2, 3, 4}, "123", "456");
+        result2 = new Result(true, queryTerms2, 1);
+        result = selectBestResult(result1, result2);
+        assertSame(queryTerms1, result.extractions);
+        assertFalse(result.verified);
+
+        queryTerms1 = terms(new int[]{10});
+        result1 = new Result(true, queryTerms1, 1);
+        queryTerms2 = terms(new int[]{1});
+        result2 = new Result(true, queryTerms2, 1);
+        result = selectBestResult(result1, result2);
+        assertSame(queryTerms2, result.extractions);
+
+        queryTerms1 = terms(new int[]{10}, "123");
+        result1 = new Result(true, queryTerms1, 1);
+        queryTerms2 = terms(new int[]{1});
+        result2 = new Result(true, queryTerms2, 1);
+        result = selectBestResult(result1, result2);
+        assertSame(queryTerms1, result.extractions);
+        assertFalse(result.verified);
+
+        queryTerms1 = terms(new int[]{10}, "1", "123");
+        result1 = new Result(true, queryTerms1, 1);
+        queryTerms2 = terms(new int[]{1}, "1", "2");
+        result2 = new Result(true, queryTerms2, 1);
+        result = selectBestResult(result1, result2);
+        assertSame(queryTerms1, result.extractions);
+        assertFalse(result.verified);
+
+        queryTerms1 = terms(new int[]{1, 2, 3}, "123", "456");
+        result1 = new Result(true, queryTerms1, 1);
+        queryTerms2 = terms(new int[]{2, 3, 4}, "1", "456");
+        result2 = new Result(true, queryTerms2, 1);
+        result = selectBestResult(result1, result2);
+        assertSame("Ignoring ranges, so then prefer queryTerms1, because it has the longest shortest term",
+                queryTerms1, result.extractions);
+        assertFalse(result.verified);
+
+        queryTerms1 = terms(new int[]{});
+        result1 = new Result(false, queryTerms1, 0);
+        queryTerms2 = terms(new int[]{});
+        result2 = new Result(false, queryTerms2, 0);
+        result = selectBestResult(result1, result2);
+        assertSame("In case query extractions are empty", queryTerms2, result.extractions);
+        assertFalse(result.verified);
+
+        queryTerms1 = terms(new int[]{1});
+        result1 = new Result(true, queryTerms1, 1);
+        queryTerms2 = terms(new int[]{});
+        result2 = new Result(false, queryTerms2, 0);
+        result = selectBestResult(result1, result2);
+        assertSame("In case query a single extraction is empty", queryTerms1, result.extractions);
+        assertFalse(result.verified);
+
+        queryTerms1 = terms(new int[]{});
+        result1 = new Result(false, queryTerms1, 0);
+        queryTerms2 = terms(new int[]{1});
+        result2 = new Result(true, queryTerms2, 1);
+        result = selectBestResult(result1, result2);
+        assertSame("In case query a single extraction is empty", queryTerms2, result.extractions);
+        assertFalse(result.verified);
+
+        result1 = new Result(true, true);
+        queryTerms2 = terms(new int[]{1});
+        result2 = new Result(true, queryTerms2, 1);
+        result = selectBestResult(result1, result2);
+        assertSame("Conjunction with a match_all", result2, result);
+        assertTrue(result.verified);
+
+        queryTerms1 = terms(new int[]{1});
+        result1 = new Result(true, queryTerms2, 1);
+        result2 = new Result(true, true);
+        result = selectBestResult(result1, result2);
+        assertSame("Conjunction with a match_all", result1, result);
+        assertTrue(result.verified);
+    }
+
+    public void testselectBestResult_random() {
         Set<QueryExtraction> terms1 = new HashSet<>();
         int shortestTerms1Length = Integer.MAX_VALUE;
         int sumTermLength = randomIntBetween(1, 128);
@@ -889,9 +1091,11 @@ public class QueryAnalyzerTests extends ESTestCase {
             sumTermLength -= length;
         }
 
-        Set<QueryAnalyzer.QueryExtraction> result = selectBestExtraction(terms1, terms2);
+        Result result1 = new Result(true, terms1, 1);
+        Result result2 = new Result(true, terms2, 1);
+        Result result = selectBestResult(result1, result2);
         Set<QueryExtraction> expected = shortestTerms1Length >= shortestTerms2Length ? terms1 : terms2;
-        assertThat(result, sameInstance(expected));
+        assertThat(result.extractions, sameInstance(expected));
     }
 
     public void testPointRangeQuery() {
@@ -979,7 +1183,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         Query query = IntPoint.newRangeQuery("_field", 20, 10);
         Result result = analyze(query, Version.CURRENT);
         assertTrue(result.verified);
-        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertThat(result.minimumShouldMatch, equalTo(0));
         assertThat(result.extractions.size(), equalTo(0));
     }
 
@@ -1092,7 +1296,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         boolQuery.add(LongPoint.newRangeQuery("_field2", 10, 15), BooleanClause.Occur.SHOULD);
         result = analyze(boolQuery.build(), Version.CURRENT);
         assertFalse(result.verified);
-        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.minimumShouldMatch, equalTo(1));
         assertEquals(2, result.extractions.size());
         assertEquals("_field2", new ArrayList<>(result.extractions).get(0).range.fieldName);
         assertEquals("_field1", new ArrayList<>(result.extractions).get(1).range.fieldName);
@@ -1132,9 +1336,9 @@ public class QueryAnalyzerTests extends ESTestCase {
                 BooleanClause.Occur.MUST
         );
         Result result = analyze(builder.build(), Version.CURRENT);
-        assertThat(result.verified, is(true));
+        assertThat(result.verified, is(false));
         assertThat(result.matchAllDocs, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(4));
+        assertThat(result.minimumShouldMatch, equalTo(2));
         assertTermsEqual(result.extractions, new Term("field", "value1"), new Term("field", "value2"),
                 new Term("field", "value3"), new Term("field", "value4"));
 
@@ -1161,11 +1365,26 @@ public class QueryAnalyzerTests extends ESTestCase {
                 BooleanClause.Occur.SHOULD
         );
         result = analyze(builder.build(), Version.CURRENT);
-        assertThat(result.verified, is(true));
+        assertThat(result.verified, is(false));
         assertThat(result.matchAllDocs, is(false));
         assertThat(result.minimumShouldMatch, equalTo(2));
         assertTermsEqual(result.extractions, new Term("field", "value1"), new Term("field", "value2"),
                 new Term("field", "value3"), new Term("field", "value4"));
+    }
+
+    public void testEmptyQueries() {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        Result result = analyze(builder.build(), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.extractions.size(), equalTo(0));
+
+        result = analyze(new DisjunctionMaxQuery(Collections.emptyList(), 0f), Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.extractions.size(), equalTo(0));
     }
 
     private static void assertDimension(byte[] expected, Consumer<byte[]> consumer) {

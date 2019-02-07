@@ -19,100 +19,14 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 import java.io.IOException;
-import java.util.Collections;
 
-public abstract class AbstractWireSerializingTestCase<T extends Writeable> extends ESTestCase {
-    protected static final int NUMBER_OF_TEST_RUNS = 20;
+public abstract class AbstractWireSerializingTestCase<T extends Writeable> extends AbstractWireTestCase<T> {
 
-    /**
-     * Creates a random test instance to use in the tests. This method will be
-     * called multiple times during test execution and should return a different
-     * random instance each time it is called.
-     */
-    protected abstract T createTestInstance();
-
-    /**
-     * Returns a {@link Reader} that can be used to de-serialize the instance
-     */
-    protected abstract Reader<T> instanceReader();
-
-    /**
-     * Returns an instance which is mutated slightly so it should not be equal
-     * to the given instance.
-     */
-    // TODO: Make this abstract when all sub-classes implement this (https://github.com/elastic/elasticsearch/issues/25929)
-    protected T mutateInstance(T instance) throws IOException {
-        return null;
-    }
-
-    /**
-     * Tests that the equals and hashcode methods are consistent and copied
-     * versions of the instance have are equal.
-     */
-    public void testEqualsAndHashcode() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copyInstance, this::mutateInstance);
-        }
-    }
-
-    /**
-     * Test serialization and deserialization of the test instance.
-     */
-    public void testSerialization() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            T testInstance = createTestInstance();
-            assertSerialization(testInstance);
-        }
-    }
-
-    /**
-     * Serialize the given instance and asserts that both are equal
-     */
-    protected T assertSerialization(T testInstance) throws IOException {
-        return assertSerialization(testInstance, Version.CURRENT);
-    }
-
-    protected T assertSerialization(T testInstance, Version version) throws IOException {
-        T deserializedInstance = copyInstance(testInstance, version);
-        assertEquals(testInstance, deserializedInstance);
-        assertEquals(testInstance.hashCode(), deserializedInstance.hashCode());
-        assertNotSame(testInstance, deserializedInstance);
-        return deserializedInstance;
-    }
-
-    protected T copyInstance(T instance) throws IOException {
-        return copyInstance(instance, Version.CURRENT);
-    }
-
+    @Override
     protected T copyInstance(T instance, Version version) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
-            instance.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
-                    getNamedWriteableRegistry())) {
-                in.setVersion(version);
-                return instanceReader().read(in);
-            }
-        }
-    }
-
-    /**
-     * Get the {@link NamedWriteableRegistry} to use when de-serializing the object.
-     *
-     * Override this method if you need to register {@link NamedWriteable}s for the test object to de-serialize.
-     *
-     * By default this will return a {@link NamedWriteableRegistry} with no registered {@link NamedWriteable}s
-     */
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Collections.emptyList());
+        return copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), version);
     }
 }

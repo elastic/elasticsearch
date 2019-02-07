@@ -28,16 +28,14 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -63,18 +61,12 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     private final SnapshotShardsService snapshotShardsService;
 
     @Inject
-    public TransportNodesSnapshotsStatus(Settings settings, ThreadPool threadPool,
-                                         ClusterService clusterService, TransportService transportService,
-                                         SnapshotShardsService snapshotShardsService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-              Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeSnapshotStatus.class);
+    public TransportNodesSnapshotsStatus(ThreadPool threadPool, ClusterService clusterService,
+                                         TransportService transportService, SnapshotShardsService snapshotShardsService,
+                                         ActionFilters actionFilters) {
+        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+            Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeSnapshotStatus.class);
         this.snapshotShardsService = snapshotShardsService;
-    }
-
-    @Override
-    protected boolean transportCompress() {
-        return true; // compress since the metadata can become large
     }
 
     @Override

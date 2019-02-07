@@ -19,18 +19,23 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 /**
  * Response returned after a cluster reroute request
  */
-public class ClusterRerouteResponse extends AcknowledgedResponse {
+public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXContentObject {
 
     private ClusterState state;
     private RoutingExplanations explanations;
@@ -58,17 +63,41 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        state = ClusterState.readFrom(in, null);
-        readAcknowledged(in);
-        explanations = RoutingExplanations.readFrom(in);
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            super.readFrom(in);
+            state = ClusterState.readFrom(in, null);
+            explanations = RoutingExplanations.readFrom(in);
+        } else {
+            state = ClusterState.readFrom(in, null);
+            acknowledged = in.readBoolean();
+            explanations = RoutingExplanations.readFrom(in);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        state.writeTo(out);
-        writeAcknowledged(out);
-        RoutingExplanations.writeTo(explanations, out);
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            super.writeTo(out);
+            state.writeTo(out);
+            RoutingExplanations.writeTo(explanations, out);
+        } else {
+            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+                state.writeTo(out);
+            } else {
+                ClusterModule.filterCustomsForPre63Clients(state).writeTo(out);
+            }
+            out.writeBoolean(acknowledged);
+            RoutingExplanations.writeTo(explanations, out);
+        }
+    }
+
+    @Override
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("state");
+        state.toXContent(builder, params);
+        builder.endObject();
+        if (params.paramAsBoolean("explain", false)) {
+            explanations.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
     }
 }

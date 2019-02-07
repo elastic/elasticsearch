@@ -20,30 +20,37 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
@@ -59,9 +66,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.gateway.GatewayService.RECOVER_AFTER_NODES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -78,16 +87,16 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList(MockFSIndexStore.TestPlugin.class, InternalSettingsPlugin.class);
     }
 
     public void testOneNodeRecoverFromGateway() throws Exception {
 
         internalCluster().startNode();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("appAccountIds").field("type", "text").endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
 
         client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
@@ -142,7 +151,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             } else {
                 assertThat("number of terms changed for index [" + index + "]", current.length, equalTo(previous.length));
                 for (int shard = 0; shard < current.length; shard++) {
-                    assertThat("primary term didn't increase for [" + index + "][" + shard + "]", current[shard], greaterThan(previous[shard]));
+                    assertThat("primary term didn't increase for [" + index + "][" + shard + "]", current[shard],
+                        greaterThan(previous[shard]));
                 }
                 result.put(index, current);
             }
@@ -154,9 +164,10 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     public void testSingleNodeNoFlush() throws Exception {
         internalCluster().startNode();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("field").field("type", "text").endObject().startObject("num").field("type", "integer").endObject().endObject()
-            .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("field").field("type", "text").endObject().startObject("num").field("type", "integer")
+            .endObject().endObject()
+            .endObject().endObject());
         // note: default replica settings are tied to #data nodes-1 which is 0 here. We can do with 1 in this test.
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
@@ -240,9 +251,11 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testSingleNodeWithFlush() throws Exception {
         internalCluster().startNode();
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute()
+            .actionGet();
         flush();
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute()
+            .actionGet();
         refresh();
 
         assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 2);
@@ -277,9 +290,11 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final String firstNode = internalCluster().startNode();
         internalCluster().startNode();
 
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute()
+            .actionGet();
         flush();
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute()
+            .actionGet();
         refresh();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
@@ -291,10 +306,15 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);
 
+        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(new String[]{firstNode})).get();
+
         internalCluster().fullRestart(new RestartCallback() {
             @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                return Settings.builder().put("gateway.recover_after_nodes", 2).build();
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder()
+                    .put(RECOVER_AFTER_NODES_SETTING.getKey(), 2)
+                    .putList(INITIAL_MASTER_NODES_SETTING.getKey()) // disable bootstrapping
+                    .build();
             }
 
             @Override
@@ -311,6 +331,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 2);
         }
+
+        client().execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
     }
 
     public void testLatestVersionLoaded() throws Exception {
@@ -318,9 +340,11 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().startNodes(2, Settings.builder().put("gateway.recover_after_nodes", 2).build());
 
         assertAcked(client().admin().indices().prepareCreate("test"));
-        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute()
+            .actionGet();
         client().admin().indices().prepareFlush().execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute()
+            .actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
@@ -337,7 +361,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         logger.info("--> one node is closed - start indexing data into the second one");
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).execute()
+            .actionGet();
         // TODO: remove once refresh doesn't fail immediately if there a master block:
         // https://github.com/elastic/elasticsearch/issues/9997
         // client().admin().cluster().prepareHealth("test").setWaitForYellowStatus().get();
@@ -351,14 +376,15 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         logger.info("--> add some metadata and additional template");
         client().admin().indices().preparePutTemplate("template_1")
-            .setTemplate("te*")
+            .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
             .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field1").field("type", "text").field("store", true).endObject()
                 .startObject("field2").field("type", "keyword").field("store", true).endObject()
                 .endObject().endObject().endObject())
             .execute().actionGet();
-        client().admin().indices().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).execute().actionGet();
+        client().admin().indices().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).execute()
+            .actionGet();
 
         logger.info("--> stopping the second node");
         internalCluster().stopRandomDataNode();
@@ -391,11 +417,16 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 1))
-            .get();
+            .setSettings(Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 1)
+                // disable merges to keep segments the same
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "false")
+            ).get();
 
         logger.info("--> indexing docs");
-        for (int i = 0; i < randomIntBetween(1, 1024); i++) {
+        int numDocs = randomIntBetween(1, 1024);
+        for (int i = 0; i < numDocs; i++) {
             client(primaryNode).prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
         }
 
@@ -417,12 +448,15 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
 
         logger.info("--> restart replica node");
+        boolean softDeleteEnabled = internalCluster().getInstance(IndicesService.class, primaryNode)
+            .indexServiceSafe(resolveIndex("test")).getShard(0).indexSettings().isSoftDeleteEnabled();
 
+        int moreDocs = randomIntBetween(1, 1024);
         internalCluster().restartNode(replicaNode, new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // index some more documents; we expect to reuse the files that already exist on the replica
-                for (int i = 0; i < randomIntBetween(1, 1024); i++) {
+                for (int i = 0; i < moreDocs; i++) {
                     client(primaryNode).prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
                 }
 
@@ -430,8 +464,12 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 client(primaryNode).admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
                 ).get();
                 client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
+                if (softDeleteEnabled) { // We need an extra flush to advance the min_retained_seqno of the SoftDeletesPolicy
+                    client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
+                }
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -465,10 +503,13 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 assertThat("bytes should have been recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
                 assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0L));
                 // we have to recover the segments file since we commit the translog ID on engine startup
-                assertThat("all existing files should be reused, byte count mismatch", recoveryState.getIndex().reusedBytes(), equalTo(reused));
+                assertThat("all existing files should be reused, byte count mismatch", recoveryState.getIndex().reusedBytes(),
+                    equalTo(reused));
                 assertThat(recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes() - recovered));
-                assertThat("the segment from the last round of indexing should be recovered", recoveryState.getIndex().recoveredFileCount(), equalTo(filesRecovered));
-                assertThat("all existing files should be reused, file count mismatch", recoveryState.getIndex().reusedFileCount(), equalTo(filesReused));
+                assertThat("the segment from the last round of indexing should be recovered", recoveryState.getIndex().recoveredFileCount(),
+                    equalTo(filesRecovered));
+                assertThat("all existing files should be reused, file count mismatch", recoveryState.getIndex().reusedFileCount(),
+                    equalTo(filesReused));
                 assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount() - filesRecovered));
                 assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
                 assertThat("no translog ops should be recovered", recoveryState.getTranslog().recoveredOperations(), equalTo(0));
@@ -481,35 +522,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         for (ShardStats shardStats : indexStats.getShards()) {
             assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
-    }
-
-    public void testRecoveryDifferentNodeOrderStartup() throws Exception {
-        // we need different data paths so we make sure we start the second node fresh
-
-        final Path pathNode1 = createTempDir();
-        final String node_1 = internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), pathNode1).build());
-
-        client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
-
-        final Path pathNode2 = createTempDir();
-        final String node_2 = internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), pathNode2).build());
-
-        ensureGreen();
-        Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);
-
-        if (randomBoolean()) {
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_1));
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
-        } else {
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_1));
-        }
-        // start the second node again
-        internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), pathNode2).build());
-        ensureYellow();
-        primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
-        assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
-        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 1);
     }
 
     public void testStartedShardFoundIfStateNotYetProcessed() throws Exception {
@@ -527,7 +539,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // make sure state is not recovered
-                return Settings.builder().put(GatewayService.RECOVER_AFTER_NODES_SETTING.getKey(), 2).build();
+                return Settings.builder().put(RECOVER_AFTER_NODES_SETTING.getKey(), 2).build();
             }
         });
 
@@ -551,9 +563,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
 
         TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response;
-        response = internalCluster().getInstance(TransportNodesListGatewayStartedShards.class)
-            .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}))
-            .get();
+        response = ActionTestUtils.executeBlocking(internalCluster().getInstance(TransportNodesListGatewayStartedShards.class),
+            new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}));
 
         assertThat(response.getNodes(), hasSize(1));
         assertThat(response.getNodes().get(0).allocationId(), notNullValue());

@@ -25,6 +25,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -255,17 +255,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertThat(query, either(instanceOf(FunctionScoreQuery.class)).or(instanceOf(FunctionScoreQuery.class)));
     }
 
-    /**
-     * Overridden here to ensure the test is only run if at least one type is
-     * present in the mappings. Functions require the field to be
-     * explicitly mapped
-     */
-    @Override
-    public void testToQuery() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testToQuery();
-    }
-
     public void testIllegalArguments() {
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((QueryBuilder) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((ScoreFunctionBuilder<?>) null));
@@ -282,6 +271,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         FunctionScoreQueryBuilder builder = new FunctionScoreQueryBuilder(matchAllQuery());
         expectThrows(IllegalArgumentException.class, () -> builder.scoreMode(null));
         expectThrows(IllegalArgumentException.class, () -> builder.boostMode(null));
+        expectThrows(IllegalArgumentException.class,
+                () -> new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(-1 * randomFloat())));
     }
 
     public void testParseFunctionsArray() throws IOException {
@@ -486,8 +477,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testWeight1fStillProducesWeightFunction() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        String queryString = jsonBuilder().startObject()
+        String queryString = Strings.toString(jsonBuilder().startObject()
             .startObject("function_score")
             .startArray("functions")
             .startObject()
@@ -498,7 +488,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             .endObject()
             .endArray()
             .endObject()
-            .endObject().string();
+            .endObject());
         QueryBuilder query = parseQuery(queryString);
         assertThat(query, instanceOf(FunctionScoreQueryBuilder.class));
         FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) query;
@@ -523,20 +513,20 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testProperErrorMessagesForMisplacedWeightsAndFunctions() throws IOException {
-        String query = jsonBuilder().startObject().startObject("function_score")
+        String query = Strings.toString(jsonBuilder().startObject().startObject("function_score")
             .startArray("functions")
             .startObject().startObject("script_score").field("script", "3").endObject().endObject()
             .endArray()
             .field("weight", 2)
-            .endObject().endObject().string();
+            .endObject().endObject());
         expectParsingException(query, "[you can either define [functions] array or a single function, not both. already "
                 + "found [functions] array, now encountering [weight].]");
-        query = jsonBuilder().startObject().startObject("function_score")
+        query = Strings.toString(jsonBuilder().startObject().startObject("function_score")
             .field("weight", 2)
             .startArray("functions")
             .startObject().endObject()
             .endArray()
-            .endObject().endObject().string();
+            .endObject().endObject());
         expectParsingException(query, "[you can either define [functions] array or a single function, not both. already found "
                 + "[weight], now encountering [functions].]");
     }
@@ -649,12 +639,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertEquals(json, 1, parsed.getMinScore(), 0.0001);
     }
 
-    @Override
-    public void testMustRewrite() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testMustRewrite();
-    }
-
     public void testRewrite() throws IOException {
         FunctionScoreQueryBuilder functionScoreQueryBuilder =
             new FunctionScoreQueryBuilder(new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()))
@@ -685,6 +669,29 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
         assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder("tq", "1"));
         assertSame(rewrite.filterFunctionBuilders()[1].getFilter(), secondFunction);
+    }
+
+    /**
+     * Please see https://github.com/elastic/elasticsearch/issues/35123 for context.
+     */
+    public void testSingleScriptFunction() throws IOException {
+        QueryBuilder queryBuilder = RandomQueryBuilder.createQuery(random());
+        ScoreFunctionBuilder functionBuilder = new ScriptScoreFunctionBuilder(
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap()));
+
+        FunctionScoreQueryBuilder builder = functionScoreQuery(queryBuilder, functionBuilder);
+        if (randomBoolean()) {
+            builder.boostMode(randomFrom(CombineFunction.values()));
+        }
+
+        Query query = builder.toQuery(createShardContext());
+        assertThat(query, instanceOf(FunctionScoreQuery.class));
+
+        CombineFunction expectedBoostMode = builder.boostMode() != null
+            ? builder.boostMode()
+            : FunctionScoreQueryBuilder.DEFAULT_BOOST_MODE;
+        CombineFunction actualBoostMode = ((FunctionScoreQuery) query).getCombineFunction();
+        assertEquals(expectedBoostMode, actualBoostMode);
     }
 
     public void testQueryMalformedArrayNotSupported() throws IOException {
@@ -740,27 +747,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         expectParsingException(json, equalTo("[bool] malformed query, expected [END_OBJECT] but found [FIELD_NAME]"));
     }
 
-    public void testMalformedQueryMultipleQueryElements() throws IOException {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
-        String json = "{\n" +
-                "    \"function_score\":{\n" +
-                "        \"query\":{\n" +
-                "            \"bool\":{\n" +
-                "                \"must\":{\"match\":{\"field\":\"value\"}}" +
-                "             }\n" +
-                "            },\n" +
-                "        \"query\":{\n" +
-                "            \"bool\":{\n" +
-                "                \"must\":{\"match\":{\"field\":\"value\"}}" +
-                "             }\n" +
-                "            }\n" +
-                "        }\n" +
-                "    }\n" +
-                "}";
-        expectParsingException(json, "[query] is already defined.");
-    }
-
     private void expectParsingException(String json, Matcher<String> messageMatcher) {
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), messageMatcher);
@@ -811,7 +797,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
-    protected boolean isCachable(FunctionScoreQueryBuilder queryBuilder) {
+    protected boolean isCacheable(FunctionScoreQueryBuilder queryBuilder) {
         FilterFunctionBuilder[] filterFunctionBuilders = queryBuilder.filterFunctionBuilders();
         for (FilterFunctionBuilder builder : filterFunctionBuilders) {
             if (builder.getScoreFunction() instanceof ScriptScoreFunctionBuilder) {

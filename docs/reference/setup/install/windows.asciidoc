@@ -10,6 +10,8 @@ the included `elasticsearch.exe` executable.
 TIP: Elasticsearch has historically been installed on Windows using the <<zip-windows, .zip>> archive.
 You can continue using the `.zip` approach if you prefer.
 
+include::license.asciidoc[]
+
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
@@ -37,7 +39,7 @@ endif::[]
 [[install-msi-gui]]
 ==== Install using the graphical user interface (GUI)
 
-Double-click the downloaded `.msi` package to launch a GUI wizard that will guide you through the 
+Double-click the downloaded `.msi` package to launch a GUI wizard that will guide you through the
 installation process. You can view help on any step by clicking the `?` button, which reveals an
 aside panel with additional information for each input:
 
@@ -45,21 +47,21 @@ aside panel with additional information for each input:
 image::images/msi_installer/msi_installer_help.png[]
 
 Within the first screen, select the directory for the installation. In addition, select directories for where
-data, logs and configuration will reside or <<msi-command-line-options,roll with the default locations>>:
+data, logs and configuration will be placed or <<msi-command-line-options,use the default locations>>:
 
 [[msi-installer-locations]]
 image::images/msi_installer/msi_installer_locations.png[]
 
 Then select whether to install as a service or start Elasticsearch manually as needed. When
-installing as a service, you can also decide which account to run the service under as well
-as whether the service should be started after installation and when Windows is started or 
-restarted:
+installing as a service, you can also configure the Windows account to run the service with,
+whether the service should be started after installation and the Windows startup behaviour:
 
 [[msi-installer-service]]
 image::images/msi_installer/msi_installer_service.png[]
 
-IMPORTANT: When selecting an account to run the service with, be sure that the chosen account
-has sufficient privileges to access the installation and other deployment directories chosen.
+IMPORTANT: When selecting a Windows account to run the service with, be sure that the chosen account
+has sufficient privileges to access the installation and other deployment directories chosen. Also
+ensure the account is able to run Windows services.
 
 Common configuration settings are exposed within the Configuration section, allowing the cluster
 name, node name and roles to be set, in addition to memory and network settings:
@@ -67,28 +69,32 @@ name, node name and roles to be set, in addition to memory and network settings:
 [[msi-installer-configuration]]
 image::images/msi_installer/msi_installer_configuration.png[]
 
-A list of common plugins that can be downloaded and installed as
-part of the installation, with the option to configure a HTTPS proxy through which to download:
+A list of common plugins that can be downloaded and installed as part of the installation, with the option to configure an HTTPS proxy through which to download these plugins.
+
+TIP: Ensure the installation machine has access to the internet and that any corporate firewalls in place are configured to allow downloads from `artifacts.elastic.co`:
 
 [[msi-installer-selected-plugins]]
 image::images/msi_installer/msi_installer_selected_plugins.png[]
 
-Upon choosing to install X-Pack plugin, an additional step allows a choice of the type of X-Pack 
-license to install, in addition to X-Pack Security configuration and built-in user configuration:
+As of version 6.3.0, {xpack} is now https://www.elastic.co/products/x-pack/open[bundled by default].
+The final step allows a choice of the type of license to install, in addition to
+security configuration and built-in user configuration:
 
 [[msi-installer-xpack]]
 image::images/msi_installer/msi_installer_xpack.png[]
 
-NOTE: X-Pack includes a choice of a Trial or Basic license for 30 days. After that, you can obtain one of the 
-https://www.elastic.co/subscriptions[available subscriptions] or {ref}/security-settings.html[disable Security]. 
-The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
+NOTE: {xpack} includes a choice of a Trial or Basic license. A Trial license is
+valid for 30 days, after which you can obtain one of the available subscriptions.
+The Basic license is free and perpetual. Consult the
+https://www.elastic.co/subscriptions[available subscriptions] for further
+details on which features are available under which license.
 
-After clicking the install button, the installer will begin installation:
+After clicking the install button, the installation will begin:
 
 [[msi-installer-installing]]
 image::images/msi_installer/msi_installer_installing.png[]
 
-and will indicate when it has been successfully installed:
+...and will indicate when it has been successfully installed:
 
 [[msi-installer-success]]
 image::images/msi_installer/msi_installer_success.png[]
@@ -105,7 +111,7 @@ then running:
 msiexec.exe /i elasticsearch-{version}.msi /qn
 --------------------------------------------
 
-By default, msiexec does not wait for the installation process to complete, since it runs in the 
+By default, `msiexec.exe` does not wait for the installation process to complete, since it runs in the
 Windows subsystem. To wait on the process to finish and ensure that `%ERRORLEVEL%` is set
 accordingly, it is recommended to use `start /wait` to create a process and wait for it to exit
 
@@ -114,8 +120,8 @@ accordingly, it is recommended to use `start /wait` to create a process and wait
 start /wait msiexec.exe /i elasticsearch-{version}.msi /qn
 --------------------------------------------
 
-As with any MSI installation package, a log file for the installation process can be found 
-within the `%TEMP%` directory, with a randomly generated name adhering to the format 
+As with any MSI installation package, a log file for the installation process can be found
+within the `%TEMP%` directory, with a randomly generated name adhering to the format
 `MSI<random>.LOG`. The path to a log file can be supplied using the `/l` command line argument
 
 ["source","sh",subs="attributes,callouts"]
@@ -130,137 +136,138 @@ Supported Windows Installer command line arguments can be viewed using
 msiexec.exe /help
 --------------------------------------------
 
-or by consulting the https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=vs.85).aspx[Windows Installer SDK Command-Line Options].
+...or by consulting the https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=vs.85).aspx[Windows Installer SDK Command-Line Options].
 
 [[msi-command-line-options]]
 ==== Command line options
 
 All settings exposed within the GUI are also available as command line arguments (referred to
-as _properties_ within Windows Installer documentation) that can be passed to msiexec:
+as _properties_ within Windows Installer documentation) that can be passed to `msiexec.exe`:
 
 [horizontal]
-`INSTALLDIR`:: 
+`INSTALLDIR`::
 
-  The installation directory. The final directory in the path **must** 
+  The installation directory. The final directory in the path **must**
   be the version of Elasticsearch.
   Defaults to ++%ProgramW6432%\Elastic\Elasticsearch{backslash}{version}++.
 
-`DATADIRECTORY`:: 
+`DATADIRECTORY`::
 
-  The directory in which to store your data. 
+  The directory in which to store your data.
   Defaults to `%ALLUSERSPROFILE%\Elastic\Elasticsearch\data`
 
-`CONFIGDIRECTORY`:: 
+`CONFIGDIRECTORY`::
 
-  The directory in which to store your configuration. 
+  The directory in which to store your configuration.
   Defaults to `%ALLUSERSPROFILE%\Elastic\Elasticsearch\config`
 
-`LOGSDIRECTORY`:: 
+`LOGSDIRECTORY`::
 
-  The directory in which to store your logs. 
+  The directory in which to store your logs.
   Defaults to `%ALLUSERSPROFILE%\Elastic\Elasticsearch\logs`
 
-`PLACEWRITABLELOCATIONSINSAMEPATH`:: 
+`PLACEWRITABLELOCATIONSINSAMEPATH`::
 
   Whether the data, configuration and logs directories
   should be created under the installation directory. Defaults to `false`
 
-`INSTALLASSERVICE`:: 
+`INSTALLASSERVICE`::
 
-  Whether Elasticsearch is installed and configured as a Windows Service. 
+  Whether Elasticsearch is installed and configured as a Windows Service.
   Defaults to `true`
 
-`STARTAFTERINSTALL`:: 
+`STARTAFTERINSTALL`::
 
-  Whether the Windows Service is started after installation finishes. 
+  Whether the Windows Service is started after installation finishes.
   Defaults to `true`
 
-`STARTWHENWINDOWSSTARTS`:: 
+`STARTWHENWINDOWSSTARTS`::
 
-  Whether the Windows Service is started when Windows is started. 
+  Whether the Windows Service is started when Windows is started.
   Defaults to `true`
 
-`USELOCALSYSTEM`:: 
+`USELOCALSYSTEM`::
 
-  Whether the Windows service runs under the LocalSystem Account. 
+  Whether the Windows service runs under the LocalSystem Account.
   Defaults to `true`
 
-`USENETWORKSERVICE`:: 
+`USENETWORKSERVICE`::
 
   Whether the Windows service runs under the NetworkService Account. Defaults
   to `false`
 
-`USEEXISTINGUSER`:: 
+`USEEXISTINGUSER`::
 
   Whether the Windows service runs under a specified existing account. Defaults
   to `false`
 
-`USER`:: 
+`USER`::
 
   The username for the account under which the Windows service runs. Defaults to `""`
 
-`PASSWORD`:: 
+`PASSWORD`::
 
   The password for the account under which the Windows service runs. Defaults to `""`
 
-`CLUSTERNAME`:: 
+`CLUSTERNAME`::
 
   The name of the cluster. Defaults to `elasticsearch`
 
-`NODENAME`:: 
+`NODENAME`::
 
   The name of the node. Defaults to `%COMPUTERNAME%`
 
-`MASTERNODE`:: 
+`MASTERNODE`::
 
   Whether Elasticsearch is configured as a master node. Defaults to `true`
 
-`DATANODE`:: 
+`DATANODE`::
 
   Whether Elasticsearch is configured as a data node. Defaults to `true`
 
-`INGESTNODE`:: 
+`INGESTNODE`::
 
   Whether Elasticsearch is configured as an ingest node. Defaults to `true`
 
-`SELECTEDMEMORY`:: 
+`SELECTEDMEMORY`::
 
-  The amount of memory to allocate to the JVM heap for Elasticsearch. 
-  Defaults to `2048` unless the target machine has less than 4GB in total, in which case 
+  The amount of memory to allocate to the JVM heap for Elasticsearch.
+  Defaults to `2048` unless the target machine has less than 4GB in total, in which case
   it defaults to 50% of total memory.
 
-`LOCKMEMORY`:: 
+`LOCKMEMORY`::
 
   Whether `bootstrap.memory_lock` should be used to try to lock the process
   address space into RAM. Defaults to `false`
 
-`UNICASTNODES`:: 
+`UNICASTNODES`::
 
   A comma separated list of hosts in the form `host:port` or `host` to be used for
   unicast discovery. Defaults to `""`
 
-`MINIMUMMASTERNODES`:: 
+`MINIMUMMASTERNODES`::
 
-  The minimum number of master-eligible nodes that must be visible 
+  The minimum number of master-eligible nodes that must be visible
   in order to form a cluster. Defaults to `""`
 
-`NETWORKHOST`:: 
+`NETWORKHOST`::
 
-  The hostname or IP address to bind the node to and _publish_ (advertise) this 
+  The hostname or IP address to bind the node to and _publish_ (advertise) this
   host to other nodes in the cluster. Defaults to `""`
 
-`HTTPPORT`:: 
+`HTTPPORT`::
 
   The port to use for exposing Elasticsearch APIs over HTTP. Defaults to `9200`
 
-`TRANSPORTPORT`:: 
+`TRANSPORTPORT`::
 
-  The port to use for internal communication between nodes within the cluster. 
+  The port to use for internal communication between nodes within the cluster.
   Defaults to `9300`
 
-`PLUGINS`:: 
+`PLUGINS`::
 
-  A comma separated list of the plugins to download and install as part of the installation. Defaults to `""`
+  A comma separated list of the plugins to download and install as part of the
+  installation. Defaults to `""`
 
 `HTTPSPROXYHOST`::
 
@@ -280,76 +287,70 @@ as _properties_ within Windows Installer documentation) that can be passed to ms
 
 `XPACKLICENSE`::
 
-  When installing X-Pack plugin, the type of license to install,
-  either `Basic` or `Trial`. Defaults to `Basic`
+  The type of license to install, either `Basic` or `Trial`. Defaults to `Basic`
 
 `XPACKSECURITYENABLED`::
 
-  When installing X-Pack plugin with a `Trial` license, whether X-Pack Security should be enabled.
-  Defaults to `true`
+  When installing with a `Trial` license, whether {security-features} are
+  enabled. Defaults to `true`
 
 `BOOTSTRAPPASSWORD`::
 
-  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, the password to
-  used to bootstrap the cluster and persisted as the `bootstrap.password` setting in the keystore.
-  Defaults to a randomized value.
+  When installing with a `Trial` license and {security-features} are enabled,
+  the password to used to bootstrap the cluster and persisted as the
+  `bootstrap.password` setting in the keystore. Defaults to a randomized value.
 
-`SKIPSETTINGPASSWORDS`:: 
+`SKIPSETTINGPASSWORDS`::
 
-  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, whether the
-  installation should skip setting up the built-in users `elastic`, `kibana` and `logstash_system`.
+  When installing with a `Trial` license and {security-features} enabled,
+  whether the installation should skip setting up the built-in users.
   Defaults to `false`
 
 `ELASTICUSERPASSWORD`::
 
-  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, the password
-  to use for the built-in user `elastic`. Defaults to `""`
+  When installing with a `Trial` license and {security-features} are enabled,
+  the password to use for the built-in user `elastic`. Defaults to `""`
 
 `KIBANAUSERPASSWORD`::
 
-  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, the password
-  to use for the built-in user `kibana`. Defaults to `""`
+  When installing with a `Trial` license and {security-features} are enabled,
+  the password to use for the built-in user `kibana`. Defaults to `""`
 
 `LOGSTASHSYSTEMUSERPASSWORD`::
 
-  When installing X-Pack plugin with a `Trial` license and X-Pack Security enabled, the password
-  to use for the built-in user `logstash_system`. Defaults to `""`  
+  When installing with a `Trial` license and {security-features} are enabled,
+  the password to use for the built-in user `logstash_system`. Defaults to `""`
 
-To pass a value, simply append the property name and value using the format `<PROPERTYNAME>="<VALUE>"` to
-the installation command. For example, to use a different installation directory to the default one and to install https://www.elastic.co/products/x-pack[X-Pack]:
+To pass a value, simply append the property name and value using the format
+`<PROPERTYNAME>="<VALUE>"` to the installation command. For example, to use a
+different installation directory to the default one:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------
-start /wait msiexec.exe /i elasticsearch-{version}.msi /qn INSTALLDIR="C:\Custom Install Directory" PLUGINS="x-pack"
+start /wait msiexec.exe /i elasticsearch-{version}.msi /qn INSTALLDIR="C:\Custom Install Directory\{version}" 
 --------------------------------------------
 
 Consult the https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=vs.85).aspx[Windows Installer SDK Command-Line Options]
-for additional rules related to values containing quotation marks. 
+for additional rules related to values containing quotation marks.
+
+ifdef::include-xpack[]
+[[msi-installer-enable-indices]]
+==== Enable automatic creation of {xpack} indices
+
+
+The {stack} features try to automatically create a number of indices within {es}.
+include::xpack-indices.asciidoc[]
+
+endif::include-xpack[]
 
 [[msi-installer-command-line-running]]
-==== Running Elasticsearch from the command line
-
-Once installed, Elasticsearch can be started from the command line, if not installed as a service
-and configured to start when installation completes, as follows:
-
-["source","sh",subs="attributes,callouts"]
---------------------------------------------
-.\bin\elasticsearch.exe
---------------------------------------------
-
-The command line terminal will display output similar to the following:
-
-[[msi-installer-elasticsearch-exe]]
-image::images/msi_installer/elasticsearch_exe.png[]
-
-By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT` in addition
-to the `<cluster name>.log` file within `LOGSDIRECTORY`, and can be stopped by pressing `Ctrl-C`.
+include::msi-windows-start.asciidoc[]
 
 [[msi-installer-command-line-configuration]]
 ==== Configuring Elasticsearch on the command line
 
 Elasticsearch loads its configuration from the `%ES_PATH_CONF%\elasticsearch.yml`
-file by default.  The format of this config file is explained in
+file by default. The format of this config file is explained in
 <<settings>>.
 
 Any settings that can be specified in the config file can also be specified on
@@ -374,10 +375,10 @@ include::check-running.asciidoc[]
 Elasticsearch can be installed as a service to run in the background or start
 automatically at boot time without any user interaction. This can be achieved upon installation
 using the following command line options
- 
-* `INSTALLASSERVICE=true` 
-* `STARTAFTERINSTALL=true` 
-* `STARTWHENWINDOWSSTARTS=true` 
+
+* `INSTALLASSERVICE=true`
+* `STARTAFTERINSTALL=true`
+* `STARTWHENWINDOWSSTARTS=true`
 
 Once installed, Elasticsearch will appear within the Services control panel:
 
@@ -398,32 +399,33 @@ with PowerShell:
 
 [source,powershell]
 --------------------------------------------
-Get-Service Elasticsearch | Stop-Service | Start-Service
+Get-Service Elasticsearch | Stop-Service
+Get-Service Elasticsearch | Start-Service
 --------------------------------------------
 
-Changes can be made to jvm.options and elasticsearch.yml configuration files to configure the 
-service after installation. Most changes (like JVM settings) will require a restart of the 
+Changes can be made to `jvm.options` and `elasticsearch.yml` configuration files to configure the
+service after installation. Most changes (like JVM settings) will require a restart of the
 service in order to take effect.
 
 [[upgrade-msi-gui]]
 ==== Upgrade using the graphical user interface (GUI)
 
-The `.msi` package supports upgrading an installed version of Elasticsearch to a newer 
-version of Elasticsearch. The upgrade process through the GUI handles upgrading all 
+The `.msi` package supports upgrading an installed version of Elasticsearch to a newer
+version. The upgrade process through the GUI handles upgrading all
 installed plugins as well as retaining both your data and configuration.
 
-Downloading and clicking on a newer version of the `.msi` package will launch the GUI wizard. 
-The first step will list the read only properties from the previous installation:
+Downloading and double-clicking on a newer version of the `.msi` package will launch the GUI wizard.
+The first step will list the read-only properties from the previous installation:
 
 [[msi-installer-upgrade-notice]]
 image::images/msi_installer/msi_installer_upgrade_notice.png[]
 
-The following configuration step allows certain configuration options to be changed:
+The next step allows certain configuration options to be changed:
 
 [[msi-installer-upgrade-configuration]]
 image::images/msi_installer/msi_installer_upgrade_configuration.png[]
 
-Finally, the plugins step allows currently installed plugins to be upgraded or removed, and 
+Finally, the plugins step allows currently installed plugins to be upgraded or removed, and
 for plugins not currently installed, to be downloaded and installed:
 
 [[msi-installer-upgrade-plugins]]
@@ -432,25 +434,25 @@ image::images/msi_installer/msi_installer_upgrade_plugins.png[]
 [[upgrade-msi-command-line]]
 ==== Upgrade using the command line
 
-The `.msi` can also upgrade Elasticsearch using the command line. 
+The `.msi` can also upgrade Elasticsearch using the command line.
 
 [IMPORTANT]
 ===========================================
 A command line upgrade requires passing the **same** command line properties as
-used at first install time; the Windows Installer does not remember these properties. 
+used at first install time; the Windows Installer does not remember these properties.
 
-For example, if you originally installed with the command line options `PLUGINS="x-pack"` and
+For example, if you originally installed with the command line options `PLUGINS="ingest-geoip"` and
 `LOCKMEMORY="true"`, then you must pass these same values when performing an
 upgrade from the command line.
 
-The **exception** to this is `INSTALLDIR` (if originally specified), which must be a different directory to the 
-current installation. 
+The **exception** to this is the `INSTALLDIR` parameter (if originally specified), which must be a different directory to the
+current installation.
 If setting `INSTALLDIR`, the final directory in the path **must** be the version of Elasticsearch e.g.
 
 ++C:\Program Files\Elastic\Elasticsearch{backslash}{version}++
 ===========================================
 
-The simplest upgrade, assuming Elasticsearch was installed using all defaults, 
+The simplest upgrade, assuming Elasticsearch was installed using all defaults,
 is achieved by first navigating to the download directory, then running:
 
 ["source","sh",subs="attributes,callouts"]
@@ -471,9 +473,8 @@ start /wait msiexec.exe /i elasticsearch-{version}.msi /qn /l upgrade.log
 
 The `.msi` package handles uninstallation of all directories and files added as part of installation.
 
-WARNING: Uninstallation will remove **all** directories and their contents created as part of 
-installation, **including data within the data directory**. If you wish to retain your data upon
-uninstallation, it is recommended that you make a copy of the data directory before uninstallation.
+WARNING: Uninstallation will remove **all** contents created as part of
+installation, **except for data, config or logs directories**. It is recommended that you make a copy of your data directory before upgrading or consider using the snapshot API.
 
 MSI installer packages do not provide a GUI for uninstallation. An installed program can be uninstalled
 by pressing the Windows key and typing `add or remove programs` to open the system settings.

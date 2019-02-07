@@ -20,15 +20,19 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -41,7 +45,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
+public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements ToXContentFragment {
 
     private final String alias;
 
@@ -53,7 +57,10 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
 
     private final Set<String> searchRoutingValues;
 
-    private AliasMetaData(String alias, CompressedXContent filter, String indexRouting, String searchRouting) {
+    @Nullable
+    private final Boolean writeIndex;
+
+    private AliasMetaData(String alias, CompressedXContent filter, String indexRouting, String searchRouting, Boolean writeIndex) {
         this.alias = alias;
         this.filter = filter;
         this.indexRouting = indexRouting;
@@ -63,10 +70,11 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
         } else {
             searchRoutingValues = emptySet();
         }
+        this.writeIndex = writeIndex;
     }
 
     private AliasMetaData(AliasMetaData aliasMetaData, String alias) {
-        this(alias, aliasMetaData.filter(), aliasMetaData.indexRouting(), aliasMetaData.searchRouting());
+        this(alias, aliasMetaData.filter(), aliasMetaData.indexRouting(), aliasMetaData.searchRouting(), aliasMetaData.writeIndex());
     }
 
     public String alias() {
@@ -109,6 +117,10 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
         return searchRoutingValues;
     }
 
+    public Boolean writeIndex() {
+        return writeIndex;
+    }
+
     public static Builder builder(String alias) {
         return new Builder(alias);
     }
@@ -136,6 +148,8 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
         if (indexRouting != null ? !indexRouting.equals(that.indexRouting) : that.indexRouting != null) return false;
         if (searchRouting != null ? !searchRouting.equals(that.searchRouting) : that.searchRouting != null)
             return false;
+        if (writeIndex != null ? writeIndex != that.writeIndex : that.writeIndex != null)
+            return false;
 
         return true;
     }
@@ -146,6 +160,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
         result = 31 * result + (filter != null ? filter.hashCode() : 0);
         result = 31 * result + (indexRouting != null ? indexRouting.hashCode() : 0);
         result = 31 * result + (searchRouting != null ? searchRouting.hashCode() : 0);
+        result = 31 * result + (writeIndex != null ? writeIndex.hashCode() : 0);
         return result;
     }
 
@@ -171,6 +186,9 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
             out.writeBoolean(false);
         }
 
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeOptionalBoolean(writeIndex());
+        }
     }
 
     public AliasMetaData(StreamInput in) throws IOException {
@@ -192,10 +210,26 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
             searchRouting = null;
             searchRoutingValues = emptySet();
         }
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            writeIndex = in.readOptionalBoolean();
+        } else {
+            writeIndex = null;
+        }
     }
 
     public static Diff<AliasMetaData> readDiffFrom(StreamInput in) throws IOException {
         return readDiffFrom(AliasMetaData::new, in);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        AliasMetaData.Builder.toXContent(this, builder, params);
+        return builder;
     }
 
     public static class Builder {
@@ -208,16 +242,12 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
 
         private String searchRouting;
 
+        @Nullable
+        private Boolean writeIndex;
+
 
         public Builder(String alias) {
             this.alias = alias;
-        }
-
-        public Builder(AliasMetaData aliasMetaData) {
-            this(aliasMetaData.alias());
-            filter = aliasMetaData.filter();
-            indexRouting = aliasMetaData.indexRouting();
-            searchRouting = aliasMetaData.searchRouting();
         }
 
         public String alias() {
@@ -244,16 +274,8 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
             }
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder().map(filter);
-                this.filter = new CompressedXContent(builder.bytes());
+                this.filter = new CompressedXContent(BytesReference.bytes(builder));
                 return this;
-            } catch (IOException e) {
-                throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
-            }
-        }
-
-        public Builder filter(XContentBuilder filterBuilder) {
-            try {
-                return filter(filterBuilder.string());
             } catch (IOException e) {
                 throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
             }
@@ -275,8 +297,13 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
             return this;
         }
 
+        public Builder writeIndex(@Nullable Boolean writeIndex) {
+            this.writeIndex = writeIndex;
+            return this;
+        }
+
         public AliasMetaData build() {
-            return new AliasMetaData(alias, filter, indexRouting, searchRouting);
+            return new AliasMetaData(alias, filter, indexRouting, searchRouting, writeIndex);
         }
 
         public static void toXContent(AliasMetaData aliasMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -298,6 +325,10 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                 builder.field("search_routing", aliasMetaData.searchRouting());
             }
 
+            if (aliasMetaData.writeIndex() != null) {
+                builder.field("is_write_index", aliasMetaData.writeIndex());
+            }
+
             builder.endObject();
         }
 
@@ -317,6 +348,8 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                     if ("filter".equals(currentFieldName)) {
                         Map<String, Object> filter = parser.mapOrdered();
                         builder.filter(filter);
+                    } else {
+                        parser.skipChildren();
                     }
                 } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                     if ("filter".equals(currentFieldName)) {
@@ -330,10 +363,15 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                     } else if ("search_routing".equals(currentFieldName) || "searchRouting".equals(currentFieldName)) {
                         builder.searchRouting(parser.text());
                     }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    parser.skipChildren();
+                } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                    if ("is_write_index".equals(currentFieldName)) {
+                        builder.writeIndex(parser.booleanValue());
+                    }
                 }
             }
             return builder.build();
         }
     }
-
 }

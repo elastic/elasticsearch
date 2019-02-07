@@ -23,7 +23,7 @@ import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Rectangle;
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class EnvelopeBuilder extends ShapeBuilder<Rectangle, EnvelopeBuilder> {
+public class EnvelopeBuilder extends ShapeBuilder<Rectangle, org.elasticsearch.geo.geometry.Rectangle, EnvelopeBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE;
 
@@ -45,6 +45,9 @@ public class EnvelopeBuilder extends ShapeBuilder<Rectangle, EnvelopeBuilder> {
     public EnvelopeBuilder(Coordinate topLeft, Coordinate bottomRight) {
         Objects.requireNonNull(topLeft, "topLeft of envelope cannot be null");
         Objects.requireNonNull(bottomRight, "bottomRight of envelope cannot be null");
+        if (Double.isNaN(topLeft.z) != Double.isNaN(bottomRight.z)) {
+            throw new IllegalArgumentException("expected same number of dimensions for topLeft and bottomRight");
+        }
         this.topLeft = topLeft;
         this.bottomRight = bottomRight;
     }
@@ -105,13 +108,23 @@ public class EnvelopeBuilder extends ShapeBuilder<Rectangle, EnvelopeBuilder> {
     }
 
     @Override
-    public Rectangle build() {
+    public Rectangle buildS4J() {
         return SPATIAL_CONTEXT.makeRectangle(topLeft.x, bottomRight.x, bottomRight.y, topLeft.y);
+    }
+
+    @Override
+    public org.elasticsearch.geo.geometry.Rectangle buildGeometry() {
+        return new org.elasticsearch.geo.geometry.Rectangle(bottomRight.y, topLeft.y, topLeft.x, bottomRight.x);
     }
 
     @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    @Override
+    public int numDimensions() {
+        return Double.isNaN(topLeft.z) ? 2 : 3;
     }
 
     @Override

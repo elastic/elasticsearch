@@ -29,7 +29,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
@@ -50,8 +49,6 @@ public final class HttpTransportSettings {
         new Setting<>("http.cors.allow-headers", "X-Requested-With,Content-Type,Content-Length", (value) -> value, Property.NodeScope);
     public static final Setting<Boolean> SETTING_CORS_ALLOW_CREDENTIALS =
         Setting.boolSetting("http.cors.allow-credentials", false, Property.NodeScope);
-    public static final Setting<Boolean> SETTING_PIPELINING =
-        Setting.boolSetting("http.pipelining", true, Property.NodeScope);
     public static final Setting<Integer> SETTING_PIPELINING_MAX_EVENTS =
         Setting.intSetting("http.pipelining.max_events", 10000, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_COMPRESSION =
@@ -83,11 +80,20 @@ public final class HttpTransportSettings {
             return true;
         }, Property.NodeScope, Property.Deprecated);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CONTENT_LENGTH =
-        Setting.byteSizeSetting("http.max_content_length", new ByteSizeValue(100, ByteSizeUnit.MB), Property.NodeScope);
+        Setting.byteSizeSetting(
+                "http.max_content_length",
+                new ByteSizeValue(100, ByteSizeUnit.MB),
+                new ByteSizeValue(0, ByteSizeUnit.BYTES),
+                new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES),
+                Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CHUNK_SIZE =
         Setting.byteSizeSetting("http.max_chunk_size", new ByteSizeValue(8, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_HEADER_SIZE =
         Setting.byteSizeSetting("http.max_header_size", new ByteSizeValue(8, ByteSizeUnit.KB), Property.NodeScope);
+    public static final Setting<Integer> SETTING_HTTP_MAX_WARNING_HEADER_COUNT =
+        Setting.intSetting("http.max_warning_header_count", -1, -1, Property.NodeScope);
+    public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_WARNING_HEADER_SIZE =
+        Setting.byteSizeSetting("http.max_warning_header_size", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_INITIAL_LINE_LENGTH =
         Setting.byteSizeSetting("http.max_initial_line_length", new ByteSizeValue(4, ByteSizeUnit.KB), Property.NodeScope);
     // don't reset cookies by default, since I don't think we really need to
@@ -99,8 +105,13 @@ public final class HttpTransportSettings {
     public static final Setting<TimeValue> SETTING_HTTP_READ_TIMEOUT =
         Setting.timeSetting("http.read_timeout", new TimeValue(0), new TimeValue(0), Property.NodeScope);
 
-    public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =
+    // Tcp socket settings
+
+    // TODO: Deprecate in 7.0
+    public static final Setting<Boolean> OLD_SETTING_HTTP_TCP_NO_DELAY =
         boolSetting("http.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);
+    public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =
+        boolSetting("http.tcp.no_delay", OLD_SETTING_HTTP_TCP_NO_DELAY, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_KEEP_ALIVE =
         boolSetting("http.tcp.keep_alive", NetworkService.TCP_KEEP_ALIVE, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_REUSE_ADDRESS =

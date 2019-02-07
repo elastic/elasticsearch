@@ -19,24 +19,29 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RestPutIndexTemplateAction.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+            LogManager.getLogger(RestPutIndexTemplateAction.class));
 
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {
         super(settings);
@@ -53,7 +58,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
         if (request.hasParam("template")) {
-            DEPRECATION_LOGGER.deprecated("Deprecated parameter[template] used, replaced by [index_patterns]");
+            deprecationLogger.deprecated("Deprecated parameter[template] used, replaced by [index_patterns]");
             putRequest.patterns(Collections.singletonList(request.param("template")));
         } else {
             putRequest.patterns(Arrays.asList(request.paramAsStringArray("index_patterns", Strings.EMPTY_ARRAY)));
@@ -62,8 +67,23 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
-        putRequest.source(request.requiredContent(), request.getXContentType());
-        return channel -> client.admin().indices().putTemplate(putRequest, new AcknowledgedRestListener<>(channel));
+
+        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        Map<String, Object> sourceAsMap = prepareRequestSource(request, includeTypeName);
+        putRequest.source(sourceAsMap);
+
+        return channel -> client.admin().indices().putTemplate(putRequest, new RestToXContentListener<>(channel));
     }
 
+    Map<String, Object> prepareRequestSource(RestRequest request, boolean includeTypeName) {
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
+            request.getXContentType()).v2();
+        if (includeTypeName == false && sourceAsMap.containsKey("mappings")) {
+            Map<String, Object> newSourceAsMap = new HashMap<>(sourceAsMap);
+            newSourceAsMap.put("mappings", Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, sourceAsMap.get("mappings")));
+            return newSourceAsMap;
+        } else {
+            return sourceAsMap;
+        }
+    }
 }

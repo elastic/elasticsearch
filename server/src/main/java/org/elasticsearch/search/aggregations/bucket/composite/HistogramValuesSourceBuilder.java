@@ -19,19 +19,17 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -108,27 +106,16 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     }
 
     @Override
-    protected CompositeValuesSourceConfig innerBuild(SearchContext context,
-                                                     ValuesSourceConfig<?> config,
-                                                     int pos,
-                                                     int numPos,
-                                                     SortField sortField) throws IOException {
+    protected CompositeValuesSourceConfig innerBuild(SearchContext context, ValuesSourceConfig<?> config) throws IOException {
         ValuesSource orig = config.toValuesSource(context.getQueryShardContext());
         if (orig == null) {
             orig = ValuesSource.Numeric.EMPTY;
         }
         if (orig instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;
-            HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
-            boolean canEarlyTerminate = false;
-            final FieldContext fieldContext = config.fieldContext();
-            if (sortField != null &&
-                    pos == numPos-1 &&
-                    fieldContext != null)  {
-                canEarlyTerminate = checkCanEarlyTerminate(context.searcher().getIndexReader(),
-                    fieldContext.field(), order() == SortOrder.ASC ? false : true, sortField);
-            }
-            return new CompositeValuesSourceConfig(name, vs, config.format(), order(), canEarlyTerminate);
+            final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
+            final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
+            return new CompositeValuesSourceConfig(name, fieldType, vs, config.format(), order(), missingBucket());
         } else {
             throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
         }

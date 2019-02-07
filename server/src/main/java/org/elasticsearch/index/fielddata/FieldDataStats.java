@@ -99,7 +99,7 @@ public class FieldDataStats implements Streamable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FIELDDATA);
-        builder.byteSizeField(MEMORY_SIZE_IN_BYTES, MEMORY_SIZE, memorySize);
+        builder.humanReadableField(MEMORY_SIZE_IN_BYTES, MEMORY_SIZE, getMemorySize());
         builder.field(EVICTIONS, getEvictions());
         if (fields != null) {
             fields.toXContent(builder, FIELDS, MEMORY_SIZE_IN_BYTES, MEMORY_SIZE);

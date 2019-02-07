@@ -116,7 +116,7 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
             throw new IllegalArgumentException("value cannot be null");
         }
         this.fieldName = fieldName;
-        this.value = convertToBytesRefIfString(value);
+        this.value = maybeConvertToBytesRef(value);
     }
 
     /**
@@ -144,14 +144,14 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
      *  If necessary, converts internal {@link BytesRef} representation back to string.
      */
     public Object value() {
-        return convertToStringIfBytesRef(this.value);
+        return maybeConvertToString(this.value);
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         builder.startObject(fieldName);
-        builder.field(VALUE_FIELD.getPreferredName(), convertToStringIfBytesRef(this.value));
+        builder.field(VALUE_FIELD.getPreferredName(), maybeConvertToString(this.value));
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
@@ -163,7 +163,7 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
     }
 
     @Override
-    protected final boolean doEquals(BaseTermQueryBuilder other) {
+    protected final boolean doEquals(QB other) {
         return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(value, other.value);
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -256,6 +257,39 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(1, values.nextValue());
+        }
+    }
+
+    public void testTypeFieldDeprecation() {
+        IndexService indexService = createIndex("index", Settings.EMPTY, "type");
+        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+
+            ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
+                context, null, TypeFieldMapper.NAME, null, null, null, null);
+            assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
+        }
+    }
+
+    public void testFieldAlias() throws Exception {
+        IndexService indexService = createIndex("index", Settings.EMPTY, "type",
+            "field", "type=keyword", "alias", "type=alias,path=field");
+        client().prepareIndex("index", "type", "1")
+            .setSource("field", "value")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+            ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
+                context, ValueType.STRING, "alias", null, null, null, null);
+            ValuesSource.Bytes valuesSource = config.toValuesSource(context);
+
+            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(new BytesRef("value"), values.nextValue());
         }
     }
 }

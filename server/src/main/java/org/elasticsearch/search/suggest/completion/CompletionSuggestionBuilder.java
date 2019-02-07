@@ -44,6 +44,7 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,10 +57,13 @@ import java.util.Objects;
  * indexing.
  */
 public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
+
     private static final XContentType CONTEXT_BYTES_XCONTENT_TYPE = XContentType.JSON;
-    static final String SUGGESTION_NAME = "completion";
+
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
     static final ParseField SKIP_DUPLICATES_FIELD = new ParseField("skip_duplicates");
+
+    public static final String SUGGESTION_NAME = "completion";
 
     /**
      * {
@@ -94,7 +98,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             // Copy the current structure. We will parse, once the mapping is provided
             XContentBuilder builder = XContentFactory.contentBuilder(CONTEXT_BYTES_XCONTENT_TYPE);
             builder.copyCurrentStructure(p);
-            v.contextBytes = builder.bytes();
+            v.contextBytes = BytesReference.bytes(builder);
             p.skipChildren();
         }, CONTEXTS_FIELD, ObjectParser.ValueType.OBJECT); // context is deprecated
         PARSER.declareBoolean(CompletionSuggestionBuilder::skipDuplicates, SKIP_DUPLICATES_FIELD);
@@ -218,7 +222,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     private CompletionSuggestionBuilder contexts(XContentBuilder contextBuilder) {
-        contextBytes = contextBuilder.bytes();
+        contextBytes = BytesReference.bytes(contextBuilder);
         return this;
     }
 
@@ -230,7 +234,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     /**
-     * Should duplicates be filtered or not. Defaults to <tt>false</tt>.
+     * Should duplicates be filtered or not. Defaults to {@code false}.
      */
     public CompletionSuggestionBuilder skipDuplicates(boolean skipDuplicates) {
         this.skipDuplicates = skipDuplicates;
@@ -262,7 +266,9 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             builder.field(SKIP_DUPLICATES_FIELD.getPreferredName(), skipDuplicates);
         }
         if (contextBytes != null) {
-            builder.rawField(CONTEXTS_FIELD.getPreferredName(), contextBytes);
+            try (InputStream stream = contextBytes.streamInput()) {
+                builder.rawField(CONTEXTS_FIELD.getPreferredName(), stream);
+            }
         }
         return builder;
     }

@@ -32,27 +32,24 @@ import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -76,8 +73,8 @@ import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.bulk.BackoffPolicy.exponentialBackoff;
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
+import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
@@ -106,7 +103,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final ActionListener<BulkByScrollResponse> listener;
     private final Retry bulkRetry;
     private final ScrollableHitSource scrollSource;
-    private final Settings settings;
 
     /**
      * This BiFunction is used to apply various changes depending of the Reindex action and  the search hit,
@@ -116,14 +112,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> scriptApplier;
 
     public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                                           ThreadPool threadPool, Request mainRequest, ScriptService scriptService,
-                                           ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
-        this(task, logger, client, threadPool, mainRequest, scriptService, clusterState, listener, client.settings());
-    }
-
-    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
             ThreadPool threadPool, Request mainRequest, ScriptService scriptService, ClusterState clusterState,
-            ActionListener<BulkByScrollResponse> listener, Settings settings) {
+            ActionListener<BulkByScrollResponse> listener) {
 
         this.task = task;
         if (!task.isWorker()) {
@@ -133,14 +123,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
         this.logger = logger;
         this.client = client;
-        this.settings = settings;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
         this.clusterState = clusterState;
         this.mainRequest = mainRequest;
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
-        bulkRetry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
+        bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         scrollSource = buildScrollableResultSource(backoffPolicy);
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
         /*
@@ -181,7 +170,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * Copies the metadata from a hit to the request.
      */
     protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
-        request.setParent(doc.getParent());
         copyRouting(request, doc.getRouting());
         return request;
     }
@@ -360,7 +348,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             public void onFailure(Exception e) {
                 finishHim(e);
             }
-        }, settings);
+        });
     }
 
     /**
@@ -550,10 +538,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
         void setVersionType(VersionType versionType);
 
-        void setParent(String parent);
-
-        String getParent();
-
         void setRouting(String routing);
 
         String getRouting();
@@ -619,16 +603,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         @Override
         public void setVersionType(VersionType versionType) {
             request.versionType(versionType);
-        }
-
-        @Override
-        public void setParent(String parent) {
-            request.parent(parent);
-        }
-
-        @Override
-        public String getParent() {
-            return request.parent();
         }
 
         @Override
@@ -721,16 +695,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
 
         @Override
-        public void setParent(String parent) {
-            request.parent(parent);
-        }
-
-        @Override
-        public String getParent() {
-            return request.parent();
-        }
-
-        @Override
         public void setRouting(String routing) {
             request.routing(routing);
         }
@@ -773,9 +737,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         private final Script script;
         private final Map<String, Object> params;
 
-        private ExecutableScript executable;
-        private Map<String, Object> context;
-
         public ScriptApplier(WorkerBulkByScrollTaskState taskWorker,
                              ScriptService scriptService,
                              Script script,
@@ -792,23 +753,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             if (script == null) {
                 return request;
             }
-            if (executable == null) {
-                ExecutableScript.Factory factory = scriptService.compile(script, ExecutableScript.UPDATE_CONTEXT);
-                executable = factory.newInstance(params);
-            }
-            if (context == null) {
-                context = new HashMap<>();
-            } else {
-                context.clear();
-            }
 
+            Map<String, Object> context = new HashMap<>();
             context.put(IndexFieldMapper.NAME, doc.getIndex());
             context.put(TypeFieldMapper.NAME, doc.getType());
             context.put(IdFieldMapper.NAME, doc.getId());
             Long oldVersion = doc.getVersion();
             context.put(VersionFieldMapper.NAME, oldVersion);
-            String oldParent = doc.getParent();
-            context.put(ParentFieldMapper.NAME, oldParent);
             String oldRouting = doc.getRouting();
             context.put(RoutingFieldMapper.NAME, oldRouting);
             context.put(SourceFieldMapper.NAME, request.getSource());
@@ -816,8 +767,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             OpType oldOpType = OpType.INDEX;
             context.put("op", oldOpType.toString());
 
-            executable.setNextVar("ctx", context);
-            executable.run();
+            UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
+            UpdateScript updateScript = factory.newInstance(params, context);
+            updateScript.execute();
 
             String newOp = (String) context.remove("op");
             if (newOp == null) {
@@ -845,10 +797,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             newValue = context.remove(VersionFieldMapper.NAME);
             if (false == Objects.equals(oldVersion, newValue)) {
                 scriptChangedVersion(request, newValue);
-            }
-            newValue = context.remove(ParentFieldMapper.NAME);
-            if (false == Objects.equals(oldParent, newValue)) {
-                scriptChangedParent(request, newValue);
             }
             /*
              * Its important that routing comes after parent in case you want to
@@ -879,7 +827,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getType(), request.getId()));
                 delete.setVersion(request.getVersion());
                 delete.setVersionType(VersionType.INTERNAL);
-                delete.setParent(request.getParent());
                 delete.setRouting(request.getRouting());
                 return delete;
             default:
@@ -896,8 +843,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         protected abstract void scriptChangedVersion(RequestWrapper<?> request, Object to);
 
         protected abstract void scriptChangedRouting(RequestWrapper<?> request, Object to);
-
-        protected abstract void scriptChangedParent(RequestWrapper<?> request, Object to);
 
     }
 

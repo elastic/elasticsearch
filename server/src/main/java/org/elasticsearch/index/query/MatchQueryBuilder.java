@@ -171,7 +171,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this.value;
     }
 
-    /** Sets the operator to use when using a boolean query. Defaults to <tt>OR</tt>. */
+    /** Sets the operator to use when using a boolean query. Defaults to {@code OR}. */
     public MatchQueryBuilder operator(Operator operator) {
         if (operator == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires operator to be non-null");
@@ -194,7 +194,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this;
     }
 
-    /** Get the analyzer to use, if previously set, otherwise <tt>null</tt> */
+    /** Get the analyzer to use, if previously set, otherwise {@code null} */
     public String analyzer() {
         return this.analyzer;
     }
@@ -258,7 +258,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this;
     }
 
-    /** Gets the optional cutoff value, can be <tt>null</tt> if not set previously */
+    /** Gets the optional cutoff value, can be {@code null} if not set previously */
     public Float cutoffFrequency() {
         return this.cutoffFrequency;
     }
@@ -307,15 +307,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     /**
      * Sets whether format based failures will be ignored.
-     * @deprecated use #lenient() instead
-     */
-    @Deprecated
-    public MatchQueryBuilder setLenient(boolean lenient) {
-        return lenient(lenient);
-    }
-
-    /**
-     * Sets whether format based failures will be ignored.
      */
     public MatchQueryBuilder lenient(boolean lenient) {
         this.lenient = lenient;
@@ -357,7 +348,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     /**
      * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Defaults to <tt>true</tt>.
+     * Defaults to {@code true}.
      */
     public boolean autoGenerateSynonymsPhraseQuery() {
         return autoGenerateSynonymsPhraseQuery;
@@ -507,14 +498,14 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                         } else if (CUTOFF_FREQUENCY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             cutOffFrequency = parser.floatValue();
                         } else if (ZERO_TERMS_QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            String zeroTermsDocs = parser.text();
-                            if ("none".equalsIgnoreCase(zeroTermsDocs)) {
+                            String zeroTermsValue = parser.text();
+                            if ("none".equalsIgnoreCase(zeroTermsValue)) {
                                 zeroTermsQuery = MatchQuery.ZeroTermsQuery.NONE;
-                            } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
+                            } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
                                 zeroTermsQuery = MatchQuery.ZeroTermsQuery.ALL;
                             } else {
                                 throw new ParsingException(parser.getTokenLocation(),
-                                        "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
+                                        "Unsupported zero_terms_query value [" + zeroTermsValue + "]");
                             }
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();

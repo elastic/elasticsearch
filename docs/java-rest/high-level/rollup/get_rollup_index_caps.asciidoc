@@ -1,0 +1,84 @@
+--
+:api: rollup-get-rollup-index-caps
+:request: GetRollupIndexCapsRequest
+:response: GetRollupIndexCapsResponse
+--
+
+[id="{upid}-x-pack-{api}"]
+=== Get Rollup Index Capabilities API
+
+The Get Rollup Index Capabilities API allows the user to determine if a concrete index or index pattern contains
+stored rollup jobs and data.  If it contains data stored from rollup jobs, the capabilities of those jobs
+are returned. The API accepts a `GetRollupIndexCapsRequest` object as a request and returns a `GetRollupIndexCapsResponse`.
+
+[id="{upid}-x-pack-{api}-request"]
+==== Get Rollup Index Capabilities Request
+
+A +{request}+ requires a single parameter: the target index or index pattern (e.g. `rollup-foo`):
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[x-pack-{api}-request]
+--------------------------------------------------
+
+[id="{upid}-x-pack-{api}-execution"]
+==== Execution
+
+The Get Rollup Index Capabilities API can be executed through a `RollupClient`
+instance. Such instance can be retrieved from a `RestHighLevelClient`
+using the `rollup()` method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[x-pack-{api}-execute]
+--------------------------------------------------
+
+[id="{upid}-x-pack-{api}-response"]
+==== Response
+
+The returned +{response}+ holds lists and maps of values which correspond to the capabilities
+of the rollup index/index pattern (what jobs are stored in the index, their capabilities, what
+aggregations are available, etc).  Because multiple jobs can be stored in one index, the
+response may include several jobs with different configurations.
+
+The capabilities are essentially the same as the original job configuration, just presented in a different
+manner. For example, if we had created a job with the following config:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[x-pack-{api}-setup]
+--------------------------------------------------
+
+The +{response}+ object would contain the same information, laid out in a slightly different manner:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[x-pack-{api}-response]
+--------------------------------------------------
+
+[id="{upid}-x-pack-{api}-async"]
+==== Asynchronous Execution
+
+This request can be executed asynchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[x-pack-{api}-execute-async]
+--------------------------------------------------
+<1> The +{request}+ to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for +{response}+ looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[x-pack-{api}-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument

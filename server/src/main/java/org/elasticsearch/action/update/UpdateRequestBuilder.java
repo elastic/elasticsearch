@@ -26,20 +26,15 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.script.Script;
 
 import java.util.Map;
 
 public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
         implements WriteRequestBuilder<UpdateRequestBuilder> {
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(RestUpdateAction.class));
 
     public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action) {
         super(client, action, new UpdateRequest());
@@ -74,11 +69,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
-    public UpdateRequestBuilder setParent(String parent) {
-        request.parent(parent);
-        return this;
-    }
-
     /**
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
@@ -89,17 +79,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setScript(Script script) {
         request.script(script);
-        return this;
-    }
-
-    /**
-     * Explicitly specify the fields that will be returned. By default, nothing is returned.
-     * @deprecated Use {@link UpdateRequestBuilder#setFetchSource(String[], String[])} instead
-     */
-    @Deprecated
-    public UpdateRequestBuilder setFields(String... fields) {
-        DEPRECATION_LOGGER.deprecated("Deprecated field [fields] used, expected [_source] instead");
-        request.fields(fields);
         return this;
     }
 
@@ -208,7 +187,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequestBuilder setDoc(Map source) {
+    public UpdateRequestBuilder setDoc(Map<String, Object> source) {
         request.doc(source);
         return this;
     }
@@ -216,7 +195,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequestBuilder setDoc(Map source, XContentType contentType) {
+    public UpdateRequestBuilder setDoc(Map<String, Object> source, XContentType contentType) {
         request.doc(source, contentType);
         return this;
     }
@@ -264,8 +243,8 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
-     * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
-     * is thrown.
+     * Sets the index request to be used if the document does not exists. Otherwise, a
+     * {@link org.elasticsearch.index.engine.DocumentMissingException} is thrown.
      */
     public UpdateRequestBuilder setUpsert(IndexRequest indexRequest) {
         request.upsert(indexRequest);
@@ -283,7 +262,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(Map source) {
+    public UpdateRequestBuilder setUpsert(Map<String, Object> source) {
         request.upsert(source);
         return this;
     }
@@ -291,7 +270,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(Map source, XContentType contentType) {
+    public UpdateRequestBuilder setUpsert(Map<String, Object> source, XContentType contentType) {
         request.upsert(source, contentType);
         return this;
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.cache;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -27,6 +28,7 @@ import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -342,6 +344,37 @@ public class CacheTests extends ESTestCase {
         assertEquals(numberOfEntries, cache.stats().getEvictions());
     }
 
+    public void testComputeIfAbsentDeadlock() throws BrokenBarrierException, InterruptedException {
+        final int numberOfThreads = randomIntBetween(2, 32);
+        final Cache<Integer, String> cache =
+                CacheBuilder.<Integer, String>builder().setExpireAfterAccess(TimeValue.timeValueNanos(1)).build();
+
+        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
+        for (int i = 0; i < numberOfThreads; i++) {
+            final Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int j = 0; j < numberOfEntries; j++) {
+                        try {
+                            cache.computeIfAbsent(0, k -> Integer.toString(k));
+                        } catch (final ExecutionException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            thread.start();
+        }
+
+        // wait for all threads to be ready
+        barrier.await();
+        // wait for all threads to finish
+        barrier.await();
+    }
+
     // randomly promote some entries, step the clock forward, then check that the promoted entries remain and the
     // non-promoted entries were removed
     public void testPromotion() {
@@ -419,6 +452,62 @@ public class CacheTests extends ESTestCase {
             if (rarely()) {
                 cache.invalidate(i);
                 invalidated.add(i);
+            }
+        }
+        assertEquals(notifications, invalidated);
+    }
+
+    // randomly invalidate some cached entries, then check that a lookup for each of those and only those keys is null
+    public void testInvalidateWithValue() {
+        Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+        Set<Integer> keys = new HashSet<>();
+        for (Integer key : cache.keys()) {
+            if (rarely()) {
+                if (randomBoolean()) {
+                    cache.invalidate(key, key.toString());
+                    keys.add(key);
+                } else {
+                    // invalidate with incorrect value
+                    cache.invalidate(key, Integer.toString(key + randomIntBetween(2, 10)));
+                }
+            }
+        }
+        for (int i = 0; i < numberOfEntries; i++) {
+            if (keys.contains(i)) {
+                assertNull(cache.get(i));
+            } else {
+                assertNotNull(cache.get(i));
+            }
+        }
+    }
+
+    // randomly invalidate some cached entries, then check that we receive invalidate notifications for those and only
+    // those entries
+    public void testNotificationOnInvalidateWithValue() {
+        Set<Integer> notifications = new HashSet<>();
+        Cache<Integer, String> cache =
+            CacheBuilder.<Integer, String>builder()
+                .removalListener(notification -> {
+                    assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
+                    notifications.add(notification.getKey());
+                })
+                .build();
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+        Set<Integer> invalidated = new HashSet<>();
+        for (int i = 0; i < numberOfEntries; i++) {
+            if (rarely()) {
+                if (randomBoolean()) {
+                    cache.invalidate(i, Integer.toString(i));
+                    invalidated.add(i);
+                } else {
+                    // invalidate with incorrect value
+                    cache.invalidate(i, Integer.toString(i + randomIntBetween(2, 10)));
+                }
             }
         }
         assertEquals(notifications, invalidated);
@@ -823,5 +912,35 @@ public class CacheTests extends ESTestCase {
 
         cache.refresh();
         assertEquals(500, cache.count());
+    }
+
+    public void testRemoveUsingValuesIterator() {
+        final List<RemovalNotification<Integer, String>> removalNotifications = new ArrayList<>();
+        Cache<Integer, String> cache =
+            CacheBuilder.<Integer, String>builder()
+                .setMaximumWeight(numberOfEntries)
+                .removalListener(removalNotifications::add)
+                .build();
+
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+
+        assertThat(removalNotifications.size(), is(0));
+        final List<String> expectedRemovals = new ArrayList<>();
+        Iterator<String> valueIterator = cache.values().iterator();
+        while (valueIterator.hasNext()) {
+            String value = valueIterator.next();
+            if (randomBoolean()) {
+                valueIterator.remove();
+                expectedRemovals.add(value);
+            }
+        }
+
+        assertEquals(expectedRemovals.size(), removalNotifications.size());
+        for (int i = 0; i < expectedRemovals.size(); i++) {
+            assertEquals(expectedRemovals.get(i), removalNotifications.get(i).getValue());
+            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, removalNotifications.get(i).getRemovalReason());
+        }
     }
 }

@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.cluster;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -55,6 +56,7 @@ import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
  * is done by {@link MasterFaultDetection}.
  */
 public class NodeConnectionsService extends AbstractLifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(NodeConnectionsService.class);
 
     public static final Setting<TimeValue> CLUSTER_NODE_RECONNECT_INTERVAL_SETTING =
             positiveTimeSetting("cluster.nodes.reconnect_interval", TimeValue.timeValueSeconds(10), Property.NodeScope);
@@ -73,7 +75,6 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     @Inject
     public NodeConnectionsService(Settings settings, ThreadPool threadPool, TransportService transportService) {
-        super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.reconnectInterval = NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(settings);
@@ -98,11 +99,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                         // will try again after `cluster.nodes.reconnect_interval` on all nodes but the current master.
                         // On the master, node fault detection will remove these nodes from the cluster as their are not
                         // connected. Note that it is very rare that we end up here on the master.
-                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to connect to {}", node), e);
+                        logger.warn(() -> new ParameterizedMessage("failed to connect to {}", node), e);
                     }
 
                     @Override
-                    protected void doRun() throws Exception {
+                    protected void doRun() {
                         try (Releasable ignored = nodeLocks.acquire(node)) {
                             validateAndConnectIfNeeded(node);
                         }
@@ -137,7 +138,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 try {
                     transportService.disconnectFromNode(node);
                 } catch (Exception e) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to disconnect to node [{}]", node), e);
+                    logger.warn(() -> new ParameterizedMessage("failed to disconnect to node [{}]", node), e);
                 }
             }
         }
@@ -160,9 +161,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 // log every 6th failure
                 if ((nodeFailureCount % 6) == 1) {
                     final int finalNodeFailureCount = nodeFailureCount;
-                    logger.warn(
-                        (Supplier<?>)
-                            () -> new ParameterizedMessage(
+                    logger.warn(() -> new ParameterizedMessage(
                                 "failed to connect to node {} (tried [{}] times)", node, finalNodeFailureCount), e);
                 }
                 nodes.put(node, nodeFailureCount);

@@ -41,6 +41,9 @@ public interface ClusterStateTaskExecutor<T> {
     /**
      * Callback invoked after new cluster state is published. Note that
      * this method is not invoked if the cluster state was not updated.
+     *
+     * Note that this method will be executed using system context.
+     *
      * @param clusterChangedEvent the change event for this cluster state change, containing
      *                            both old and new states
      */
@@ -55,15 +58,7 @@ public interface ClusterStateTaskExecutor<T> {
      * This allows groupd task description but the submitting source.
      */
     default String describeTasks(List<T> tasks) {
-        return tasks.stream().map(T::toString).reduce((s1,s2) -> {
-            if (s1.isEmpty()) {
-                return s2;
-            } else if (s2.isEmpty()) {
-                return s1;
-            } else {
-                return s1 + ", " + s2;
-            }
-        }).orElse("");
+        return String.join(", ", tasks.stream().map(t -> (CharSequence)t.toString()).filter(t -> t.length() > 0)::iterator);
     }
 
     /**

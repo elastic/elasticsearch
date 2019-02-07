@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -56,7 +58,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
- * @see PutMappingResponse
+ * @see AcknowledgedResponse
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable, ToXContentObject {
 
@@ -72,6 +74,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     private String type;
 
     private String source;
+    private String origin = "";
 
     private Index concreteIndex;
 
@@ -182,11 +185,24 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return source(buildFromSimplifiedDef(type, source));
     }
 
+    public String origin() {
+        return origin;
+    }
+
+    public PutMappingRequest origin(String origin) {
+        // reserve "null" for bwc.
+        this.origin = Objects.requireNonNull(origin);
+        return this;
+    }
+
     /**
-     * @param type the mapping type
-     * @param source consisting of field/properties pairs (e.g. "field1",
-     *            "type=string,store=true"). If the number of arguments is not
-     *            divisible by two an {@link IllegalArgumentException} is thrown
+     * @param type
+     *            the mapping type
+     * @param source
+     *            consisting of field/properties pairs (e.g. "field1",
+     *            "type=string,store=true")
+     * @throws IllegalArgumentException
+     *             if the number of the source arguments is not divisible by two
      * @return the mappings definition
      */
     public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
@@ -249,22 +265,17 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * The mapping source definition.
      */
     public PutMappingRequest source(XContentBuilder mappingBuilder) {
-        try {
-            return source(mappingBuilder.string(), mappingBuilder.contentType());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to build json for mapping request", e);
-        }
+        return source(BytesReference.bytes(mappingBuilder), mappingBuilder.contentType());
     }
 
     /**
      * The mapping source definition.
      */
-    @SuppressWarnings("unchecked")
-    public PutMappingRequest source(Map mappingSource) {
+    public PutMappingRequest source(Map<String, ?> mappingSource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return source(builder.string(), XContentType.JSON);
+            return source(BytesReference.bytes(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
@@ -297,14 +308,15 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
         source = in.readString();
-        if (in.getVersion().before(Version.V_5_3_0)) {
-            // we do not know the format from earlier versions so convert if necessary
-            source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
-        }
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readBoolean(); // updateAllTypes
         }
         concreteIndex = in.readOptionalWriteable(Index::new);
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            origin = in.readOptionalString();
+        } else {
+            origin = null;
+        }
     }
 
     @Override
@@ -314,16 +326,21 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(type);
         out.writeString(source);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(true); // updateAllTypes
         }
         out.writeOptionalWriteable(concreteIndex);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeOptionalString(origin);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (source != null) {
-            builder.rawValue(new BytesArray(source), XContentType.JSON);
+            try (InputStream stream = new BytesArray(source).streamInput()) {
+                builder.rawValue(stream, XContentType.JSON);
+            }
         } else {
             builder.startObject().endObject();
         }

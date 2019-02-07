@@ -157,16 +157,16 @@ GET twitter/tweet/_search
 ----
 // NOTCONSOLE
 
-You could achieve the same thing by adding a custom `type` field as follows:
+You can achieve the same thing by adding a custom `type` field as follows:
 
 [source,js]
 ----
-PUT twitter
+PUT twitter?include_type_name=true <1>
 {
   "mappings": {
     "_doc": {
       "properties": {
-        "type": { "type": "keyword" }, <1>
+        "type": { "type": "keyword" }, <2>
         "name": { "type": "text" },
         "user_name": { "type": "keyword" },
         "email": { "type": "keyword" },
@@ -204,7 +204,7 @@ GET twitter/_search
       },
       "filter": {
         "match": {
-          "type": "tweet" <1>
+          "type": "tweet" <2>
         }
       }
     }
@@ -212,7 +212,9 @@ GET twitter/_search
 }
 ----
 // NOTCONSOLE
-<1> The explicit `type` field takes the place of the implicit `_type` field.
+<1> Use `include_type_name=true` in case need to use the "old" syntax including the "_doc" object like
+in this example 
+<2> The explicit `type` field takes the place of the implicit `_type` field.
 
 [float]
 ==== Parent/Child without mapping types
@@ -258,15 +260,17 @@ Elasticsearch 6.x::
 
 Elasticsearch 7.x::
 
-* The `type` parameter in URLs are optional.  For instance, indexing
+* The `type` parameter in URLs are deprecated.  For instance, indexing
   a document no longer requires a document `type`.  The new index APIs
   are `PUT {index}/_doc/{id}` in case of explicit ids and `POST {index}/_doc`
   for auto-generated ids.
 
-* The `GET|PUT _mapping` APIs support a query string parameter
-  (`include_type_name`) which indicates whether the body should include
-  a layer for the type name. It defaults to `true`. 7.x indices which
-  don't have an explicit type will use the dummy type name `_doc`.
+* The index creation, `GET|PUT _mapping` and document APIs support a query
+  string parameter (`include_type_name`) which indicates whether requests and
+  responses should include a type name. It defaults to `true`.
+  7.x indices which don't have an explicit type will use the dummy type name
+  `_doc`. Not setting `include_type_name=false` will result in a deprecation
+  warning.
 
 * The `_default_` mapping type is removed.
 
@@ -274,7 +278,8 @@ Elasticsearch 8.x::
 
 * The `type` parameter is no longer supported in URLs.
 
-* The `include_type_name` parameter defaults to `false`.
+* The `include_type_name` parameter is deprecated, default to `false` and fails
+  the request when set to `true`.
 
 Elasticsearch 9.x::
 
@@ -421,3 +426,111 @@ POST _reindex
 ----
 // NOTCONSOLE
 
+[float]
+=== Use `include_type_name=false` to prepare for upgrade to 8.0
+
+Index creation and mapping APIs support a new `include_type_name` url parameter 
+starting with version 6.7. It will default to `true` in version 6.7, default to
+`false` in version 7.0 and will be removed in version 8.0. When set to `true`, 
+this parameter enables the pre-7.0 behavior of using type names in the API.
+
+See some examples of interactions with Elasticsearch with this option turned off:
+
+[float]
+==== Index creation
+
+[source,js]
+--------------------------------------------------
+PUT index?include_type_name=false
+{
+  "mappings": {
+    "properties": { <1>
+      "foo": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+<1> Mappings are included directly under the `mappings` key, without a type name.
+
+[float]
+==== PUT and GET mappings
+
+[source,js]
+--------------------------------------------------
+PUT index
+
+PUT index/_mappings?include_type_name=false
+{
+  "properties": { <1>
+    "foo": {
+      "type": "keyword"
+    }
+  }
+}
+
+GET index/_mappings?include_type_name=false
+--------------------------------------------------
+// CONSOLE
+<1> Mappings are included directly under the `mappings` key, without a type name.
+
+
+The above call returns
+
+[source,js]
+--------------------------------------------------
+{
+  "index": {
+    "mappings": {
+      "properties": { <1>
+        "foo": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+<1> Mappings are included directly under the `mappings` key, without a type name.
+
+[float]
+==== Document APIs
+
+Index APIs must be called with the `{index}/_doc` path for automatic generation of
+the `_id` and `{index}/_doc/{id}` with explicit ids.
+
+[source,js]
+--------------------------------------------------
+PUT index/_doc/1
+{
+  "foo": "bar"
+}
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "index", <1>
+  "_id": "1",
+  "_type": "_doc",
+  "_version": 1,
+  "result": "created",
+  "_shards": {
+    "total": 2,
+    "successful": 1,
+    "failed": 0
+  },
+  "_seq_no": 0,
+  "_primary_term": 1
+}
+--------------------------------------------------
+// TESTRESPONSE
+<1> The response does not include a `_type`.
+
+The <<docs-index_,GET>>, <<docs-delete,`DELETE`>>, <<docs-update,`_update`>> and <<search,`_search`>> APIs
+will continue to return a `_type` key in the response in 7.0, but it is considered deprecated and will be
+removed in 8.0.

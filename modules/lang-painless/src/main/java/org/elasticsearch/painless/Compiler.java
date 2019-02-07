@@ -21,16 +21,21 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.painless.antlr.Walker;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SSource;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.CodeSource;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
@@ -42,11 +47,6 @@ import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
  * one for analysis and another to generate the actual byte code using ASM using the root of the tree {@link SSource}.
  */
 final class Compiler {
-
-    /**
-     * The maximum number of characters allowed in the script source.
-     */
-    static final int MAXIMUM_SOURCE_LENGTH = 16384;
 
     /**
      * Define the class with lowest privileges.
@@ -68,28 +68,29 @@ final class Compiler {
     /**
      * A secure class loader used to define Painless scripts.
      */
-    static final class Loader extends SecureClassLoader {
+    final class Loader extends SecureClassLoader {
         private final AtomicInteger lambdaCounter = new AtomicInteger(0);
-        private final Definition definition;
 
         /**
          * @param parent The parent ClassLoader.
          */
-        Loader(ClassLoader parent, Definition definition) {
+        Loader(ClassLoader parent) {
             super(parent);
-
-            this.definition = definition;
         }
 
         /**
          * Will check to see if the {@link Class} has already been loaded when
-         * the {@link Definition} was initially created.  Allows for {@link Whitelist}ed
+         * the {@link PainlessLookup} was initially created.  Allows for {@link Whitelist}ed
          * classes to be loaded from other modules/plugins without a direct relationship
          * to the module's/plugin's {@link ClassLoader}.
          */
         @Override
         public Class<?> findClass(String name) throws ClassNotFoundException {
-            Class<?> found = definition.getClassFromBinaryName(name);
+            Class<?> found = additionalClasses.get(name);
+            if (found != null) {
+                return found;
+            }
+            found = painlessLookup.javaClassNameToClass(name);
 
             return found != null ? found : super.findClass(name);
         }
@@ -135,30 +136,66 @@ final class Compiler {
 
     /**
      * Return a new {@link Loader} for a script using the
-     * {@link Compiler}'s specified {@link Definition}.
+     * {@link Compiler}'s specified {@link PainlessLookup}.
      */
     public Loader createLoader(ClassLoader parent) {
-        return new Loader(parent, definition);
+        return new Loader(parent);
     }
 
     /**
-     * The class/interface the script is guaranteed to derive/implement.
+     * The class/interface the script will implement.
      */
-    private final Class<?> base;
+    private final Class<?> scriptClass;
 
     /**
      * The whitelist the script will use.
      */
-    private final Definition definition;
+    private final PainlessLookup painlessLookup;
+
+    /**
+     * Classes that do not exist in the lookup, but are needed by the script factories.
+     */
+    private final Map<String, Class<?>> additionalClasses;
 
     /**
      * Standard constructor.
-     * @param base The class/interface the script is guaranteed to derive/implement.
-     * @param definition The whitelist the script will use.
+     * @param scriptClass The class/interface the script will implement.
+     * @param factoryClass An optional class/interface to create the {@code scriptClass} instance.
+     * @param statefulFactoryClass An optional class/interface to create the {@code factoryClass} instance.
+     * @param painlessLookup The whitelist the script will use.
      */
-    Compiler(Class<?> base, Definition definition) {
-        this.base = base;
-        this.definition = definition;
+    Compiler(Class<?> scriptClass, Class<?> factoryClass, Class<?> statefulFactoryClass, PainlessLookup painlessLookup) {
+        this.scriptClass = scriptClass;
+        this.painlessLookup = painlessLookup;
+        Map<String, Class<?>> additionalClasses = new HashMap<>();
+        additionalClasses.put(scriptClass.getName(), scriptClass);
+        addFactoryMethod(additionalClasses, factoryClass, "newInstance");
+        addFactoryMethod(additionalClasses, statefulFactoryClass, "newFactory");
+        addFactoryMethod(additionalClasses, statefulFactoryClass, "newInstance");
+        this.additionalClasses = Collections.unmodifiableMap(additionalClasses);
+    }
+
+    private static void addFactoryMethod(Map<String, Class<?>> additionalClasses, Class<?> factoryClass, String methodName) {
+        if (factoryClass == null) {
+            return;
+        }
+
+        Method factoryMethod = null;
+        for (Method method : factoryClass.getMethods()) {
+            if (methodName.equals(method.getName())) {
+                factoryMethod = method;
+                break;
+            }
+        }
+        if (factoryMethod == null) {
+            return;
+        }
+
+        additionalClasses.put(factoryClass.getName(), factoryClass);
+        for (int i = 0; i < factoryMethod.getParameterTypes().length; ++i) {
+            Class<?> parameterClazz = factoryMethod.getParameterTypes()[i];
+            additionalClasses.put(parameterClazz.getName(), parameterClazz);
+        }
     }
 
     /**
@@ -170,24 +207,22 @@ final class Compiler {
      * @return An executable script that implements both a specified interface and is a subclass of {@link PainlessScript}
      */
     Constructor<?> compile(Loader loader, MainMethodReserved reserved, String name, String source, CompilerSettings settings) {
-        if (source.length() > MAXIMUM_SOURCE_LENGTH) {
-            throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
-                " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
-                " plugin if a script longer than this length is a requirement.");
-        }
-
-        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(definition, base);
-        SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, definition,
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
+        SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, painlessLookup,
                 null);
-        root.analyze(definition);
-        root.write();
+        root.analyze(painlessLookup);
+        Map<String, Object> statics = root.write();
 
         try {
             Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, root.getBytes());
             clazz.getField("$NAME").set(null, name);
             clazz.getField("$SOURCE").set(null, source);
             clazz.getField("$STATEMENTS").set(null, root.getStatements());
-            clazz.getField("$DEFINITION").set(null, definition);
+            clazz.getField("$DEFINITION").set(null, painlessLookup);
+
+            for (Map.Entry<String, Object> statik : statics.entrySet()) {
+                clazz.getField(statik.getKey()).set(null, statik.getValue());
+            }
 
             return clazz.getConstructors()[0];
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
@@ -202,16 +237,10 @@ final class Compiler {
      * @return The bytes for compilation.
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
-        if (source.length() > MAXIMUM_SOURCE_LENGTH) {
-            throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
-                " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
-                " plugin if a script longer than this length is a requirement.");
-        }
-
-        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(definition, base);
-        SSource root = Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), name, source, settings, definition,
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
+        SSource root = Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), name, source, settings, painlessLookup,
                 debugStream);
-        root.analyze(definition);
+        root.analyze(painlessLookup);
         root.write();
 
         return root.getBytes();

@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -77,16 +78,14 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     private final CompressedXContent source;
 
     private Routing routing;
-    private boolean hasParentField;
 
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
         this.routing = new Routing(docMapper.routingFieldMapper().required());
-        this.hasParentField = docMapper.parentFieldMapper().active();
     }
 
-    public MappingMetaData(CompressedXContent mapping) throws IOException {
+    public MappingMetaData(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
         if (mappingMap.size() != 1) {
@@ -99,7 +98,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
         XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
-        this.source = new CompressedXContent(mappingBuilder.bytes());
+        this.source = new CompressedXContent(BytesReference.bytes(mappingBuilder));
         Map<String, Object> withoutType = mapping;
         if (mapping.size() == 1 && mapping.containsKey(type)) {
             withoutType = (Map<String, Object>) mapping.get(type);
@@ -127,11 +126,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         } else {
             this.routing = Routing.EMPTY;
         }
-        if (withoutType.containsKey("_parent")) {
-            this.hasParentField = true;
-        } else {
-            this.hasParentField = false;
-        }
     }
 
     void updateDefaultMapping(MappingMetaData defaultMapping) {
@@ -146,10 +140,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     public CompressedXContent source() {
         return this.source;
-    }
-
-    public boolean hasParentField() {
-        return hasParentField;
     }
 
     /**
@@ -184,11 +174,13 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             // timestamp
             out.writeBoolean(false); // enabled
-            out.writeString(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format());
+            out.writeString(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern());
             out.writeOptionalString("now"); // 5.x default
             out.writeOptionalBoolean(null);
         }
-        out.writeBoolean(hasParentField());
+        if (out.getVersion().before(Version.V_7_0_0)) {
+            out.writeBoolean(false); // hasParentField
+        }
     }
 
     @Override
@@ -228,7 +220,9 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             in.readOptionalString(); // defaultTimestamp
             in.readOptionalBoolean(); // ignoreMissing
         }
-        hasParentField = in.readBoolean();
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            in.readBoolean(); // hasParentField
+        }
     }
 
     public static Diff<MappingMetaData> readDiffFrom(StreamInput in) throws IOException {

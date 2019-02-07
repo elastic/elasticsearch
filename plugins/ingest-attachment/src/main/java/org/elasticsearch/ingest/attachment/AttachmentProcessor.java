@@ -29,7 +29,6 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -42,6 +41,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readIntProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
+import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalStringProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class AttachmentProcessor extends AbstractProcessor {
@@ -55,15 +55,17 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final Set<Property> properties;
     private final int indexedChars;
     private final boolean ignoreMissing;
+    private final String indexedCharsField;
 
     AttachmentProcessor(String tag, String field, String targetField, Set<Property> properties,
-                        int indexedChars, boolean ignoreMissing) throws IOException {
+                        int indexedChars, boolean ignoreMissing, String indexedCharsField) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
         this.properties = properties;
         this.indexedChars = indexedChars;
         this.ignoreMissing = ignoreMissing;
+        this.indexedCharsField = indexedCharsField;
     }
 
     boolean isIgnoreMissing() {
@@ -71,15 +73,26 @@ public final class AttachmentProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) {
+    public IngestDocument execute(IngestDocument ingestDocument) {
         Map<String, Object> additionalFields = new HashMap<>();
 
         byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
 
         if (input == null && ignoreMissing) {
-            return;
+            return ingestDocument;
         } else if (input == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
+        }
+
+        Integer indexedChars = this.indexedChars;
+
+        if (indexedCharsField != null) {
+            // If the user provided the number of characters to be extracted as part of the document, we use it
+            indexedChars = ingestDocument.getFieldValue(indexedCharsField, Integer.class, true);
+            if (indexedChars == null) {
+                // If the field does not exist we fall back to the global limit
+                indexedChars = this.indexedChars;
+            }
         }
 
         Metadata metadata = new Metadata();
@@ -151,6 +164,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         ingestDocument.setFieldValue(targetField, additionalFields);
+        return ingestDocument;
     }
 
     @Override
@@ -183,14 +197,15 @@ public final class AttachmentProcessor extends AbstractProcessor {
                                           Map<String, Object> config) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
-            List<String> properyNames = readOptionalList(TYPE, processorTag, config, "properties");
+            List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
 
             final Set<Property> properties;
-            if (properyNames != null) {
+            if (propertyNames != null) {
                 properties = EnumSet.noneOf(Property.class);
-                for (String fieldName : properyNames) {
+                for (String fieldName : propertyNames) {
                     try {
                         properties.add(Property.parse(fieldName));
                     } catch (Exception e) {
@@ -202,7 +217,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 properties = DEFAULT_PROPERTIES;
             }
 
-            return new AttachmentProcessor(processorTag, field, targetField, properties, indexedChars, ignoreMissing);
+            return new AttachmentProcessor(processorTag, field, targetField, properties, indexedChars, ignoreMissing, indexedCharsField);
         }
     }
 

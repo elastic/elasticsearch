@@ -109,9 +109,9 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
                         currentFieldName = parser.currentName();
                     } else {
                         if (TERM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            value = parser.objectBytes();
+                            value = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (BaseTermQueryBuilder.VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            value = parser.objectBytes();
+                            value = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -125,7 +125,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
             } else {
                 throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
                 fieldName = parser.currentName();
-                value = parser.objectBytes();
+                value = maybeConvertToBytesRef(parser.objectBytes());
             }
         }
 

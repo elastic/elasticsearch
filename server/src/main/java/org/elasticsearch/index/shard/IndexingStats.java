@@ -49,7 +49,8 @@ public class IndexingStats implements Streamable, ToXContentFragment {
 
         Stats() {}
 
-        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long indexFailedCount, long deleteCount, long deleteTimeInMillis, long deleteCurrent, long noopUpdateCount, boolean isThrottled, long throttleTimeInMillis) {
+        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long indexFailedCount, long deleteCount,
+                        long deleteTimeInMillis, long deleteCurrent, long noopUpdateCount, boolean isThrottled, long throttleTimeInMillis) {
             this.indexCount = indexCount;
             this.indexTimeInMillis = indexTimeInMillis;
             this.indexCurrent = indexCurrent;
@@ -170,18 +171,18 @@ public class IndexingStats implements Streamable, ToXContentFragment {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.INDEX_TOTAL, indexCount);
-            builder.timeValueField(Fields.INDEX_TIME_IN_MILLIS, Fields.INDEX_TIME, indexTimeInMillis);
+            builder.humanReadableField(Fields.INDEX_TIME_IN_MILLIS, Fields.INDEX_TIME, getIndexTime());
             builder.field(Fields.INDEX_CURRENT, indexCurrent);
             builder.field(Fields.INDEX_FAILED, indexFailedCount);
 
             builder.field(Fields.DELETE_TOTAL, deleteCount);
-            builder.timeValueField(Fields.DELETE_TIME_IN_MILLIS, Fields.DELETE_TIME, deleteTimeInMillis);
+            builder.humanReadableField(Fields.DELETE_TIME_IN_MILLIS, Fields.DELETE_TIME, getDeleteTime());
             builder.field(Fields.DELETE_CURRENT, deleteCurrent);
 
             builder.field(Fields.NOOP_UPDATE_TOTAL, noopUpdateCount);
 
             builder.field(Fields.IS_THROTTLED, isThrottled);
-            builder.timeValueField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, throttleTimeInMillis);
+            builder.humanReadableField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, getThrottleTime());
             return builder;
         }
     }

@@ -23,7 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.BaseGeoShapeFieldMapper;
 
 import java.io.IOException;
 
@@ -46,13 +46,13 @@ public interface ShapeParser {
      *          if the parsers current token has been <code>null</code>
      * @throws IOException if the input could not be read
      */
-    static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper shapeMapper) throws IOException {
+    static ShapeBuilder parse(XContentParser parser, BaseGeoShapeFieldMapper shapeMapper) throws IOException {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;
         } if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             return GeoJsonParser.parse(parser, shapeMapper);
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return GeoWKTParser.parse(parser);
+            return GeoWKTParser.parse(parser, shapeMapper);
         }
         throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
     }

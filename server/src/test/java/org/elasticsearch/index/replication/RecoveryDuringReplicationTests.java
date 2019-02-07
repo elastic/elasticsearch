@@ -22,24 +22,33 @@ package org.elasticsearch.index.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
@@ -52,18 +61,26 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -92,7 +109,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
     }
 
     public void testRecoveryOfDisconnectedReplica() throws Exception {
-        try (ReplicationGroup shards = createGroup(1)) {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
+        try (ReplicationGroup shards = createGroup(1, settings)) {
             shards.startAll();
             int docs = shards.indexDocs(randomInt(50));
             shards.flush();
@@ -128,7 +146,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 shards.flush();
                 translogTrimmed = randomBoolean();
                 if (translogTrimmed) {
-                    final Translog translog = shards.getPrimary().getTranslog();
+                    final Translog translog = getTranslog(shards.getPrimary());
                     translog.getDeletionPolicy().setRetentionAgeInMillis(0);
                     translog.trimUnreferencedReaders();
                 }
@@ -180,12 +198,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             remainingReplica.applyIndexOperationOnReplica(
                     remainingReplica.getLocalCheckpoint() + 1,
                     1,
-                    VersionType.EXTERNAL,
                     randomNonNegativeLong(),
                     false,
-                    SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON),
-                    mapping -> {});
-            shards.promoteReplicaToPrimary(promotedReplica);
+                    new SourceToParse("index", "type", "replica", new BytesArray("{}"), XContentType.JSON));
+            shards.promoteReplicaToPrimary(promotedReplica).get();
             oldPrimary.close("demoted", randomBoolean());
             oldPrimary.store().close();
             shards.removeReplica(remainingReplica);
@@ -197,11 +213,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 promotedReplica.applyIndexOperationOnPrimary(
                         Versions.MATCH_ANY,
                         VersionType.INTERNAL,
-                        SourceToParse.source("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
-                        randomNonNegativeLong(),
-                        false,
-                        mapping -> {
-                        });
+                        new SourceToParse("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 0, randomNonNegativeLong(),
+                        false);
             }
             final IndexShard recoveredReplica =
                     shards.addReplicaWithExistingPath(remainingReplica.shardPath(), remainingReplica.routingEntry().currentNodeId());
@@ -236,14 +250,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i)
                             .source("{}", XContentType.JSON);
                     final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
-                    indexOnReplica(bulkShardRequest, replica);
+                    indexOnReplica(bulkShardRequest, shards, replica);
                 }
                 if (randomBoolean()) {
                     oldPrimary.flush(new FlushRequest(index.getName()));
                 }
             }
 
-            shards.promoteReplicaToPrimary(newPrimary);
+            shards.promoteReplicaToPrimary(newPrimary).get();
 
             // check that local checkpoint of new primary is properly tracked after primary promotion
             assertThat(newPrimary.getLocalCheckpoint(), equalTo(totalDocs - 1L));
@@ -264,6 +278,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 builder.settings(Settings.builder().put(newPrimary.indexSettings().getSettings())
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
                 );
                 newPrimary.indexSettings().updateIndexMetaData(builder.build());
                 newPrimary.onSettingsChanged();
@@ -271,9 +286,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 // otherwise the deletion policy won't trim translog
                 assertBusy(() -> {
                     shards.syncGlobalCheckpoint();
-                    assertThat(newPrimary.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(newPrimary.seqNoStats().getMaxSeqNo()));
+                    assertThat(newPrimary.getLastSyncedGlobalCheckpoint(), equalTo(newPrimary.seqNoStats().getMaxSeqNo()));
                 });
-                newPrimary.flush(new FlushRequest());
+                newPrimary.flush(new FlushRequest().force(true));
+                if (replica.indexSettings().isSoftDeleteEnabled()) {
+                    // We need an extra flush to advance the min_retained_seqno on the new primary so ops-based won't happen.
+                    // The min_retained_seqno only advances when a merge asks for the retention query.
+                    newPrimary.flush(new FlushRequest().force(true));
+                }
                 uncommittedOpsOnPrimary = shards.indexDocs(randomIntBetween(0, 10));
                 totalDocs += uncommittedOpsOnPrimary;
             }
@@ -297,14 +317,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
                 assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(uncommittedOpsOnPrimary));
             }
-
-            // roll back the extra ops in the replica
-            shards.removeReplica(replica);
-            replica.close("resync", false);
-            replica.store().close();
-            newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
-            shards.recoverReplica(newReplica);
-            shards.assertAllEqual(totalDocs);
             // Make sure that flushing on a recovering shard is ok.
             shards.flush();
             shards.assertAllEqual(totalDocs);
@@ -326,7 +338,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "stale_" + i)
                     .source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
-                indexOnReplica(bulkShardRequest, replica);
+                indexOnReplica(bulkShardRequest, shards, replica);
             }
             shards.flush();
             shards.promoteReplicaToPrimary(newPrimary).get();
@@ -340,7 +352,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // Index more docs - move the global checkpoint >= seqno of the stale operations.
             goodDocs += shards.indexDocs(scaledRandomIntBetween(staleDocs, staleDocs * 5));
             shards.syncGlobalCheckpoint();
-            assertThat(replica.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
+            assertThat(replica.getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
             // Recover a replica again should also rollback the stale documents.
             shards.removeReplica(replica);
             replica.close("recover replica - second time", false);
@@ -355,10 +367,19 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
     @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.action.resync:TRACE")
     public void testResyncAfterPrimaryPromotion() throws Exception {
-        // TODO: check translog trimming functionality once it's implemented
-        try (ReplicationGroup shards = createGroup(2)) {
+        // TODO: check translog trimming functionality once rollback is implemented in Lucene (ES trimming is done)
+        Map<String, String> mappings =
+            Collections.singletonMap("type", "{ \"type\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}");
+        try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(2, mappings))) {
             shards.startAll();
-            int initialDocs = shards.indexDocs(randomInt(10));
+            int initialDocs = randomInt(10);
+
+            for (int i = 0; i < initialDocs; i++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "initial_doc_" + i)
+                    .source("{ \"f\": \"normal\"}", XContentType.JSON);
+                shards.index(indexRequest);
+            }
+
             boolean syncedGlobalCheckPoint = randomBoolean();
             if (syncedGlobalCheckPoint) {
                 shards.syncGlobalCheckpoint();
@@ -366,17 +387,29 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
             final IndexShard oldPrimary = shards.getPrimary();
             final IndexShard newPrimary = shards.getReplicas().get(0);
+            final IndexShard justReplica = shards.getReplicas().get(1);
 
             // simulate docs that were inflight when primary failed
-            final int extraDocs = randomIntBetween(0, 5);
+            final int extraDocs = randomInt(5);
             logger.info("--> indexing {} extra docs", extraDocs);
             for (int i = 0; i < extraDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_" + i)
-                    .source("{}", XContentType.JSON);
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_doc_" + i)
+                    .source("{ \"f\": \"normal\"}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
-                indexOnReplica(bulkShardRequest, newPrimary);
+                indexOnReplica(bulkShardRequest, shards, newPrimary);
             }
-            logger.info("--> resyncing replicas");
+
+            final int extraDocsToBeTrimmed = randomIntBetween(0, 10);
+            logger.info("--> indexing {} extra docs to be trimmed", extraDocsToBeTrimmed);
+            for (int i = 0; i < extraDocsToBeTrimmed; i++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_trimmed_" + i)
+                    .source("{ \"f\": \"trimmed\"}", XContentType.JSON);
+                final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
+                // have to replicate to another replica != newPrimary one - the subject to trim
+                indexOnReplica(bulkShardRequest, shards, justReplica);
+            }
+
+            logger.info("--> resyncing replicas seqno_stats primary {} replica {}", oldPrimary.seqNoStats(), newPrimary.seqNoStats());
             PrimaryReplicaSyncer.ResyncTask task = shards.promoteReplicaToPrimary(newPrimary).get();
             if (syncedGlobalCheckPoint) {
                 assertEquals(extraDocs, task.getResyncedOperations());
@@ -384,6 +417,25 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(task.getResyncedOperations(), greaterThanOrEqualTo(extraDocs));
             }
             shards.assertAllEqual(initialDocs + extraDocs);
+            for (IndexShard replica : shards.getReplicas()) {
+                assertThat(replica.getMaxSeqNoOfUpdatesOrDeletes(),
+                    greaterThanOrEqualTo(shards.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
+            }
+
+            // check translog on replica is trimmed
+            int translogOperations = 0;
+            try(Translog.Snapshot snapshot = getTranslog(justReplica).newSnapshot()) {
+                Translog.Operation next;
+                while ((next = snapshot.next()) != null) {
+                    translogOperations++;
+                    assertThat("unexpected op: " + next, (int)next.seqNo(), lessThan(initialDocs + extraDocs));
+                    assertThat("unexpected primaryTerm: " + next.primaryTerm(), next.primaryTerm(),
+                        is(oldPrimary.getPendingPrimaryTerm()));
+                    final Translog.Source source = next.getSource();
+                    assertThat(source.source.utf8ToString(), is("{ \"f\": \"normal\"}"));
+                }
+            }
+            assertThat(translogOperations, is(initialDocs + extraDocs));
         }
     }
 
@@ -409,7 +461,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 if (routing.primary()) {
                     return primaryEngineFactory;
                 } else {
-                    return null;
+                    return new InternalEngineFactory();
                 }
             }
         }) {
@@ -453,9 +505,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 return new RecoveryTarget(indexShard, node, recoveryListener, l -> {
                 }) {
                     @Override
-                    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
+                    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                                        long maxSeenAutoIdTimestamp, long msu, ActionListener<Long> listener) {
                         opsSent.set(true);
-                        return super.indexTranslogOperations(operations, totalTranslogOps);
+                        super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp, msu, listener);
                     }
                 };
             });
@@ -503,7 +556,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     @Override
                     protected EngineFactory getEngineFactory(final ShardRouting routing) {
                         if (routing.primary()) {
-                            return null;
+                            return new InternalEngineFactory();
                         } else {
                             return replicaEngineFactory;
                         }
@@ -522,8 +575,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     replica,
                     (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
                         @Override
-                        public long indexTranslogOperations(final List<Translog.Operation> operations, final int totalTranslogOps)
-                             throws IOException {
+                        public void indexTranslogOperations(final List<Translog.Operation> operations, final int totalTranslogOps,
+                                                            final long maxAutoIdTimestamp, long maxSeqNoOfUpdates,
+                                                            ActionListener<Long> listener) {
                             // index a doc which is not part of the snapshot, but also does not complete on replica
                             replicaEngineFactory.latchIndexers(1);
                             threadPool.generic().submit(() -> {
@@ -550,7 +604,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                             } catch (InterruptedException e) {
                                 throw new AssertionError(e);
                             }
-                            return super.indexTranslogOperations(operations, totalTranslogOps);
+                            super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates, listener);
                         }
                     });
             pendingDocActiveWithExtraDocIndexed.await();
@@ -596,6 +650,162 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
+    public void testTransferMaxSeenAutoIdTimestampOnResync() throws Exception {
+        try (ReplicationGroup shards = createGroup(2)) {
+            shards.startAll();
+            IndexShard primary = shards.getPrimary();
+            IndexShard replica1 = shards.getReplicas().get(0);
+            IndexShard replica2 = shards.getReplicas().get(1);
+            long maxTimestampOnReplica1 = -1;
+            long maxTimestampOnReplica2 = -1;
+            List<IndexRequest> replicationRequests = new ArrayList<>();
+            for (int numDocs = between(1, 10), i = 0; i < numDocs; i++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}", XContentType.JSON);
+                indexRequest.process(Version.CURRENT, null, index.getName());
+                final IndexRequest copyRequest;
+                if (randomBoolean()) {
+                    copyRequest = copyIndexRequest(indexRequest);
+                    indexRequest.onRetry();
+                } else {
+                    copyRequest = copyIndexRequest(indexRequest);
+                    copyRequest.onRetry();
+                }
+                replicationRequests.add(copyRequest);
+                final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, primary);
+                if (randomBoolean()) {
+                    indexOnReplica(bulkShardRequest, shards, replica1);
+                    maxTimestampOnReplica1 = Math.max(maxTimestampOnReplica1, indexRequest.getAutoGeneratedTimestamp());
+                } else {
+                    indexOnReplica(bulkShardRequest, shards, replica2);
+                    maxTimestampOnReplica2 = Math.max(maxTimestampOnReplica2, indexRequest.getAutoGeneratedTimestamp());
+                }
+            }
+            assertThat(replica1.getMaxSeenAutoIdTimestamp(), equalTo(maxTimestampOnReplica1));
+            assertThat(replica2.getMaxSeenAutoIdTimestamp(), equalTo(maxTimestampOnReplica2));
+            shards.promoteReplicaToPrimary(replica1).get();
+            assertThat(replica2.getMaxSeenAutoIdTimestamp(), equalTo(maxTimestampOnReplica1));
+            for (IndexRequest request : replicationRequests) {
+                shards.index(request); // deliver via normal replication
+            }
+            for (IndexShard shard : shards) {
+                assertThat(shard.getMaxSeenAutoIdTimestamp(), equalTo(Math.max(maxTimestampOnReplica1, maxTimestampOnReplica2)));
+            }
+        }
+    }
+
+    public void testAddNewReplicas() throws Exception {
+        AtomicBoolean stopped = new AtomicBoolean();
+        List<Thread> threads = new ArrayList<>();
+        Runnable stopIndexing = () -> {
+            try {
+                stopped.set(true);
+                for (Thread thread : threads) {
+                    thread.join();
+                }
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        };
+        try (ReplicationGroup shards = createGroup(between(0, 1));
+             Releasable ignored = stopIndexing::run) {
+            shards.startAll();
+            boolean appendOnly = randomBoolean();
+            AtomicInteger docId = new AtomicInteger();
+            int numThreads = between(1, 3);
+            for (int i = 0; i < numThreads; i++) {
+                Thread thread = new Thread(() -> {
+                    while (stopped.get() == false) {
+                        try {
+                            int nextId = docId.incrementAndGet();
+                            if (appendOnly) {
+                                String id = randomBoolean() ? Integer.toString(nextId) : null;
+                                shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                            } else if (frequently()) {
+                                String id = Integer.toString(frequently() ? nextId : between(0, nextId));
+                                shards.index(new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON));
+                            } else {
+                                String id = Integer.toString(between(0, nextId));
+                                shards.delete(new DeleteRequest(index.getName(), "type", id));
+                            }
+                            if (randomInt(100) < 10) {
+                                shards.getPrimary().flush(new FlushRequest());
+                            }
+                        } catch (Exception ex) {
+                            throw new AssertionError(ex);
+                        }
+                    }
+                });
+                threads.add(thread);
+                thread.start();
+            }
+            assertBusy(() -> assertThat(docId.get(), greaterThanOrEqualTo(50)), 60, TimeUnit.SECONDS); // we flush quite often
+            shards.getPrimary().sync();
+            IndexShard newReplica = shards.addReplica();
+            shards.recoverReplica(newReplica);
+            assertBusy(() -> assertThat(docId.get(), greaterThanOrEqualTo(100)), 60, TimeUnit.SECONDS); // we flush quite often
+            stopIndexing.run();
+            assertBusy(() -> assertThat(getDocIdAndSeqNos(newReplica), equalTo(getDocIdAndSeqNos(shards.getPrimary()))));
+        }
+    }
+
+    public void testRollbackOnPromotion() throws Exception {
+        try (ReplicationGroup shards = createGroup(between(2, 3))) {
+            shards.startAll();
+            IndexShard newPrimary = randomFrom(shards.getReplicas());
+            int initDocs = shards.indexDocs(randomInt(100));
+            int inFlightOpsOnNewPrimary = 0;
+            int inFlightOps = scaledRandomIntBetween(10, 200);
+            for (int i = 0; i < inFlightOps; i++) {
+                String id = "extra-" + i;
+                IndexRequest primaryRequest = new IndexRequest(index.getName(), "type", id).source("{}", XContentType.JSON);
+                BulkShardRequest replicationRequest = indexOnPrimary(primaryRequest, shards.getPrimary());
+                for (IndexShard replica : shards.getReplicas()) {
+                    if (randomBoolean()) {
+                        indexOnReplica(replicationRequest, shards, replica);
+                        if (replica == newPrimary) {
+                            inFlightOpsOnNewPrimary++;
+                        }
+                    }
+                }
+                if (randomBoolean()) {
+                    shards.syncGlobalCheckpoint();
+                }
+                if (rarely()) {
+                    shards.flush();
+                }
+            }
+            shards.refresh("test");
+            List<DocIdSeqNoAndTerm> docsBelowGlobalCheckpoint = EngineTestCase.getDocIds(getEngine(newPrimary), randomBoolean())
+                .stream().filter(doc -> doc.getSeqNo() <= newPrimary.getGlobalCheckpoint()).collect(Collectors.toList());
+            CountDownLatch latch = new CountDownLatch(1);
+            final AtomicBoolean done = new AtomicBoolean();
+            Thread thread = new Thread(() -> {
+                List<IndexShard> replicas = new ArrayList<>(shards.getReplicas());
+                replicas.remove(newPrimary);
+                latch.countDown();
+                while (done.get() == false) {
+                    try {
+                        List<DocIdSeqNoAndTerm> exposedDocs = EngineTestCase.getDocIds(getEngine(randomFrom(replicas)), randomBoolean());
+                        assertThat(docsBelowGlobalCheckpoint, everyItem(isIn(exposedDocs)));
+                        assertThat(randomFrom(replicas).getLocalCheckpoint(), greaterThanOrEqualTo(initDocs - 1L));
+                    } catch (AlreadyClosedException ignored) {
+                        // replica swaps engine during rollback
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            });
+            thread.start();
+            latch.await();
+            shards.promoteReplicaToPrimary(newPrimary).get();
+            shards.assertAllEqual(initDocs + inFlightOpsOnNewPrimary);
+            int moreDocsAfterRollback = shards.indexDocs(scaledRandomIntBetween(1, 20));
+            shards.assertAllEqual(initDocs + inFlightOpsOnNewPrimary + moreDocsAfterRollback);
+            done.set(true);
+            thread.join();
+        }
+    }
+
     public static class BlockingTarget extends RecoveryTarget {
 
         private final CountDownLatch recoveryBlocked;
@@ -636,11 +846,12 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
+        public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
+                                            long maxAutoIdTimestamp, long maxSeqNoOfUpdates, ActionListener<Long> listener) {
             if (hasBlocked() == false) {
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
-            return super.indexTranslogOperations(operations, totalTranslogOps);
+            super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates, listener);
         }
 
         @Override
@@ -650,13 +861,13 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public void finalizeRecovery(long globalCheckpoint) throws IOException {
+        public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
             if (hasBlocked() == false) {
                 // it maybe that not ops have been transferred, block now
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
             blockIfNeeded(RecoveryState.Stage.FINALIZE);
-            super.finalizeRecovery(globalCheckpoint);
+            super.finalizeRecovery(globalCheckpoint, listener);
         }
 
     }

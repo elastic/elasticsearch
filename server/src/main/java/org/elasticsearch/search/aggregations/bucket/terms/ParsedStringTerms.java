@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.CharBuffer;
 
 public class ParsedStringTerms extends ParsedTerms {
 
@@ -79,7 +80,14 @@ public class ParsedStringTerms extends ParsedTerms {
         }
 
         static ParsedBucket fromXContent(XContentParser parser) throws IOException {
-            return parseTermsBucketXContent(parser, ParsedBucket::new, (p, bucket) -> bucket.key = p.utf8BytesOrNull());
+            return parseTermsBucketXContent(parser, ParsedBucket::new, (p, bucket) -> {
+                    CharBuffer cb = p.charBufferOrNull();
+                    if (cb == null) {
+                        bucket.key = null;
+                    } else {
+                        bucket.key = new BytesRef(cb);
+                    }
+                });
         }
     }
 }

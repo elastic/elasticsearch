@@ -1,13 +1,13 @@
 [[search-rank-eval]]
 == Ranking Evaluation API
 
+experimental[The ranking evaluation API is experimental and may be changed or removed completely in a future release, as well as change in non-backwards compatible ways on minor versions updates. Elastic will take a best effort approach to fix any issues, but experimental features are not subject to the support SLA of official GA features.]
+
 The ranking evaluation API allows to evaluate the quality of ranked search
 results over a set of typical search queries. Given this set of queries and a
-list or manually rated documents, the `_rank_eval` endpoint calculates and
+list of manually rated documents, the `_rank_eval` endpoint calculates and
 returns typical information retrieval metrics like _mean reciprocal rank_,
 _precision_ or _discounted cumulative gain_.
-
-experimental[The ranking evaluation API is new and may change in non-backwards compatible ways in the future, even on minor versions updates.]
 
 [float]
 === Overview
@@ -17,7 +17,7 @@ Users have a specific _information need_, e.g. they are looking for gift in a we
 They usually enters some search terms into a search box or some other web form.
 All of this information, together with meta information about the user (e.g. the browser, location, earlier preferences etc...) then gets translated into a query to the underlying search system.
 
-The challenge for search engineers is to tweak this translation process from user entries to a concrete query in such a way, that the search results contain the most relevant information with respect to the users information_need.
+The challenge for search engineers is to tweak this translation process from user entries to a concrete query in such a way, that the search results contain the most relevant information with respect to the users information need.
 This can only be done if the search result quality is evaluated constantly across a representative test suite of typical user queries, so that improvements in the rankings for one particular query doesn't negatively effect the ranking for other types of queries.
 
 In order to get started with search quality evaluation, three basic things are needed:
@@ -26,7 +26,7 @@ In order to get started with search quality evaluation, three basic things are n
 . a collection of typical search requests that users enter into your system
 . a set of document ratings that judge the documents relevance with respect to a search request+
   It is important to note that one set of document ratings is needed per test query, and that
-  the relevance judgements are based on the _information_need_ of the user that entered the query. 
+  the relevance judgements are based on the information need of the user that entered the query.
 
 The ranking evaluation API provides a convenient way to use this information in a ranking evaluation request to calculate different search evaluation metrics. This gives a first estimation of your overall search quality and give you a measurement to optimize against when fine-tuning various aspect of the query generation in your application. 
 
@@ -41,7 +41,7 @@ GET /my_index/_rank_eval
 {
     "requests": [ ... ], <1>  
     "metric": { <2>
-      "reciprocal_rank": { ... } <3>
+      "mean_reciprocal_rank": { ... } <3>
    }
 }
 ------------------------------
@@ -85,7 +85,7 @@ The request section contains several search requests typical to your application
 <3> a list of document ratings, each entry containing the documents `_index` and `_id` together with
 the rating of the documents relevance with regards to this search request
 
-A document `rating` can be any integer value that expresses the relevance of the document on a user defined scale. For some of the metrics, just giving a binary rating (e.g. `0` for irrelevant and `1` for relevant) will be sufficient, other metrics can use a more fine grained scale.  
+A document `rating` can be any integer value that expresses the relevance of the document on a user defined scale. For some of the metrics, just giving a binary rating (e.g. `0` for irrelevant and `1` for relevant) will be sufficient, other metrics can use a more fine grained scale.
 
 [float]
 === Template based ranking evaluation
@@ -126,7 +126,7 @@ GET /my_index/_rank_eval
 
 <1> the template id 
 <2> the template definition to use
-<3> a reference to a previously defined temlate
+<3> a reference to a previously defined template
 <4> the parameters to use to fill the template
 
 [float]
@@ -158,6 +158,7 @@ GET /twitter/_rank_eval
     }],
     "metric": {
       "precision": {
+        "k" : 20,
         "relevant_rating_threshold": 1,
         "ignore_unlabeled": false
       }
@@ -172,7 +173,9 @@ The `precision` metric takes the following optional parameters
 [cols="<,<",options="header",]
 |=======================================================================
 |Parameter |Description
-|`relevant_rating_threshold` |Sets the rating threshold above which documents are considered to be
+|`k` |sets the maximum number of documents retrieved per query. This value will act in place of the usual `size` parameter 
+in the query. Defaults to 10. 
+|`relevant_rating_threshold` |sets the rating threshold above which documents are considered to be
 "relevant". Defaults to `1`.
 |`ignore_unlabeled` |controls how unlabeled documents in the search results are counted.
 If set to 'true', unlabeled documents are ignored and neither count as relevant or irrelevant. Set to 'false' (the default), they are treated as irrelevant.
@@ -198,6 +201,7 @@ GET /twitter/_rank_eval
     }],
     "metric": {
         "mean_reciprocal_rank": {
+            "k" : 20,
             "relevant_rating_threshold" : 1
         }
     }
@@ -211,6 +215,8 @@ The `mean_reciprocal_rank` metric takes the following optional parameters
 [cols="<,<",options="header",]
 |=======================================================================
 |Parameter |Description
+|`k` |sets the maximum number of documents retrieved per query. This value will act in place of the usual `size` parameter 
+in the query. Defaults to 10.
 |`relevant_rating_threshold` |Sets the rating threshold above which documents are considered to be
 "relevant". Defaults to `1`.
 |=======================================================================
@@ -234,6 +240,7 @@ GET /twitter/_rank_eval
     }],
     "metric": {
        "dcg": {
+            "k" : 20,
             "normalize": false
        }
     }
@@ -247,7 +254,59 @@ The `dcg` metric takes the following optional parameters:
 [cols="<,<",options="header",]
 |=======================================================================
 |Parameter |Description
+|`k` |sets the maximum number of documents retrieved per query. This value will act in place of the usual `size` parameter 
+in the query. Defaults to 10.
 |`normalize` | If set to `true`, this metric will calculate the https://en.wikipedia.org/wiki/Discounted_cumulative_gain#Normalized_DCG[Normalized DCG].
+|=======================================================================
+
+[float]
+==== Expected Reciprocal Rank (ERR)
+
+Expected Reciprocal Rank (ERR) is an extension of the classical reciprocal rank for the graded relevance case
+(Olivier Chapelle, Donald Metzler, Ya Zhang, and Pierre Grinspan. 2009. http://olivier.chapelle.cc/pub/err.pdf[Expected reciprocal rank for graded relevance].)
+
+It is based on the assumption of a cascade model of search, in which a user scans through ranked search
+results in order and stops at the first document that satisfies the information need. For this reason, it
+is a good metric for question answering and navigation queries, but less so for survey oriented information 
+needs where the user is interested in finding many relevant documents in the top k results.
+
+The metric models the expectation of the reciprocal of the position at which a user stops reading through
+the result list. This means that relevant document in top ranking positions will contribute much to the
+overall score. However, the same document will contribute much less to the score if it appears in a lower rank,
+even more so if there are some relevant (but maybe less relevant) documents preceding it. 
+In this way, the ERR metric discounts documents which are shown after very relevant documents. This introduces 
+a notion of dependency in the ordering of relevant documents that e.g. Precision or DCG don't account for.
+
+[source,js]
+--------------------------------
+GET /twitter/_rank_eval
+{
+    "requests": [
+    {
+        "id": "JFK query", 
+        "request": { "query": { "match_all": {}}},
+        "ratings": []  
+    }],
+    "metric": {
+       "expected_reciprocal_rank": {
+            "maximum_relevance" : 3,
+            "k" : 20
+       }
+    }
+}
+--------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+The `expected_reciprocal_rank` metric takes the following parameters:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Parameter |Description
+| `maximum_relevance` | Mandatory parameter. The highest relevance grade used in the user supplied
+relevance judgments.
+|`k` | sets the maximum number of documents retrieved per query. This value will act in place of the usual `size` parameter
+in the query. Defaults to 10.
 |=======================================================================
 
 [float]
@@ -261,11 +320,11 @@ that shows potential errors of individual queries. The response has the followin
 --------------------------------
 {
     "rank_eval": {
-        "quality_level": 0.4, <1>
+        "metric_score": 0.4, <1>
         "details": {  
             "my_query_id1": { <2>
-                "quality_level": 0.6, <3>
-                "unknown_docs": [ <4>
+                "metric_score": 0.6, <3>
+                "unrated_docs": [ <4>
                     {
                         "_index": "my_index",
                         "_id": "1960795"
@@ -299,8 +358,8 @@ that shows potential errors of individual queries. The response has the followin
 
 <1> the overall evaluation quality calculated by the defined metric
 <2> the `details` section contains one entry for every query in the original `requests` section, keyed by the search request id
-<3> the `quality_level` in the `details` section shows the contribution of this query to the global quality score
-<4> the `unknown_docs` section contains an `_index` and `_id` entry for each document in the search result for this
+<3> the `metric_score` in the `details` section shows the contribution of this query to the global quality metric score
+<4> the `unrated_docs` section contains an `_index` and `_id` entry for each document in the search result for this
 query that didn't have a ratings value. This can be used to ask the user to supply ratings for these documents
 <5> the `hits` section shows a grouping of the search results with their supplied rating
 <6> the `metric_details` give additional information about the calculated quality metric (e.g. how many of the retrieved

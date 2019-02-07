@@ -19,17 +19,17 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
@@ -68,10 +68,20 @@ public interface ShardSearchRequest {
     long nowInMillis();
 
     Boolean requestCache();
-    
+
     Boolean allowPartialSearchResults();
 
     Scroll scroll();
+
+    /**
+     * Returns the routing values resolved by the coordinating node for the index pointed by {@link #shardId()}.
+     */
+    String[] indexRoutings();
+
+    /**
+     * Returns the preference of the original {@link SearchRequest#preference()}.
+     */
+    String preference();
 
     /**
      * Sets if this shard search needs to be profiled or not
@@ -93,7 +103,7 @@ public interface ShardSearchRequest {
      * Returns the filter associated with listed filtering aliases.
      * <p>
      * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
-     * Returns <tt>null</tt> if no filtering is required.</p>
+     * Returns {@code null} if no filtering is required.</p>
      */
     static QueryBuilder parseAliasFilter(CheckedFunction<byte[], QueryBuilder, IOException> filterParser,
                                          IndexMetaData metaData, String... aliasNames) {
@@ -142,9 +152,9 @@ public interface ShardSearchRequest {
     }
 
     /**
-     * Returns the cluster alias if this request is for a remote cluster or <code>null</code> if the request if targeted to the local
-     * cluster.
+     * Returns the cluster alias in case the request is part of a cross-cluster search request, <code>null</code> otherwise.
      */
+    @Nullable
     String getClusterAlias();
 
     Rewriteable<Rewriteable> getRewriteable();

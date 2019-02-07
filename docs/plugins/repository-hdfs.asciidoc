@@ -32,7 +32,7 @@ PUT _snapshot/my_hdfs_repository
   "type": "hdfs",
   "settings": {
     "uri": "hdfs://namenode:8020/",
-    "path": "elasticsearch/respositories/my_hdfs_repository",
+    "path": "elasticsearch/repositories/my_hdfs_repository",
     "conf.dfs.client.read.shortcircuit": "true"
   }
 }
@@ -78,7 +78,7 @@ The following settings are supported:
 
 [[repository-hdfs-availability]]
 [float]
-===== A Note on HDFS Availablility
+===== A Note on HDFS Availability
 When you initialize a repository, its settings are persisted in the cluster state. When a node comes online, it will
 attempt to initialize all repositories for which it has settings. If your cluster has an HDFS repository configured, then
 all nodes in the cluster must be able to reach HDFS when starting. If not, then the node will fail to initialize the
@@ -149,7 +149,7 @@ PUT _snapshot/my_hdfs_repository
   "type": "hdfs",
   "settings": {
     "uri": "hdfs://namenode:8020/",
-    "path": "/user/elasticsearch/respositories/my_hdfs_repository",
+    "path": "/user/elasticsearch/repositories/my_hdfs_repository",
     "security.principal": "elasticsearch@REALM"
   }
 }
@@ -167,7 +167,7 @@ PUT _snapshot/my_hdfs_repository
   "type": "hdfs",
   "settings": {
     "uri": "hdfs://namenode:8020/",
-    "path": "/user/elasticsearch/respositories/my_hdfs_repository",
+    "path": "/user/elasticsearch/repositories/my_hdfs_repository",
     "security.principal": "elasticsearch/_HOST@REALM"
   }
 }

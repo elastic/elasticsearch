@@ -22,6 +22,8 @@ package org.elasticsearch.index.mapper.murmur3;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -71,15 +73,15 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaults() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                     .field("type", "murmur3")
-                .endObject().endObject().endObject().endObject().string();
+                .endObject().endObject().endObject().endObject());
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "value")
-                .endObject().bytes(),
+                .endObject()),
                 XContentType.JSON));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertNotNull(fields);
@@ -90,11 +92,11 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDocValuesSettingNotAllowed() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
                 .field("type", "murmur3")
                 .field("doc_values", false)
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
         try {
             parser.parse("type", new CompressedXContent(mapping));
             fail("expected a mapper parsing exception");
@@ -103,11 +105,11 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         }
 
         // even setting to the default is not allowed, the setting is invalid
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
                 .field("type", "murmur3")
                 .field("doc_values", true)
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
         try {
             parser.parse("type", new CompressedXContent(mapping));
             fail("expected a mapper parsing exception");
@@ -117,11 +119,11 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexSettingNotAllowed() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
                 .field("type", "murmur3")
                 .field("index", "not_analyzed")
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
         try {
             parser.parse("type", new CompressedXContent(mapping));
             fail("expected a mapper parsing exception");
@@ -130,11 +132,11 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         }
 
         // even setting to the default is not allowed, the setting is invalid
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
                 .field("type", "murmur3")
                 .field("index", "no")
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
         try {
             parser.parse("type", new CompressedXContent(mapping));
             fail("expected a mapper parsing exception");
@@ -144,10 +146,10 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEmptyName() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("")
             .field("type", "murmur3")
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> parser.parse("type", new CompressedXContent(mapping))

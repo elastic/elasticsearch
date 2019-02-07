@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -426,7 +427,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
     public void testStopwordsOnlyPhraseSuggest() throws IOException {
         assertAcked(prepareCreate("test").addMapping("typ1", "body", "type=text,analyzer=stopwd").setSettings(
                 Settings.builder()
-                        .put("index.analysis.analyzer.stopwd.tokenizer", "whitespace")
+                        .put("index.analysis.analyzer.stopwd.tokenizer", "standard")
                         .putList("index.analysis.analyzer.stopwd.filter", "stop")
         ));
         ensureGreen();
@@ -686,7 +687,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put(IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey(), 4)
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
-                .putList("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
+                .putList("index.analysis.analyzer.suggest.filter", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
@@ -747,7 +748,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .put(indexSettings())
                 .put(IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey(), 4)
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
-                .putList("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
+                .putList("index.analysis.analyzer.suggest.filter", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
@@ -971,11 +972,37 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertSuggestionSize(searchSuggest, 0, 25480, "title");  // Just to prove that we've run through a ton of options
 
         suggest.size(1);
-        long start = System.currentTimeMillis();
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title", suggest);
-        long total = System.currentTimeMillis() - start;
         assertSuggestion(searchSuggest, 0, 0, "title", "united states house of representatives elections in washington 2006");
-        // assertThat(total, lessThan(1000L)); // Takes many seconds without fix - just for debugging
+    }
+
+    public void testSuggestWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("text")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("alias")
+                            .field("type", "alias")
+                            .field("path", "text")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("test", "type").setSource("text", "apple"));
+        builders.add(client().prepareIndex("test", "type").setSource("text", "mango"));
+        builders.add(client().prepareIndex("test", "type").setSource("text", "papaya"));
+        indexRandom(true, false, builders);
+
+        TermSuggestionBuilder termSuggest = termSuggestion("alias").text("appple");
+
+        Suggest searchSuggest = searchSuggest("suggestion", termSuggest);
+        assertSuggestion(searchSuggest, 0, "suggestion", "apple");
     }
 
     @Override
@@ -1079,13 +1106,13 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertSuggestionSize(searchSuggest, 0, 10, "title");
 
         // suggest with collate
-        String filterString = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("match_phrase")
-                .field("{{field}}", "{{suggestion}}")
-                .endObject()
-                .endObject()
-                .string();
+        String filterString = Strings
+                .toString(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("match_phrase")
+                        .field("{{field}}", "{{suggestion}}")
+                        .endObject()
+                        .endObject());
         PhraseSuggestionBuilder filteredQuerySuggest = suggest.collateQuery(filterString);
         filteredQuerySuggest.collateParams(Collections.singletonMap("field", "title"));
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title", filteredQuerySuggest);
@@ -1098,13 +1125,13 @@ public class SuggestSearchIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         // collate suggest with bad query
-        String incorrectFilterString = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("test")
-                .field("title", "{{suggestion}}")
-                .endObject()
-                .endObject()
-                .string();
+        String incorrectFilterString = Strings
+                .toString(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("test")
+                        .field("title", "{{suggestion}}")
+                        .endObject()
+                        .endObject());
         PhraseSuggestionBuilder incorrectFilteredSuggest = suggest.collateQuery(incorrectFilterString);
         Map<String, SuggestionBuilder<?>> namedSuggestion = new HashMap<>();
         namedSuggestion.put("my_title_suggestion", incorrectFilteredSuggest);
@@ -1116,13 +1143,13 @@ public class SuggestSearchIT extends ESIntegTestCase {
         }
 
         // suggest with collation
-        String filterStringAsFilter = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("match_phrase")
-                .field("title", "{{suggestion}}")
-                .endObject()
-                .endObject()
-                .string();
+        String filterStringAsFilter = Strings
+                .toString(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("match_phrase")
+                        .field("title", "{{suggestion}}")
+                        .endObject()
+                        .endObject());
 
         PhraseSuggestionBuilder filteredFilterSuggest = suggest.collateQuery(filterStringAsFilter);
         searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", "title",
@@ -1130,15 +1157,15 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertSuggestionSize(searchSuggest, 0, 2, "title");
 
         // collate suggest with bad query
-        String filterStr = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("pprefix")
-                .field("title", "{{suggestion}}")
-                .endObject()
-                .endObject()
-                .string();
+        String filterStr = Strings
+                .toString(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("pprefix")
+                        .field("title", "{{suggestion}}")
+                        .endObject()
+                        .endObject());
 
-        PhraseSuggestionBuilder in = suggest.collateQuery(filterStr);
+        suggest.collateQuery(filterStr);
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);
             fail("Post filter error has been swallowed");
@@ -1147,16 +1174,15 @@ public class SuggestSearchIT extends ESIntegTestCase {
         }
 
         // collate script failure due to no additional params
-        String collateWithParams = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("{{query_type}}")
-                .field("{{query_field}}", "{{suggestion}}")
-                .endObject()
-                .endObject()
-                .string();
+        String collateWithParams = Strings
+                .toString(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("{{query_type}}")
+                        .field("{{query_field}}", "{{suggestion}}")
+                        .endObject()
+                        .endObject());
 
 
-        PhraseSuggestionBuilder phraseSuggestWithNoParams = suggest.collateQuery(collateWithParams);
         try {
             searchSuggest("united states house of representatives elections in washington 2006", numShards.numPrimaries, namedSuggestion);
             fail("Malformed query (lack of additional params) should fail");
@@ -1203,7 +1229,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
             suggestBuilder.addSuggestion(suggestion.getKey(), suggestion.getValue());
         }
         builder.suggest(suggestBuilder);
-        SearchResponse actionGet = builder.execute().actionGet();
+        SearchResponse actionGet = builder.get();
         assertThat(Arrays.toString(actionGet.getShardFailures()), actionGet.getFailedShards(), equalTo(expectShardsFailed));
         return actionGet.getSuggest();
     }

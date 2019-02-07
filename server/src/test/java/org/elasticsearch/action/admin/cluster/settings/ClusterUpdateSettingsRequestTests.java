@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -29,6 +30,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ClusterUpdateSettingsRequestTests extends ESTestCase {
@@ -49,19 +51,20 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
 
         if (addRandomFields) {
             String unsupportedField = "unsupported_field";
-            BytesReference mutated = XContentTestUtils.insertIntoXContent(xContentType.xContent(), originalBytes,
-                    Collections.singletonList(""), () -> unsupportedField, () -> randomAlphaOfLengthBetween(3, 10)).bytes();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+            BytesReference mutated = BytesReference.bytes(XContentTestUtils.insertIntoXContent(xContentType.xContent(), originalBytes,
+                    Collections.singletonList(""), () -> unsupportedField, () -> randomAlphaOfLengthBetween(3, 10)));
+            XContentParseException iae = expectThrows(XContentParseException.class,
                     () -> ClusterUpdateSettingsRequest.fromXContent(createParser(xContentType.xContent(), mutated)));
             assertThat(iae.getMessage(),
-                    equalTo("[cluster_update_settings_request] unknown field [" + unsupportedField + "], parser not found"));
+                    containsString("[cluster_update_settings_request] unknown field [" + unsupportedField + "], parser not found"));
         } else {
-            XContentParser parser = createParser(xContentType.xContent(), originalBytes);
-            ClusterUpdateSettingsRequest parsedRequest = ClusterUpdateSettingsRequest.fromXContent(parser);
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                ClusterUpdateSettingsRequest parsedRequest = ClusterUpdateSettingsRequest.fromXContent(parser);
 
-            assertNull(parser.nextToken());
-            assertThat(parsedRequest.transientSettings(), equalTo(request.transientSettings()));
-            assertThat(parsedRequest.persistentSettings(), equalTo(request.persistentSettings()));
+                assertNull(parser.nextToken());
+                assertThat(parsedRequest.transientSettings(), equalTo(request.transientSettings()));
+                assertThat(parsedRequest.persistentSettings(), equalTo(request.persistentSettings()));
+            }
         }
     }
 

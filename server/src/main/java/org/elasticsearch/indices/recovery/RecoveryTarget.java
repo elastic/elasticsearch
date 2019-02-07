@@ -21,7 +21,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -31,6 +30,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -55,10 +56,12 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -89,6 +92,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final AtomicBoolean finished = new AtomicBoolean();
 
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<String, FileChunkWriter> fileChunkWriters = ConcurrentCollections.newConcurrentMap();
     private final CancellableThreads cancellableThreads;
 
     // last time this status was accessed
@@ -117,7 +121,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
-        this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
+        this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
@@ -209,7 +213,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             }
             RecoveryState.Stage stage = indexShard.recoveryState().getStage();
             if (indexShard.recoveryState().getPrimary() && (stage == RecoveryState.Stage.FINALIZE || stage == RecoveryState.Stage.DONE)) {
-                // once primary relocation has moved past the finalization step, the relocation source can be moved to RELOCATED state
+                // once primary relocation has moved past the finalization step, the relocation source can put the target into primary mode
                 // and start indexing as primary into the target shard (see TransportReplicationAction). Resetting the target shard in this
                 // state could mean that indexing is halted until the recovery retry attempt is completed and could also destroy existing
                 // documents indexed and acknowledged before the reset.
@@ -329,8 +333,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 try {
                     entry.getValue().close();
                 } catch (Exception e) {
-                    logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
+                    logger.debug(() -> new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
                 }
                 iterator.remove();
             }
@@ -341,6 +344,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             }
         } finally {
             // free store. increment happens in constructor
+            fileChunkWriters.clear();
             store.decRef();
             indexShard.recoveryStats().decCurrentAsTarget();
             closedLatch.countDown();
@@ -362,23 +366,24 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
-        state().getTranslog().totalOperations(totalTranslogOps);
-        if (createNewTranslog) {
-            // TODO: Assigns the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
-            indexShard().openIndexAndCreateTranslog(false, SequenceNumbers.UNASSIGNED_SEQ_NO);
-        } else {
-            indexShard().openIndexAndSkipTranslogRecovery();
-        }
+    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            state().getTranslog().totalOperations(totalTranslogOps);
+            indexShard().openEngineAndSkipTranslogRecovery();
+            return null;
+        });
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint) throws IOException {
-        final IndexShard indexShard = indexShard();
-        indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
-        // Persist the global checkpoint.
-        indexShard.sync();
-        indexShard.finalizeRecovery();
+    public void finalizeRecovery(final long globalCheckpoint, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            final IndexShard indexShard = indexShard();
+            indexShard.updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
+            // Persist the global checkpoint.
+            indexShard.sync();
+            indexShard.finalizeRecovery();
+            return null;
+        });
     }
 
     @Override
@@ -392,26 +397,42 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
-        final RecoveryState.Translog translog = state().getTranslog();
-        translog.totalOperations(totalTranslogOps);
-        assert indexShard().recoveryState() == state();
-        if (indexShard().state() != IndexShardState.RECOVERING) {
-            throw new IndexShardNotRecoveringException(shardId, indexShard().state());
-        }
-        for (Translog.Operation operation : operations) {
-            Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY, update -> {
-                throw new MapperException("mapping updates are not allowed [" + operation + "]");
-            });
-            assert result.hasFailure() == false : "unexpected failure while replicating translog entry: " + result.getFailure();
-            ExceptionsHelper.reThrowIfNotNull(result.getFailure());
-        }
-        // update stats only after all operations completed (to ensure that mapping updates don't mess with stats)
-        translog.incrementRecoveredOperations(operations.size());
-        indexShard().sync();
-        // roll over / flush / trim if needed
-        indexShard().afterWriteOperation();
-        return indexShard().getLocalCheckpoint();
+    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestampOnPrimary,
+                                        long maxSeqNoOfDeletesOrUpdatesOnPrimary, ActionListener<Long> listener) {
+        ActionListener.completeWith(listener, () -> {
+            final RecoveryState.Translog translog = state().getTranslog();
+            translog.totalOperations(totalTranslogOps);
+            assert indexShard().recoveryState() == state();
+            if (indexShard().state() != IndexShardState.RECOVERING) {
+                throw new IndexShardNotRecoveringException(shardId, indexShard().state());
+            }
+            /*
+             * The maxSeenAutoIdTimestampOnPrimary received from the primary is at least the highest auto_id_timestamp from any operation
+             * will be replayed. Bootstrapping this timestamp here will disable the optimization for original append-only requests
+             * (source of these operations) replicated via replication. Without this step, we may have duplicate documents if we
+             * replay these operations first (without timestamp), then optimize append-only requests (with timestamp).
+             */
+            indexShard().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampOnPrimary);
+            /*
+             * Bootstrap the max_seq_no_of_updates from the primary to make sure that the max_seq_no_of_updates on this replica when
+             * replaying any of these operations will be at least the max_seq_no_of_updates on the primary when that op was executed on.
+             */
+            indexShard().advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfDeletesOrUpdatesOnPrimary);
+            for (Translog.Operation operation : operations) {
+                Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
+                if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+                    throw new MapperException("mapping updates are not allowed [" + operation + "]");
+                }
+                assert result.getFailure() == null : "unexpected failure while replicating translog entry: " + result.getFailure();
+                ExceptionsHelper.reThrowIfNotNull(result.getFailure());
+            }
+            // update stats only after all operations completed (to ensure that mapping updates don't mess with stats)
+            translog.incrementRecoveredOperations(operations.size());
+            indexShard().sync();
+            // roll over / flush / trim if needed
+            indexShard().afterWriteOperation();
+            return indexShard().getLocalCheckpoint();
+        });
     }
 
     @Override
@@ -440,8 +461,17 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // to recover from in case of a full cluster shutdown just when this code executes...
         renameAllTempFiles();
         final Store store = store();
+        store.incRef();
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
+            if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
+                store.ensureIndexHasHistoryUUID();
+            }
+            // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
+            final String translogUUID = Translog.createEmptyTranslog(
+                indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId,
+                indexShard.getPendingPrimaryTerm());
+            store.associateIndexWithNewTranslog(translogUUID);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are
@@ -465,15 +495,15 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
             fail(rfe, true);
             throw rfe;
+        } finally {
+            store.decRef();
         }
     }
 
-    @Override
-    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
-                               boolean lastChunk, int totalTranslogOps) throws IOException {
+    private void innerWriteFileChunk(StoreFileMetaData fileMetaData, long position,
+                                     BytesReference content, boolean lastChunk) throws IOException {
         final Store store = store();
         final String name = fileMetaData.name();
-        state().getTranslog().totalOperations(totalTranslogOps);
         final RecoveryState.Index indexState = state().getIndex();
         IndexOutput indexOutput;
         if (position == 0) {
@@ -481,6 +511,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         } else {
             indexOutput = getOpenIndexOutput(name);
         }
+        assert indexOutput.getFilePointer() == position : "file-pointer " + indexOutput.getFilePointer() + " != " + position;
         BytesRefIterator iterator = content.iterator();
         BytesRef scratch;
         while((scratch = iterator.next()) != null) { // we iterate over all pages - this is a 0-copy for all core impls
@@ -500,6 +531,64 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             store.directory().sync(Collections.singleton(temporaryFileName));
             IndexOutput remove = removeOpenIndexOutputs(name);
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished
+        }
+    }
+
+    @Override
+    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                               boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
+        try {
+            state().getTranslog().totalOperations(totalTranslogOps);
+            final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetaData.name(), name -> new FileChunkWriter());
+            writer.writeChunk(new FileChunk(fileMetaData, content, position, lastChunk));
+            listener.onResponse(null);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static final class FileChunk {
+        final StoreFileMetaData md;
+        final BytesReference content;
+        final long position;
+        final boolean lastChunk;
+        FileChunk(StoreFileMetaData md, BytesReference content, long position, boolean lastChunk) {
+            this.md = md;
+            this.content = content;
+            this.position = position;
+            this.lastChunk = lastChunk;
+        }
+    }
+
+    private final class FileChunkWriter {
+        // chunks can be delivered out of order, we need to buffer chunks if there's a gap between them.
+        final PriorityQueue<FileChunk> pendingChunks = new PriorityQueue<>(Comparator.comparing(fc -> fc.position));
+        long lastPosition = 0;
+
+        void writeChunk(FileChunk newChunk) throws IOException {
+            synchronized (this) {
+                pendingChunks.add(newChunk);
+            }
+            while (true) {
+                final FileChunk chunk;
+                synchronized (this) {
+                    chunk = pendingChunks.peek();
+                    if (chunk == null || chunk.position != lastPosition) {
+                        return;
+                    }
+                    pendingChunks.remove();
+                }
+                innerWriteFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
+                synchronized (this) {
+                    assert lastPosition == chunk.position : "last_position " + lastPosition + " != chunk_position " + chunk.position;
+                    lastPosition += chunk.content.length();
+                    if (chunk.lastChunk) {
+                        assert pendingChunks.isEmpty() == true : "still have pending chunks [" + pendingChunks + "]";
+                        fileChunkWriters.remove(chunk.md.name());
+                        assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
+                    }
+                }
+            }
         }
     }
 

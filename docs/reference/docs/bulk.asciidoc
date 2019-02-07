@@ -57,7 +57,7 @@ newlines. Example:
 [source,js]
 --------------------------------------------------
 $ cat requests
-{ "index" : { "_index" : "test", "_type" : "_doc", "_id" : "1" } }
+{ "index" : { "_index" : "test", "_id" : "1" } }
 { "field1" : "value1" }
 $ curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
 {"took":7, "errors": false, "items":[{"index":{"_index":"test","_type":"_doc","_id":"1","_version":1,"result":"created","forced_refresh":false}}]}
@@ -72,12 +72,12 @@ example of a correct sequence of bulk commands:
 [source,js]
 --------------------------------------------------
 POST _bulk
-{ "index" : { "_index" : "test", "_type" : "_doc", "_id" : "1" } }
+{ "index" : { "_index" : "test", "_id" : "1" } }
 { "field1" : "value1" }
-{ "delete" : { "_index" : "test", "_type" : "_doc", "_id" : "2" } }
-{ "create" : { "_index" : "test", "_type" : "_doc", "_id" : "3" } }
+{ "delete" : { "_index" : "test", "_id" : "2" } }
+{ "create" : { "_index" : "test", "_id" : "3" } }
 { "field1" : "value3" }
-{ "update" : {"_id" : "1", "_type" : "_doc", "_index" : "test"} }
+{ "update" : {"_id" : "1", "_index" : "test"} }
 { "doc" : {"field2" : "value2"} }
 --------------------------------------------------
 // CONSOLE
@@ -185,9 +185,10 @@ Client libraries using this protocol should try and strive to do
 something similar on the client side, and reduce buffering as much as
 possible.
 
-The response to a bulk action is a large JSON structure with the
-individual results of each action that was performed. The failure of a
-single action does not affect the remaining actions.
+The response to a bulk action is a large JSON structure with the individual
+results of each action that was performed in the same order as the actions that
+appeared in the request. The failure of a single action does not affect the
+remaining actions.
 
 There is no "correct" number of actions to perform in a single bulk
 call. You should experiment with different settings to find the optimum
@@ -195,6 +196,17 @@ size for your particular workload.
 
 If using the HTTP API, make sure that the client does not send HTTP
 chunks, as this will slow things down.
+
+[float]
+[[bulk-optimistic-concurrency-control]]
+=== Optimistic Concurrency Control
+
+Each `index` and `delete` action within a bulk API call may include the
+`if_seq_no` and `if_primary_term` parameters in their respective action
+and meta data lines. The `if_seq_no` and `if_primary_term` parameters control
+how operations are executed, based on the last modification to existing
+documents. See <<optimistic-concurrency-control>> for more details.
+
 
 [float]
 [[bulk-versioning]]
@@ -230,6 +242,13 @@ example.
 Control when the changes made by this request are visible to search. See
 <<docs-refresh,refresh>>.
 
+NOTE: Only the shards that receive the bulk request will be affected by
+`refresh`. Imagine a `_bulk?refresh=wait_for` request with three
+documents in it that happen to be routed to different shards in an index
+with five shards. The request will only wait for those three shards to
+refresh. The other two shards of that make up the index do not
+participate in the `_bulk` request at all.
+
 [float]
 [[bulk-update]]
 === Update
@@ -246,15 +265,15 @@ the options. Example with update actions:
 [source,js]
 --------------------------------------------------
 POST _bulk
-{ "update" : {"_id" : "1", "_type" : "_doc", "_index" : "index1", "retry_on_conflict" : 3} }
+{ "update" : {"_id" : "1", "_index" : "index1", "retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"} }
-{ "update" : { "_id" : "0", "_type" : "_doc", "_index" : "index1", "retry_on_conflict" : 3} }
+{ "update" : { "_id" : "0", "_index" : "index1", "retry_on_conflict" : 3} }
 { "script" : { "source": "ctx._source.counter += params.param1", "lang" : "painless", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
-{ "update" : {"_id" : "2", "_type" : "_doc", "_index" : "index1", "retry_on_conflict" : 3} }
+{ "update" : {"_id" : "2", "_index" : "index1", "retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"}, "doc_as_upsert" : true }
-{ "update" : {"_id" : "3", "_type" : "_doc", "_index" : "index1", "_source" : true} }
+{ "update" : {"_id" : "3", "_index" : "index1", "_source" : true} }
 { "doc" : {"field" : "value"} }
-{ "update" : {"_id" : "4", "_type" : "_doc", "_index" : "index1"} }
+{ "update" : {"_id" : "4", "_index" : "index1"} }
 { "doc" : {"field" : "value"}, "_source": true}
 --------------------------------------------------
 // CONSOLE

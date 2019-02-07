@@ -1,22 +1,47 @@
 [[modules-snapshots]]
 == Snapshot And Restore
 
-You can store snapshots of individual indices or an entire cluster in
-a remote repository like a shared file system, S3, or HDFS. These snapshots
-are great for backups because they can be restored relatively quickly. However,
-snapshots can only be restored to versions of Elasticsearch that can read the
-indices:
+A snapshot is a backup taken from a running Elasticsearch cluster. You can take
+a snapshot of individual indices or of the entire cluster and store it in a
+repository on a shared filesystem, and there are plugins that support remote
+repositories on S3, HDFS, Azure, Google Cloud Storage and more.
+
+Snapshots are taken incrementally. This means that when creating a snapshot of
+an index Elasticsearch will avoid copying any data that is already stored in
+the repository as part of an earlier snapshot of the same index. Therefore it
+can be efficient to take snapshots of your cluster quite frequently.
+
+Snapshots can be restored into a running cluster via the restore API. When
+restoring an index it is possible to alter the name of the restored index as
+well as some of its settings, allowing a great deal of flexibility in how the
+snapshot and restore functionality can be used.
+
+WARNING: It is not possible to back up an Elasticsearch cluster simply by
+taking a copy of the data directories of all of its nodes. Elasticsearch may be
+making changes to the contents of its data directories while it is running, and
+this means that copying its data directories cannot be expected to capture a
+consistent picture of their contents. Attempts to restore a cluster from such a
+backup may fail, reporting corruption and/or missing files, or may appear to
+have succeeded having silently lost some of its data. The only reliable way to
+back up a cluster is by using the snapshot and restore functionality.
+
+[float]
+=== Version compatibility
+
+A snapshot contains a copy of the on-disk data structures that make up an
+index. This means that snapshots can only be restored to versions of
+Elasticsearch that can read the indices:
 
 * A snapshot of an index created in 5.x can be restored to 6.x.
 * A snapshot of an index created in 2.x can be restored to 5.x.
 * A snapshot of an index created in 1.x can be restored to 2.x.
 
-Conversely, snapshots of indices created in 1.x **cannot** be restored to
-5.x or 6.x, and snapshots of indices created in 2.x **cannot** be restored
-to 6.x.
+Conversely, snapshots of indices created in 1.x **cannot** be restored to 5.x
+or 6.x, and snapshots of indices created in 2.x **cannot** be restored to 6.x.
 
-Snapshots are incremental and can contain indices created in various
-versions of Elasticsearch. If any indices in a snapshot were created in an
+Each snapshot can contain indices created in various versions of Elasticsearch,
+and when restoring a snapshot it must be possible to restore all of the indices
+into the target cluster. If any indices in a snapshot were created in an
 incompatible version, you will not be able restore the snapshot.
 
 IMPORTANT: When backing up your data prior to an upgrade, keep in mind that you
@@ -28,8 +53,8 @@ that is incompatible with the version of the cluster you are currently running,
 you can restore it on the latest compatible version and use
 <<reindex-from-remote,reindex-from-remote>> to rebuild the index on the current
 version. Reindexing from remote is only possible if the original index has
-source enabled. Retrieving and reindexing the data can take significantly longer
-than simply restoring a snapshot. If you have a large amount of data, we
+source enabled. Retrieving and reindexing the data can take significantly
+longer than simply restoring a snapshot. If you have a large amount of data, we
 recommend testing the reindex from remote process with a subset of your data to
 understand the time requirements before proceeding.
 
@@ -44,12 +69,12 @@ If you register same snapshot repository with multiple clusters, only
 one cluster should have write access to the repository. All other clusters
 connected to that repository should set the repository to `readonly` mode.
 
-NOTE: The snapshot format can change across major versions, so if you have
-clusters on different major versions trying to write the same repository,
-new snapshots written by one version will not be visible to the other. While
-setting the repository to `readonly` on all but one of the clusters should work
-with multiple clusters differing by one major version, it is not a supported
-configuration.
+IMPORTANT: The snapshot format can change across major versions, so if you have
+clusters on different versions trying to write the same repository, snapshots
+written by one version may not be visible to the other and the repository could
+be corrupted. While setting the repository to `readonly` on all but one of the
+clusters should work with multiple clusters differing by one major version, it
+is not a supported configuration.
 
 [source,js]
 -----------------------------------
@@ -87,8 +112,8 @@ which returns:
 -----------------------------------
 // TESTRESPONSE
 
-To retrieve information about multiple repositories, specify a
-a comma-delimited list of repositories. You can also use the * wildcard when
+To retrieve information about multiple repositories, specify a comma-delimited 
+list of repositories. You can also use the * wildcard when
 specifying repository names. For example, the following request retrieves
 information about all of the snapshot repositories that start with `repo` or
 contain `backup`:
@@ -124,8 +149,8 @@ the shared file system repository it is necessary to mount the same shared files
 master and data nodes. This location (or one of its parent directories) must be registered in the `path.repo`
 setting on all master and data nodes.
 
-Assuming that the shared filesystem is mounted to `/mount/backups/my_backup`, the following setting should be added to
-`elasticsearch.yml` file:
+Assuming that the shared filesystem is mounted to `/mount/backups/my_fs_backup_location`, the following setting should
+be added to `elasticsearch.yml` file:
 
 [source,yaml]
 --------------
@@ -141,7 +166,7 @@ path.repo: ["\\\\MY_SERVER\\Snapshots"]
 --------------
 
 After all nodes are restarted, the following command can be used to register the shared file system repository with
-the name `my_backup`:
+the name `my_fs_backup`:
 
 [source,js]
 -----------------------------------
@@ -206,6 +231,51 @@ repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydo
 
 URL repositories with `file:` URLs can only point to locations registered in the `path.repo` setting similar to
 shared file system repository.
+
+[float]
+[role="xpack"]
+[testenv="basic"]
+===== Source Only Repository
+
+A source repository enables you to create minimal, source-only snapshots that take up to 50% less space on disk.
+Source only snapshots contain stored fields and index metadata. They do not include index or doc values structures
+and are not searchable when restored. After restoring a source-only snapshot, you must <<docs-reindex,reindex>>
+the data into a new index.
+
+Source repositories delegate to another snapshot repository for storage.
+
+
+[IMPORTANT]
+==================================================
+
+Source only snapshots are only supported if the `_source` field is enabled and no source-filtering is applied.
+When you restore a source only snapshot:
+
+ * The restored index is read-only and can only serve `match_all` search or scroll requests to enable reindexing.
+
+ * Queries other than `match_all` and `_get` requests are not supported.
+
+ * The mapping of the restored index is empty, but the original mapping is available from the types top
+   level `meta` element.
+
+==================================================
+
+When you create a source repository, you must specify the type and name of the delegate repository
+where the snapshots will be stored:
+
+[source,js]
+-----------------------------------
+PUT _snapshot/my_src_only_repository
+{
+  "type": "source",
+  "settings": {
+    "delegate_type": "fs",
+    "location": "my_backup_location"
+  }
+}
+-----------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 ===== Repository plugins
@@ -288,6 +358,20 @@ creation. By default, when `ignore_unavailable` option is not set and an index i
 By setting `include_global_state` to false it's possible to prevent the cluster global state to be stored as part of
 the snapshot. By default, the entire snapshot will fail if one or more indices participating in the snapshot don't have
 all primary shards available. This behaviour can be changed by setting `partial` to `true`.
+
+Snapshot names can be automatically derived using <<date-math-index-names,date math expressions>>, similarly as when creating
+new indices. Note that special characters need to be URI encoded.
+
+For example, creating a snapshot with the current day in the name, like `snapshot-2018.05.11`, can be achieved with
+the following command:
+[source,js]
+-----------------------------------
+# PUT /_snapshot/my_backup/<snapshot-{now/d}>
+PUT /_snapshot/my_backup/%3Csnapshot-%7Bnow%2Fd%7D%3E
+-----------------------------------
+// CONSOLE
+// TEST[continued]
+
 
 The index snapshot process is incremental. In the process of making the index snapshot Elasticsearch analyses
 the list of the index files that are already stored in the repository and copies only files that were created or
@@ -401,16 +485,16 @@ created the snapshotting process will be aborted and all files created as part o
 cleaned. Therefore, the delete snapshot operation can be used to cancel long running snapshot operations that were
 started by mistake.
 
-A repository can be deleted using the following command:
+A repository can be unregistered using the following command:
 
 [source,sh]
 -----------------------------------
-DELETE /_snapshot/my_fs_backup
+DELETE /_snapshot/my_backup
 -----------------------------------
 // CONSOLE
 // TEST[continued]
 
-When a repository is deleted, Elasticsearch only removes the reference to the location where the repository is storing
+When a repository is unregistered, Elasticsearch only removes the reference to the location where the repository is storing
 the snapshots. The snapshots themselves are left untouched and in place.
 
 [float]
@@ -513,9 +597,8 @@ if the new cluster doesn't contain nodes with appropriate attributes that a rest
 index will not be successfully restored unless these index allocation settings are changed during restore operation.
 
 The restore operation also checks that restored persistent settings are compatible with the current cluster to avoid accidentally
-restoring an incompatible settings such as `discovery.zen.minimum_master_nodes` and as a result disable a smaller cluster until the
-required number of master eligible nodes is added. If you need to restore a snapshot with incompatible persistent settings, try
-restoring it without the global cluster state.
+restoring incompatible settings. If you need to restore a snapshot with incompatible persistent settings, try restoring it without
+the global cluster state.
 
 [float]
 === Snapshot status
@@ -548,6 +631,54 @@ GET /_snapshot/my_backup/snapshot_1/_status
 -----------------------------------
 // CONSOLE
 // TEST[continued]
+
+The output looks similar to the following:
+
+[source,js]
+--------------------------------------------------
+{
+  "snapshots": [
+    {
+      "snapshot": "snapshot_1",
+      "repository": "my_backup",
+      "uuid": "XuBo4l4ISYiVg0nYUen9zg",
+      "state": "SUCCESS",
+      "include_global_state": true,
+      "shards_stats": {
+        "initializing": 0,
+        "started": 0,
+        "finalizing": 0,
+        "done": 5,
+        "failed": 0,
+        "total": 5
+      },
+      "stats": {
+        "incremental": {
+          "file_count": 8,
+          "size_in_bytes": 4704
+        },
+        "processed": {
+          "file_count": 7,
+          "size_in_bytes": 4254
+        },
+        "total": {
+          "file_count": 8,
+          "size_in_bytes": 4704
+        },
+        "start_time_in_millis": 1526280280355,
+        "time_in_millis": 358
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+The output is composed of different sections. The `stats` sub-object provides details on the number and size of files that were
+snapshotted. As snapshots are incremental, copying only the Lucene segments that are not already in the repository,
+the `stats` object contains a `total` section for all the files that are referenced by the snapshot, as well as an `incremental` section
+for those files that actually needed to be copied over as part of the incremental snapshotting. In case of a snapshot that's still
+in progress, there's also a `processed` section that contains information about the files that are in the process of being copied.
 
 Multiple ids are also supported:
 

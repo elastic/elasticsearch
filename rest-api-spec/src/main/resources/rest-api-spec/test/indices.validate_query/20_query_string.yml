@@ -38,14 +38,6 @@
   - do:
       indices.validate_query:
         index: test
-        q: field:bars
-        analyzer: snowball
-
-  - is_true: valid
-
-  - do:
-      indices.validate_query:
-        index: test
         q: field:BA*
 
   - is_true: valid

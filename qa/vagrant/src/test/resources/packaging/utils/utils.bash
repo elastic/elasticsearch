@@ -68,8 +68,11 @@ if [ ! -x "`which unzip 2>/dev/null`" ]; then
 fi
 
 if [ ! -x "`which java 2>/dev/null`" ]; then
-    echo "'java' command is mandatory to run the tests"
-    exit 1
+    # there are some tests that move java temporarily
+    if [ ! -x "`command -v java.bak 2>/dev/null`" ]; then
+        echo "'java' command is mandatory to run the tests"
+        exit 1
+    fi
 fi
 
 # Returns 0 if the 'dpkg' command is available
@@ -230,17 +233,6 @@ assert_output() {
     echo "$output" | grep -E "$1"
 }
 
-assert_recursive_ownership() {
-    local directory=$1
-    local user=$2
-    local group=$3
-
-    realuser=$(find $directory -printf "%u\n" | sort | uniq)
-    [ "$realuser" = "$user" ]
-    realgroup=$(find $directory -printf "%g\n" | sort | uniq)
-    [ "$realgroup" = "$group" ]
-}
-
 # Deletes everything before running a test file
 clean_before_test() {
 
@@ -254,6 +246,7 @@ clean_before_test() {
                             "/etc/sysconfig/elasticsearch"  \
                             "/var/run/elasticsearch"  \
                             "/usr/share/doc/elasticsearch" \
+                            "/usr/share/doc/elasticsearch-oss" \
                             "/tmp/elasticsearch" \
                             "/usr/lib/systemd/system/elasticsearch.conf" \
                             "/usr/lib/tmpfiles.d/elasticsearch.conf" \
@@ -288,20 +281,20 @@ clean_before_test() {
 purge_elasticsearch() {
     # Removes RPM package
     if is_rpm; then
-        rpm --quiet -e elasticsearch > /dev/null 2>&1 || true
+        rpm --quiet -e $PACKAGE_NAME > /dev/null 2>&1 || true
     fi
 
     if [ -x "`which yum 2>/dev/null`" ]; then
-        yum remove -y elasticsearch > /dev/null 2>&1 || true
+        yum remove -y $PACKAGE_NAME > /dev/null 2>&1 || true
     fi
 
     # Removes DEB package
     if is_dpkg; then
-        dpkg --purge elasticsearch > /dev/null 2>&1 || true
+        dpkg --purge $PACKAGE_NAME > /dev/null 2>&1 || true
     fi
 
     if [ -x "`which apt-get 2>/dev/null`" ]; then
-        apt-get --quiet --yes purge elasticsearch > /dev/null 2>&1 || true
+        apt-get --quiet --yes purge $PACKAGE_NAME > /dev/null 2>&1 || true
     fi
 }
 
@@ -460,6 +453,14 @@ debug_collect_logs() {
     describe_port 127.0.0.1 9201
 }
 
+set_debug_logging() {
+    if [ "$ESCONFIG" ] && [ -d "$ESCONFIG" ] && [ -f /etc/os-release ] && (grep -qi suse /etc/os-release); then
+        echo 'logger.org.elasticsearch.indices: TRACE' >> "$ESCONFIG/elasticsearch.yml"
+        echo 'logger.org.elasticsearch.gateway: TRACE' >> "$ESCONFIG/elasticsearch.yml"
+        echo 'logger.org.elasticsearch.cluster: DEBUG' >> "$ESCONFIG/elasticsearch.yml"
+    fi
+}
+
 # Waits for Elasticsearch to reach some status.
 # $1 - expected status - defaults to green
 wait_for_elasticsearch_status() {
@@ -504,13 +505,19 @@ wait_for_elasticsearch_status() {
 # $1 - expected version
 check_elasticsearch_version() {
     local version=$1
-    local versionToCheck=$(echo $version | sed -e 's/-SNAPSHOT//')
+    local versionToCheck
+    local major=$(echo ${version} | cut -d. -f1 )
+    if [ $major -ge 7 ] ; then
+        versionToCheck=$version
+    else
+        versionToCheck=$(echo ${version} | sed -e 's/-SNAPSHOT//')
+    fi
 
     run curl -s localhost:9200
     [ "$status" -eq 0 ]
 
     echo $output | grep \"number\"\ :\ \"$versionToCheck\" || {
-        echo "Installed an unexpected version:"
+        echo "Expected $versionToCheck but installed an unexpected version:"
         curl -s localhost:9200
         false
     }
@@ -543,7 +550,10 @@ run_elasticsearch_tests() {
 # Move the config directory to another directory and properly chown it.
 move_config() {
     local oldConfig="$ESCONFIG"
-    export ESCONFIG="${1:-$(mktemp -d -t 'config.XXXX')}"
+    # The custom config directory is not under /tmp or /var/tmp because
+    # systemd's private temp directory functionally means different
+    # processes can have different views of what's in these directories
+    export ESCONFIG="${1:-$(mktemp -p /etc -d -t 'config.XXXX')}"
     echo "Moving configuration directory from $oldConfig to $ESCONFIG"
 
     # Move configuration files to the new configuration directory
@@ -568,4 +578,18 @@ file_privileges_for_user_from_umask() {
     shift
 
     echo $((0777 & ~$(sudo -E -u $user sh -c umask) & ~0111))
+}
+
+# move java to simulate it not being in the path
+move_java() {
+    which_java=`command -v java`
+    assert_file_exist $which_java
+    mv $which_java ${which_java}.bak
+}
+
+# move java back to its original location
+unmove_java() {
+    which_java=`command -v java.bak`
+    assert_file_exist $which_java
+    mv $which_java `dirname $which_java`/java
 }

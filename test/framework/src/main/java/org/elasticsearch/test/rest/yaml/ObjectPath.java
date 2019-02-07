@@ -50,7 +50,7 @@ public class ObjectPath {
 
     public static ObjectPath createFromXContent(XContent xContent, BytesReference input) throws IOException {
         try (XContentParser parser = xContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input.streamInput())) {
             if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                 return new ObjectPath(parser.listOrderedMap());
             }

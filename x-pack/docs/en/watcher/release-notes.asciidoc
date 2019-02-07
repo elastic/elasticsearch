@@ -1,0 +1,312 @@
+[[watcher-release-notes]]
+== Watcher Release Notes (Pre-5.0)
+
+[float]
+[[watcher-change-list]]
+=== Change List
+
+[float]
+==== 2.4.2
+November 22, 2016
+
+.Bug Fixes
+* Deleting a watch now is independent from its current execution state in
+order to prevent failed deletions with watches having small intervals
+* Chain input: Parsing now throws an exception if a data structure is added, that cannot keep its order
+
+[float]
+==== 2.4.1
+September 28, 2016
+
+.Bug Fixes
+* Fixed a serialization error that resulted in the watch history not being
+written when a proxy is specified in a watch.
+* Triggered watches are now correctly deleted from the `.triggered-watches`
+index if they are rejected due to a full thread pool.
+* Deleting or closing the `.watches` index now correctly cleans up the
+in-memory watch store so the watches are no longer executed.
+* If the HTTP request for an attachment fails, the error message is included
+in the watch history.
+* Fixed a possible exception when chained inputs don't execute successfully.
+
+.Enhancements
+*  Hostname verification can be disabled for Watcher
+HTTP actions.
+* Running watches can be updated and deleted.
+
+[float]
+==== 2.4.0
+August 31, 2016
+
+.Enhancements
+* The HTTP headers of a response are now part of the payload and can be accessed via `ctx.payload._headers`
+
+
+[float]
+==== 2.3.5
+August 3, 2016
+
+.Bug Fixes
+* The watch history was not written, if one of the chained inputs resulted in a failure as well as an input containing a field name with dots
+* Status of an acked watch, whose condition evaluates to false again is now properly persisted and not lost in case of a master node switch
+* Fixed the watch history template so payloads and request bodies are handled
+correctly. To update an existing installation, delete the existing watch history
+template by running `DELETE /_template/watch_history` and the correct template
+will be autocreated. To verify the template is recreated, call `GET
+/_template/watch_history`. Note that this just updates the template, so you
+need to wait one day for this update to take effect when a new history index is
+created.
+* The `watcher.http.proxy.port` setting for global proxy configuration was not applied correctly.
+
+[float]
+==== 2.3.4
+July 7, 2016
+
+.Bug Fixes
+* Putting a new watch with state `active=false` now stores that state correctly
+on a multi node cluster.
+* Fixed the watch history template so nested request bodies are handled
+correctly. To update an existing installation, delete the existing watch history
+template by running `DELETE /_template/watch_history` and the correct template
+will be autocreated. To verify the template is recreated, call `GET
+/_template/watch_history`. Note that this just updates the template, so you
+need to wait one day for this update to take effect when a new history index is
+created.
+* The HTML sanitizer now supports border and cellpadding attributes on table
+elements and the colspan and rowspan attributes on <td> and <tr> elements.
+* Fixed the Watcher/Marvel examples in the documentation.
+
+[float]
+==== 2.3.3
+May 18, 2016
+
+.Enhancements
+* Adds support for Elasticsearch 2.3.3
+
+[float]
+==== 2.3.2
+April 26, 2016
+
+.Bug Fixes
+* All SMTP connection timeouts are now set to two minutes by default to prevent
+a watch from getting stuck.
+* HTTP headers from responses that contained dots led to exceptions when the
+HTTP response was stored in the watch history. All dots in any header names
+are now replaced with underscores. For example, a header called `foo.bar`
+becomes `foo_bar`
+* Hipchat action: Fall back to the default Hipchat color and format if they
+are not specified at the account level or within the action itself, instead
+of failing.
+
+[float]
+==== 2.3.1
+April 4, 2016
+
+.Enhancements
+* Adds support for Elasticsearch 2.3.1
+
+[float]
+==== 2.3.0
+March 30, 2016
+
+.Bug fixes
+* The http client does not do any URL escaping by itself anymore, preventing
+  potential wrong double escapes.
+
+.Enhancement
+* Support `url` in http requests as a shortcut for `path`, `scheme`, `port`, `params`
+* Support `ignore_condition` and `record_execution` as parameters in the
+  {ref}/watcher-api-execute-watch.html[Execute Watch API]
+
+.New Features
+* Added <<actions-pagerduty, PagerDuty action>>
+* Added support for adding <<configuring-email-attachments, attachments to emails>>
+  via HTTP requests and superseding and deprecating the usage of `attach_data`
+  in order to use this feature
+
+[float]
+==== 2.2.1
+March 10, 2016
+
+.Bug Fixes
+* The `croneval` CLI tool sets the correct environment to run
+
+[float]
+==== 2.2.0
+February 2, 2016
+
+.Enhancements
+* Adds support for Elasticsearch 2.2.0.
+
+[float]
+==== 2.1.2
+February 2, 2016
+
+.Enhancements
+* Adds support for Elasticsearch 2.1.2
+
+[float]
+==== 2.1.1
+December 17, 2015
+
+.Bug Fixes
+* Fixed an issue that prevented sending of emails
+
+[float]
+==== 2.1.0
+November 24, 2015
+
+.New Features
+* Adds support for <<input-chain, chaining several inputs>>
+
+.Enhancements
+* Adds support for Elasticsearch 2.1.0.
+* Adds support for configuring a proxy in the webhook action, http input and
+  configuring a default proxy (which is also used by the slack action), using the
+  `watcher.http.proxy.host` and `watcher.http.proxy.port` settings.
+
+.Bug Fixes
+* Fixed an issue where the scheduler may get stuck during Watcher startup. This
+  caused no watches to ever fire.
+* Fixed an issue where under specific conditions Watcher would not start if there
+  are not finished watch executions from the previous time that watcher was
+  running and those watch execution are unable the execute during the current
+  start process.
+
+[float]
+==== 2.0.1
+November 24, 2015
+
+.Enhancement
+* Adds support for Elasticsearch 2.0.1.
+
+.Bug fixes
+* Fixed an issue where under specific conditions Watcher would not start if
+  there are not finished watch executions from the previous time that watcher
+  was running and those watch execution are unable the execute during the current
+  start process.
+
+[float]
+==== 2.0.0
+October 28, 2015
+
+.Breaking Changes
+* The dynamic index names support has been removed and Elasticsearch's date math
+  index names support should be used instead. The only difference between Watcher's
+  dynamic index names support and Elasticsearch's date math index names support is
+  how timezones are expressed. In Watcher this is done via node settings, in
+  Elasticsearch the timezone is part of the date math index names support. Only
+  if you're using dynamic index names with timezones in Watcher then you need to
+  upgrade your watches after the upgrade, otherwise your watches will work as
+  they did before the upgrade. For example if `watcher.dynamic_indices.time_zone`
+  setting was set to `+01:00` and a watch has the following index name
+  `<logstash-{now/d}>` then after the upgrade you need to update this watch to
+  use the following index name `<logstash-{now/d{YYYY.MM.dd|+01:00}}>`.
+
+.New Features
+* Added new <<actions-hipchat, HipChat Action>>
+* Added new <<actions-slack, Slack Action>>
+* Watches now have an <<watch-active-state, active state>>. In addition, a new
+  API was added to {ref}/watcher-api-activate-watch.html[activate]
+  /{ref}watcher-api-deactivate-watch.html[deactivate] registered watches.
+* Added new <<condition-array-compare, array_compare>>, that can compare an array
+  of values in the <<watch-execution-context, Watch Execution Context Model>>
+  to a given value.
+
+.Enhancements
+* Watcher continuously checks if the index templates for `.watches`,
+  `.triggered_watches` and `.watch_history-*` exist. Whereas before the existence
+  of these index templates was only checked at Watcher startup time. The absence
+  of these index templates leads to watcher data being indexed incorrectly, which
+  then can cause Watcher to behave incorrectly.
+* If Watcher was stopped via the stop Watcher api and after that a master
+  election took place then Watcher would then unexpectedly start.
+* During Watcher start up only wait for the shards of the `.watches` and
+  `.triggered_watches` indices to be available. Before Watcher also waited for
+  the shards of the `.watch_history-*` indices, which wasn't needed. This
+  improved time it takes for Watcher to startup.
+* If `action.auto_create_index` setting has been configured then Watcher will
+  check if the setting is too restrictive. If the `action.auto_create_index` is
+  too restrictive then Watcher will fail during startup with a descriptive error
+  message.
+
+.Bug Fixes
+* If Watcher was installed with Security then the Watcher index templates couldn't
+  be stored and could lead to Watcher behaving incorrectly. This was caused by
+  Watcher not detecting correctly if Security was installed.
+* Update `croneval` command line utility to properly handle whitespaces in the
+  elasticsearch home path.
+* Fixed an issue where the scheduler may get stuck during Watcher startup. This
+  caused no watches to ever fire.
+* Fixed url encoding issue in http input and webhook output. The url params were
+  url encoded twice.
+
+[float]
+==== 1.0.1
+July 29, 2015
+
+.Enhancements
+* Dynamic index names now support specifying a time zone to be used when
+  computing the names of the indices. The default is UTC. Previously, the
+  computation was fixed to always use UTC when computing the names of the
+  indices.
+
+.Bug Fixes
+* Fixed a compatibility issue with Elasticsearch 1.6.1 and 1.7.2, which were
+  released earlier today.
+
+[float]
+==== 1.0.0
+June 25, 2015
+
+.Enhancements
+* Added execution time aware dynamic index names support to `index`
+  action, `search` input, and `search` transform.
+* You must now explicitly specify the unit when configuring any time value.
+  (Numeric-only values are no longer supported.)
+* Cleaned up the {ref}/watcher-api-get-watch.html[Get Watch API] response.
+* Cleaned up the <<watcher-api-stats, Stats API>> response.
+
+
+[float]
+==== 1.0.0-rc1
+June 19, 2015
+
+.New Features
+* Added <<watcher-api-execute-inline-watch, inline watch>> support to the Execute API
+
+.Enhancements
+* Added execution context <<watch-execution-context, variables>> support.
+* Email html body sanitization is now <<email-html-sanitization, configurable>>.
+* It is now possible to configure timeouts for http requests in
+  <<http-input-attributes, HTTP input>> and <<webhook-action-attributes, webhook actions>>.
+
+[float]
+==== 1.0.0-Beta2
+June 10, 2015
+
+.New Features
+* <<actions-ack-throttle, Acking and Throttling>> are now applied at the action
+  level rather than the watch level.
+* Added support for <<anatomy-actions-index-multi-doc-support, multi-doc>>
+  indexing to the index action.
+* Added a queued watches metric that's accessible via the <<watcher-api-stats, Stats API>>.
+* Added a currently-executing watches metric that's accessible via the
+  <<watcher-api-stats, Stats API>>.
+
+.Enhancements
+* The <<condition-compare, compare condition>> result now includes the value of
+  each field that was referenced in the comparison.
+* The <<watcher-api-execute-watch, Execute API>> now supports a default trigger
+  event (**breaking change**).
+* The `watch_record` document structure in the `.watch_history-*` indices has
+  changed significantly (**breaking change**).
+* A new internal index was introduced - `.triggered_watches`
+* Added support for headers in the <<actions-webhook, Webhook Action>> result
+  and the <<input-http, HTTP Input>> result.
+* Add plain text response body support for the <<input-http, HTTP Input>>.
+
+.Bug Fixes
+* Disallow negative time value settings for <<actions-ack-throttle, `throttle_period`>>
+* Added support for separate keystore and truststore in <<actions-webhook, Webhook Action>>
+  and <<input-http, HTTP Input>>.

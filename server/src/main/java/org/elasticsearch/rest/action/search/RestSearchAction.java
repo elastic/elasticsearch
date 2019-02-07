@@ -19,10 +19,13 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -43,6 +46,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
@@ -52,9 +56,22 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 public class RestSearchAction extends BaseRestHandler {
-
+    /**
+     * Indicates whether hits.total should be rendered as an integer or an object
+     * in the rest search response.
+     */
+    public static final String TOTAL_HITS_AS_INT_PARAM = "rest_total_hits_as_int";
     public static final String TYPED_KEYS_PARAM = "typed_keys";
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
+    private static final Set<String> RESPONSE_PARAMS;
+
+    static {
+        final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM));
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    }
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSearchAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+        " Specifying types in search requests is deprecated.";
 
     public RestSearchAction(Settings settings, RestController controller) {
         super(settings);
@@ -62,6 +79,8 @@ public class RestSearchAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
         controller.registerHandler(POST, "/{index}/_search", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/_search", this);
         controller.registerHandler(POST, "/{index}/{type}/_search", this);
     }
@@ -109,7 +128,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (requestContentParser != null) {
-            searchRequest.source().parseXContent(requestContentParser);
+            searchRequest.source().parseXContent(requestContentParser, true);
         }
 
         final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
@@ -128,7 +147,7 @@ public class RestSearchAction extends BaseRestHandler {
             // only set if we have the parameter passed to override the cluster-level default
             searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
         }
-        
+
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
         // from the REST layer. these modes are an internal optimization and should
         // not be specified explicitly by the user.
@@ -147,10 +166,15 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
-        searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+        if (request.hasParam("type")) {
+            deprecationLogger.deprecatedAndMaybeLog("search_with_types", TYPES_DEPRECATION_MESSAGE);
+            searchRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+        }
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
+
+        checkRestTotalHits(request, searchRequest);
     }
 
     /**
@@ -178,6 +202,9 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.hasParam("version")) {
             searchSourceBuilder.version(request.paramAsBoolean("version", null));
         }
+        if (request.hasParam("seq_no_primary_term")) {
+            searchSourceBuilder.seqNoAndPrimaryTerm(request.paramAsBoolean("seq_no_primary_term", null));
+        }
         if (request.hasParam("timeout")) {
             searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
         }
@@ -201,7 +228,7 @@ public class RestSearchAction extends BaseRestHandler {
             if (Strings.hasText(sDocValueFields)) {
                 String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);
                 for (String field : sFields) {
-                    searchSourceBuilder.docValueField(field);
+                    searchSourceBuilder.docValueField(field, null);
                 }
             }
         }
@@ -214,8 +241,17 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
         }
 
+
         if (request.hasParam("track_total_hits")) {
-            searchSourceBuilder.trackTotalHits(request.paramAsBoolean("track_total_hits", true));
+            if (Booleans.isBoolean(request.param("track_total_hits"))) {
+                searchSourceBuilder.trackTotalHits(
+                    request.paramAsBoolean("track_total_hits", true)
+                );
+            } else {
+                searchSourceBuilder.trackTotalHitsUpTo(
+                    request.paramAsInt("track_total_hits", SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO)
+                );
+            }
         }
 
         String sSorts = request.param("sort");
@@ -251,6 +287,32 @@ public class RestSearchAction extends BaseRestHandler {
                     termSuggestion(suggestField)
                         .text(suggestText).size(suggestSize)
                         .suggestMode(SuggestMode.resolve(suggestMode))));
+        }
+    }
+
+    /**
+     * Modify the search request to accurately count the total hits that match the query
+     * if {@link #TOTAL_HITS_AS_INT_PARAM} is set.
+     *
+     * @throws IllegalArgumentException if {@link #TOTAL_HITS_AS_INT_PARAM}
+     * is used in conjunction with a lower bound value (other than {@link SearchContext#DEFAULT_TRACK_TOTAL_HITS_UP_TO})
+     * for the track_total_hits option.
+     */
+    public static void checkRestTotalHits(RestRequest restRequest, SearchRequest searchRequest) {
+        boolean totalHitsAsInt = restRequest.paramAsBoolean(TOTAL_HITS_AS_INT_PARAM, false);
+        if (totalHitsAsInt == false) {
+            return;
+        }
+        if (searchRequest.source() == null) {
+            searchRequest.source(new SearchSourceBuilder());
+        }
+        Integer trackTotalHitsUpTo = searchRequest.source().trackTotalHitsUpTo();
+        if (trackTotalHitsUpTo == null) {
+            searchRequest.source().trackTotalHits(true);
+        } else if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE
+                && trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED) {
+            throw new IllegalArgumentException("[" + TOTAL_HITS_AS_INT_PARAM + "] cannot be used " +
+                "if the tracking of total hits is not accurate, got " + trackTotalHitsUpTo);
         }
     }
 

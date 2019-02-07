@@ -25,23 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.Base64;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class UidTests extends ESTestCase {
-    public void testCreateAndSplitId() {
-        BytesRef createUid = Uid.createUidAsBytes("foo", "bar");
-        BytesRef[] splitUidIntoTypeAndId = splitUidIntoTypeAndId(createUid);
-        assertThat("foo", equalTo(splitUidIntoTypeAndId[0].utf8ToString()));
-        assertThat("bar", equalTo(splitUidIntoTypeAndId[1].utf8ToString()));
-        // split also with an offset
-        BytesRef ref = new BytesRef(createUid.length+10);
-        ref.offset = 9;
-        ref.length = createUid.length;
-        System.arraycopy(createUid.bytes, createUid.offset, ref.bytes, ref.offset, ref.length);
-        splitUidIntoTypeAndId = splitUidIntoTypeAndId(ref);
-        assertThat("foo", equalTo(splitUidIntoTypeAndId[0].utf8ToString()));
-        assertThat("bar", equalTo(splitUidIntoTypeAndId[1].utf8ToString()));
-    }
 
     public static BytesRef[] splitUidIntoTypeAndId(BytesRef uid) {
         int loc = -1;

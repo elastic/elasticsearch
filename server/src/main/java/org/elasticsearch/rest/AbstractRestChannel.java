@@ -40,7 +40,7 @@ public abstract class AbstractRestChannel implements RestChannel {
     private static final Predicate<String> EXCLUDE_FILTER = INCLUDE_FILTER.negate();
 
     protected final RestRequest request;
-    protected final boolean detailedErrorsEnabled;
+    private final boolean detailedErrorsEnabled;
     private final String format;
     private final String filterPath;
     private final boolean pretty;
@@ -48,6 +48,13 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     private BytesStreamOutput bytesOut;
 
+    /**
+     * Construct a channel for handling the request.
+     *
+     * @param request               the request
+     * @param detailedErrorsEnabled if detailed errors should be reported to the channel
+     * @throws IllegalArgumentException if parsing the pretty or human parameters fails
+     */
     protected AbstractRestChannel(RestRequest request, boolean detailedErrorsEnabled) {
         this.request = request;
         this.detailedErrorsEnabled = detailedErrorsEnabled;

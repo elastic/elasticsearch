@@ -85,7 +85,7 @@ public final class CopyOnWriteHashMap<K, V> extends AbstractMap<K, V> {
         /**
          * Recursively add a new entry to this node. <code>hashBits</code> is
          * the number of bits that are still set in the hash. When this value
-         * reaches a number that is less than or equal to <tt>0</tt>, a leaf
+         * reaches a number that is less than or equal to {@code 0}, a leaf
          * node needs to be created since it means that a collision occurred
          * on the 32 bits of the hash.
          */

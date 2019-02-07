@@ -24,7 +24,6 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -37,7 +36,9 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.Permission;
+import java.security.Security;
 import java.util.Arrays;
+import java.util.Locale;
 
 /**
  * This class starts elasticsearch.
@@ -72,19 +73,41 @@ class Elasticsearch extends EnvironmentAwareCommand {
      * Main entry point for starting elasticsearch
      */
     public static void main(final String[] args) throws Exception {
-        // we want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
-        // presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy)
+        overrideDnsCachePolicyProperties();
+        /*
+         * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
+         * presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy). This
+         * forces such policies to take effect immediately.
+         */
         System.setSecurityManager(new SecurityManager() {
+
             @Override
             public void checkPermission(Permission perm) {
                 // grant all permissions so that we can later set the security manager to the one that we want
             }
+
         });
         LogConfigurator.registerErrorListener();
         final Elasticsearch elasticsearch = new Elasticsearch();
         int status = main(args, elasticsearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
             exit(status);
+        }
+    }
+
+    private static void overrideDnsCachePolicyProperties() {
+        for (final String property : new String[] {"networkaddress.cache.ttl", "networkaddress.cache.negative.ttl" }) {
+            final String overrideProperty = "es." + property;
+            final String overrideValue = System.getProperty(overrideProperty);
+            if (overrideValue != null) {
+                try {
+                    // round-trip the property to an integer and back to a string to ensure that it parses properly
+                    Security.setProperty(property, Integer.toString(Integer.valueOf(overrideValue)));
+                } catch (final NumberFormatException e) {
+                    throw new IllegalArgumentException(
+                            "failed to parse [" + overrideProperty + "] with value [" + overrideValue + "]", e);
+                }
+            }
         }
     }
 
@@ -98,15 +121,30 @@ class Elasticsearch extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
         if (options.has(versionOption)) {
-            terminal.println("Version: " + Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot())
-                    + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()
-                    + ", JVM: " + JvmInfo.jvmInfo().version());
+            final String versionOutput = String.format(
+                Locale.ROOT,
+                "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
+                Build.CURRENT.getQualifiedVersion(),
+                Build.CURRENT.flavor().displayName(),
+                Build.CURRENT.type().displayName(),
+                Build.CURRENT.shortHash(),
+                Build.CURRENT.date(),
+                JvmInfo.jvmInfo().version()
+            );
+            terminal.println(versionOutput);
             return;
         }
 
         final boolean daemonize = options.has(daemonizeOption);
         final Path pidFile = pidfileOption.value(options);
         final boolean quiet = options.has(quietOption);
+
+        // a misconfigured java.io.tmpdir can cause hard-to-diagnose problems later, so reject it immediately
+        try {
+            env.validateTmpFile();
+        } catch (IOException e) {
+            throw new UserException(ExitCodes.CONFIG, e.getMessage());
+        }
 
         try {
             init(daemonize, pidFile, quiet, env);

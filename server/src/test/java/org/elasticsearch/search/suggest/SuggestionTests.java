@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.suggest;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -180,22 +180,23 @@ public class SuggestionTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
-            ParsingException e = expectThrows(ParsingException.class, () -> Suggestion.fromXContent(parser));
-            assertEquals("Unknown Suggestion [unknownType]", e.getMessage());
+            NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class, () -> Suggestion.fromXContent(parser));
+            assertEquals("[1:31] unable to parse Suggestion with name [unknownType]: parser not found", e.getMessage());
         }
     }
 
     public void testToXContent() throws IOException {
         ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         {
-            Option option = new Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
-            Entry<Option> entry = new Entry<>(new Text("entryText"), 42, 313);
+            PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"),
+                1.3f, true);
+            PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
             entry.addOption(option);
-            Suggestion<Entry<Option>> suggestion = new Suggestion<>("suggestionName", 5);
+            PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
             assertEquals(
-                    "{\"suggestion#suggestionName\":[{"
+                    "{\"phrase#suggestionName\":[{"
                             + "\"text\":\"entryText\","
                             + "\"offset\":42,"
                             + "\"length\":313,"
@@ -208,7 +209,8 @@ public class SuggestionTests extends ESTestCase {
                     + "}", xContent.utf8ToString());
         }
         {
-            Option option = new Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
+            PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"),
+                    1.3f, true);
             PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313, 1.0);
             entry.addOption(option);
             PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
@@ -247,7 +249,7 @@ public class SuggestionTests extends ESTestCase {
                     + "}", xContent.utf8ToString());
         }
         {
-            Map<String, Set<CharSequence>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
+            Map<String, Set<String>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
             CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(1, new Text("someText"), 1.3f, contexts);
             CompletionSuggestion.Entry entry = new CompletionSuggestion.Entry(new Text("entryText"), 42, 313);
             entry.addOption(option);

@@ -20,14 +20,16 @@
 package org.elasticsearch.grok;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -35,12 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 
 public class GrokTests extends ESTestCase {
-    private Map<String, String> basePatterns;
-
-    @Before
-    public void setup() {
-        basePatterns = Grok.getBuiltinPatterns();
-    }
+    private static final Map<String, String> basePatterns = Grok.getBuiltinPatterns();
 
     public void testMatchWithoutCaptures() {
         String line = "value";
@@ -205,9 +202,66 @@ public class GrokTests extends ESTestCase {
         assertEquals(expected, actual);
     }
 
-    public void testBooleanCaptures() {
-        Map<String, String> bank = new HashMap<>();
+    public void testCircularReference() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("NAME", "!!!%{NAME}!!!");
+            String pattern = "%{NAME}";
+            new Grok(bank, pattern, false);
+        });
+        assertEquals("circular reference in pattern [NAME][!!!%{NAME}!!!]", e.getMessage());
 
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("NAME", "!!!%{NAME:name}!!!");
+            String pattern = "%{NAME}";
+            new Grok(bank, pattern, false);
+        });
+        assertEquals("circular reference in pattern [NAME][!!!%{NAME:name}!!!]", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("NAME", "!!!%{NAME:name:int}!!!");
+            String pattern = "%{NAME}";
+            new Grok(bank, pattern, false);
+        });
+        assertEquals("circular reference in pattern [NAME][!!!%{NAME:name:int}!!!]", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new TreeMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME1}!!!");
+            String pattern = "%{NAME1}";
+            new Grok(bank, pattern, false);
+        });
+        assertEquals("circular reference in pattern [NAME2][!!!%{NAME1}!!!] back to pattern [NAME1]", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new TreeMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME3}!!!");
+            bank.put("NAME3", "!!!%{NAME1}!!!");
+            String pattern = "%{NAME1}";
+            new Grok(bank, pattern, false);
+        });
+        assertEquals("circular reference in pattern [NAME3][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2]",
+            e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new TreeMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME3}!!!");
+            bank.put("NAME3", "!!!%{NAME4}!!!");
+            bank.put("NAME4", "!!!%{NAME5}!!!");
+            bank.put("NAME5", "!!!%{NAME1}!!!");
+            String pattern = "%{NAME1}";
+            new Grok(bank, pattern, false);
+        });
+        assertEquals("circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] " +
+            "via patterns [NAME2=>NAME3=>NAME4]", e.getMessage());
+    }
+
+    public void testBooleanCaptures() {
         String pattern = "%{WORD:name}=%{WORD:status:boolean}";
         Grok g = new Grok(basePatterns, pattern);
 
@@ -355,5 +409,88 @@ public class GrokTests extends ESTestCase {
         Map<String, Object> expected = new HashMap<>();
         expected.put("num", "1");
         assertThat(grok.captures("12"), equalTo(expected));
+    }
+
+    public void testExponentialExpressions() {
+        AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
+
+        String grokPattern = "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] " +
+            "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10} Datum->%{DATESTAMP_OTHER:param11}";
+        String logLine = "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] " +
+            "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018";
+        BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler = (delay, command) -> {
+            try {
+                Thread.sleep(delay);
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
+            Thread t = new Thread(() -> {
+                if (run.get()) {
+                    command.run();
+                }
+            });
+            t.start();
+            return null;
+        };
+        Grok grok = new Grok(basePatterns, grokPattern, ThreadWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler));
+        Exception e = expectThrows(RuntimeException.class, () -> grok.captures(logLine));
+        run.set(false);
+        assertThat(e.getMessage(), equalTo("grok pattern matching was interrupted after [200] ms"));
+    }
+
+    public void testAtInFieldName() {
+        assertGrokedField("@metadata");
+    }
+
+    public void assertNonAsciiLetterInFieldName() {
+        assertGrokedField("metädata");
+    }
+
+    public void assertSquareBracketInFieldName() {
+        assertGrokedField("metadat[a]");
+        assertGrokedField("metad[a]ta");
+        assertGrokedField("[m]etadata");
+    }
+
+    public void testUnderscoreInFieldName() {
+        assertGrokedField("meta_data");
+    }
+
+    public void testDotInFieldName() {
+        assertGrokedField("meta.data");
+    }
+
+    public void testMinusInFieldName() {
+        assertGrokedField("meta-data");
+    }
+
+    public void testAlphanumericFieldName() {
+        assertGrokedField(randomAlphaOfLengthBetween(1, 5));
+        assertGrokedField(randomAlphaOfLengthBetween(1, 5) + randomIntBetween(0, 100));
+        assertGrokedField(randomIntBetween(0, 100) + randomAlphaOfLengthBetween(1, 5));
+        assertGrokedField(String.valueOf(randomIntBetween(0, 100)));
+    }
+
+    public void testUnsupportedBracketsInFieldName() {
+        Grok grok = new Grok(basePatterns, "%{WORD:unsuppo(r)ted}");
+        Map<String, Object> matches = grok.captures("line");
+        assertNull(matches);
+    }
+
+    public void testJavaClassPatternWithUnderscore() {
+        Grok grok = new Grok(basePatterns, "%{JAVACLASS}");
+        assertThat(grok.match("Test_Class.class"), is(true));
+    }
+
+    public void testJavaFilePatternWithSpaces() {
+        Grok grok = new Grok(basePatterns, "%{JAVAFILE}");
+        assertThat(grok.match("Test Class.java"), is(true));
+    }
+
+    private void assertGrokedField(String fieldName) {
+        String line = "foo";
+        Grok grok = new Grok(basePatterns, "%{WORD:" + fieldName + "}");
+        Map<String, Object> matches = grok.captures(line);
+        assertEquals(line, matches.get(fieldName));
     }
 }

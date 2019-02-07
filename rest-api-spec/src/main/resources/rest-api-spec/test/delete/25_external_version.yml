@@ -1,10 +1,13 @@
 ---
 "External version":
 
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
  - do:
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external
@@ -16,7 +19,6 @@
       catch:             conflict
       delete:
           index:          test_1
-          type:           test
           id:             1
           version_type:   external
           version:        4
@@ -24,7 +26,6 @@
  - do:
       delete:
           index:          test_1
-          type:           test
           id:             1
           version_type:   external
           version:        6

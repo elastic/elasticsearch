@@ -1,0 +1,45 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      security.delete_role_mapping:
+        name: "test_delete"
+        ignore: 404
+---
+"Test delete role_mapping api":
+  - do:
+      security.put_role_mapping:
+        name: "test_delete"
+        body:  >
+            {
+               "enabled": true,
+               "roles": [ "kibana_user" ],
+               "rules": { "field": { "username": "*" } }
+            }
+  - match: { role_mapping: { created: true } }
+
+  # Get by name
+  - do:
+      security.get_role_mapping:
+        name: "test_delete"
+  - match: { test_delete.enabled: true }
+
+  # Delete it
+  - do:
+      security.delete_role_mapping:
+        name: "test_delete"
+  - match: { found: true }
+
+ # Get by name
+  - do:
+      security.get_role_mapping:
+        name: "test_delete"
+      catch: missing

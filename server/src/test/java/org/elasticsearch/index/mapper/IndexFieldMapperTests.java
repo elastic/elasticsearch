@@ -19,16 +19,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -47,15 +42,16 @@ public class IndexFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultDisabledIndexMapper() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .endObject().endObject());
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "value")
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("_index"), nullValue());
@@ -63,9 +59,9 @@ public class IndexFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexNotConfigurable() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_index").endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> parser.parse("type", new CompressedXContent(mapping)));

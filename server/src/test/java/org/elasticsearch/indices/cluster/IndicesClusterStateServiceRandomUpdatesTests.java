@@ -49,10 +49,12 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -70,9 +72,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -110,8 +114,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     state = randomlyUpdateClusterState(state, clusterStateServiceMap, MockIndicesService::new);
                 } catch (AssertionError error) {
                     ClusterState finalState = state;
-                    logger.error((org.apache.logging.log4j.util.Supplier<?>) () ->
-                        new ParameterizedMessage("failed to random change state. last good state: \n{}", finalState), error);
+                    logger.error(() -> new ParameterizedMessage("failed to random change state. last good state: \n{}", finalState), error);
                     throw error;
                 }
             }
@@ -125,7 +128,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 try {
                     indicesClusterStateService.applyClusterState(event);
                 } catch (AssertionError error) {
-                    logger.error((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                    logger.error(new ParameterizedMessage(
                             "failed to apply change on [{}].\n ***  Previous state ***\n{}\n ***  New state ***\n{}",
                             node, event.previousState(), event.state()), error);
                     throw error;
@@ -197,6 +200,59 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         }
     }
 
+    /**
+     * In rare cases it is possible that a nodes gets an instruction to replace a replica
+     * shard that's in POST_RECOVERY with a new initializing primary with the same allocation id.
+     * This can happen by batching cluster states that include the starting of the replica, with
+     * closing of the indices, opening it up again and allocating the primary shard to the node in
+     * question. The node should then clean it's initializing replica and replace it with a new
+     * initializing primary.
+     */
+    public void testInitializingPrimaryRemovesInitializingReplicaWithSameAID() {
+        disableRandomFailures();
+        String index = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        ClusterState state = ClusterStateCreationUtils.state(index, randomBoolean(),
+            ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING);
+
+        // the initial state which is derived from the newly created cluster state but doesn't contain the index
+        ClusterState previousState = ClusterState.builder(state)
+            .metaData(MetaData.builder(state.metaData()).remove(index))
+            .routingTable(RoutingTable.builder().build())
+            .build();
+
+        // pick a data node to simulate the adding an index cluster state change event on, that has shards assigned to it
+        final ShardRouting shardRouting = state.routingTable().index(index).shard(0).replicaShards().get(0);
+        final ShardId shardId = shardRouting.shardId();
+        DiscoveryNode node = state.nodes().get(shardRouting.currentNodeId());
+
+        // simulate the cluster state change on the node
+        ClusterState localState = adaptClusterStateToLocalNode(state, node);
+        ClusterState previousLocalState = adaptClusterStateToLocalNode(previousState, node);
+        IndicesClusterStateService indicesCSSvc = createIndicesClusterStateService(node, RecordingIndicesService::new);
+        indicesCSSvc.start();
+        indicesCSSvc.applyClusterState(new ClusterChangedEvent("cluster state change that adds the index", localState, previousLocalState));
+        previousState = state;
+
+        // start the replica
+        state = cluster.applyStartedShards(state, state.routingTable().index(index).shard(0).replicaShards());
+
+        // close the index and open it up again (this will sometimes swap roles between primary and replica)
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metaData().index(index).getIndex().getName());
+        state = cluster.closeIndices(state, closeIndexRequest);
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metaData().index(index).getIndex().getName());
+        state = cluster.openIndices(state, openIndexRequest);
+
+        localState = adaptClusterStateToLocalNode(state, node);
+        previousLocalState = adaptClusterStateToLocalNode(previousState, node);
+
+        indicesCSSvc.applyClusterState(new ClusterChangedEvent("new cluster state", localState, previousLocalState));
+
+        final MockIndexShard shardOrNull = ((RecordingIndicesService) indicesCSSvc.indicesService).getShardOrNull(shardId);
+        assertThat(shardOrNull == null ? null : shardOrNull.routingEntry(),
+            equalTo(state.getRoutingNodes().node(node.getId()).getByShardId(shardId)));
+
+    }
+
     public ClusterState randomInitialClusterState(Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
                                                   Supplier<MockIndicesService> indicesServiceSupplier) {
         List<DiscoveryNode> allNodes = new ArrayList<>();
@@ -236,19 +292,19 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                                                    Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
                                                    Supplier<MockIndicesService> indicesServiceSupplier) {
         // randomly remove no_master blocks
-        if (randomBoolean() && state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)) {
+        if (randomBoolean() && state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID)) {
             state = ClusterState.builder(state).blocks(
                 ClusterBlocks.builder().blocks(state.blocks()).removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)).build();
         }
 
         // randomly add no_master blocks
-        if (rarely() && state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID) == false) {
+        if (rarely() && state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID) == false) {
             ClusterBlock block = randomBoolean() ? DiscoverySettings.NO_MASTER_BLOCK_ALL : DiscoverySettings.NO_MASTER_BLOCK_WRITES;
             state = ClusterState.builder(state).blocks(ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(block)).build();
         }
 
         // if no_master block is in place, make no other cluster state changes
-        if (state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)) {
+        if (state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID)) {
             return state;
         }
 
@@ -259,8 +315,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             }
             String name = "index_" + randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
             Settings.Builder settingsBuilder = Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                .put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
+                .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3));
+            if (randomBoolean()) {
+                int min = randomInt(2);
+                int max = min + randomInt(3);
+                settingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, randomBoolean() ? min + "-" + max : min + "-all");
+            } else {
+                settingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
+            }
             CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));
@@ -346,9 +408,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             if (randomBoolean()) {
                 // add node
                 if (state.nodes().getSize() < 10) {
-                    DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).add(createNode()).build();
-                    state = ClusterState.builder(state).nodes(newNodes).build();
-                    state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after node leave
+                    state = cluster.addNodes(state, Collections.singletonList(createNode()));
                     updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                 }
             } else {
@@ -356,16 +416,12 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 if (state.nodes().getDataNodes().size() > 3) {
                     DiscoveryNode discoveryNode = randomFrom(state.nodes().getNodes().values().toArray(DiscoveryNode.class));
                     if (discoveryNode.equals(state.nodes().getMasterNode()) == false) {
-                        DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).remove(discoveryNode.getId()).build();
-                        state = ClusterState.builder(state).nodes(newNodes).build();
-                        state = cluster.deassociateDeadNodes(state, true, "removed and added a node");
+                        state = cluster.removeNodes(state, Collections.singletonList(discoveryNode));
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                     }
                     if (randomBoolean()) {
                         // and add it back
-                        DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).add(discoveryNode).build();
-                        state = ClusterState.builder(state).nodes(newNodes).build();
-                        state = cluster.reroute(state, new ClusterRerouteRequest());
+                        state = cluster.addNodes(state, Collections.singletonList(discoveryNode));
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                     }
                 }
@@ -399,14 +455,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
         final MockIndicesService indicesService = indicesServiceSupplier.get();
         final Settings settings = Settings.builder().put("node.name", discoveryNode.getName()).build();
-        final TransportService transportService = new TransportService(settings, null, threadPool,
+        final TransportService transportService = new TransportService(settings, mock(Transport.class), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
             Collections.emptySet());
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(settings, clusterService,
-            transportService, null);
-        final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(settings, threadPool,
+            transportService, Collections.emptyMap(), Collections.emptyMap(), threadPool);
+        final PeerRecoveryTargetService recoveryTargetService = new PeerRecoveryTargetService(threadPool,
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);

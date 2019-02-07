@@ -19,45 +19,47 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testRoutingMapper() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .endObject().endObject());
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-            .startObject()
-            .field("field", "value")
-            .endObject()
-            .bytes(), 
-            XContentType.JSON).routing("routing_value"));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "value")
+                .endObject()),
+            XContentType.JSON, "routing_value"));
 
         assertThat(doc.rootDoc().get("_routing"), equalTo("routing_value"));
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
 
     public void testIncludeInObjectNotAllowed() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
 
         try {
-            docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().field("_routing", "foo").endObject().bytes(),XContentType.JSON));
+            docMapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("_routing", "foo").endObject()),XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("Field [_routing] is a metadata field and cannot be added inside a document"));
+            assertThat(e.getMessage(), e.getMessage(),
+                containsString("Field [_routing] is a metadata field and cannot be added inside a document"));
         }
     }
 }

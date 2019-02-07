@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
@@ -42,6 +40,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -172,7 +171,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getMapping("test1").setIndicesOptions(options), true);
         verify(getSettings("test1").setIndicesOptions(options), true);
 
-        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
+        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(),
+            options.expandWildcardsClosed(), options);
         verify(search("test1").setIndicesOptions(options), false);
         verify(msearch(options, "test1"), false);
         verify(clearCache("test1").setIndicesOptions(options), false);
@@ -228,7 +228,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getMapping("test1").setIndicesOptions(options), true);
         verify(getSettings("test1").setIndicesOptions(options), true);
 
-        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
+        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(),
+            options.expandWildcardsClosed(), options);
         verify(search("test1").setIndicesOptions(options), false);
         verify(msearch(options, "test1"), false);
         verify(clearCache("test1").setIndicesOptions(options), false);
@@ -270,7 +271,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         ensureGreen("test1");
         waitForRelocation();
 
-        PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
+        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
@@ -395,7 +396,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         ensureGreen("foobar");
         waitForRelocation();
 
-        PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
+        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
@@ -591,40 +592,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose("barbaz").get());
         verify(client().admin().indices().preparePutMapping("barbaz").setType("type").setSource("field", "type=text"), false);
         assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type"), notNullValue());
-    }
-
-    public void testPutMappingMultiType() throws Exception {
-        assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
-        verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=text"), true);
-        verify(client().admin().indices().preparePutMapping("_all").setType("type1").setSource("field", "type=text"), true);
-
-        for (String index : Arrays.asList("foo", "foobar", "bar", "barbaz")) {
-            assertAcked(prepareCreate(index).setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)));
-            // allows for multiple types
-        }
-
-        verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=text"), false);
-        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type1"), notNullValue());
-        verify(client().admin().indices().preparePutMapping("b*").setType("type1").setSource("field", "type=text"), false);
-        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type1"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type1"), notNullValue());
-        verify(client().admin().indices().preparePutMapping("_all").setType("type2").setSource("field", "type=text"), false);
-        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type2"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar").get("type2"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type2"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type2"), notNullValue());
-        verify(client().admin().indices().preparePutMapping().setType("type3").setSource("field", "type=text"), false);
-        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type3"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar").get("type3"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type3"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type3"), notNullValue());
-
-
-        verify(client().admin().indices().preparePutMapping("c*").setType("type1").setSource("field", "type=text"), true);
-
-        assertAcked(client().admin().indices().prepareClose("barbaz").get());
-        verify(client().admin().indices().preparePutMapping("barbaz").setType("type4").setSource("field", "type=text"), false);
-        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type4"), notNullValue());
     }
 
     public static final class TestPlugin extends Plugin {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -104,7 +105,7 @@ public class SearchScrollRequestTests extends ESTestCase {
         searchScrollRequest.scroll("1m");
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             searchScrollRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals("{\"scroll_id\":\"SCROLL_ID\",\"scroll\":\"1m\"}", builder.string());
+            assertEquals("{\"scroll_id\":\"SCROLL_ID\",\"scroll\":\"1m\"}", Strings.toString(builder));
         }
     }
 

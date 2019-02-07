@@ -19,22 +19,21 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.vividsolutions.jts.geom.Coordinate;
-
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geo.geometry.MultiPoint;
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Point;
-import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+import java.util.stream.Collectors;
 
-public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, MultiPointBuilder> {
+public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, MultiPoint, MultiPointBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOINT;
 
@@ -64,7 +63,7 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
     }
 
     @Override
-    public XShapeCollection<Point> build() {
+    public XShapeCollection<Point> buildS4J() {
         //Could wrap JtsGeometry but probably slower due to conversions to/from JTS in relate()
         //MultiPoint geometry = FACTORY.createMultiPoint(points.toArray(new Coordinate[points.size()]));
         List<Point> shapes = new ArrayList<>(coordinates.size());
@@ -77,7 +76,22 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
     }
 
     @Override
+    public MultiPoint buildGeometry() {
+        return new MultiPoint(coordinates.stream().map(coord -> new org.elasticsearch.geo.geometry.Point(coord.y, coord.x))
+            .collect(Collectors.toList()));
+    }
+
+    @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    @Override
+    public int numDimensions() {
+        if (coordinates == null || coordinates.isEmpty()) {
+            throw new IllegalStateException("unable to get number of dimensions, " +
+                "LineString has not yet been initialized");
+        }
+        return Double.isNaN(coordinates.get(0).z) ? 2 : 3;
     }
 }

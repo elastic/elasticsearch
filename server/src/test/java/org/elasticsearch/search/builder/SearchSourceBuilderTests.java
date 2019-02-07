@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.ElasticsearchParseException;
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -64,7 +64,21 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             builder.prettyPrint();
         }
         testSearchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertParseSearchSource(testSearchSourceBuilder, createParser(builder));
+        try (XContentParser xParser = createParser(builder)) {
+            assertParseSearchSource(testSearchSourceBuilder, xParser);
+        }
+    }
+
+    public void testFromXContentInvalid() throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}}")) {
+            JsonParseException exc = expectThrows(JsonParseException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertThat(exc.getMessage(), containsString("Unexpected close marker"));
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}{}")) {
+            ParsingException exc = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertThat(exc.getDetailedMessage(), containsString("found after the main object"));
+        }
     }
 
     private static void assertParseSearchSource(SearchSourceBuilder testBuilder, XContentParser parser) throws IOException {
@@ -332,7 +346,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         final int timeout = randomIntBetween(1, 1024);
         final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
-            final ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> SearchSourceBuilder.fromXContent(
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(
                     parser));
             assertThat(e, hasToString(containsString("unit is missing or unrecognized")));
         }
@@ -345,7 +359,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            BytesReference source = builder.bytes();
+            BytesReference source = BytesReference.bytes(builder);
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
             assertEquals(0, sourceAsMap.size());
         }
@@ -354,7 +368,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             searchSourceBuilder.query(RandomQueryBuilder.createQuery(random()));
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            BytesReference source = builder.bytes();
+            BytesReference source = BytesReference.bytes(builder);
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
             assertEquals(1, sourceAsMap.size());
             assertEquals("query", sourceAsMap.keySet().iterator().next());

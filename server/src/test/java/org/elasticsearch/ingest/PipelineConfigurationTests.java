@@ -58,11 +58,11 @@ public class PipelineConfigurationTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             new PipelineConfiguration("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
                 .toXContent(builder, ToXContent.EMPTY_PARAMS);
-            bytes = builder.bytes();
+            bytes = BytesReference.bytes(builder);
         }
 
         XContentParser xContentParser = xContentType.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes);
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput());
         PipelineConfiguration parsed = parser.parse(xContentParser, null);
         assertEquals(xContentType, parsed.getXContentType());
         assertEquals("{}", XContentHelper.convertToJson(parsed.getConfig(), false, parsed.getXContentType()));

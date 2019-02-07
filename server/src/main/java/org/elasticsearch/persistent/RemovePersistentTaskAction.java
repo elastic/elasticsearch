@@ -34,28 +34,20 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class RemovePersistentTaskAction extends Action<RemovePersistentTaskAction.Request,
-        PersistentTaskResponse,
-        RemovePersistentTaskAction.RequestBuilder> {
+public class RemovePersistentTaskAction extends Action<PersistentTaskResponse> {
 
     public static final RemovePersistentTaskAction INSTANCE = new RemovePersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/remove";
 
     private RemovePersistentTaskAction() {
         super(NAME);
-    }
-
-    @Override
-    public RequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new RequestBuilder(client, this);
     }
 
     @Override
@@ -129,11 +121,11 @@ public class RemovePersistentTaskAction extends Action<RemovePersistentTaskActio
         private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
+        public TransportAction(TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
                                PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, RemovePersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            super(RemovePersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.persistentTasksClusterService = persistentTasksClusterService;
         }

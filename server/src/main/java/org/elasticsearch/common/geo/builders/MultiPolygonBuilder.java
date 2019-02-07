@@ -20,15 +20,15 @@
 package org.elasticsearch.common.geo.builders;
 
 import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.elasticsearch.common.geo.parsers.GeoWKTParser;
-import org.locationtech.spatial4j.shape.Shape;
-import com.vividsolutions.jts.geom.Coordinate;
-
 import org.elasticsearch.common.geo.XShapeCollection;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geo.geometry.MultiPolygon;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-public class MultiPolygonBuilder extends ShapeBuilder {
+public class MultiPolygonBuilder extends ShapeBuilder<Shape, MultiPolygon, MultiPolygonBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOLYGON;
 
@@ -154,19 +154,28 @@ public class MultiPolygonBuilder extends ShapeBuilder {
     }
 
     @Override
-    public Shape build() {
+    public int numDimensions() {
+        if (polygons == null || polygons.isEmpty()) {
+            throw new IllegalStateException("unable to get number of dimensions, " +
+                "Polygons have not yet been initialized");
+        }
+        return polygons.get(0).numDimensions();
+    }
+
+    @Override
+    public Shape buildS4J() {
 
         List<Shape> shapes = new ArrayList<>(this.polygons.size());
 
         if(wrapdateline) {
             for (PolygonBuilder polygon : this.polygons) {
                 for(Coordinate[][] part : polygon.coordinates()) {
-                    shapes.add(jtsGeometry(PolygonBuilder.polygon(FACTORY, part)));
+                    shapes.add(jtsGeometry(PolygonBuilder.polygonS4J(FACTORY, part)));
                 }
             }
         } else {
             for (PolygonBuilder polygon : this.polygons) {
-                shapes.add(jtsGeometry(polygon.toPolygon(FACTORY)));
+                shapes.add(jtsGeometry(polygon.toPolygonS4J(FACTORY)));
             }
         }
         if (shapes.size() == 1)
@@ -174,6 +183,22 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         else
             return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
+    }
+
+    @SuppressWarnings({"unchecked"})
+    @Override
+    public MultiPolygon buildGeometry() {
+        List<org.elasticsearch.geo.geometry.Polygon> shapes = new ArrayList<>(this.polygons.size());
+        Object poly;
+        for (PolygonBuilder polygon : this.polygons) {
+            poly = polygon.buildGeometry();
+            if (poly instanceof List) {
+                shapes.addAll((List<org.elasticsearch.geo.geometry.Polygon>) poly);
+            } else {
+                shapes.add((org.elasticsearch.geo.geometry.Polygon)poly);
+            }
+        }
+        return new MultiPolygon(shapes);
     }
 
     @Override

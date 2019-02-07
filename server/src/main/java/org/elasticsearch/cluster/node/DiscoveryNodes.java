@@ -40,6 +40,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
@@ -83,7 +85,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Returns <tt>true</tt> if the local node is the elected master node.
+     * Returns {@code true} if the local node is the elected master node.
      */
     public boolean isLocalNodeElectedMaster() {
         if (localNodeId == null) {
@@ -145,6 +147,27 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(dataNodes);
         nodes.putAll(masterNodes);
         return nodes.build();
+    }
+
+    /**
+     * Get a {@link Map} of the coordinating only nodes (nodes which are neither master, nor data, nor ingest nodes) arranged by their ids
+     *
+     * @return {@link Map} of the coordinating only nodes arranged by their ids
+     */
+    public ImmutableOpenMap<String, DiscoveryNode> getCoordinatingOnlyNodes() {
+        ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(this.nodes);
+        nodes.removeAll(masterNodes.keys());
+        nodes.removeAll(dataNodes.keys());
+        nodes.removeAll(ingestNodes.keys());
+        return nodes.build();
+    }
+
+    /**
+     * Returns a stream of all nodes, with master nodes at the front
+     */
+    public Stream<DiscoveryNode> mastersFirstStream() {
+        return Stream.concat(StreamSupport.stream(masterNodes.spliterator(), false).map(cur -> cur.value),
+            StreamSupport.stream(this.spliterator(), false).filter(n -> n.isMasterNode() == false));
     }
 
     /**
@@ -232,10 +255,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         return null;
     }
 
-    public boolean isAllNodes(String... nodesIds) {
-        return nodesIds == null || nodesIds.length == 0 || (nodesIds.length == 1 && nodesIds[0].equals("_all"));
-    }
-
     /**
      * Returns the version of the node with the oldest version in the cluster that is not a client node
      *
@@ -300,17 +319,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      * - "_local" or "_master" for the relevant nodes
      * - a node id
      * - a wild card pattern that will be matched against node names
-     * - a "attr:value" pattern, where attr can be a node role (master, data, ingest etc.) in which case the value can be true of false
+     * - a "attr:value" pattern, where attr can be a node role (master, data, ingest etc.) in which case the value can be true or false,
      *   or a generic node attribute name in which case value will be treated as a wildcard and matched against the node attribute values.
      */
     public String[] resolveNodes(String... nodes) {
-        if (isAllNodes(nodes)) {
-            int index = 0;
-            nodes = new String[this.nodes.size()];
-            for (DiscoveryNode node : this) {
-                nodes[index++] = node.getId();
-            }
-            return nodes;
+        if (nodes == null || nodes.length == 0) {
+            return StreamSupport.stream(this.spliterator(), false).map(DiscoveryNode::getId).toArray(String[]::new);
         } else {
             ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodes.length);
             for (String nodeId : nodes) {
@@ -327,16 +341,11 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 } else if (nodeExists(nodeId)) {
                     resolvedNodesIds.add(nodeId);
                 } else {
-                    // not a node id, try and search by name
                     for (DiscoveryNode node : this) {
-                        if (Regex.simpleMatch(nodeId, node.getName())) {
-                            resolvedNodesIds.add(node.getId());
-                        }
-                    }
-                    for (DiscoveryNode node : this) {
-                        if (Regex.simpleMatch(nodeId, node.getHostAddress())) {
-                            resolvedNodesIds.add(node.getId());
-                        } else if (Regex.simpleMatch(nodeId, node.getHostName())) {
+                        if ("_all".equals(nodeId)
+                                || Regex.simpleMatch(nodeId, node.getName())
+                                || Regex.simpleMatch(nodeId, node.getHostAddress())
+                                || Regex.simpleMatch(nodeId, node.getHostName())) {
                             resolvedNodesIds.add(node.getId());
                         }
                     }
@@ -361,6 +370,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                                 resolvedNodesIds.addAll(ingestNodes.keys());
                             } else {
                                 resolvedNodesIds.removeAll(ingestNodes.keys());
+                            }
+                        } else if (DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {
+                            if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
+                            } else {
+                                resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keys());
                             }
                         } else {
                             for (DiscoveryNode node : this) {

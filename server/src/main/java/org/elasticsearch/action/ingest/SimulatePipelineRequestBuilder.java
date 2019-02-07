@@ -24,23 +24,13 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 
-public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<SimulatePipelineRequest, SimulatePipelineResponse, SimulatePipelineRequestBuilder> {
+public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<SimulatePipelineRequest, SimulatePipelineResponse> {
 
     /**
      * Create a new builder for {@link SimulatePipelineRequest}s
      */
     public SimulatePipelineRequestBuilder(ElasticsearchClient client, SimulatePipelineAction action) {
         super(client, action, new SimulatePipelineRequest());
-    }
-
-    /**
-     * Create a new builder for {@link SimulatePipelineRequest}s
-     * @deprecated use {@link #SimulatePipelineRequestBuilder(ElasticsearchClient, SimulatePipelineAction, BytesReference, XContentType)} to
-     *             avoid content type auto-detection on the source bytes
-     */
-    @Deprecated
-    public SimulatePipelineRequestBuilder(ElasticsearchClient client, SimulatePipelineAction action, BytesReference source) {
-        super(client, action, new SimulatePipelineRequest(source));
     }
 
     /**

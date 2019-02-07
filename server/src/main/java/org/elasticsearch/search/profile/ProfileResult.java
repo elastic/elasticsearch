@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -147,11 +148,14 @@ public final class ProfileResult implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder = builder.startObject()
-                .field(TYPE.getPreferredName(), type)
-                .field(DESCRIPTION.getPreferredName(), description)
-                .timeValueField(NODE_TIME_RAW.getPreferredName(), NODE_TIME.getPreferredName(), getTime(), TimeUnit.NANOSECONDS)
-                .field(BREAKDOWN.getPreferredName(), timings);
+        builder.startObject();
+        builder.field(TYPE.getPreferredName(), type);
+        builder.field(DESCRIPTION.getPreferredName(), description);
+        if (builder.humanReadable()) {
+            builder.field(NODE_TIME.getPreferredName(), new TimeValue(getTime(), TimeUnit.NANOSECONDS).toString());
+        }
+        builder.field(NODE_TIME_RAW.getPreferredName(), getTime());
+        builder.field(BREAKDOWN.getPreferredName(), timings);
 
         if (!children.isEmpty()) {
             builder = builder.startArray(CHILDREN.getPreferredName());
@@ -192,9 +196,9 @@ public final class ProfileResult implements Writeable, ToXContentObject {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (BREAKDOWN.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        ensureExpectedToken(parser.currentToken(), XContentParser.Token.FIELD_NAME, parser::getTokenLocation);
+                        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
                         String name = parser.currentName();
-                        ensureExpectedToken(parser.nextToken(), XContentParser.Token.VALUE_NUMBER, parser::getTokenLocation);
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, parser.nextToken(), parser::getTokenLocation);
                         long value = parser.longValue();
                         timings.put(name, value);
                     }

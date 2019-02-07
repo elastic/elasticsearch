@@ -31,6 +31,8 @@ index may by split into an arbitrary number of shards greater than 1.  The
 properties of the default number of routing shards will then apply to the
 newly split index.
 
+[float]
+=== How does splitting work?
 
 Splitting works as follows:
 
@@ -46,6 +48,36 @@ Splitting works as follows:
 
 * Finally, it recovers the target index as though it were a closed index which
   had just been re-opened.
+
+[float]
+=== Why doesn't Elasticsearch support incremental resharding?
+
+Going from `N` shards to `N+1` shards, aka. incremental resharding, is indeed a
+feature that is supported by many key-value stores. Adding a new shard and
+pushing new data to this new shard only is not an option: this would likely be
+an indexing bottleneck, and figuring out which shard a document belongs to
+given its `_id`, which is necessary for get, delete and update requests, would
+become quite complex. This means that we need to rebalance existing data using
+a different hashing scheme.
+
+The most common way that key-value stores do this efficiently is by using
+consistent hashing. Consistent hashing only requires `1/N`-th of the keys to
+be relocated when growing the number of shards from `N` to `N+1`. However
+Elasticsearch's unit of storage, shards, are Lucene indices. Because of their
+search-oriented data structure, taking a significant portion of a Lucene index,
+be it only 5% of documents, deleting them and indexing them on another shard
+typically comes with a much higher cost than with a key-value store. This cost
+is kept reasonable when growing the number of shards by a multiplicative factor
+as described in the above section: this allows Elasticsearch to perform the
+split locally, which in-turn allows to perform the split at the index level
+rather than reindexing documents that need to move, as well as using hard links
+for efficient file copying.
+
+In the case of append-only data, it is possible to get more flexibility by
+creating a new index and pushing new data to it, while adding an alias that
+covers both the old and the new index for read operations. Assuming that the
+old and new indices have respectively +M+ and +N+ shards, this has no overhead
+compared to searching an index that would have +M+N+ shards.
 
 [float]
 === Preparing an index for splitting
@@ -143,9 +175,7 @@ POST my_source_index/_split/my_target_index
     number of shards in the source index.
 
 
-NOTE: Mappings may not be specified in the `_split` request, and all
-`index.analysis.*` and `index.similarity.*` settings will be overwritten with
-the settings from the source index.
+NOTE: Mappings may not be specified in the `_split` request.
 
 [float]
 === Monitoring the split process

@@ -24,12 +24,14 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -53,7 +55,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     private final ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks;
 
-    private final ImmutableLevelHolder[] levelHolders;
+    private final EnumMap<ClusterBlockLevel, ImmutableLevelHolder> levelHolders;
 
     ClusterBlocks(Set<ClusterBlock> global, ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks) {
         this.global = global;
@@ -70,20 +72,20 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     }
 
     public Set<ClusterBlock> global(ClusterBlockLevel level) {
-        return levelHolders[level.ordinal()].global();
+        return levelHolders.get(level).global();
     }
 
     public ImmutableOpenMap<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
-        return levelHolders[level.ordinal()].indices();
+        return levelHolders.get(level).indices();
     }
 
     private Set<ClusterBlock> blocksForIndex(ClusterBlockLevel level, String index) {
         return indices(level).getOrDefault(index, emptySet());
     }
 
-    private static ImmutableLevelHolder[] generateLevelHolders(Set<ClusterBlock> global,
-                                                               ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks) {
-        ImmutableLevelHolder[] levelHolders = new ImmutableLevelHolder[ClusterBlockLevel.values().length];
+    private static EnumMap<ClusterBlockLevel, ImmutableLevelHolder> generateLevelHolders(Set<ClusterBlock> global,
+            ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks) {
+        EnumMap<ClusterBlockLevel, ImmutableLevelHolder> levelHolders = new EnumMap<>(ClusterBlockLevel.class);
         for (final ClusterBlockLevel level : ClusterBlockLevel.values()) {
             Predicate<ClusterBlock> containsLevel = block -> block.contains(level);
             Set<ClusterBlock> newGlobal = unmodifiableSet(global.stream()
@@ -96,14 +98,13 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
                     .filter(containsLevel)
                     .collect(toSet())));
             }
-
-            levelHolders[level.ordinal()] = new ImmutableLevelHolder(newGlobal, indicesBuilder.build());
+            levelHolders.put(level, new ImmutableLevelHolder(newGlobal, indicesBuilder.build()));
         }
         return levelHolders;
     }
 
     /**
-     * Returns <tt>true</tt> if one of the global blocks as its disable state persistence flag set.
+     * Returns {@code true} if one of the global blocks as its disable state persistence flag set.
      */
     public boolean disableStatePersistence() {
         for (ClusterBlock clusterBlock : global) {
@@ -118,7 +119,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return global.contains(block);
     }
 
-    public boolean hasGlobalBlock(int blockId) {
+    public boolean hasGlobalBlockWithId(final int blockId) {
         for (ClusterBlock clusterBlock : global) {
             if (clusterBlock.id() == blockId) {
                 return true;
@@ -127,14 +128,14 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return false;
     }
 
-    public boolean hasGlobalBlock(ClusterBlockLevel level) {
+    public boolean hasGlobalBlockWithLevel(ClusterBlockLevel level) {
         return global(level).size() > 0;
     }
 
     /**
      * Is there a global block with the provided status?
      */
-    public boolean hasGlobalBlock(RestStatus status) {
+    public boolean hasGlobalBlockWithStatus(final RestStatus status) {
         for (ClusterBlock clusterBlock : global) {
             if (clusterBlock.status().equals(status)) {
                 return true;
@@ -145,6 +146,31 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     public boolean hasIndexBlock(String index, ClusterBlock block) {
         return indicesBlocks.containsKey(index) && indicesBlocks.get(index).contains(block);
+    }
+
+    public boolean hasIndexBlockWithId(String index, int blockId) {
+        final Set<ClusterBlock> clusterBlocks = indicesBlocks.get(index);
+        if (clusterBlocks != null) {
+            for (ClusterBlock clusterBlock : clusterBlocks) {
+                if (clusterBlock.id() == blockId) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    @Nullable
+    public ClusterBlock getIndexBlockWithId(final String index, final int blockId) {
+        final Set<ClusterBlock> clusterBlocks = indicesBlocks.get(index);
+        if (clusterBlocks != null) {
+            for (ClusterBlock clusterBlock : clusterBlocks) {
+                if (clusterBlock.id() == blockId) {
+                    return clusterBlock;
+                }
+            }
+        }
+        return null;
     }
 
     public void globalBlockedRaiseException(ClusterBlockLevel level) throws ClusterBlockException {
@@ -398,6 +424,18 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             }
             indices.get(index).remove(block);
             if (indices.get(index).isEmpty()) {
+                indices.remove(index);
+            }
+            return this;
+        }
+
+        public Builder removeIndexBlockWithId(String index, int blockId) {
+            final Set<ClusterBlock> indexBlocks = indices.get(index);
+            if (indexBlocks == null) {
+                return this;
+            }
+            indexBlocks.removeIf(block -> block.id() == blockId);
+            if (indexBlocks.isEmpty()) {
                 indices.remove(index);
             }
             return this;

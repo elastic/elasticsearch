@@ -18,14 +18,12 @@
  */
 package org.elasticsearch.common.geo;
 
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.LineString;
-import com.vividsolutions.jts.geom.LinearRing;
-import com.vividsolutions.jts.geom.MultiLineString;
-import com.vividsolutions.jts.geom.Point;
-import com.vividsolutions.jts.geom.Polygon;
 import org.apache.lucene.geo.GeoTestUtil;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
@@ -37,10 +35,25 @@ import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.GeoWKTParser;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geo.geometry.Line;
+import org.elasticsearch.geo.geometry.MultiLine;
+import org.elasticsearch.geo.geometry.MultiPoint;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.LinearRing;
+import org.locationtech.jts.geom.MultiLineString;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.Polygon;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.Rectangle;
 import org.locationtech.spatial4j.shape.Shape;
@@ -49,6 +62,8 @@ import org.locationtech.spatial4j.shape.jts.JtsPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
@@ -60,7 +75,7 @@ import static org.hamcrest.Matchers.hasToString;
  */
 public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
-    private static XContentBuilder toWKTContent(ShapeBuilder builder, boolean generateMalformed)
+    private static XContentBuilder toWKTContent(ShapeBuilder<?, ?, ?> builder, boolean generateMalformed)
             throws IOException {
         String wkt = builder.toWKT();
         if (generateMalformed) {
@@ -75,12 +90,12 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         return XContentFactory.jsonBuilder().value(wkt);
     }
 
-    private void assertExpected(Shape expected, ShapeBuilder builder) throws IOException {
+    private void assertExpected(Object expected, ShapeBuilder<?, ?, ?> builder, boolean useJTS) throws IOException {
         XContentBuilder xContentBuilder = toWKTContent(builder, false);
-        assertGeometryEquals(expected, xContentBuilder);
+        assertGeometryEquals(expected, xContentBuilder, useJTS);
     }
 
-    private void assertMalformed(Shape expected, ShapeBuilder builder) throws IOException {
+    private void assertMalformed(ShapeBuilder<?, ?, ?> builder) throws IOException {
         XContentBuilder xContentBuilder = toWKTContent(builder, true);
         assertValidException(xContentBuilder, ElasticsearchParseException.class);
     }
@@ -90,24 +105,34 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         GeoPoint p = RandomShapeGenerator.randomPoint(random());
         Coordinate c = new Coordinate(p.lon(), p.lat());
         Point expected = GEOMETRY_FACTORY.createPoint(c);
-        assertExpected(new JtsPoint(expected, SPATIAL_CONTEXT), new PointBuilder().coordinate(c));
-        assertMalformed(new JtsPoint(expected, SPATIAL_CONTEXT), new PointBuilder().coordinate(c));
+        assertExpected(new JtsPoint(expected, SPATIAL_CONTEXT), new PointBuilder().coordinate(c), true);
+        assertExpected(new org.elasticsearch.geo.geometry.Point(p.lat(), p.lon()), new PointBuilder().coordinate(c), false);
+        assertMalformed(new PointBuilder().coordinate(c));
     }
 
     @Override
     public void testParseMultiPoint() throws IOException {
         int numPoints = randomIntBetween(2, 100);
         List<Coordinate> coordinates = new ArrayList<>(numPoints);
-        Shape[] shapes = new Shape[numPoints];
-        GeoPoint p = new GeoPoint();
         for (int i = 0; i < numPoints; ++i) {
-            p.reset(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude());
-            coordinates.add(new Coordinate(p.lon(), p.lat()));
-            shapes[i] = SPATIAL_CONTEXT.makePoint(p.lon(), p.lat());
+            coordinates.add(new Coordinate(GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude()));
         }
-        ShapeCollection expected = shapeCollection(shapes);
-        assertExpected(expected, new MultiPointBuilder(coordinates));
-        assertMalformed(expected, new MultiPointBuilder(coordinates));
+
+        Shape[] shapes = new Shape[numPoints];
+        for (int i = 0; i < numPoints; ++i) {
+            Coordinate c = coordinates.get(i);
+            shapes[i] = SPATIAL_CONTEXT.makePoint(c.x, c.y);
+        }
+        ShapeCollection<?> expected = shapeCollection(shapes);
+        assertExpected(expected, new MultiPointBuilder(coordinates), true);
+
+        List<org.elasticsearch.geo.geometry.Point> points = new ArrayList<>(numPoints);
+        for (int i = 0; i < numPoints; ++i) {
+            Coordinate c = coordinates.get(i);
+            points.add(new org.elasticsearch.geo.geometry.Point(c.y, c.x));
+        }
+        assertExpected(new MultiPoint(points), new MultiPointBuilder(coordinates), false);
+        assertMalformed(new MultiPointBuilder(coordinates));
     }
 
     private List<Coordinate> randomLineStringCoords() {
@@ -125,7 +150,15 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     public void testParseLineString() throws IOException {
         List<Coordinate> coordinates = randomLineStringCoords();
         LineString expected = GEOMETRY_FACTORY.createLineString(coordinates.toArray(new Coordinate[coordinates.size()]));
-        assertExpected(jtsGeom(expected), new LineStringBuilder(coordinates));
+        assertExpected(jtsGeom(expected), new LineStringBuilder(coordinates), true);
+
+        double[] lats = new double[coordinates.size()];
+        double[] lons = new double[lats.length];
+        for (int i = 0; i < lats.length; ++i) {
+            lats[i] = coordinates.get(i).y;
+            lons[i] = coordinates.get(i).x;
+        }
+        assertExpected(new Line(lats, lons), new LineStringBuilder(coordinates), false);
     }
 
     @Override
@@ -139,10 +172,19 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             lineStrings.add(GEOMETRY_FACTORY.createLineString(coords));
             builder.linestring(new LineStringBuilder(lsc));
         }
+
         MultiLineString expected = GEOMETRY_FACTORY.createMultiLineString(
             lineStrings.toArray(new LineString[lineStrings.size()]));
-        assertExpected(jtsGeom(expected), builder);
-        assertMalformed(jtsGeom(expected), builder);
+        assertExpected(jtsGeom(expected), builder, true);
+
+        List<Line> lines = new ArrayList<>(lineStrings.size());
+        for (int j = 0; j < lineStrings.size(); ++j) {
+            Coordinate[] c = lineStrings.get(j).getCoordinates();
+            lines.add(new Line(Arrays.stream(c).mapToDouble(i->i.y).toArray(),
+                Arrays.stream(c).mapToDouble(i->i.x).toArray()));
+        }
+        assertExpected(new MultiLine(lines), builder, false);
+        assertMalformed(builder);
     }
 
     @Override
@@ -150,10 +192,11 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         PolygonBuilder builder = PolygonBuilder.class.cast(
             RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.POLYGON));
         Coordinate[] coords = builder.coordinates()[0][0];
+
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(coords);
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
-        assertExpected(jtsGeom(expected), builder);
-        assertMalformed(jtsGeom(expected), builder);
+        assertExpected(jtsGeom(expected), builder, true);
+        assertMalformed(builder);
     }
 
     @Override
@@ -171,18 +214,19 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             shell = GEOMETRY_FACTORY.createLinearRing(coordinates);
             shapes[i] = GEOMETRY_FACTORY.createPolygon(shell, null);
         }
+
         Shape expected = shapeCollection(shapes);
-        assertExpected(expected, builder);
-        assertMalformed(expected, builder);
+        assertExpected(expected, builder, true);
+        assertMalformed(builder);
     }
 
     public void testParsePolygonWithHole() throws IOException {
         // add 3d point to test ISSUE #10501
         List<Coordinate> shellCoordinates = new ArrayList<>();
-        shellCoordinates.add(new Coordinate(100, 0, 15.0));
+        shellCoordinates.add(new Coordinate(100, 0));
         shellCoordinates.add(new Coordinate(101, 0));
         shellCoordinates.add(new Coordinate(101, 1));
-        shellCoordinates.add(new Coordinate(100, 1, 10.0));
+        shellCoordinates.add(new Coordinate(100, 1));
         shellCoordinates.add(new Coordinate(100, 0));
 
         List<Coordinate> holeCoordinates = new ArrayList<>();
@@ -201,9 +245,149 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         holes[0] = GEOMETRY_FACTORY.createLinearRing(
             holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, holes);
+        assertExpected(jtsGeom(expected), polygonWithHole, true);
 
-        assertExpected(jtsGeom(expected), polygonWithHole);
-        assertMalformed(jtsGeom(expected), polygonWithHole);
+        org.elasticsearch.geo.geometry.LinearRing hole =
+            new org.elasticsearch.geo.geometry.LinearRing(
+                new double[] {0.8d, 0.8d, 0.2d, 0.2d, 0.8d}, new double[] {100.2d, 100.8d, 100.8d, 100.2d, 100.2d});
+        org.elasticsearch.geo.geometry.Polygon p =
+            new org.elasticsearch.geo.geometry.Polygon(new org.elasticsearch.geo.geometry.LinearRing(
+                new double[] {0d, 1d, 1d, 0d, 0d}, new double[] {101d, 101d, 100d, 100d, 101d}), Collections.singletonList(hole));
+        assertExpected(p, polygonWithHole, false);
+        assertMalformed(polygonWithHole);
+    }
+
+    public void testParseMixedDimensionPolyWithHole() throws IOException {
+        List<Coordinate> shellCoordinates = new ArrayList<>();
+        shellCoordinates.add(new Coordinate(100, 0));
+        shellCoordinates.add(new Coordinate(101, 0));
+        shellCoordinates.add(new Coordinate(101, 1));
+        shellCoordinates.add(new Coordinate(100, 1));
+        shellCoordinates.add(new Coordinate(100, 0));
+
+        // add 3d point to test ISSUE #10501
+        List<Coordinate> holeCoordinates = new ArrayList<>();
+        holeCoordinates.add(new Coordinate(100.2, 0.2, 15.0));
+        holeCoordinates.add(new Coordinate(100.8, 0.2));
+        holeCoordinates.add(new Coordinate(100.8, 0.8));
+        holeCoordinates.add(new Coordinate(100.2, 0.8, 10.0));
+        holeCoordinates.add(new Coordinate(100.2, 0.2));
+
+        PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder().coordinates(shellCoordinates));
+        builder.hole(new LineStringBuilder(holeCoordinates));
+
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().value(builder.toWKT());
+        XContentParser parser = createParser(xContentBuilder);
+        parser.nextToken();
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_7_0_0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
+
+        Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        final GeoShapeFieldMapper mapperBuilder =
+            (GeoShapeFieldMapper) (new GeoShapeFieldMapper.Builder("test").ignoreZValue(false).build(mockBuilderContext));
+
+        // test store z disabled
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+            () -> ShapeParser.parse(parser, mapperBuilder));
+        assertThat(e, hasToString(containsString("but [ignore_z_value] parameter is [false]")));
+    }
+
+    public void testParseMixedDimensionPolyWithHoleStoredZ() throws IOException {
+        List<Coordinate> shellCoordinates = new ArrayList<>();
+        shellCoordinates.add(new Coordinate(100, 0));
+        shellCoordinates.add(new Coordinate(101, 0));
+        shellCoordinates.add(new Coordinate(101, 1));
+        shellCoordinates.add(new Coordinate(100, 1));
+        shellCoordinates.add(new Coordinate(100, 0));
+
+        // add 3d point to test ISSUE #10501
+        List<Coordinate> holeCoordinates = new ArrayList<>();
+        holeCoordinates.add(new Coordinate(100.2, 0.2, 15.0));
+        holeCoordinates.add(new Coordinate(100.8, 0.2));
+        holeCoordinates.add(new Coordinate(100.8, 0.8));
+        holeCoordinates.add(new Coordinate(100.2, 0.8, 10.0));
+        holeCoordinates.add(new Coordinate(100.2, 0.2));
+
+        PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder().coordinates(shellCoordinates));
+        builder.hole(new LineStringBuilder(holeCoordinates));
+
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().value(builder.toWKT());
+        XContentParser parser = createParser(xContentBuilder);
+        parser.nextToken();
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
+
+        Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        final LegacyGeoShapeFieldMapper mapperBuilder =
+            (LegacyGeoShapeFieldMapper)(new LegacyGeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext));
+
+        // test store z disabled
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> ShapeParser.parse(parser, mapperBuilder));
+        assertThat(e, hasToString(containsString("unable to add coordinate to CoordinateBuilder: coordinate dimensions do not match")));
+    }
+
+    public void testParsePolyWithStoredZ() throws IOException {
+        List<Coordinate> shellCoordinates = new ArrayList<>();
+        shellCoordinates.add(new Coordinate(100, 0, 0));
+        shellCoordinates.add(new Coordinate(101, 0, 0));
+        shellCoordinates.add(new Coordinate(101, 1, 0));
+        shellCoordinates.add(new Coordinate(100, 1, 5));
+        shellCoordinates.add(new Coordinate(100, 0, 5));
+
+        PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder().coordinates(shellCoordinates));
+
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().value(builder.toWKT());
+        XContentParser parser = createParser(xContentBuilder);
+        parser.nextToken();
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
+
+        Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        final LegacyGeoShapeFieldMapper mapperBuilder =
+            (LegacyGeoShapeFieldMapper)(new LegacyGeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext));
+
+        ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, mapperBuilder);
+        assertEquals(shapeBuilder.numDimensions(), 3);
+    }
+
+    public void testParseOpenPolygon() throws IOException {
+        String openPolygon = "POLYGON ((100 5, 100 10, 90 10, 90 5))";
+
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().value(openPolygon);
+        XContentParser parser = createParser(xContentBuilder);
+        parser.nextToken();
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
+
+        Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        final LegacyGeoShapeFieldMapper defaultMapperBuilder =
+            (LegacyGeoShapeFieldMapper)(new LegacyGeoShapeFieldMapper.Builder("test").coerce(false).build(mockBuilderContext));
+        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
+            () -> ShapeParser.parse(parser, defaultMapperBuilder));
+        assertEquals("invalid LinearRing found (coordinates are not closed)", exception.getMessage());
+
+        final LegacyGeoShapeFieldMapper coercingMapperBuilder =
+            (LegacyGeoShapeFieldMapper)(new LegacyGeoShapeFieldMapper.Builder("test").coerce(true).build(mockBuilderContext));
+        ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, coercingMapperBuilder);
+        assertNotNull(shapeBuilder);
+        assertEquals("polygon ((100.0 5.0, 100.0 10.0, 90.0 10.0, 90.0 5.0, 100.0 5.0))", shapeBuilder.toWKT());
     }
 
     public void testParseSelfCrossingPolygon() throws IOException {
@@ -233,9 +417,11 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
     public void testParseEnvelope() throws IOException {
         org.apache.lucene.geo.Rectangle r = GeoTestUtil.nextBox();
         EnvelopeBuilder builder = new EnvelopeBuilder(new Coordinate(r.minLon, r.maxLat), new Coordinate(r.maxLon, r.minLat));
+
         Rectangle expected = SPATIAL_CONTEXT.makeRectangle(r.minLon, r.maxLon, r.minLat, r.maxLat);
-        assertExpected(expected, builder);
-        assertMalformed(expected, builder);
+        assertExpected(expected, builder, true);
+        assertExpected(new org.elasticsearch.geo.geometry.Rectangle(r.minLat, r.maxLat, r.minLon, r.maxLon), builder, false);
+        assertMalformed(builder);
     }
 
     public void testInvalidGeometryType() throws IOException {
@@ -243,16 +429,22 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertValidException(builder, IllegalArgumentException.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37894")
     @Override
     public void testParseGeometryCollection() throws IOException {
         if (rarely()) {
             // assert empty shape collection
             GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
             Shape[] expected = new Shape[0];
-            assertEquals(shapeCollection(expected).isEmpty(), builder.build().isEmpty());
+            if (randomBoolean()) {
+                assertEquals(shapeCollection(expected).isEmpty(), builder.buildS4J().isEmpty());
+            } else {
+                assertEquals(shapeCollection(expected).isEmpty(), builder.buildGeometry().size() == 0);
+            }
         } else {
             GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
-            assertExpected(gcb.build(), gcb);
+            assertExpected(gcb.buildS4J(), gcb, true);
+            assertExpected(gcb.buildGeometry(), gcb, false);
         }
     }
 

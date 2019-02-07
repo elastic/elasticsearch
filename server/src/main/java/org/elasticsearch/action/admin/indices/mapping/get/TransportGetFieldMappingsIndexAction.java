@@ -32,14 +32,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TypeMissingException;
@@ -47,20 +46,19 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 
 /**
  * Transport action used to retrieve the mappings related to fields that belong to a specific index
  */
-public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
+public class TransportGetFieldMappingsIndexAction
+        extends TransportSingleShardAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
 
     private static final String ACTION_NAME = GetFieldMappingsAction.NAME + "[index]";
 
@@ -68,10 +66,10 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     private final IndicesService indicesService;
 
     @Inject
-    public TransportGetFieldMappingsIndexAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportGetFieldMappingsIndexAction(ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 GetFieldMappingsIndexRequest::new, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -96,15 +94,16 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         Predicate<String> metadataFieldPredicate = indicesService::isMetaDataField;
         Predicate<String> fieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
 
+        DocumentMapper mapper = indexService.mapperService().documentMapper();
         Collection<String> typeIntersection;
         if (request.types().length == 0) {
-            typeIntersection = indexService.mapperService().types();
-
+            typeIntersection = mapper == null
+                    ? Collections.emptySet()
+                    : Collections.singleton(mapper.type());
         } else {
-            typeIntersection = indexService.mapperService().types()
-                    .stream()
-                    .filter(type -> Regex.simpleMatch(request.types(), type))
-                    .collect(Collectors.toCollection(ArrayList::new));
+            typeIntersection = mapper != null && Regex.simpleMatch(request.types(), mapper.type())
+                    ? Collections.singleton(mapper.type())
+                    : Collections.emptySet();
             if (typeIntersection.isEmpty()) {
                 throw new TypeMissingException(shardId.getIndex(), request.types());
             }
@@ -175,19 +174,19 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         final DocumentFieldMappers allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
-                for (FieldMapper fieldMapper : allFieldMappers) {
-                    addFieldMapper(fieldPredicate, fieldMapper.fieldType().name(), fieldMapper, fieldMappings, request.includeDefaults());
+                for (Mapper fieldMapper : allFieldMappers) {
+                    addFieldMapper(fieldPredicate, fieldMapper.name(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
-                for (FieldMapper fieldMapper : allFieldMappers) {
-                    if (Regex.simpleMatch(field, fieldMapper.fieldType().name())) {
-                        addFieldMapper(fieldPredicate,  fieldMapper.fieldType().name(),
+                for (Mapper fieldMapper : allFieldMappers) {
+                    if (Regex.simpleMatch(field, fieldMapper.name())) {
+                        addFieldMapper(fieldPredicate,  fieldMapper.name(),
                                 fieldMapper, fieldMappings, request.includeDefaults());
                     }
                 }
             } else {
                 // not a pattern
-                FieldMapper fieldMapper = allFieldMappers.smartNameFieldMapper(field);
+                Mapper fieldMapper = allFieldMappers.getMapper(field);
                 if (fieldMapper != null) {
                     addFieldMapper(fieldPredicate, field, fieldMapper, fieldMappings, request.includeDefaults());
                 } else if (request.probablySingleFieldRequest()) {
@@ -199,7 +198,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     }
 
     private static void addFieldMapper(Predicate<String> fieldPredicate,
-                                       String field, FieldMapper fieldMapper, Map<String, FieldMappingMetaData> fieldMappings,
+                                       String field, Mapper fieldMapper, Map<String, FieldMappingMetaData> fieldMappings,
                                        boolean includeDefaults) {
         if (fieldMappings.containsKey(field)) {
             return;
@@ -208,7 +207,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             try {
                 BytesReference bytes = XContentHelper.toXContent(fieldMapper, XContentType.JSON,
                         includeDefaults ? includeDefaultsParams : ToXContent.EMPTY_PARAMS, false);
-                fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.fieldType().name(), bytes));
+                fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.name(), bytes));
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize XContent of field [" + field + "]", e);
             }

@@ -1,6 +1,9 @@
-# Integration tests for Repository S3 component
+# Integration tests for repository-s3
 #
-"Repository S3 loaded":
+"Plugin repository-s3 is loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 
@@ -10,4 +13,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: repository-s3  }
+    - contains:  { nodes.$master.plugins: { name: repository-s3 } }

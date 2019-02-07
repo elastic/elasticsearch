@@ -45,6 +45,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final String providedName;
     private Index recoverFrom;
     private ResizeType resizeType;
+    private boolean copySettings;
 
     private IndexMetaData.State state = IndexMetaData.State.OPEN;
 
@@ -53,8 +54,6 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final Map<String, String> mappings = new HashMap<>();
 
     private final Set<Alias> aliases = new HashSet<>();
-
-    private final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
     private final Set<ClusterBlock> blocks = new HashSet<>();
 
@@ -82,11 +81,6 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
-    public CreateIndexClusterStateUpdateRequest customs(Map<String, IndexMetaData.Custom> customs) {
-        this.customs.putAll(customs);
-        return this;
-    }
-
     public CreateIndexClusterStateUpdateRequest blocks(Set<ClusterBlock> blocks) {
         this.blocks.addAll(blocks);
         return this;
@@ -109,6 +103,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public CreateIndexClusterStateUpdateRequest resizeType(ResizeType resizeType) {
         this.resizeType = resizeType;
+        return this;
+    }
+
+    public CreateIndexClusterStateUpdateRequest copySettings(final boolean copySettings) {
+        this.copySettings = copySettings;
         return this;
     }
 
@@ -140,10 +139,6 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return aliases;
     }
 
-    public Map<String, IndexMetaData.Custom> customs() {
-        return customs;
-    }
-
     public Set<ClusterBlock> blocks() {
         return blocks;
     }
@@ -170,4 +165,9 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     public ResizeType resizeType() {
         return resizeType;
     }
+
+    public boolean copySettings() {
+        return copySettings;
+    }
+
 }

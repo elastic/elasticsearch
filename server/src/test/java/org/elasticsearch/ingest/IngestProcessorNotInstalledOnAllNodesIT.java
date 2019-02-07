@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ingest.WritePipelineResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.NodeService;
@@ -37,7 +37,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
@@ -46,14 +45,14 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
     private volatile boolean installPlugin;
 
     public IngestProcessorNotInstalledOnAllNodesIT() throws IOException {
-        pipelineSource = jsonBuilder().startObject()
+        pipelineSource = BytesReference.bytes(jsonBuilder().startObject()
                 .startArray("processors")
                     .startObject()
                         .startObject("test")
                         .endObject()
                     .endObject()
                 .endArray()
-                .endObject().bytes();
+                .endObject());
     }
 
     @Override
@@ -96,15 +95,19 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         installPlugin = true;
         String node1 = internalCluster().startNode();
 
-        WritePipelineResponse response = client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
+        AcknowledgedResponse response = client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON).get();
         assertThat(response.isAcknowledged(), is(true));
-        Pipeline pipeline = internalCluster().getInstance(NodeService.class, node1).getIngestService().getPipelineStore().get("_id");
+        Pipeline pipeline = internalCluster().getInstance(NodeService.class, node1).getIngestService().getPipeline("_id");
         assertThat(pipeline, notNullValue());
 
         installPlugin = false;
         String node2 = internalCluster().startNode();
-        pipeline = internalCluster().getInstance(NodeService.class, node2).getIngestService().getPipelineStore().get("_id");
-        assertThat(pipeline, nullValue());
+        pipeline = internalCluster().getInstance(NodeService.class, node2).getIngestService().getPipeline("_id");
+
+        assertNotNull(pipeline);
+        assertThat(pipeline.getId(), equalTo("_id"));
+        assertThat(pipeline.getDescription(), equalTo("this is a place holder pipeline, " +
+            "because pipeline with id [_id] could not be loaded"));
     }
 
 }

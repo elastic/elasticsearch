@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -42,14 +43,14 @@ public class FilterAggregatorFactory extends AggregatorFactory<FilterAggregatorF
     public FilterAggregatorFactory(String name, QueryBuilder filterBuilder, SearchContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);
-        filter = filterBuilder.toFilter(context.getQueryShardContext());
+        filter = filterBuilder.toQuery(context.getQueryShardContext());
     }
 
     /**
      * Returns the {@link Weight} for this filter aggregation, creating it if
      * necessary. This is done lazily so that the {@link Weight} is only created
      * if the aggregation collects documents reducing the overhead of the
-     * aggregation in teh case where no documents are collected.
+     * aggregation in the case where no documents are collected.
      * 
      * Note that as aggregations are initialsed and executed in a serial manner,
      * no concurrency considerations are necessary here.
@@ -58,7 +59,7 @@ public class FilterAggregatorFactory extends AggregatorFactory<FilterAggregatorF
         if (weight == null) {
             IndexSearcher contextSearcher = context.searcher();
             try {
-                weight = contextSearcher.createNormalizedWeight(filter, false);
+                weight = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to initialse filter", e);
             }

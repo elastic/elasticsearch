@@ -13,6 +13,7 @@ The following settings *must* be considered before going to production:
 * <<vm-max-map-count,Ensure sufficient virtual memory>>
 * <<max-number-of-threads,Ensure sufficient threads>>
 * <<networkaddress-cache-ttl,JVM DNS cache settings>>
+* <<executable-jna-tmpdir,Temporary directory not mounted with `noexec`>>
 
 [[dev-vs-prod]]
 [float]
@@ -40,3 +41,5 @@ include::sysconfig/virtual-memory.asciidoc[]
 include::sysconfig/threads.asciidoc[]
 
 include::sysconfig/dns-cache.asciidoc[]
+
+include::sysconfig/executable-jna-tmpdir.asciidoc[]

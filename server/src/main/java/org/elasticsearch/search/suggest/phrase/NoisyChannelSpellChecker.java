@@ -23,28 +23,29 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
+import org.apache.lucene.codecs.TermStats;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.elasticsearch.common.io.FastCharArrayReader;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
 
+import java.io.CharArrayReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 //TODO public for tests
 public final class NoisyChannelSpellChecker {
-    public static final double REAL_WORD_LIKELYHOOD = 0.95d;
+    public static final double REAL_WORD_LIKELIHOOD = 0.95d;
     public static final int DEFAULT_TOKEN_LIMIT = 10;
     private final double realWordLikelihood;
     private final boolean requireUnigram;
     private final int tokenLimit;
 
     public NoisyChannelSpellChecker() {
-        this(REAL_WORD_LIKELYHOOD);
+        this(REAL_WORD_LIKELIHOOD);
     }
 
     public NoisyChannelSpellChecker(double nonErrorLikelihood) {
@@ -84,9 +85,9 @@ public final class NoisyChannelSpellChecker {
                 anyUnigram = true;
                 if (posIncAttr.getPositionIncrement() == 0 && typeAttribute.type() == SynonymFilter.TYPE_SYNONYM) {
                     assert currentSet != null;
-                    long freq = 0;
-                    if ((freq = generator.frequency(term)) > 0) {
-                        currentSet.addOneCandidate(generator.createCandidate(BytesRef.deepCopyOf(term), freq, realWordLikelihood));
+                    TermStats termStats = generator.termStats(term);
+                    if (termStats.docFreq > 0) {
+                        currentSet.addOneCandidate(generator.createCandidate(BytesRef.deepCopyOf(term), termStats, realWordLikelihood));
                     }
                 } else {
                     if (currentSet != null) {
@@ -131,15 +132,17 @@ public final class NoisyChannelSpellChecker {
     }
 
     public Result getCorrections(Analyzer analyzer, BytesRef query, CandidateGenerator generator,
-            float maxErrors, int numCorrections, IndexReader reader, String analysisField, WordScorer scorer, float confidence, int gramSize) throws IOException {
+                                    float maxErrors, int numCorrections, IndexReader reader, String analysisField,
+                                    WordScorer scorer, float confidence, int gramSize) throws IOException {
 
-        return getCorrections(tokenStream(analyzer, query, new CharsRefBuilder(), analysisField), generator, maxErrors, numCorrections, scorer, confidence, gramSize);
+        return getCorrections(tokenStream(analyzer, query, new CharsRefBuilder(), analysisField), generator, maxErrors,
+            numCorrections, scorer, confidence, gramSize);
 
     }
 
     public TokenStream tokenStream(Analyzer analyzer, BytesRef query, CharsRefBuilder spare, String field) throws IOException {
         spare.copyUTF8Bytes(query);
-        return analyzer.tokenStream(field, new FastCharArrayReader(spare.chars(), 0, spare.length()));
+        return analyzer.tokenStream(field, new CharArrayReader(spare.chars(), 0, spare.length()));
     }
 
     public static class Result {

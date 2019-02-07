@@ -8,6 +8,7 @@ Besides the link:/guide[officially supported Elasticsearch clients], there are
 a number of clients that have been contributed by the community for various languages:
 
 * <<b4j>>
+* <<cpp>>
 * <<clojure>>
 * <<coldfusion>>
 * <<erlang>>
@@ -35,9 +36,16 @@ a number of clients that have been contributed by the community for various lang
 * https://www.b4x.com/android/forum/threads/server-jelasticsearch-search-and-text-analytics.73335/
   B4J client based on the official Java REST client.
 
+[[cpp]]
+== C++
+* https://github.com/seznam/elasticlient[elasticlient]: simple library for simplified work with Elasticsearch in C++
+
 [[clojure]]
 == Clojure
 
+* https://github.com/mpenet/spandex[Spandex]: 
+  Clojure client, based on the new official low level rest-client.
+  
 * http://github.com/clojurewerkz/elastisch[Elastisch]:
   Clojure client.
 
@@ -123,10 +131,13 @@ The following project appears to be abandoned:
   Node.js client for the Elasticsearch REST API
 
 [[kotlin]]
-== kotlin
+== Kotlin
 
 * https://github.com/mbuhot/eskotlin[ES Kotlin]:
   Elasticsearch Query DSL for kotlin based on the {client}/java-api/current/index.html[official Elasticsearch Java client].
+  
+* https://github.com/jillesvangurp/es-kotlin-wrapper-client[ES Kotlin Wrapper Client]: 
+  Kotlin extension functions and abstractions for the {client}/java-api/current/index.html[official Elasticsearch Highlevel Client]. Aims to reduce the amount of boilerplate needed to do searches, bulk indexing and other common things users do with the client.
 
 [[lua]]
 == Lua
@@ -203,6 +214,9 @@ The following projects appear to be abandoned:
 
 * https://github.com/ropensci/elasticdsl[elasticdsl]:
   A high-level R DSL for Elasticsearch, wrapping the elastic R client.
+  
+* https://github.com/UptakeOpenSource/uptasticsearch[uptasticsearch]:
+  An R client tailored to data science workflows.
 
 The following projects appear to be abandoned:
 

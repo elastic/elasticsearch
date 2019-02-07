@@ -19,9 +19,10 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -158,7 +160,7 @@ public final class Script implements ToXContentObject, Writeable {
                 if (parser.currentToken() == Token.START_OBJECT) {
                     //this is really for search templates, that need to be converted to json format
                     XContentBuilder builder = XContentFactory.jsonBuilder();
-                    idOrCode = builder.copyCurrentStructure(parser).string();
+                    idOrCode = Strings.toString(builder.copyCurrentStructure(parser));
                     options.put(CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
                 } else {
                     idOrCode = parser.text();
@@ -282,8 +284,11 @@ public final class Script implements ToXContentObject, Writeable {
             builder.startObject();
             settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            return parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, builder.bytes()));
+            try (InputStream stream = BytesReference.bytes(builder).streamInput();
+                 XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, stream)) {
+                return parse(parser);
+            }
         } catch (IOException e) {
             // it should not happen since we are not actually reading from a stream but an in-memory byte[]
             throw new IllegalStateException(e);
@@ -445,133 +450,24 @@ public final class Script implements ToXContentObject, Writeable {
      * Creates a {@link Script} read from an input stream.
      */
     public Script(StreamInput in) throws IOException {
-        // Version 5.3 allows lang to be an optional parameter for stored scripts and expects
-        // options to be null for stored and file scripts.
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            this.type = ScriptType.readFrom(in);
-            this.lang = in.readOptionalString();
-            this.idOrCode = in.readString();
-            @SuppressWarnings("unchecked")
-            Map<String, String> options = (Map<String, String>)(Map)in.readMap();
-            this.options = options;
-            this.params = in.readMap();
-        // Version 5.1 to 5.3 (exclusive) requires all Script members to be non-null and supports the potential
-        // for more options than just XContentType.  Reorders the read in contents to be in
-        // same order as the constructor.
-        } else if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-            this.type = ScriptType.readFrom(in);
-            String lang = in.readString();
-            this.lang = this.type == ScriptType.STORED ? null : lang;
-
-            this.idOrCode = in.readString();
-            @SuppressWarnings("unchecked")
-            Map<String, String> options = (Map<String, String>)(Map)in.readMap();
-
-            if (this.type != ScriptType.INLINE && options.isEmpty()) {
-                this.options = null;
-            } else {
-                this.options = options;
-            }
-
-            this.params = in.readMap();
-        // Prior to version 5.1 the script members are read in certain cases as optional and given
-        // default values when necessary.  Also the only option supported is for XContentType.
-        } else {
-            this.idOrCode = in.readString();
-
-            if (in.readBoolean()) {
-                this.type = ScriptType.readFrom(in);
-            } else {
-                this.type = DEFAULT_SCRIPT_TYPE;
-            }
-
-            String lang = in.readOptionalString();
-
-            if (lang == null) {
-                this.lang = this.type == ScriptType.STORED ? null : DEFAULT_SCRIPT_LANG;
-            } else {
-                this.lang = lang;
-            }
-
-            Map<String, Object> params = in.readMap();
-
-            if (params == null) {
-                this.params = new HashMap<>();
-            } else {
-                this.params = params;
-            }
-
-            if (in.readBoolean()) {
-                this.options = new HashMap<>();
-                XContentType contentType = XContentType.readFrom(in);
-                this.options.put(CONTENT_TYPE_OPTION, contentType.mediaType());
-            } else if (type == ScriptType.INLINE) {
-                options = new HashMap<>();
-            } else {
-                this.options = null;
-            }
-        }
+        this.type = ScriptType.readFrom(in);
+        this.lang = in.readOptionalString();
+        this.idOrCode = in.readString();
+        @SuppressWarnings("unchecked")
+        Map<String, String> options = (Map<String, String>)(Map)in.readMap();
+        this.options = options;
+        this.params = in.readMap();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // Version 5.3+ allows lang to be an optional parameter for stored scripts and expects
-        // options to be null for stored and file scripts.
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            type.writeTo(out);
-            out.writeOptionalString(lang);
-            out.writeString(idOrCode);
-            @SuppressWarnings("unchecked")
-            Map<String, Object> options = (Map<String, Object>)(Map)this.options;
-            out.writeMap(options);
-            out.writeMap(params);
-        // Version 5.1 to 5.3 (exclusive) requires all Script members to be non-null and supports the potential
-        // for more options than just XContentType.  Reorders the written out contents to be in
-        // same order as the constructor.
-        } else if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-            type.writeTo(out);
-
-            if (lang == null) {
-                out.writeString("");
-            } else {
-                out.writeString(lang);
-            }
-
-            out.writeString(idOrCode);
-            @SuppressWarnings("unchecked")
-            Map<String, Object> options = (Map<String, Object>)(Map)this.options;
-
-            if (options == null) {
-                out.writeMap(new HashMap<>());
-            } else {
-                out.writeMap(options);
-            }
-
-            out.writeMap(params);
-        // Prior to version 5.1 the Script members were possibly written as optional or null, though there is no case where a null
-        // value wasn't equivalent to it's default value when actually compiling/executing a script.  Meaning, there are no
-        // backwards compatibility issues, and now there's enforced consistency.  Also the only supported compiler
-        // option was XContentType.
-        } else {
-            out.writeString(idOrCode);
-            out.writeBoolean(true);
-            type.writeTo(out);
-            out.writeOptionalString(lang);
-
-            if (params.isEmpty()) {
-                out.writeMap(null);
-            } else {
-                out.writeMap(params);
-            }
-
-            if (options != null && options.containsKey(CONTENT_TYPE_OPTION)) {
-                XContentType contentType = XContentType.fromMediaTypeOrFormat(options.get(CONTENT_TYPE_OPTION));
-                out.writeBoolean(true);
-                contentType.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
-        }
+        type.writeTo(out);
+        out.writeOptionalString(lang);
+        out.writeString(idOrCode);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> options = (Map<String, Object>) (Map) this.options;
+        out.writeMap(options);
+        out.writeMap(params);
     }
 
     /**
@@ -635,7 +531,9 @@ public final class Script implements ToXContentObject, Writeable {
 
         if (type == ScriptType.INLINE) {
             if (contentType != null && builder.contentType().mediaType().equals(contentType)) {
-                builder.rawField(SOURCE_PARSE_FIELD.getPreferredName(), new BytesArray(idOrCode));
+                try (InputStream stream = new BytesArray(idOrCode).streamInput()) {
+                    builder.rawField(SOURCE_PARSE_FIELD.getPreferredName(), stream);
+                }
             } else {
                 builder.field(SOURCE_PARSE_FIELD.getPreferredName(), idOrCode);
             }

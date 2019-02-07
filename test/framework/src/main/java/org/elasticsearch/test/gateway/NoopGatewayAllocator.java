@@ -22,7 +22,6 @@ package org.elasticsearch.test.gateway;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 import java.util.List;
@@ -33,10 +32,6 @@ import java.util.List;
 public class NoopGatewayAllocator extends GatewayAllocator {
 
     public static final NoopGatewayAllocator INSTANCE = new NoopGatewayAllocator();
-
-    protected NoopGatewayAllocator() {
-        super(Settings.EMPTY);
-    }
 
     @Override
     public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {

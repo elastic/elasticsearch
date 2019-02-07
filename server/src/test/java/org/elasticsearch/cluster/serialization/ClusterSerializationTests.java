@@ -45,7 +45,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -64,9 +63,12 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).localNodeId("node1").masterNodeId("node2").build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))
+            .add(newNode("node3")).localNodeId("node1").masterNodeId("node2").build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("clusterName1")).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("clusterName1"))
+            .nodes(nodes).metaData(metaData).routingTable(routingTable)
+            .minimumMasterNodesOnPublishingMaster(randomIntBetween(-1, 10)).build();
 
         AllocationService strategy = createAllocationService();
         clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState, "reroute").routingTable()).build();
@@ -77,6 +79,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         assertThat(serializedClusterState.getClusterName().value(), equalTo(clusterState.getClusterName().value()));
 
         assertThat(serializedClusterState.routingTable().toString(), equalTo(clusterState.routingTable().toString()));
+
+        assertThat(serializedClusterState.getMinimumMasterNodesOnPublishingMaster(),
+            equalTo(clusterState.getMinimumMasterNodesOnPublishingMaster()));
     }
 
     public void testRoutingTableSerialization() throws Exception {
@@ -117,14 +122,15 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 ));
         if (includeRestore) {
             builder.putCustom(RestoreInProgress.TYPE,
-                new RestoreInProgress(
+                new RestoreInProgress.Builder().add(
                     new RestoreInProgress.Entry(
-                        new Snapshot("repo2", new SnapshotId("snap2", UUIDs.randomBase64UUID())),
+                        UUIDs.randomBase64UUID(), new Snapshot("repo2", new SnapshotId("snap2", UUIDs.randomBase64UUID())),
                         RestoreInProgress.State.STARTED,
                         Collections.singletonList("index_name"),
                         ImmutableOpenMap.of()
                     )
-                ));
+                ).build()
+            );
         }
 
         ClusterState clusterState = builder.incrementVersion().build();
@@ -133,7 +139,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with current version
         BytesStreamOutput outStream = new BytesStreamOutput();
-        Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
         outStream.setVersion(version);
         diffs.writeTo(outStream);
         StreamInput inStream = outStream.bytes().streamInput();

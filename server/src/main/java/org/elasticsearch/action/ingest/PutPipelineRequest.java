@@ -19,32 +19,23 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> {
+public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> implements ToXContentObject {
 
     private String id;
     private BytesReference source;
     private XContentType xContentType;
-
-    /**
-     * Create a new pipeline request
-     * @deprecated use {@link #PutPipelineRequest(String, BytesReference, XContentType)} to avoid content type auto-detection
-     */
-    @Deprecated
-    public PutPipelineRequest(String id, BytesReference source) {
-        this(id, source, XContentFactory.xContentType(source));
-    }
 
     /**
      * Create a new pipeline request with the id and source along with the content type of the source
@@ -80,11 +71,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super.readFrom(in);
         id = in.readString();
         source = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType = XContentType.readFrom(in);
-        } else {
-            xContentType = XContentFactory.xContentType(source);
-        }
+        xContentType = in.readEnum(XContentType.class);
     }
 
     @Override
@@ -92,8 +79,16 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         super.writeTo(out);
         out.writeString(id);
         out.writeBytesReference(source);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType.writeTo(out);
+        out.writeEnum(xContentType);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (source != null) {
+            builder.rawValue(source.streamInput(), xContentType);
+        } else {
+            builder.startObject().endObject();
         }
+        return builder;
     }
 }

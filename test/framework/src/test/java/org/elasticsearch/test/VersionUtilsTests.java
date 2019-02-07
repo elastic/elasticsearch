@@ -24,11 +24,11 @@ import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
-import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,6 +49,7 @@ public class VersionUtilsTests extends ESTestCase {
     }
 
     public void testRandomVersionBetween() {
+        // TODO: rework this test to use a dummy Version class so these don't need to change with each release
         // full range
         Version got = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), Version.CURRENT);
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
@@ -61,10 +62,10 @@ public class VersionUtilsTests extends ESTestCase {
         assertTrue(got.onOrBefore(Version.CURRENT));
 
         // sub range
-        got = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
-                Version.V_6_0_0_beta1);
-        assertTrue(got.onOrAfter(Version.V_5_0_0));
-        assertTrue(got.onOrBefore(Version.V_6_0_0_beta1));
+        got = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1,
+                Version.V_6_2_4);
+        assertTrue(got.onOrAfter(Version.V_6_0_0_alpha1));
+        assertTrue(got.onOrBefore(Version.V_6_2_4));
 
         // unbounded lower
         got = VersionUtils.randomVersionBetween(random(), null, Version.V_6_0_0_beta1);
@@ -75,8 +76,8 @@ public class VersionUtilsTests extends ESTestCase {
         assertTrue(got.onOrBefore(VersionUtils.allReleasedVersions().get(0)));
 
         // unbounded upper
-        got = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, null);
-        assertTrue(got.onOrAfter(Version.V_5_0_0));
+        got = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, null);
+        assertTrue(got.onOrAfter(Version.V_6_0_0));
         assertTrue(got.onOrBefore(Version.CURRENT));
         got = VersionUtils.randomVersionBetween(random(), VersionUtils.getPreviousVersion(), null);
         assertTrue(got.onOrAfter(VersionUtils.getPreviousVersion()));
@@ -107,6 +108,8 @@ public class VersionUtilsTests extends ESTestCase {
     }
 
     public static class TestReleaseBranch {
+        public static final Version V_4_0_0 = Version.fromString("4.0.0");
+        public static final Version V_4_0_1 = Version.fromString("4.0.1");
         public static final Version V_5_3_0 = Version.fromString("5.3.0");
         public static final Version V_5_3_1 = Version.fromString("5.3.1");
         public static final Version V_5_3_2 = Version.fromString("5.3.2");
@@ -120,19 +123,24 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> unreleased = t.v2();
 
         assertThat(released, equalTo(Arrays.asList(
+            TestReleaseBranch.V_4_0_0,
             TestReleaseBranch.V_5_3_0,
             TestReleaseBranch.V_5_3_1,
             TestReleaseBranch.V_5_3_2,
             TestReleaseBranch.V_5_4_0)));
-        assertThat(unreleased, equalTo(Collections.singletonList(TestReleaseBranch.V_5_4_1)));
+        assertThat(unreleased, equalTo(Arrays.asList(
+            TestReleaseBranch.V_4_0_1,
+            TestReleaseBranch.V_5_4_1)));
     }
 
     public static class TestStableBranch {
-        public static final Version V_5_3_0 = Version.fromString("5.3.0");
-        public static final Version V_5_3_1 = Version.fromString("5.3.1");
-        public static final Version V_5_3_2 = Version.fromString("5.3.2");
-        public static final Version V_5_4_0 = Version.fromString("5.4.0");
-        public static final Version CURRENT = V_5_4_0;
+        public static final Version V_4_0_0 = Version.fromString("4.0.0");
+        public static final Version V_4_0_1 = Version.fromString("4.0.1");
+        public static final Version V_5_0_0 = Version.fromString("5.0.0");
+        public static final Version V_5_0_1 = Version.fromString("5.0.1");
+        public static final Version V_5_0_2 = Version.fromString("5.0.2");
+        public static final Version V_5_1_0 = Version.fromString("5.1.0");
+        public static final Version CURRENT = V_5_1_0;
     }
     public void testResolveReleasedVersionsForUnreleasedStableBranch() {
         Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestStableBranch.CURRENT,
@@ -141,14 +149,18 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> unreleased = t.v2();
 
         assertThat(released, equalTo(Arrays.asList(
-            TestStableBranch.V_5_3_0,
-            TestStableBranch.V_5_3_1)));
+            TestStableBranch.V_4_0_0,
+            TestStableBranch.V_5_0_0,
+            TestStableBranch.V_5_0_1)));
         assertThat(unreleased, equalTo(Arrays.asList(
-            TestStableBranch.V_5_3_2,
-            TestStableBranch.V_5_4_0)));
+            TestStableBranch.V_4_0_1,
+            TestStableBranch.V_5_0_2,
+            TestStableBranch.V_5_1_0)));
     }
 
     public static class TestStableBranchBehindStableBranch {
+        public static final Version V_4_0_0 = Version.fromString("4.0.0");
+        public static final Version V_4_0_1 = Version.fromString("4.0.1");
         public static final Version V_5_3_0 = Version.fromString("5.3.0");
         public static final Version V_5_3_1 = Version.fromString("5.3.1");
         public static final Version V_5_3_2 = Version.fromString("5.3.2");
@@ -163,9 +175,11 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> unreleased = t.v2();
 
         assertThat(released, equalTo(Arrays.asList(
+            TestStableBranchBehindStableBranch.V_4_0_0,
             TestStableBranchBehindStableBranch.V_5_3_0,
             TestStableBranchBehindStableBranch.V_5_3_1)));
         assertThat(unreleased, equalTo(Arrays.asList(
+            TestStableBranchBehindStableBranch.V_4_0_1,
             TestStableBranchBehindStableBranch.V_5_3_2,
             TestStableBranchBehindStableBranch.V_5_4_0,
             TestStableBranchBehindStableBranch.V_5_5_0)));
@@ -221,13 +235,13 @@ public class VersionUtilsTests extends ESTestCase {
         assertThat(released, equalTo(Arrays.asList(
             TestNewMajorRelease.V_5_6_0,
             TestNewMajorRelease.V_5_6_1,
-            TestNewMajorRelease.V_5_6_2,
             TestNewMajorRelease.V_6_0_0_alpha1,
             TestNewMajorRelease.V_6_0_0_alpha2,
             TestNewMajorRelease.V_6_0_0_beta1,
             TestNewMajorRelease.V_6_0_0_beta2,
             TestNewMajorRelease.V_6_0_0)));
         assertThat(unreleased, equalTo(Arrays.asList(
+            TestNewMajorRelease.V_5_6_2,
             TestNewMajorRelease.V_6_0_1)));
     }
 
@@ -377,13 +391,19 @@ public class VersionUtilsTests extends ESTestCase {
         private final List<String> unreleased = new ArrayList<>();
 
         private VersionsFromProperty(String property) {
+            Set<String> allUnreleased = new HashSet<>(Arrays.asList(
+                System.getProperty("tests.gradle_unreleased_versions", "").split(",")
+            ));
+            if (allUnreleased.isEmpty()) {
+                fail("[tests.gradle_unreleased_versions] not set or empty. Gradle should set this before running.");
+            }
             String versions = System.getProperty(property);
-            assertNotNull("Couldn't find [" + property + "]. Gradle should set these before running the tests.", versions);
+            assertNotNull("Couldn't find [" + property + "]. Gradle should set this before running the tests.", versions);
             logger.info("Looked up versions [{}={}]", property, versions);
 
             for (String version : versions.split(",")) {
-                if (version.endsWith("-SNAPSHOT")) {
-                    unreleased.add(version.replace("-SNAPSHOT", ""));
+                if (allUnreleased.contains(version)) {
+                    unreleased.add(version);
                 } else {
                     released.add(version);
                 }

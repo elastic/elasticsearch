@@ -366,6 +366,26 @@ public class IndexSettingsTests extends ESTestCase {
                 settings.getMaxAdjacencyMatrixFilters());
     }
 
+    public void testMaxRegexLengthSetting() {
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey(), 99)
+            .build());
+        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(99, settings.getMaxRegexLength());
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey(), 101).build()));
+        assertEquals(101, settings.getMaxRegexLength());
+        settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
+        assertEquals(IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxRegexLength());
+
+        metaData = newIndexMeta("index", Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build());
+        settings = new IndexSettings(metaData, Settings.EMPTY);
+        assertEquals(IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY).intValue(), settings.getMaxRegexLength());
+    }
+
     public void testGCDeletesSetting() {
         TimeValue gcDeleteSetting = new TimeValue(Math.abs(randomInt()), TimeUnit.MILLISECONDS);
         IndexMetaData metaData = newIndexMeta("index", Settings.builder()
@@ -383,27 +403,6 @@ public class IndexSettingsTests extends ESTestCase {
         settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(),
             (randomBoolean() ? -1 : new TimeValue(-1, TimeUnit.MILLISECONDS)).toString()).build()));
         assertEquals(-1, settings.getGcDeletesInMillis());
-    }
-
-    public void testIsTTLPurgeDisabled() {
-        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING.getKey(), false)
-            .build());
-        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
-        assertFalse(settings.isTTLPurgeDisabled());
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING.getKey(),
-            "true").build()));
-        assertTrue(settings.isTTLPurgeDisabled());
-
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
-        assertFalse("reset to default", settings.isTTLPurgeDisabled());
-
-        metaData = newIndexMeta("index", Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build());
-        settings = new IndexSettings(metaData, Settings.EMPTY);
-        assertFalse(settings.isTTLPurgeDisabled());
     }
 
     public void testTranslogFlushSizeThreshold() {
@@ -540,51 +539,6 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals("2s", settings.get("index.refresh_interval"));
     }
 
-    public void testSingleTypeSetting() {
-        {
-            IndexSettings index = newIndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
-            IndexScopedSettings scopedSettings = index.getScopedSettings();
-            Settings build = Settings.builder().put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, randomBoolean()).build();
-            scopedSettings.archiveUnknownOrInvalidSettings(build, e -> fail("unexpected unknown setting " + e),
-                (e, ex) -> fail("unexpected illegal setting"));
-            assertTrue(index.isSingleType());
-            expectThrows(IllegalArgumentException.class, () -> {
-                index.getScopedSettings()
-                    .validate(Settings.builder().put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, randomBoolean()).build(), false);
-            });
-        }
-        {
-            boolean single_type = randomBoolean();
-            Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, single_type)
-                .build();
-            IndexMetaData meta = IndexMetaData.builder("index").settings(settings).build();
-            IndexSettings index = newIndexSettings(meta, Settings.EMPTY);
-            IndexScopedSettings scopedSettings = index.getScopedSettings();
-            Settings build = Settings.builder().put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, randomBoolean()).build();
-            scopedSettings.archiveUnknownOrInvalidSettings(build, e -> fail("unexpected unknown setting " + e),
-                (e, ex) -> fail("unexpected illegal setting"));
-            assertEquals(single_type, index.isSingleType());
-        }
-
-        {
-            Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, false)
-                .build();
-            IndexMetaData meta = IndexMetaData.builder("index").settings(settings).build();
-            try {
-                newIndexSettings(meta, Settings.EMPTY);
-                fail("should fail with assertion error");
-            } catch (AssertionError e) {
-                // all is well
-            }
-        }
-    }
-
     public void testQueryDefaultField() {
         IndexSettings index = newIndexSettings(
             newIndexMeta("index", Settings.EMPTY), Settings.EMPTY
@@ -598,5 +552,13 @@ public class IndexSettingsTests extends ESTestCase {
             newIndexMeta("index", Settings.builder().putList("index.query.default_field", "body", "title").build())
         );
         assertThat(index.getDefaultFields(), equalTo(Arrays.asList("body", "title")));
+    }
+
+    public void testUpdateSoftDeletesFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () ->
+            settings.updateSettings(Settings.builder().put("index.soft_deletes.enabled", randomBoolean()).build(),
+                Settings.builder(), Settings.builder(), "index"));
+        assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
     }
 }

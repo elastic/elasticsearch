@@ -19,25 +19,21 @@
 
 package org.elasticsearch.common.component;
 
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public abstract class AbstractLifecycleComponent extends AbstractComponent implements LifecycleComponent {
+public abstract class AbstractLifecycleComponent implements LifecycleComponent {
+    private static final Logger logger = LogManager.getLogger(AbstractLifecycleComponent.class);
 
     protected final Lifecycle lifecycle = new Lifecycle();
 
     private final List<LifecycleListener> listeners = new CopyOnWriteArrayList<>();
 
-    protected AbstractLifecycleComponent(Settings settings) {
-        super(settings);
-    }
-
-    protected AbstractLifecycleComponent(Settings settings, Class customClass) {
-        super(settings, customClass);
-    }
+    protected AbstractLifecycleComponent() {}
 
     @Override
     public Lifecycle.State lifecycleState() {
@@ -54,7 +50,6 @@ public abstract class AbstractLifecycleComponent extends AbstractComponent imple
         listeners.remove(listener);
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public void start() {
         if (!lifecycle.canMoveToStarted()) {
@@ -72,7 +67,6 @@ public abstract class AbstractLifecycleComponent extends AbstractComponent imple
 
     protected abstract void doStart();
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public void stop() {
         if (!lifecycle.canMoveToStopped()) {

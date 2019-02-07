@@ -124,4 +124,15 @@ public class QueryRewriteContext {
         }
     }
 
+    /**
+     * In pre-processing contexts that happen at index time 'now' date ranges should be replaced by a {@link MatchAllQueryBuilder}.
+     * Otherwise documents that should match at query time would never match and the document that have fallen outside the
+     * date range would continue to match.
+     *
+     * @return indicates whether range queries with date ranges using 'now' are rewritten to a {@link MatchAllQueryBuilder}.
+     */
+    public boolean convertNowRangeToMatchAll() {
+        return false;
+    }
+
 }

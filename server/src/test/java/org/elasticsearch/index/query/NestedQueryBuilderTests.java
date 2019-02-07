@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -44,7 +45,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
-import static org.elasticsearch.index.query.InnerHitBuilderTests.randomInnerHits;
+import static org.elasticsearch.index.query.InnerHitBuilderTests.randomNestedInnerHits;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -58,7 +59,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("_doc",
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
                 STRING_FIELD_NAME, "type=text",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
@@ -67,7 +68,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 OBJECT_FIELD_NAME, "type=object",
                 GEO_POINT_FIELD_NAME, "type=geo_point",
                 "nested1", "type=nested"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**
@@ -123,10 +124,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     public void testSerializationBWC() throws IOException {
         for (Version version : VersionUtils.allReleasedVersions()) {
             NestedQueryBuilder testQuery = createTestQueryBuilder();
-            if (version.before(Version.V_5_2_0) && testQuery.innerHit() != null) {
-                // ignore unmapped for inner_hits has been added on 5.2
-                testQuery.innerHit().setIgnoreUnmapped(false);
-            }
             assertSerialization(testQuery, version);
         }
     }
@@ -270,7 +267,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     public void testInlineLeafInnerHitsNestedQuery() throws Exception {
-        InnerHitBuilder leafInnerHits = randomInnerHits();
+        InnerHitBuilder leafInnerHits = randomNestedInnerHits();
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
         nestedQueryBuilder.innerHit(leafInnerHits);
         Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
@@ -279,7 +276,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     public void testInlineLeafInnerHitsNestedQueryViaBoolQuery() {
-        InnerHitBuilder leafInnerHits = randomInnerHits();
+        InnerHitBuilder leafInnerHits = randomNestedInnerHits();
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None)
             .innerHit(leafInnerHits);
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder().should(nestedQueryBuilder);
@@ -289,7 +286,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     public void testInlineLeafInnerHitsNestedQueryViaConstantScoreQuery() {
-        InnerHitBuilder leafInnerHits = randomInnerHits();
+        InnerHitBuilder leafInnerHits = randomNestedInnerHits();
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None)
             .innerHit(leafInnerHits);
         ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(nestedQueryBuilder);
@@ -299,10 +296,10 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     public void testInlineLeafInnerHitsNestedQueryViaBoostingQuery() {
-        InnerHitBuilder leafInnerHits1 = randomInnerHits();
+        InnerHitBuilder leafInnerHits1 = randomNestedInnerHits();
         NestedQueryBuilder nestedQueryBuilder1 = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None)
             .innerHit(leafInnerHits1);
-        InnerHitBuilder leafInnerHits2 = randomInnerHits();
+        InnerHitBuilder leafInnerHits2 = randomNestedInnerHits();
         NestedQueryBuilder nestedQueryBuilder2 = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None)
             .innerHit(leafInnerHits2);
         BoostingQueryBuilder constantScoreQueryBuilder = new BoostingQueryBuilder(nestedQueryBuilder1, nestedQueryBuilder2);
@@ -313,7 +310,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     public void testInlineLeafInnerHitsNestedQueryViaFunctionScoreQuery() {
-        InnerHitBuilder leafInnerHits = randomInnerHits();
+        InnerHitBuilder leafInnerHits = randomNestedInnerHits();
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None)
             .innerHit(leafInnerHits);
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(nestedQueryBuilder);
@@ -333,7 +330,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         when(mapperService.getIndexSettings()).thenReturn(settings);
         when(searchContext.mapperService()).thenReturn(mapperService);
 
-        InnerHitBuilder leafInnerHits = randomInnerHits();
+        InnerHitBuilder leafInnerHits = randomNestedInnerHits();
         NestedQueryBuilder query1 = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
         query1.innerHit(leafInnerHits);
         final Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
@@ -346,7 +343,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         });
         innerHitBuilders.clear();
         NestedQueryBuilder query2 = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
-        query2.innerHit(leafInnerHits.setIgnoreUnmapped(true));
+        query2.ignoreUnmapped(true);
+        query2.innerHit(leafInnerHits);
         query2.extractInnerHitBuilders(innerHitBuilders);
         assertThat(innerHitBuilders.size(), Matchers.equalTo(1));
         assertTrue(innerHitBuilders.containsKey(leafInnerHits.getName()));

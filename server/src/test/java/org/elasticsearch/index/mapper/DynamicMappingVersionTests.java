@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,17 +45,17 @@ public class DynamicMappingVersionTests extends ESSingleNodeTestCase {
             .documentMapperWithAutoCreate("my-type").getDocumentMapper();
 
         ParsedDocument parsedDoc = documentMapper.parse(
-            SourceToParse.source("my-index", "my-type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("foo", 3)
-                .endObject()
-                .bytes(), XContentType.JSON));
+            new SourceToParse("my-index", "my-type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("foo", 3)
+                    .endObject()), XContentType.JSON));
 
-        String expectedMapping = XContentFactory.jsonBuilder().startObject()
+        String expectedMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("my-type")
             .startObject("properties")
             .startObject("foo").field("type", "long")
-            .endObject().endObject().endObject().endObject().string();
+            .endObject().endObject().endObject().endObject());
         assertEquals(expectedMapping, parsedDoc.dynamicMappingsUpdate().toString());
     }
 

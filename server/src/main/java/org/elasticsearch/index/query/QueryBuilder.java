@@ -29,23 +29,13 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
 
     /**
      * Converts this QueryBuilder to a lucene {@link Query}.
-     * Returns <tt>null</tt> if this query should be ignored in the context of
+     * Returns {@code null} if this query should be ignored in the context of
      * parent queries.
      *
      * @param context additional information needed to construct the queries
-     * @return the {@link Query} or <tt>null</tt> if this query should be ignored upstream
+     * @return the {@link Query} or {@code null} if this query should be ignored upstream
      */
     Query toQuery(QueryShardContext context) throws IOException;
-
-    /**
-     * Converts this QueryBuilder to an unscored lucene {@link Query} that acts as a filter.
-     * Returns <tt>null</tt> if this query should be ignored in the context of
-     * parent queries.
-     *
-     * @param context additional information needed to construct the queries
-     * @return the {@link Query} or <tt>null</tt> if this query should be ignored upstream
-     */
-    Query toFilter(QueryShardContext context) throws IOException;
 
     /**
      * Sets the arbitrary name to be assigned to the query (see named queries).

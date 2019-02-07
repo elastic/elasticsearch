@@ -20,7 +20,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -31,9 +30,11 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 
-import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
@@ -42,8 +43,8 @@ import java.util.stream.Stream;
  * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
  * and collect the results. If a shard request returns a failure this class handles the advance to the next replica of the shard until
  * the shards replica iterator is exhausted. Each shard is referenced by position in the {@link GroupShardsIterator} which is later
- * referred to as the <tt>shardIndex</tt>.
- * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection
+ * referred to as the {@code shardIndex}.
+ * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
  */
 abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends SearchPhase {
@@ -53,12 +54,13 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     private final Logger logger;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
-    private final AtomicInteger shardExecutionIndex = new AtomicInteger(0);
-    private final int maxConcurrentShardRequests;
+    private final int maxConcurrentRequestsPerNode;
     private final Executor executor;
+    private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
+    private final boolean throttleConcurrentRequests;
 
     InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts, Logger logger,
-                       int maxConcurrentShardRequests, Executor executor) {
+                       int maxConcurrentRequestsPerNode, Executor executor) {
         super(name);
         this.request = request;
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -78,7 +80,9 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
         // we process hence we add one for the non active partition here.
         this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
-        this.maxConcurrentShardRequests = Math.min(maxConcurrentShardRequests, shardsIts.size());
+        this.maxConcurrentRequestsPerNode = maxConcurrentRequestsPerNode;
+        // in the case were we have less shards than maxConcurrentRequestsPerNode we don't need to throttle
+        this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
         this.executor = executor;
     }
 
@@ -86,22 +90,16 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                                 final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
-        SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId(), shardIt.getClusterAlias(),
-                shardIt.getOriginalIndices());
+        SearchShardTarget shardTarget = shardIt.newSearchShardTarget(nodeId);
         onShardFailure(shardIndex, shardTarget, e);
 
         if (totalOps.incrementAndGet() == expectedTotalOps) {
             if (logger.isDebugEnabled()) {
                 if (e != null && !TransportActions.isShardNotAvailableException(e)) {
-                    logger.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                    "{}: Failed to execute [{}]",
-                                    shard != null ? shard.shortSummary() :
-                                            shardIt.shardId(),
-                                    request),
-                            e);
+                    logger.debug(new ParameterizedMessage(
+                        "{}: Failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
                 } else if (logger.isTraceEnabled()) {
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
+                    logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
             onPhaseDone();
@@ -109,28 +107,18 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             final ShardRouting nextShard = shardIt.nextOrNull();
             final boolean lastShard = nextShard == null;
             // trace log this exception
-            logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                            "{}: Failed to execute [{}] lastShard [{}]",
-                            shard != null ? shard.shortSummary() : shardIt.shardId(),
-                            request,
-                            lastShard),
-                    e);
+            logger.trace(() -> new ParameterizedMessage(
+                "{}: Failed to execute [{}] lastShard [{}]",
+                shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
             if (!lastShard) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
             } else {
-                maybeExecuteNext(); // move to the next execution if needed
                 // no more shards active, add a failure
                 if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
                     if (e != null && !TransportActions.isShardNotAvailableException(e)) {
-                        logger.debug(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                        "{}: Failed to execute [{}] lastShard [{}]",
-                                        shard != null ? shard.shortSummary() :
-                                                shardIt.shardId(),
-                                        request,
-                                        lastShard),
-                                e);
+                        logger.debug(new ParameterizedMessage(
+                            "{}: Failed to execute [{}] lastShard [{}]",
+                            shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
                     }
                 }
             }
@@ -138,15 +126,12 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     }
 
     @Override
-    public final void run() throws IOException {
+    public final void run() {
         for (final SearchShardIterator iterator : toSkipShardsIts) {
             assert iterator.skip();
             skipShard(iterator);
         }
         if (shardsIts.size() > 0) {
-            int maxConcurrentShardRequests = Math.min(this.maxConcurrentShardRequests, shardsIts.size());
-            final boolean success = shardExecutionIndex.compareAndSet(0, maxConcurrentShardRequests);
-            assert success;            
             assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
             if (request.allowPartialSearchResults() == false) {
                 final StringBuilder missingShards = new StringBuilder();
@@ -155,7 +140,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     final SearchShardIterator shardRoutings = shardsIts.get(index);
                     if (shardRoutings.size() == 0) {
                         if(missingShards.length() >0 ){
-                            missingShards.append(", ");                            
+                            missingShards.append(", ");
                         }
                         missingShards.append(shardRoutings.shardId());
                     }
@@ -167,28 +152,11 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     throw new SearchPhaseExecutionException(getName(), msg, null, ShardSearchFailure.EMPTY_ARRAY);
                 }
             }
-            for (int index = 0; index < maxConcurrentShardRequests; index++) {
+            for (int index = 0; index < shardsIts.size(); index++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(index);
                 assert shardRoutings.skip() == false;
                 performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
             }
-        }
-    }
-
-    private void maybeExecuteNext() {
-        final int index = shardExecutionIndex.getAndIncrement();
-        if (index < shardsIts.size()) {
-            final SearchShardIterator shardRoutings = shardsIts.get(index);
-            performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
-        }
-    }
-
-
-    private void maybeFork(final Thread thread, final Runnable runnable) {
-        if (thread == Thread.currentThread()) {
-            fork(runnable);
-        } else {
-            runnable.run();
         }
     }
 
@@ -200,7 +168,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             }
 
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
                 runnable.run();
             }
 
@@ -212,6 +180,65 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         });
     }
 
+    private static final class PendingExecutions {
+        private final int permits;
+        private int permitsTaken = 0;
+        private ArrayDeque<Runnable> queue = new ArrayDeque<>();
+
+        PendingExecutions(int permits) {
+            assert permits > 0 : "not enough permits: " + permits;
+            this.permits = permits;
+        }
+
+        void finishAndRunNext() {
+            synchronized (this) {
+                permitsTaken--;
+                assert permitsTaken >= 0 : "illegal taken permits: " + permitsTaken;
+            }
+            tryRun(null);
+        }
+
+        void tryRun(Runnable runnable) {
+            Runnable r = tryQueue(runnable);
+            if (r != null) {
+                r.run();
+            }
+        }
+
+        private synchronized Runnable tryQueue(Runnable runnable) {
+            Runnable toExecute = null;
+            if (permitsTaken < permits) {
+                permitsTaken++;
+                toExecute = runnable;
+                if (toExecute == null) { // only poll if we don't have anything to execute
+                    toExecute = queue.poll();
+                }
+                if (toExecute == null) {
+                    permitsTaken--;
+                }
+            } else if (runnable != null) {
+                queue.add(runnable);
+            }
+            return toExecute;
+        }
+    }
+
+    private void executeNext(PendingExecutions pendingExecutions, Thread originalThread) {
+        executeNext(pendingExecutions == null ? null : pendingExecutions::finishAndRunNext, originalThread);
+    }
+
+    protected void executeNext(Runnable runnable, Thread originalThread) {
+        if (throttleConcurrentRequests) {
+            if (originalThread == Thread.currentThread()) {
+                fork(runnable);
+            } else {
+                runnable.run();
+            }
+        } else {
+            assert runnable == null;
+        }
+    }
+
     private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final ShardRouting shard) {
         /*
          * We capture the thread that this phase is starting on. When we are called back after executing the phase, we are either on the
@@ -220,29 +247,51 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
          * could stack overflow. To prevent this, we fork if we are called back on the same thread that execution started on and otherwise
          * we can continue (cf. InitialSearchPhase#maybeFork).
          */
-        final Thread thread = Thread.currentThread();
         if (shard == null) {
             fork(() -> onShardFailure(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId())));
         } else {
-            try {
-                executePhaseOnShard(shardIt, shard, new SearchActionListener<FirstResult>(new SearchShardTarget(shard.currentNodeId(),
-                    shardIt.shardId(), shardIt.getClusterAlias(), shardIt.getOriginalIndices()), shardIndex) {
-                    @Override
-                    public void innerOnResponse(FirstResult result) {
-                        maybeFork(thread, () -> onShardResult(result, shardIt));
-                    }
+            final PendingExecutions pendingExecutions = throttleConcurrentRequests ?
+                pendingExecutionsPerNode.computeIfAbsent(shard.currentNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
+                : null;
+            Runnable r = () -> {
+                final Thread thread = Thread.currentThread();
+                try {
+                    executePhaseOnShard(shardIt, shard,
+                        new SearchActionListener<FirstResult>(shardIt.newSearchShardTarget(shard.currentNodeId()), shardIndex) {
+                            @Override
+                            public void innerOnResponse(FirstResult result) {
+                                try {
+                                    onShardResult(result, shardIt);
+                                } finally {
+                                    executeNext(pendingExecutions, thread);
+                                }
+                            }
 
-                    @Override
-                    public void onFailure(Exception t) {
-                        maybeFork(thread, () -> onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, t));
+                            @Override
+                            public void onFailure(Exception t) {
+                                try {
+                                    onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, t);
+                                } finally {
+                                    executeNext(pendingExecutions, thread);
+                                }
+                            }
+                        });
+                } catch (final Exception e) {
+                    try {
+                        /*
+                         * It is possible to run into connection exceptions here because we are getting the connection early and might
+                         * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
+                         */
+                        fork(() -> onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, e));
+                    } finally {
+                        executeNext(pendingExecutions, thread);
                     }
-                });
-            } catch (final Exception e) {
-                /*
-                 * It is possible to run into connection exceptions here because we are getting the connection early and might run in to
-                 * nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
-                 */
-                fork(() -> onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, e));
+                }
+            };
+            if (throttleConcurrentRequests) {
+                pendingExecutions.tryRun(r);
+            } else {
+                r.run();
             }
         }
     }
@@ -272,11 +321,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         } else if (xTotalOps > expectedTotalOps) {
             throw new AssertionError("unexpected higher total ops [" + xTotalOps + "] compared to expected ["
                 + expectedTotalOps + "]");
-        } else if (shardsIt.skip() == false) {
-            maybeExecuteNext();
         }
     }
-
 
     /**
      * Executed once all shard results have been received and processed
@@ -317,7 +363,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     abstract static class SearchPhaseResults<Result extends SearchPhaseResult> {
         private final int numShards;
 
-        protected SearchPhaseResults(int numShards) {
+        SearchPhaseResults(int numShards) {
             this.numShards = numShards;
         }
         /**
@@ -391,5 +437,4 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         assert iterator.skip();
         successfulShardExecution(iterator);
     }
-
 }

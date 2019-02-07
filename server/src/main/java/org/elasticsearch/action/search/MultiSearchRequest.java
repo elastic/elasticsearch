@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -57,7 +58,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     private int maxConcurrentSearchRequests = 0;
     private List<SearchRequest> requests = new ArrayList<>();
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     /**
      * Add a search request to execute. Note, the order is important, the search response will be returned in the
@@ -204,12 +205,16 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (searchType != null) {
                 searchRequest.searchType(searchType);
             }
-            IndicesOptions defaultOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+            IndicesOptions defaultOptions = searchRequest.indicesOptions();
             // now parse the action
             if (nextMarker - from > 0) {
-                try (XContentParser parser = xContent
-                        .createParser(registry, LoggingDeprecationHandler.INSTANCE, data.slice(from, nextMarker - from))) {
+                try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
+                     XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
                     Map<String, Object> source = parser.map();
+                    Object expandWildcards = null;
+                    Object ignoreUnavailable = null;
+                    Object ignoreThrottled = null;
+                    Object allowNoIndices = null;
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
                         if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
@@ -229,9 +234,20 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             searchRequest.routing(nodeStringValue(value, null));
                         } else if ("allow_partial_search_results".equals(entry.getKey())) {
                             searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
+                        } else if ("expand_wildcards".equals(entry.getKey()) || "expandWildcards".equals(entry.getKey())) {
+                            expandWildcards = value;
+                        } else if ("ignore_unavailable".equals(entry.getKey()) || "ignoreUnavailable".equals(entry.getKey())) {
+                            ignoreUnavailable = value;
+                        } else if ("allow_no_indices".equals(entry.getKey()) || "allowNoIndices".equals(entry.getKey())) {
+                            allowNoIndices = value;
+                        } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
+                            ignoreThrottled = value;
+                        } else {
+                            throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }
                     }
-                    defaultOptions = IndicesOptions.fromMap(source, defaultOptions);
+                    defaultOptions = IndicesOptions.fromParameters(expandWildcards, ignoreUnavailable, allowNoIndices, ignoreThrottled,
+                        defaultOptions);
                 }
             }
             searchRequest.indicesOptions(defaultOptions);
@@ -244,7 +260,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 break;
             }
             BytesReference bytes = data.slice(from, nextMarker - from);
-            try (XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, bytes)) {
+            try (InputStream stream = bytes.streamInput();
+                 XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
                 consumer.accept(searchRequest, parser);
             }
             // move pointers
@@ -268,43 +285,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         for (SearchRequest request : multiSearchRequest.requests()) {
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
-                xContentBuilder.startObject();
-                if (request.indices() != null) {
-                    xContentBuilder.field("index", request.indices());
-                }
-                if (request.indicesOptions() != null && request.indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {
-                    if (request.indicesOptions().expandWildcardsOpen() && request.indicesOptions().expandWildcardsClosed()) {
-                        xContentBuilder.field("expand_wildcards", "all");
-                    } else if (request.indicesOptions().expandWildcardsOpen()) {
-                        xContentBuilder.field("expand_wildcards", "open");
-                    } else if (request.indicesOptions().expandWildcardsClosed()) {
-                        xContentBuilder.field("expand_wildcards", "closed");
-                    } else {
-                        xContentBuilder.field("expand_wildcards", "none");
-                    }
-                    xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
-                    xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
-                }
-                if (request.types() != null) {
-                    xContentBuilder.field("types", request.types());
-                }
-                if (request.searchType() != null) {
-                    xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));
-                }
-                if (request.requestCache() != null) {
-                    xContentBuilder.field("request_cache", request.requestCache());
-                }
-                if (request.preference() != null) {
-                    xContentBuilder.field("preference", request.preference());
-                }
-                if (request.routing() != null) {
-                    xContentBuilder.field("routing", request.routing());
-                }
-                if (request.allowPartialSearchResults() != null) {
-                    xContentBuilder.field("allow_partial_search_results", request.allowPartialSearchResults());
-                }
-                xContentBuilder.endObject();
-                xContentBuilder.bytes().writeTo(output);
+                writeSearchRequestParams(request, xContentBuilder);
+                BytesReference.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
@@ -314,11 +296,50 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     xContentBuilder.startObject();
                     xContentBuilder.endObject();
                 }
-                xContentBuilder.bytes().writeTo(output);
+                BytesReference.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
         }
         return output.toByteArray();
+    }
+
+    public static void writeSearchRequestParams(SearchRequest request, XContentBuilder xContentBuilder) throws IOException {
+        xContentBuilder.startObject();
+        if (request.indices() != null) {
+            xContentBuilder.field("index", request.indices());
+        }
+        if (request.indicesOptions() != null && request.indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {
+            if (request.indicesOptions().expandWildcardsOpen() && request.indicesOptions().expandWildcardsClosed()) {
+                xContentBuilder.field("expand_wildcards", "all");
+            } else if (request.indicesOptions().expandWildcardsOpen()) {
+                xContentBuilder.field("expand_wildcards", "open");
+            } else if (request.indicesOptions().expandWildcardsClosed()) {
+                xContentBuilder.field("expand_wildcards", "closed");
+            } else {
+                xContentBuilder.field("expand_wildcards", "none");
+            }
+            xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
+            xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
+        }
+        if (request.types() != null) {
+            xContentBuilder.field("types", request.types());
+        }
+        if (request.searchType() != null) {
+            xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));
+        }
+        if (request.requestCache() != null) {
+            xContentBuilder.field("request_cache", request.requestCache());
+        }
+        if (request.preference() != null) {
+            xContentBuilder.field("preference", request.preference());
+        }
+        if (request.routing() != null) {
+            xContentBuilder.field("routing", request.routing());
+        }
+        if (request.allowPartialSearchResults() != null) {
+            xContentBuilder.field("allow_partial_search_results", request.allowPartialSearchResults());
+        }
+        xContentBuilder.endObject();
     }
 
 }

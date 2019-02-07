@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -77,7 +77,8 @@ can be created manually or dynamically, in order to prevent bad documents from
 causing a mapping explosion:
 
 `index.mapping.total_fields.limit`::
-    The maximum number of fields in an index. The default value is `1000`.
+    The maximum number of fields in an index. Field and object mappings, as well as
+    field aliases count towards this limit. The default value is `1000`.
 
 `index.mapping.depth.limit`::
     The maximum depth for a field, which is measured as the number of inner
@@ -124,8 +125,10 @@ fields to an existing index with the <<indices-put-mapping,PUT mapping API>>.
 
 Other than where documented, *existing field mappings cannot be
 updated*. Changing the mapping would mean invalidating already indexed
-documents.  Instead, you should create a new index with the correct mappings
-and <<docs-reindex,reindex>> your data into that index.
+documents. Instead, you should create a new index with the correct mappings
+and <<docs-reindex,reindex>> your data into that index. If you only wish
+to rename a field and not change its mappings, it may make sense to introduce
+an <<alias, `alias`>> field.
 
 [float]
 == Example mapping
@@ -137,15 +140,13 @@ A mapping could be specified when creating an index, as follows:
 PUT my_index <1>
 {
   "mappings": {
-    "doc": { <2>
-      "properties": { <3>
-        "title":    { "type": "text"  }, <4>
-        "name":     { "type": "text"  }, <4>
-        "age":      { "type": "integer" },  <4>
-        "created":  {
-          "type":   "date", <4>
-          "format": "strict_date_optional_time||epoch_millis"
-        }
+    "properties": { <2>
+      "title":    { "type": "text"  }, <3>
+      "name":     { "type": "text"  }, <3>
+      "age":      { "type": "integer" },  <3>
+      "created":  {
+        "type":   "date", <3>
+        "format": "strict_date_optional_time||epoch_millis"
       }
     }
   }
@@ -153,9 +154,8 @@ PUT my_index <1>
 ---------------------------------------
 // CONSOLE
 <1> Create an index called `my_index`.
-<2> Add a mapping type called `doc`.
-<3> Specify fields or _properties_.
-<4> Specify the data `type` and mapping for each field.
+<2> Specify fields or _properties_.
+<3> Specify the data `type` and mapping for each field.
 
 
 --

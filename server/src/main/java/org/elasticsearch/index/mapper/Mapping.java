@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,7 +48,8 @@ public final class Mapping implements ToXContentFragment {
     final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     final Map<String, Object> meta;
 
-    public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
+    public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper,
+                   MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.indexCreated = indexCreated;
         this.metadataMappers = metadataMappers;
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap = new HashMap<>();
@@ -146,7 +148,7 @@ public final class Mapping implements ToXContentFragment {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
             toXContent(builder, new ToXContent.MapParams(emptyMap()));
-            return builder.endObject().string();
+            return Strings.toString(builder.endObject());
         } catch (IOException bogus) {
             throw new UncheckedIOException(bogus);
         }

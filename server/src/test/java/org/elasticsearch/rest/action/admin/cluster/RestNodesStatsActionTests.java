@@ -44,9 +44,9 @@ public class RestNodesStatsActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        UsageService usageService = new UsageService(Settings.EMPTY);
+        UsageService usageService = new UsageService();
         action = new RestNodesStatsAction(Settings.EMPTY,
-                new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null, usageService));
+                new RestController(Collections.emptySet(), null, null, null, usageService));
     }
 
     public void testUnrecognizedMetric() throws IOException {

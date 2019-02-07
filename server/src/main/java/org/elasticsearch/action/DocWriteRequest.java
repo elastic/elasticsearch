@@ -36,10 +36,23 @@ import java.util.Locale;
 public interface DocWriteRequest<T> extends IndicesRequest {
 
     /**
+     * Set the index for this request
+     * @return the Request
+     */
+    T index(String index);
+
+    /**
      * Get the index that this request operates on
      * @return the index
      */
     String index();
+
+
+    /**
+     * Set the type for this request
+     * @return the Request
+     */
+    T type(String type);
 
     /**
      * Get the type that this request operates on
@@ -47,6 +60,15 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      */
     String type();
 
+    /**
+     * Set the default type supplied to a bulk
+     * request if this individual request's type is null
+     * or empty
+     * @return the Request
+     */
+    T defaultTypeIfNull(String defaultType);
+    
+    
     /**
      * Get the id of the document for this request
      * @return the id
@@ -57,6 +79,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      * Get the options for this request
      * @return the indices options
      */
+    @Override
     IndicesOptions indicesOptions();
 
     /**
@@ -70,13 +93,6 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      * @return the Routing
      */
     String routing();
-
-
-    /**
-     * Get the parent for this request
-     * @return the Parent
-     */
-    String parent();
 
     /**
      * Get the document version for this request
@@ -164,9 +180,9 @@ public interface DocWriteRequest<T> extends IndicesRequest {
     }
 
     /** read a document write (index/delete/update) request */
-    static DocWriteRequest readDocumentRequest(StreamInput in) throws IOException {
+    static DocWriteRequest<?> readDocumentRequest(StreamInput in) throws IOException {
         byte type = in.readByte();
-        DocWriteRequest docWriteRequest;
+        DocWriteRequest<?> docWriteRequest;
         if (type == 0) {
             IndexRequest indexRequest = new IndexRequest();
             indexRequest.readFrom(in);
@@ -186,7 +202,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
     }
 
     /** write a document write (index/delete/update) request*/
-    static void writeDocumentRequest(StreamOutput out, DocWriteRequest request)  throws IOException {
+    static void writeDocumentRequest(StreamOutput out, DocWriteRequest<?> request)  throws IOException {
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
             ((IndexRequest) request).writeTo(out);

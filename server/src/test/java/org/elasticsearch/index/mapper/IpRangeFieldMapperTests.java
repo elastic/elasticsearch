@@ -20,6 +20,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,18 +52,18 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties").startObject("field").field("type", "ip_range")
             .field("store", true);
         mapping = mapping.endObject().endObject().endObject().endObject();
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
-        assertEquals(mapping.string(), mapper.mappingSource().toString());
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(Strings.toString(mapping)));
+        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
         final Map<String, String> cases = new HashMap<>();
         cases.put("192.168.0.0/15", "192.169.255.255");
         cases.put("192.168.0.0/16", "192.168.255.255");
         cases.put("192.168.0.0/17", "192.168.127.255");
         for (final Map.Entry<String, String> entry : cases.entrySet()) {
             ParsedDocument doc =
-                mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                mapper.parse(new SourceToParse("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", entry.getKey())
-                        .endObject().bytes(),
+                        .endObject()),
                     XContentType.JSON
                 ));
             IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -69,7 +71,7 @@ public class IpRangeFieldMapperTests extends ESSingleNodeTestCase {
             IndexableField dvField = fields[0];
             assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
             IndexableField pointField = fields[1];
-            assertEquals(2, pointField.fieldType().pointDimensionCount());
+            assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
             IndexableField storedField = fields[2];
             assertTrue(storedField.fieldType().stored());
             String strVal =

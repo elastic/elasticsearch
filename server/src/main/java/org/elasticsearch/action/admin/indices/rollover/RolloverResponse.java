@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -67,8 +68,8 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     RolloverResponse() {
     }
 
-    RolloverResponse(String oldIndex, String newIndex, Map<String, Boolean> conditionResults,
-                             boolean dryRun, boolean rolledOver, boolean acknowledged, boolean shardsAcknowledged) {
+    public RolloverResponse(String oldIndex, String newIndex, Map<String, Boolean> conditionResults,
+                            boolean dryRun, boolean rolledOver, boolean acknowledged, boolean shardsAcknowledged) {
         super(acknowledged, shardsAcknowledged);
         this.oldIndex = oldIndex;
         this.newIndex = newIndex;
@@ -114,52 +115,74 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        oldIndex = in.readString();
-        newIndex = in.readString();
-        int conditionSize = in.readVInt();
-        conditionStatus = new HashMap<>(conditionSize);
-        for (int i = 0; i < conditionSize; i++) {
-            conditionStatus.put(in.readString(), in.readBoolean());
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            super.readFrom(in);
+            oldIndex = in.readString();
+            newIndex = in.readString();
+            int conditionSize = in.readVInt();
+            conditionStatus = new HashMap<>(conditionSize);
+            for (int i = 0; i < conditionSize; i++) {
+                conditionStatus.put(in.readString(), in.readBoolean());
+            }
+            dryRun = in.readBoolean();
+            rolledOver = in.readBoolean();
+            readShardsAcknowledged(in);
+        } else {
+            oldIndex = in.readString();
+            newIndex = in.readString();
+            int conditionSize = in.readVInt();
+            conditionStatus = new HashMap<>(conditionSize);
+            for (int i = 0; i < conditionSize; i++) {
+                conditionStatus.put(in.readString(), in.readBoolean());
+            }
+            dryRun = in.readBoolean();
+            rolledOver = in.readBoolean();
+            acknowledged = in.readBoolean();
+            readShardsAcknowledged(in);
         }
-        dryRun = in.readBoolean();
-        rolledOver = in.readBoolean();
-        readAcknowledged(in);
-        readShardsAcknowledged(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(oldIndex);
-        out.writeString(newIndex);
-        out.writeVInt(conditionStatus.size());
-        for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeBoolean(entry.getValue());
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            super.writeTo(out);
+            out.writeString(oldIndex);
+            out.writeString(newIndex);
+            out.writeVInt(conditionStatus.size());
+            for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeBoolean(entry.getValue());
+            }
+            out.writeBoolean(dryRun);
+            out.writeBoolean(rolledOver);
+            writeShardsAcknowledged(out);
+        } else {
+            out.writeString(oldIndex);
+            out.writeString(newIndex);
+            out.writeVInt(conditionStatus.size());
+            for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeBoolean(entry.getValue());
+            }
+            out.writeBoolean(dryRun);
+            out.writeBoolean(rolledOver);
+            out.writeBoolean(acknowledged);
+            writeShardsAcknowledged(out);
         }
-        out.writeBoolean(dryRun);
-        out.writeBoolean(rolledOver);
-        writeAcknowledged(out);
-        writeShardsAcknowledged(out);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
+        super.addCustomFields(builder, params);
         builder.field(OLD_INDEX.getPreferredName(), oldIndex);
         builder.field(NEW_INDEX.getPreferredName(), newIndex);
         builder.field(ROLLED_OVER.getPreferredName(), rolledOver);
         builder.field(DRY_RUN.getPreferredName(), dryRun);
-        addAcknowledgedField(builder);
-        addShardsAcknowledgedField(builder);
         builder.startObject(CONDITIONS.getPreferredName());
         for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
-        builder.endObject();
-        return builder;
     }
 
     public static RolloverResponse fromXContent(XContentParser parser) {
@@ -168,24 +191,19 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
+        if (super.equals(o)) {
+            RolloverResponse that = (RolloverResponse) o;
+            return dryRun == that.dryRun &&
+                    rolledOver == that.rolledOver &&
+                    Objects.equals(oldIndex, that.oldIndex) &&
+                    Objects.equals(newIndex, that.newIndex) &&
+                    Objects.equals(conditionStatus, that.conditionStatus);
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        RolloverResponse that = (RolloverResponse) o;
-        return isAcknowledged() == that.isAcknowledged() &&
-                isShardsAcknowledged() == that.isShardsAcknowledged() &&
-                dryRun == that.dryRun &&
-                rolledOver == that.rolledOver &&
-                Objects.equals(oldIndex, that.oldIndex) &&
-                Objects.equals(newIndex, that.newIndex) &&
-                Objects.equals(conditionStatus, that.conditionStatus);
+        return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(isAcknowledged(), isShardsAcknowledged(), oldIndex, newIndex, conditionStatus, dryRun, rolledOver);
+        return Objects.hash(super.hashCode(), oldIndex, newIndex, conditionStatus, dryRun, rolledOver);
     }
 }

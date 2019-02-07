@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -29,99 +30,99 @@ import java.util.Arrays;
 public class RootObjectMapperTests extends ESSingleNodeTestCase {
 
     public void testNumericDetection() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("type")
                         .field("numeric_detection", false)
                     .endObject()
-                .endObject().string();
+                .endObject());
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         // update with a different explicit value
-        String mapping2 = XContentFactory.jsonBuilder()
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
                     .field("numeric_detection", true)
                 .endObject()
-            .endObject().string();
+            .endObject());
         mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping2, mapper.mappingSource().toString());
 
         // update with an implicit value: no change
-        String mapping3 = XContentFactory.jsonBuilder()
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
                 .endObject()
-            .endObject().string();
+            .endObject());
         mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping2, mapper.mappingSource().toString());
     }
 
     public void testDateDetection() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("type")
                         .field("date_detection", true)
                     .endObject()
-                .endObject().string();
+                .endObject());
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         // update with a different explicit value
-        String mapping2 = XContentFactory.jsonBuilder()
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
                     .field("date_detection", false)
                 .endObject()
-            .endObject().string();
+            .endObject());
         mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping2, mapper.mappingSource().toString());
 
         // update with an implicit value: no change
-        String mapping3 = XContentFactory.jsonBuilder()
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
                 .endObject()
-            .endObject().string();
+            .endObject());
         mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping2, mapper.mappingSource().toString());
     }
 
     public void testDateFormatters() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("type")
-                        .field("dynamic_date_formats", Arrays.asList("YYYY-MM-dd"))
+                        .field("dynamic_date_formats", Arrays.asList("yyyy-MM-dd"))
                     .endObject()
-                .endObject().string();
+                .endObject());
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         // no update if formatters are not set explicitly
-        String mapping2 = XContentFactory.jsonBuilder()
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
                 .endObject()
-            .endObject().string();
+            .endObject());
         mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        String mapping3 = XContentFactory.jsonBuilder()
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
                     .field("dynamic_date_formats", Arrays.asList())
                 .endObject()
-            .endObject().string();
+            .endObject());
         mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
     public void testDynamicTemplates() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("type")
                         .startArray("dynamic_templates")
@@ -135,27 +136,53 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
                             .endObject()
                         .endArray()
                     .endObject()
-                .endObject().string();
+                .endObject());
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
         // no update if templates are not set explicitly
-        String mapping2 = XContentFactory.jsonBuilder()
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
                 .endObject()
-            .endObject().string();
+            .endObject());
         mapper = mapperService.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        String mapping3 = XContentFactory.jsonBuilder()
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
                     .field("dynamic_templates", Arrays.asList())
                 .endObject()
-            .endObject().string();
+            .endObject());
         mapper = mapperService.merge("type", new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping3, mapper.mappingSource().toString());
+    }
+
+    public void testIllegalFormatField() throws Exception {
+        String dynamicMapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startArray("dynamic_date_formats")
+                        .startArray().value("test_format").endArray()
+                    .endArray()
+                .endObject()
+            .endObject());
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startArray("date_formats")
+                        .startArray().value("test_format").endArray()
+                    .endArray()
+                .endObject()
+            .endObject());
+
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        for (String m : Arrays.asList(mapping, dynamicMapping)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> parser.parse("type", new CompressedXContent(m)));
+            assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
+        }
     }
 }

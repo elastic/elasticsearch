@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -78,6 +78,7 @@ import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ElasticsearchExceptionTests extends ESTestCase {
@@ -112,7 +113,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             ElasticsearchException[] rootCauses = exception.guessRootCauses();
             assertEquals(rootCauses.length, 1);
             assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "index_not_found_exception");
-            assertEquals(rootCauses[0].getMessage(), "no such index");
+            assertEquals("no such index [foo]", rootCauses[0].getMessage());
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
                     new SearchShardTarget("node_1", new Index("foo", "_na_"), 1, null));
             ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
@@ -124,13 +125,13 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             } else {
                 rootCauses = ElasticsearchException.guessRootCauses(randomBoolean() ? new RemoteTransportException("remoteboom", ex) : ex);
             }
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "parsing_exception");
-            assertEquals(rootCauses[0].getMessage(), "foobar");
+            assertEquals("parsing_exception", ElasticsearchException.getExceptionName(rootCauses[0]));
+            assertEquals("foobar", rootCauses[0].getMessage());
 
             ElasticsearchException oneLevel = new ElasticsearchException("foo", new RuntimeException("foobar"));
             rootCauses = oneLevel.guessRootCauses();
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "exception");
-            assertEquals(rootCauses[0].getMessage(), "foo");
+            assertEquals("exception", ElasticsearchException.getExceptionName(rootCauses[0]));
+            assertEquals("foo", rootCauses[0].getMessage());
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(
@@ -146,20 +147,40 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertEquals(rootCauses.length, 2);
             assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "parsing_exception");
             assertEquals(rootCauses[0].getMessage(), "foobar");
-            assertEquals(((ParsingException) rootCauses[0]).getLineNumber(), 1);
-            assertEquals(((ParsingException) rootCauses[0]).getColumnNumber(), 2);
-            assertEquals(ElasticsearchException.getExceptionName(rootCauses[1]), "query_shard_exception");
-            assertEquals((rootCauses[1]).getIndex().getName(), "foo1");
-            assertEquals(rootCauses[1].getMessage(), "foobar");
+            assertEquals(1, ((ParsingException) rootCauses[0]).getLineNumber());
+            assertEquals(2, ((ParsingException) rootCauses[0]).getColumnNumber());
+            assertEquals("query_shard_exception", ElasticsearchException.getExceptionName(rootCauses[1]));
+            assertEquals("foo1", rootCauses[1].getIndex().getName());
+            assertEquals("foobar", rootCauses[1].getMessage());
         }
 
         {
             final ElasticsearchException[] foobars = ElasticsearchException.guessRootCauses(new IllegalArgumentException("foobar"));
             assertEquals(foobars.length, 1);
-            assertTrue(foobars[0] instanceof ElasticsearchException);
-            assertEquals(foobars[0].getMessage(), "foobar");
-            assertEquals(foobars[0].getCause().getClass(), IllegalArgumentException.class);
-            assertEquals(foobars[0].getExceptionName(), "illegal_argument_exception");
+            assertThat(foobars[0], instanceOf(ElasticsearchException.class));
+            assertEquals("foobar", foobars[0].getMessage());
+            assertEquals(IllegalArgumentException.class, foobars[0].getCause().getClass());
+            assertEquals("illegal_argument_exception", foobars[0].getExceptionName());
+        }
+
+        {
+            XContentParseException inner = new XContentParseException(null, "inner");
+            XContentParseException outer = new XContentParseException(null, "outer", inner);
+            final ElasticsearchException[] causes = ElasticsearchException.guessRootCauses(outer);
+            assertEquals(causes.length, 1);
+            assertThat(causes[0], instanceOf(ElasticsearchException.class));
+            assertEquals("inner", causes[0].getMessage());
+            assertEquals("x_content_parse_exception", causes[0].getExceptionName());
+        }
+
+        {
+            ElasticsearchException inner = new ElasticsearchException("inner");
+            XContentParseException outer = new XContentParseException(null, "outer", inner);
+            final ElasticsearchException[] causes = ElasticsearchException.guessRootCauses(outer);
+            assertEquals(causes.length, 1);
+            assertThat(causes[0], instanceOf(ElasticsearchException.class));
+            assertEquals("inner", causes[0].getMessage());
+            assertEquals("exception", causes[0].getExceptionName());
         }
     }
 
@@ -178,7 +199,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\"," +
                     "\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":" +
                     "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}]}";
-            assertEquals(expected, builder.string());
+            assertEquals(expected, Strings.toString(builder));
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
@@ -198,7 +219,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}},{\"shard\":1," +
                     "\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_shard_exception\",\"reason\":\"foobar\"," +
                     "\"index_uuid\":\"_na_\",\"index\":\"foo1\"}}]}";
-            assertEquals(expected, builder.string());
+            assertEquals(expected, Strings.toString(builder));
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
@@ -217,7 +238,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     "\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\"," +
                     "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}]," +
                     "\"caused_by\":{\"type\":\"null_pointer_exception\",\"reason\":null}}";
-            assertEquals(expected, builder.string());
+            assertEquals(expected, Strings.toString(builder));
         }
     }
 
@@ -303,7 +324,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 builder.startObject();
                 e.toXContent(builder, params);
                 builder.endObject();
-                actual = builder.string();
+                actual = Strings.toString(builder);
             }
             assertThat(actual, startsWith("{\"type\":\"exception\",\"reason\":\"foo\"," +
                     "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"," +
@@ -429,7 +450,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         builder = shuffleXContent(builder);
         ElasticsearchException parsed;
-        try (XContentParser parser = createParser(xContent, builder.bytes())) {
+        try (XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = ElasticsearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
@@ -574,7 +595,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     .endObject()
             .endObject();
             try (XContentBuilder shuffledBuilder = shuffleXContent(builder)) {
-                originalBytes = shuffledBuilder.bytes();
+                originalBytes = BytesReference.bytes(shuffledBuilder);
             }
         }
 
@@ -600,6 +621,13 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
         final Throwable throwable = exceptions.v1();
+        final ElasticsearchException expected = exceptions.v2();
+        int suppressedCount = randomBoolean() ? 0 : between(1, 5);
+        for (int i = 0; i < suppressedCount; i++) {
+            final Tuple<Throwable, ElasticsearchException> suppressed = randomExceptions();
+            throwable.addSuppressed(suppressed.v1());
+            expected.addSuppressed(suppressed.v2());
+        }
 
         BytesReference throwableBytes = toShuffledXContent((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, params, throwable);
@@ -613,7 +641,20 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
-        assertDeepEquals(exceptions.v2(), parsedException);
+        assertDeepEquals(expected, parsedException);
+
+        if (suppressedCount > 0) {
+            XContentBuilder builder = XContentBuilder.builder(xContent);
+            builder.startObject();
+            ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, throwable);
+            builder.endObject();
+            throwableBytes = BytesReference.bytes(builder);
+            try (XContentParser parser = createParser(xContent, throwableBytes)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                List<String> keys = new ArrayList<>(parser.mapOrdered().keySet());
+                assertEquals("last index should be [suppressed]", "suppressed", keys.get(keys.size() - 1));
+            }
+        }
     }
 
     public void testUnknownFailureToAndFromXContent() throws IOException {
@@ -650,7 +691,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
-            failureBytes = shuffleXContent(parser, randomBoolean()).bytes();
+            failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
         }
 
         ElasticsearchException parsedFailure;
@@ -693,11 +734,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 break;
 
             case 1: // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
-                failure = new CircuitBreakingException("B", 5_000, 2_000);
+                failure = new ParsingException(3, 2, "B", null);
                 ((ElasticsearchException) failure).addHeader("header_name", "0", "1");
-                expected = new ElasticsearchException("Elasticsearch exception [type=circuit_breaking_exception, reason=B]");
+                expected = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=B]");
                 expected.addHeader("header_name", "0", "1");
-                suppressed = new ElasticsearchException("Elasticsearch exception [type=circuit_breaking_exception, reason=B]");
+                suppressed = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=B]");
                 suppressed.addHeader("header_name", "0", "1");
                 expected.addSuppressed(suppressed);
                 break;
@@ -795,7 +836,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
-            failureBytes = shuffleXContent(parser, randomBoolean()).bytes();
+            failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
         }
 
         ElasticsearchException parsedFailure;
@@ -874,9 +915,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 expected = new ElasticsearchException("Elasticsearch exception [type=cluster_block_exception, " +
                         "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
                 break;
-            case 1:
-                actual = new CircuitBreakingException("Data too large", 123, 456);
-                expected = new ElasticsearchException("Elasticsearch exception [type=circuit_breaking_exception, reason=Data too large]");
+            case 1: // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
+                actual = new ParsingException(3, 2, "Unknown identifier", null);
+                expected = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=Unknown identifier]");
                 break;
             case 2:
                 actual = new SearchParseException(new TestSearchContext(null), "Parse failure", new XContentLocation(12, 98));

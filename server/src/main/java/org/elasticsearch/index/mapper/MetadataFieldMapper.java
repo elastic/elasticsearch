@@ -33,7 +33,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     public interface TypeParser extends Mapper.TypeParser {
 
         @Override
-        MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
+        MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                               ParserContext parserContext) throws MapperParsingException;
 
         /**
          * Get the default {@link MetadataFieldMapper} to use, if nothing had to be parsed.
@@ -64,7 +65,9 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     /**
      * Called after {@link FieldMapper#parse(ParseContext)} on the {@link RootObjectMapper}.
      */
-    public abstract void postParse(ParseContext context) throws IOException;
+    public void postParse(ParseContext context) throws IOException {
+        // do nothing
+    }
 
     @Override
     public MetadataFieldMapper merge(Mapper mergeWith) {

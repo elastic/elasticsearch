@@ -10,8 +10,7 @@ price for the product. The mapping could look like:
 --------------------------------------------------
 PUT /index
 {
-  "mappings": {
-    "product" : {
+    "mappings": {
         "properties" : {
             "resellers" : { <1>
                 "type" : "nested",
@@ -22,7 +21,6 @@ PUT /index
             }
         }
     }
-  }
 }
 --------------------------------------------------
 // CONSOLE
@@ -52,7 +50,7 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 // TEST[s/GET \/_search/GET \/_search\?filter_path=aggregations/]
-// TEST[s/^/PUT index\/product\/0\?refresh\n{"name":"led", "resellers": [{"name": "foo", "price": 350.00}, {"name": "bar", "price": 500.00}]}\n/]
+// TEST[s/^/PUT index\/_doc\/0\?refresh\n{"name":"led", "resellers": [{"name": "foo", "price": 350.00}, {"name": "bar", "price": 500.00}]}\n/]
 
 As you can see above, the nested aggregation requires the `path` of the nested documents within the top level documents.
 Then one can define any type of aggregation over these nested documents.

@@ -21,6 +21,8 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -28,9 +30,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.TransportFuture;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -62,12 +65,10 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         this.recoverySettings = recoverySettings;
         this.onSourceThrottle = onSourceThrottle;
         this.translogOpsRequestOptions = TransportRequestOptions.builder()
-                .withCompress(true)
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionLongTimeout())
                 .build();
         this.fileChunkRequestOptions = TransportRequestOptions.builder()
-                .withCompress(false)  // lucene files are already compressed and therefore compressing this won't really help much so
                 // we are saving the cpu for other things
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionTimeout())
@@ -76,19 +77,21 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
+    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
-                new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, createNewTranslog),
-                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+            new RecoveryPrepareForTranslogOperationsRequest(recoveryId, shardId, totalTranslogOps, fileBasedRecovery),
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
+            new ActionListenerResponseHandler<>(ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure),
+                in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
     @Override
-    public void finalizeRecovery(final long globalCheckpoint) {
+    public void finalizeRecovery(final long globalCheckpoint, final ActionListener<Void> listener) {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FINALIZE,
             new RecoveryFinalizeRecoveryRequest(recoveryId, shardId, globalCheckpoint),
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
-            EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+            new ActionListenerResponseHandler<>(ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure),
+                in -> TransportResponse.Empty.INSTANCE, ThreadPool.Names.GENERIC));
     }
 
     @Override
@@ -110,16 +113,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
-        final RecoveryTranslogOperationsRequest translogOperationsRequest =
-                new RecoveryTranslogOperationsRequest(recoveryId, shardId, operations, totalTranslogOps);
-        final TransportFuture<RecoveryTranslogOperationsResponse> future = transportService.submitRequest(
-                targetNode,
-                PeerRecoveryTargetService.Actions.TRANSLOG_OPS,
-                translogOperationsRequest,
-                translogOpsRequestOptions,
-                RecoveryTranslogOperationsResponse.HANDLER);
-        return future.txGet().localCheckpoint;
+    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestampOnPrimary,
+                                        long maxSeqNoOfDeletesOrUpdatesOnPrimary, ActionListener<Long> listener) {
+        final RecoveryTranslogOperationsRequest request = new RecoveryTranslogOperationsRequest(
+            recoveryId, shardId, operations, totalTranslogOps, maxSeenAutoIdTimestampOnPrimary, maxSeqNoOfDeletesOrUpdatesOnPrimary);
+        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.TRANSLOG_OPS, request, translogOpsRequestOptions,
+            new ActionListenerResponseHandler<>(ActionListener.wrap(r -> listener.onResponse(r.localCheckpoint), listener::onFailure),
+                RecoveryTranslogOperationsResponse::new, ThreadPool.Names.GENERIC));
     }
 
     @Override
@@ -143,8 +143,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content, boolean
-            lastChunk, int totalTranslogOps) throws IOException {
+    public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
+                               boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
         // Pause using the rate limiter, if desired, to throttle the recovery
         final long throttleTimeInNanos;
         // always fetch the ratelimiter - it might be updated in real-time on the recovery settings
@@ -174,7 +174,8 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
                  * see how many translog ops we accumulate while copying files across the network. A future optimization
                  * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
                  */
-                throttleTimeInNanos), fileChunkRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                throttleTimeInNanos), fileChunkRequestOptions, new ActionListenerResponseHandler<>(
+                    ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure), in -> TransportResponse.Empty.INSTANCE));
     }
 
 }

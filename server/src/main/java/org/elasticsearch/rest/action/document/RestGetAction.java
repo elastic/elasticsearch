@@ -19,10 +19,12 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -41,9 +43,17 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestGetAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
+        "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
     public RestGetAction(final Settings settings, final RestController controller) {
         super(settings);
+        controller.registerHandler(GET, "/{index}/_doc/{id}", this);
+        controller.registerHandler(HEAD, "/{index}/_doc/{id}", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/{id}", this);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
     }
@@ -55,10 +65,16 @@ public class RestGetAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
+        GetRequest getRequest;
+        if (request.hasParam("type")) {
+            deprecationLogger.deprecatedAndMaybeLog("get_with_types", TYPES_DEPRECATION_MESSAGE);
+            getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
+        } else {
+            getRequest = new GetRequest(request.param("index"), request.param("id"));
+        }
+
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));
-        getRequest.parent(request.param("parent"));
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", getRequest.realtime()));
         if (request.param("fields") != null) {

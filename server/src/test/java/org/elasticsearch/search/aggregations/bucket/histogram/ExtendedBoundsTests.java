@@ -24,9 +24,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,10 +36,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTimeZone;
-import org.joda.time.Instant;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -64,17 +62,19 @@ public class ExtendedBoundsTests extends ESTestCase {
      * Construct a random {@link ExtendedBounds} in pre-parsed form.
      */
     public static ExtendedBounds randomParsedExtendedBounds() {
+        long maxDateValue = 253402300799999L; // end of year 9999
+        long minDateValue = -377705116800000L; // beginning of year -9999
         if (randomBoolean()) {
             // Construct with one missing bound
             if (randomBoolean()) {
-                return new ExtendedBounds(null, randomLong());
+                return new ExtendedBounds(null, maxDateValue);
             }
-            return new ExtendedBounds(randomLong(), null);
+            return new ExtendedBounds(minDateValue, null);
         }
-        long a = randomLong();
+        long a = randomLongBetween(minDateValue, maxDateValue);
         long b;
         do {
-            b = randomLong();
+            b = randomLongBetween(minDateValue, maxDateValue);
         } while (a == b);
         long min = min(a, b);
         long max = max(a, b);
@@ -86,9 +86,9 @@ public class ExtendedBoundsTests extends ESTestCase {
      */
     public static ExtendedBounds unparsed(ExtendedBounds template) {
         // It'd probably be better to randomize the formatter
-        FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
-        String minAsStr = template.getMin() == null ? null : formatter.printer().print(new Instant(template.getMin()));
-        String maxAsStr = template.getMax() == null ? null : formatter.printer().print(new Instant(template.getMax()));
+        DateFormatter formatter = DateFormatter.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
+        String minAsStr = template.getMin() == null ? null : formatter.formatMillis(template.getMin());
+        String maxAsStr = template.getMax() == null ? null : formatter.formatMillis(template.getMax());
         return new ExtendedBounds(minAsStr, maxAsStr);
     }
 
@@ -101,8 +101,8 @@ public class ExtendedBoundsTests extends ESTestCase {
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
                 null, xContentRegistry(), writableRegistry(), null, null, () -> now, null);
         when(context.getQueryShardContext()).thenReturn(qsc);
-        FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
-        DocValueFormat format = new DocValueFormat.DateTime(formatter, DateTimeZone.UTC);
+        DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime");
+        DocValueFormat format = new DocValueFormat.DateTime(formatter, ZoneOffset.UTC);
 
         ExtendedBounds expected = randomParsedExtendedBounds();
         ExtendedBounds parsed = unparsed(expected).parseAndValidate("test", context, format);
@@ -162,7 +162,7 @@ public class ExtendedBoundsTests extends ESTestCase {
             orig.toXContent(out, ToXContent.EMPTY_PARAMS);
             out.endObject();
 
-            try (XContentParser in = createParser(JsonXContent.jsonXContent, out.bytes())) {
+            try (XContentParser in = createParser(JsonXContent.jsonXContent, BytesReference.bytes(out))) {
                 XContentParser.Token token = in.currentToken();
                 assertNull(token);
 
@@ -176,7 +176,7 @@ public class ExtendedBoundsTests extends ESTestCase {
                 ExtendedBounds read = ExtendedBounds.PARSER.apply(in, null);
                 assertEquals(orig, read);
             } catch (Exception e) {
-                throw new Exception("Error parsing [" + out.bytes().utf8ToString() + "]", e);
+                throw new Exception("Error parsing [" + BytesReference.bytes(out).utf8ToString() + "]", e);
             }
         }
     }

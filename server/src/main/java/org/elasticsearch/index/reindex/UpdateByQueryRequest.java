@@ -24,6 +24,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -34,17 +37,28 @@ import java.io.IOException;
  * representative set of subrequests. This is best-effort but better than {@linkplain ReindexRequest} because scripts can't change the
  * destination index and things.
  */
-public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<UpdateByQueryRequest> implements IndicesRequest.Replaceable {
+public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<UpdateByQueryRequest>
+    implements IndicesRequest.Replaceable, ToXContentObject {
     /**
      * Ingest pipeline to set on index requests made by this action.
      */
     private String pipeline;
 
     public UpdateByQueryRequest() {
+        this(new SearchRequest());
     }
 
-    public UpdateByQueryRequest(SearchRequest search) {
+    public UpdateByQueryRequest(String... indices) {
+        this(new SearchRequest(indices));
+    }
+
+    UpdateByQueryRequest(SearchRequest search) {
         this(search, true);
+    }
+
+    public UpdateByQueryRequest(StreamInput in) throws IOException {
+        super.readFrom(in);
+        pipeline = in.readOptionalString();
     }
 
     private UpdateByQueryRequest(SearchRequest search, boolean setDefaults) {
@@ -54,8 +68,87 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     /**
      * Set the ingest pipeline to set on index requests made by this action.
      */
-    public void setPipeline(String pipeline) {
+    public UpdateByQueryRequest setPipeline(String pipeline) {
         this.pipeline = pipeline;
+        return this;
+    }
+
+    /**
+     * Set the query for selective update
+     */
+    public UpdateByQueryRequest setQuery(QueryBuilder query) {
+        if (query != null) {
+            getSearchRequest().source().query(query);
+        }
+        return this;
+    }
+
+    /**
+     * Set the document types for the update
+     * @deprecated Types are in the process of being removed. Instead of
+     * using a type, prefer to filter on a field of the document.
+     */
+    @Deprecated
+    public UpdateByQueryRequest setDocTypes(String... types) {
+        if (types != null) {
+            getSearchRequest().types(types);
+        }
+        return this;
+    }
+
+    /**
+     * Set routing limiting the process to the shards that match that routing value
+     */
+    public UpdateByQueryRequest setRouting(String routing) {
+        if (routing != null) {
+            getSearchRequest().routing(routing);
+        }
+        return this;
+    }
+
+    /**
+     * The scroll size to control number of documents processed per batch
+     */
+    public UpdateByQueryRequest setBatchSize(int size) {
+        getSearchRequest().source().size(size);
+        return this;
+    }
+
+    /**
+     * Set the IndicesOptions for controlling unavailable indices
+     */
+    public UpdateByQueryRequest setIndicesOptions(IndicesOptions indicesOptions) {
+        getSearchRequest().indicesOptions(indicesOptions);
+        return this;
+    }
+
+    /**
+     * Gets the batch size for this request
+     */
+    public int getBatchSize() {
+        return getSearchRequest().source().size();
+    }
+
+    /**
+     * Gets the routing value used for this request
+     */
+    public String getRouting() {
+        return getSearchRequest().routing();
+    }
+
+    /**
+     * Gets the document types on which this request would be executed. Returns an empty array if all
+     * types are to be processed.
+     * @deprecated Types are in the process of being removed. Instead of
+     * using a type, prefer to filter on a field of the document.
+     */
+    @Deprecated
+    public String[] getDocTypes() {
+        if (getSearchRequest().types() != null) {
+            return getSearchRequest().types();
+        } else {
+            return new String[0];
+        }
     }
 
     /**
@@ -108,13 +201,24 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        pipeline = in.readOptionalString();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(pipeline);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (getScript() != null) {
+            builder.field("script");
+            getScript().toXContent(builder, params);
+        }
+        getSearchRequest().source().innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
     }
 }

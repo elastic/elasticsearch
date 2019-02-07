@@ -153,7 +153,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             throw new IllegalArgumentException("query value cannot be null");
         }
         this.fieldName = fieldName;
-        this.value = convertToBytesRefIfString(value);
+        this.value = maybeConvertToBytesRef(value);
     }
 
     /**
@@ -181,12 +181,13 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         out.writeOptionalString(this.rewrite);
     }
 
+    @Override
     public String fieldName() {
         return this.fieldName;
     }
 
     public Object value() {
-        return convertToStringIfBytesRef(this.value);
+        return maybeConvertToString(this.value);
     }
 
     public FuzzyQueryBuilder fuzziness(Fuzziness fuzziness) {
@@ -238,7 +239,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field(VALUE_FIELD.getPreferredName(), convertToStringIfBytesRef(this.value));
+        builder.field(VALUE_FIELD.getPreferredName(), maybeConvertToString(this.value));
         fuzziness.toXContent(builder, params);
         builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
         builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
@@ -274,9 +275,9 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                         currentFieldName = parser.currentName();
                     } else if (token.isValue()) {
                         if (TERM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            value = parser.objectBytes();
+                            value = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            value = parser.objectBytes();
+                            value = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
                         } else if (Fuzziness.FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -303,7 +304,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             } else {
                 throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
                 fieldName = parser.currentName();
-                value = parser.objectBytes();
+                value = maybeConvertToBytesRef(parser.objectBytes());
             }
         }
         return new FuzzyQueryBuilder(fieldName, value)
@@ -325,9 +326,6 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query query = null;
         String rewrite = this.rewrite;
-        if (rewrite == null && context.isFilter()) {
-            rewrite = QueryParsers.CONSTANT_SCORE.getPreferredName();
-        }
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         if (fieldType != null) {
             query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions);

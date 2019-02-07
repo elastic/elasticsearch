@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -55,8 +56,23 @@ public class IndexTests extends ESTestCase {
         final Index original = new Index(name, uuid);
         final XContentBuilder builder = JsonXContent.contentBuilder();
         original.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
-        parser.nextToken(); // the beginning of the parser
-        assertThat(Index.fromXContent(parser), equalTo(original));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            parser.nextToken(); // the beginning of the parser
+            assertThat(Index.fromXContent(parser), equalTo(original));
+        }
+    }
+
+    public void testEquals() {
+        Index index1 = new Index("a", "a");
+        Index index2 = new Index("a", "a");
+        Index index3 = new Index("a", "b");
+        Index index4 = new Index("b", "a");
+        String s = "Some random other object";
+        assertEquals(index1, index1);
+        assertEquals(index1, index2);
+        assertNotEquals(index1, null);
+        assertNotEquals(index1, s);
+        assertNotEquals(index1, index3);
+        assertNotEquals(index1, index4);
     }
 }

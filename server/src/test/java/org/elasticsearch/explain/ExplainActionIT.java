@@ -28,12 +28,12 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -249,14 +249,16 @@ public class ExplainActionIT extends ESIntegTestCase {
     public void testExplainDateRangeInQueryString() {
         createIndex("test");
 
-        String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
-        String aMonthFromNow = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).plusMonths(1));
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minusMonths(1));
+        String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plusMonths(1));
 
         client().prepareIndex("test", "type", "1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
 
         refresh();
 
-        ExplainResponse explainResponse = client().prepareExplain("test", "type", "1").setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
+        ExplainResponse explainResponse = client().prepareExplain("test", "type", "1")
+            .setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
         assertThat(explainResponse.isExists(), equalTo(true));
         assertThat(explainResponse.isMatch(), equalTo(true));
     }

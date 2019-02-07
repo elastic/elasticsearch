@@ -25,16 +25,18 @@ public enum IndexShardState {
     RECOVERING((byte) 1),
     POST_RECOVERY((byte) 2),
     STARTED((byte) 3),
-    RELOCATED((byte) 4),
+    // previously, 4 was the RELOCATED state
     CLOSED((byte) 5);
 
-    private static final IndexShardState[] IDS = new IndexShardState[IndexShardState.values().length];
+    private static final IndexShardState[] IDS = new IndexShardState[IndexShardState.values().length + 1]; // +1 for RELOCATED state
 
     static {
         for (IndexShardState state : IndexShardState.values()) {
             assert state.id() < IDS.length && state.id() >= 0;
             IDS[state.id()] = state;
         }
+        assert IDS[4] == null;
+        IDS[4] = STARTED; // for backward compatibility reasons (this was the RELOCATED state)
     }
 
     private final byte id;

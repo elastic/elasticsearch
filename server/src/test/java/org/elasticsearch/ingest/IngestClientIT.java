@@ -21,7 +21,6 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -35,24 +34,19 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.ingest.WritePipelineResponse;
-import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +60,6 @@ public class IngestClientIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        // TODO: Remove this method once gets in: https://github.com/elastic/elasticsearch/issues/16019
         if (nodeOrdinal % 2 == 0) {
             return Settings.builder().put("node.ingest", false).put(super.nodeSettings(nodeOrdinal)).build();
         }
@@ -79,7 +72,7 @@ public class IngestClientIT extends ESIntegTestCase {
     }
 
     public void testSimulate() throws Exception {
-        BytesReference pipelineSource = jsonBuilder().startObject()
+        BytesReference pipelineSource = BytesReference.bytes(jsonBuilder().startObject()
             .field("description", "my_pipeline")
             .startArray("processors")
             .startObject()
@@ -87,7 +80,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endArray()
-            .endObject().bytes();
+            .endObject());
         client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON)
                 .get();
         GetPipelineResponse getResponse = client().admin().cluster().prepareGetPipeline("_id")
@@ -96,7 +89,7 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(getResponse.pipelines().size(), equalTo(1));
         assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
 
-        BytesReference bytes = jsonBuilder().startObject()
+        BytesReference bytes = BytesReference.bytes(jsonBuilder().startObject()
             .startArray("docs")
             .startObject()
             .field("_index", "index")
@@ -108,7 +101,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endArray()
-            .endObject().bytes();
+            .endObject());
         SimulatePipelineResponse response;
         if (randomBoolean()) {
             response = client().admin().cluster().prepareSimulatePipeline(bytes, XContentType.JSON)
@@ -127,15 +120,19 @@ public class IngestClientIT extends ESIntegTestCase {
         source.put("foo", "bar");
         source.put("fail", false);
         source.put("processed", true);
-        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, source);
+        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, null, source);
         assertThat(simulateDocumentBaseResult.getIngestDocument().getSourceAndMetadata(), equalTo(ingestDocument.getSourceAndMetadata()));
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
+
+        // cleanup
+        AcknowledgedResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
+        assertTrue(deletePipelineResponse.isAcknowledged());
     }
 
     public void testBulkWithIngestFailures() throws Exception {
         createIndex("index");
 
-        BytesReference source = jsonBuilder().startObject()
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
             .field("description", "my_pipeline")
             .startArray("processors")
             .startObject()
@@ -143,7 +140,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endArray()
-            .endObject().bytes();
+            .endObject());
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
@@ -172,12 +169,16 @@ public class IngestClientIT extends ESIntegTestCase {
                 assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
             }
         }
+
+        // cleanup
+        AcknowledgedResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
+        assertTrue(deletePipelineResponse.isAcknowledged());
     }
 
     public void testBulkWithUpsert() throws Exception {
         createIndex("index");
 
-        BytesReference source = jsonBuilder().startObject()
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
             .field("description", "my_pipeline")
             .startArray("processors")
             .startObject()
@@ -185,7 +186,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endArray()
-            .endObject().bytes();
+            .endObject());
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
@@ -212,7 +213,7 @@ public class IngestClientIT extends ESIntegTestCase {
     }
 
     public void test() throws Exception {
-        BytesReference source = jsonBuilder().startObject()
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
             .field("description", "my_pipeline")
             .startArray("processors")
             .startObject()
@@ -220,7 +221,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endArray()
-            .endObject().bytes();
+            .endObject());
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
@@ -244,7 +245,7 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(doc.get("processed"), equalTo(true));
 
         DeletePipelineRequest deletePipelineRequest = new DeletePipelineRequest("_id");
-        WritePipelineResponse response = client().admin().cluster().deletePipeline(deletePipelineRequest).get();
+        AcknowledgedResponse response = client().admin().cluster().deletePipeline(deletePipelineRequest).get();
         assertThat(response.isAcknowledged(), is(true));
 
         getResponse = client().admin().cluster().prepareGetPipeline("_id").get();
@@ -253,7 +254,7 @@ public class IngestClientIT extends ESIntegTestCase {
     }
 
     public void testPutWithPipelineFactoryError() throws Exception {
-        BytesReference source = jsonBuilder().startObject()
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
                 .field("description", "my_pipeline")
                 .startArray("processors")
                 .startObject()
@@ -262,14 +263,13 @@ public class IngestClientIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endArray()
-                .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
-        try {
-            client().admin().cluster().putPipeline(putPipelineRequest).get();
-        } catch (ExecutionException e) {
-            ElasticsearchParseException ex = (ElasticsearchParseException) ExceptionsHelper.unwrap(e, ElasticsearchParseException.class);
-            assertNotNull(ex);
-            assertThat(ex.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
-        }
+                .endObject());
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id2", source, XContentType.JSON);
+        Exception e = expectThrows(ElasticsearchParseException.class,
+            () -> client().admin().cluster().putPipeline(putPipelineRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
+
+        GetPipelineResponse response = client().admin().cluster().prepareGetPipeline("_id2").get();
+        assertFalse(response.isFound());
     }
 }

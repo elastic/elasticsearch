@@ -20,6 +20,7 @@ package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -34,6 +36,7 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * An interface for interacting with a repository in snapshot and restore.
@@ -45,7 +48,7 @@ import java.util.List;
  * <ul>
  * <li>Master calls {@link #initializeSnapshot(SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
  * with list of indices that will be included into the snapshot</li>
- * <li>Data nodes call {@link Repository#snapshotShard(IndexShard, SnapshotId, IndexId, IndexCommit, IndexShardSnapshotStatus)}
+ * <li>Data nodes call {@link Repository#snapshotShard(IndexShard, Store, SnapshotId, IndexId, IndexCommit, IndexShardSnapshotStatus)}
  * for each shard</li>
  * <li>When all shard calls return master calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
@@ -62,6 +65,10 @@ public interface Repository extends LifecycleComponent {
          * @param metadata    metadata for the repository including name and settings
          */
         Repository create(RepositoryMetaData metadata) throws Exception;
+
+        default Repository create(RepositoryMetaData metaData, Function<String, Repository.Factory> typeLookup) throws Exception {
+            return create(metaData);
+        }
     }
 
     /**
@@ -78,15 +85,21 @@ public interface Repository extends LifecycleComponent {
     SnapshotInfo getSnapshotInfo(SnapshotId snapshotId);
 
     /**
-     * Returns global metadata associate with the snapshot.
-     * <p>
-     * The returned meta data contains global metadata as well as metadata for all indices listed in the indices parameter.
+     * Returns global metadata associated with the snapshot.
      *
-     * @param snapshot snapshot
-     * @param indices    list of indices
-     * @return information about snapshot
+     * @param snapshotId the snapshot id to load the global metadata from
+     * @return the global metadata about the snapshot
      */
-    MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<IndexId> indices) throws IOException;
+    MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId);
+
+    /**
+     * Returns the index metadata associated with the snapshot.
+     *
+     * @param snapshotId the snapshot id to load the index metadata from
+     * @param index      the {@link IndexId} to load the metadata from
+     * @return the index metadata about the given index for the given snapshot
+     */
+    IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException;
 
     /**
      * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots
@@ -181,14 +194,15 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     *
      * @param shard               shard to be snapshotted
+     * @param store               store to be snapshotted
      * @param snapshotId          snapshot id
      * @param indexId             id for the index being snapshotted
      * @param snapshotIndexCommit commit point
      * @param snapshotStatus      snapshot status
      */
-    void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus);
+    void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
+                       IndexShardSnapshotStatus snapshotStatus);
 
     /**
      * Restores snapshot of the shard.
@@ -202,7 +216,8 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
      */
-    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState);
+    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId,
+                      ShardId snapshotShardId, RecoveryState recoveryState);
 
     /**
      * Retrieve shard snapshot status for the stored snapshot

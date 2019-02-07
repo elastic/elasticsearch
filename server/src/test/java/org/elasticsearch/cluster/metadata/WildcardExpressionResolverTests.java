@@ -50,11 +50,15 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testXXX"))), equalTo(newHashSet("testXXX")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "testYYY"))), equalTo(newHashSet("testXXX", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "ku*"))), equalTo(newHashSet("testXXX", "kuku")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))), equalTo(newHashSet("testXXX", "testXYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "kuku"))), equalTo(newHashSet("testXXX", "testXYY", "kuku")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY", "kuku")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*", "-kuku"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "kuku"))),
+            equalTo(newHashSet("testXXX", "testXYY", "kuku")));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("*"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY", "kuku")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*", "-kuku"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "testYYY"))), equalTo(newHashSet("testXXX", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "-testXXX"))), equalTo(newHashSet("testXXX", "-testXXX")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "testY*"))), equalTo(newHashSet("testXXX", "testYYY")));
@@ -71,11 +75,14 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYY*", "alias*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYY*", "alias*"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("-kuku"))), equalTo(newHashSet("-kuku")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("test*", "-testYYY"))), equalTo(newHashSet("testXXX", "testXYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "testYYY"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYYY", "testX*"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "testYYY")))
+            , equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYYY", "testX*"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
     }
 
     public void testConvertWildcardsOpenClosedIndicesTests() {
@@ -89,8 +96,10 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, true, true));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))), equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
+            IndicesOptions.fromOptions(true, true, true, true));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))),
+            equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
         context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, false, true));
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))), equalTo(newHashSet("testXYY")));
         context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, true, false));
@@ -111,10 +120,12 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*X*"))), equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*X*"))),
+            equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*X*Y"))), equalTo(newHashSet("testXXY", "testXYY")));
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("kuku*Y*"))), equalTo(newHashSet("kukuYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("*Y*"))), equalTo(newHashSet("testXXY", "testXYY", "testYYY", "kukuYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("*Y*"))),
+            equalTo(newHashSet("testXXY", "testXYY", "testYYY", "kukuYYY")));
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*Y*X"))).size(), equalTo(0));
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("*Y*X"))).size(), equalTo(0));
     }
@@ -128,7 +139,8 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen());
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("_all"))), equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("_all"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
     }
 
     public void testResolveAliases() {
@@ -141,14 +153,18 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
         // when ignoreAliases option is not set, WildcardExpressionResolver resolves the provided
         // expressions against the defined indices and aliases
-        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, true, false, false);
-        IndexNameExpressionResolver.Context indicesAndAliasesContext = new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
+        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, true, false,
+            false, false);
+        IndexNameExpressionResolver.Context indicesAndAliasesContext =
+            new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
         // ignoreAliases option is set, WildcardExpressionResolver throws error when
-        IndicesOptions skipAliasesIndicesOptions = IndicesOptions.fromOptions(true, true, true, false, true, false, true);
-        IndexNameExpressionResolver.Context skipAliasesLenientContext = new IndexNameExpressionResolver.Context(state, skipAliasesIndicesOptions);
+        IndicesOptions skipAliasesIndicesOptions = IndicesOptions.fromOptions(true, true, true, false, true, false, true, false);
+        IndexNameExpressionResolver.Context skipAliasesLenientContext =
+            new IndexNameExpressionResolver.Context(state, skipAliasesIndicesOptions);
         // ignoreAliases option is set, WildcardExpressionResolver resolves the provided expressions only against the defined indices
-        IndicesOptions errorOnAliasIndicesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
-        IndexNameExpressionResolver.Context skipAliasesStrictContext = new IndexNameExpressionResolver.Context(state, errorOnAliasIndicesOptions);
+        IndicesOptions errorOnAliasIndicesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
+        IndexNameExpressionResolver.Context skipAliasesStrictContext =
+            new IndexNameExpressionResolver.Context(state, errorOnAliasIndicesOptions);
 
         {
             List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo_a*"));
@@ -201,12 +217,13 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
         // when ignoreAliases option is not set, WildcardExpressionResolver resolves the provided
         // expressions against the defined indices and aliases
-        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false);
-        IndexNameExpressionResolver.Context indicesAndAliasesContext = new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
+        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false, false);
+        IndexNameExpressionResolver.Context indicesAndAliasesContext =
+            new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
 
         // ignoreAliases option is set, WildcardExpressionResolver resolves the provided expressions
         // only against the defined indices
-        IndicesOptions onlyIndicesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
+        IndicesOptions onlyIndicesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
         IndexNameExpressionResolver.Context onlyIndicesContext = new IndexNameExpressionResolver.Context(state, onlyIndicesOptions);
 
         {
@@ -242,6 +259,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     }
 
     private static IndexMetaData.Builder indexBuilder(String index) {
-        return IndexMetaData.builder(index).settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        return IndexMetaData.builder(index).settings(settings(Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
     }
 }

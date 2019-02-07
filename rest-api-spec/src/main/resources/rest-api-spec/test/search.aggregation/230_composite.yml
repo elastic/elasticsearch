@@ -13,13 +13,18 @@ setup:
                       type: keyword
                     long:
                       type: long
+                    nested:
+                      type: nested
+                      properties:
+                        nested_long:
+                          type: long
 
   - do:
       index:
         index: test
         type:  doc
         id:    1
-        body:  { "keyword": "foo", "long": [10, 20] }
+        body:  { "keyword": "foo", "long": [10, 20], "nested": [{"nested_long": 10}, {"nested_long": 20}] }
 
   - do:
       index:
@@ -33,14 +38,14 @@ setup:
         index: test
         type:  doc
         id:    3
-        body:  { "keyword": "bar", "long": [100, 0] }
+        body:  { "keyword": "bar", "long": [100, 0], "nested": [{"nested_long": 10}, {"nested_long": 0}] }
 
   - do:
       index:
         index: test
         type:  doc
         id:    4
-        body:  { "keyword": "bar", "long": [1000, 0] }
+        body:  { "keyword": "bar", "long": [1000, 0], "nested": [{"nested_long": 1000}, {"nested_long": 20}] }
 
   - do:
       index:
@@ -66,9 +71,9 @@ setup:
       version: " - 6.0.99"
       reason:  this uses a new API that has been added in 6.1
 
-
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -98,6 +103,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -147,6 +153,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -188,6 +195,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -218,6 +226,7 @@ setup:
   - do:
       catch:      /\[composite\] aggregation cannot be used with a parent aggregation/
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -245,6 +254,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           aggregations:
@@ -271,6 +281,7 @@ setup:
 
   - do:
         search:
+          rest_total_hits_as_int: true
           index: test
           body:
             aggregations:
@@ -304,6 +315,7 @@ setup:
 
   - do:
         search:
+          rest_total_hits_as_int: true
           index: test
           body:
             aggregations:
@@ -323,3 +335,94 @@ setup:
   - length: { aggregations.test.buckets: 2 }
   - length: { aggregations.test.after_key: 1 }
   - match: { aggregations.test.after_key.keyword:  "foo" }
+
+---
+"Composite aggregation and array size":
+  - skip:
+      version: " - 6.99.99"
+      reason:  starting in 7.0 the composite aggregation throws an execption if the provided size is greater than search.max_buckets.
+
+  - do:
+        catch: /.*Trying to create too many buckets.*/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  size: 1000000000
+                  sources: [
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    }
+                  ]
+
+---
+"Composite aggregation with nested parent":
+  - skip:
+      version: " - 6.99.99"
+      reason:  the ability to set a nested parent aggregation was added in 7.0.
+
+  - do:
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              1:
+                nested:
+                  path: nested
+                aggs:
+                  2:
+                    composite:
+                      sources: [
+                        "nested": {
+                          "terms": {
+                            "field": "nested.nested_long"
+                        }
+                      }
+                    ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.1.2.buckets: 4 }
+  - match: { aggregations.1.2.buckets.0.key.nested: 0 }
+  - match: { aggregations.1.2.buckets.0.doc_count:  1 }
+  - match: { aggregations.1.2.buckets.1.key.nested: 10 }
+  - match: { aggregations.1.2.buckets.1.doc_count:  2 }
+  - match: { aggregations.1.2.buckets.2.key.nested: 20 }
+  - match: { aggregations.1.2.buckets.2.doc_count:  2 }
+  - match: { aggregations.1.2.buckets.3.key.nested: 1000 }
+  - match: { aggregations.1.2.buckets.3.doc_count:  1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            1:
+              nested:
+                path: nested
+              aggs:
+                2:
+                  composite:
+                    after: { "nested": 10 }
+                    sources: [
+                      "nested": {
+                        "terms": {
+                          "field": "nested.nested_long"
+                        }
+                      }
+                    ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.1.2.buckets: 2 }
+  - match: { aggregations.1.2.buckets.0.key.nested: 20 }
+  - match: { aggregations.1.2.buckets.0.doc_count:  2 }
+  - match: { aggregations.1.2.buckets.1.key.nested: 1000 }
+  - match: { aggregations.1.2.buckets.1.doc_count:  1 }

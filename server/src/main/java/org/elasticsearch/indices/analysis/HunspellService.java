@@ -18,14 +18,14 @@
  */
 package org.elasticsearch.indices.analysis;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -75,7 +75,9 @@ import java.util.function.Function;
  *
  * @see org.elasticsearch.index.analysis.HunspellTokenFilterFactory
  */
-public class HunspellService extends AbstractComponent {
+public class HunspellService {
+
+    private static final Logger logger = LogManager.getLogger(HunspellService.class);
 
     public static final Setting<Boolean> HUNSPELL_LAZY_LOAD =
         Setting.boolSetting("indices.analysis.hunspell.dictionary.lazy", Boolean.FALSE, Property.NodeScope);
@@ -91,7 +93,6 @@ public class HunspellService extends AbstractComponent {
 
     public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries)
             throws IOException {
-        super(settings);
         this.knownDictionaries = Collections.unmodifiableMap(knownDictionaries);
         this.hunspellDir = resolveHunspellDirectory(env);
         this.defaultIgnoreCase = HUNSPELL_IGNORE_CASE.get(settings);
@@ -140,8 +141,7 @@ public class HunspellService extends AbstractComponent {
                                 } catch (Exception e) {
                                     // The cache loader throws unchecked exception (see #loadDictionary()),
                                     // here we simply report the exception and continue loading the dictionaries
-                                    logger.error(
-                                        (Supplier<?>) () -> new ParameterizedMessage(
+                                    logger.error(() -> new ParameterizedMessage(
                                             "exception while loading dictionary {}", file.getFileName()), e);
                                 }
                             }
@@ -200,7 +200,7 @@ public class HunspellService extends AbstractComponent {
             }
 
         } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("Could not load hunspell dictionary [{}]", locale), e);
+            logger.error(() -> new ParameterizedMessage("Could not load hunspell dictionary [{}]", locale), e);
             throw e;
         } finally {
             IOUtils.close(affixStream);

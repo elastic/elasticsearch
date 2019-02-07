@@ -10,20 +10,18 @@ A multi-bucket value source based aggregation where buckets are dynamically buil
 PUT /products
 {
     "mappings": {
-        "product": {
-            "properties": {
-                "genre": {
-                    "type": "keyword"
-                },
-                "product": {
-                    "type": "keyword"
-                }
+        "properties": {
+            "genre": {
+                "type": "keyword"
+            },
+            "product": {
+                "type": "keyword"
             }
         }
     }
 }
 
-POST /products/product/_bulk?refresh
+POST /products/_bulk?refresh
 {"index":{"_id":0}}
 {"genre": "rock", "product": "Product A"}
 {"index":{"_id":1}}
@@ -220,8 +218,7 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
         override it and reset it to be equal to `size`.
 
 
-The default `shard_size` will be `size` if the search request needs to go to a single shard, and `(size * 1.5 + 10)`
-otherwise.
+The default `shard_size` is `(size * 1.5 + 10)`.
 
 ==== Calculating Document Count Error
 
@@ -615,7 +612,7 @@ GET /_search
     "aggs" : {
         "genres" : {
             "terms" : {
-                "field" : "gender",
+                "field" : "genre",
                 "script" : {
                     "source" : "'Genre: ' +_value",
                     "lang" : "painless"
@@ -653,7 +650,7 @@ GET /_search
 // CONSOLE
 
 In the above example, buckets will be created for all the tags that has the word `sport` in them, except those starting
-with `water_` (so the tag `water_sports` will no be aggregated). The `include` regular expression will determine what
+with `water_` (so the tag `water_sports` will not be aggregated). The `include` regular expression will determine what
 values are "allowed" to be aggregated, while the `exclude` determines the values that should not be aggregated. When
 both are defined, the `exclude` has precedence, meaning, the `include` is evaluated first and only then the `exclude`.
 

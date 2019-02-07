@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,12 +30,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -71,27 +68,16 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterRerouteRequest clusterRerouteRequest = createRequest(request);
-
+        settingsFilter.addFilterSettingParams(request);
+        if (clusterRerouteRequest.explain()) {
+            request.params().put("explain", Boolean.TRUE.toString());
+        }
         // by default, return everything but metadata
         final String metric = request.param("metric");
         if (metric == null) {
             request.params().put("metric", DEFAULT_METRICS);
         }
-
-        return channel ->
-            client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestListener<ClusterRerouteResponse>(channel) {
-                @Override
-                protected void addCustomFields(XContentBuilder builder, ClusterRerouteResponse response) throws IOException {
-                    builder.startObject("state");
-                    settingsFilter.addFilterSettingParams(request);
-                    response.getState().toXContent(builder, request);
-                    builder.endObject();
-                    if (clusterRerouteRequest.explain()) {
-                        assert response.getExplanations() != null;
-                        response.getExplanations().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    }
-                }
-        });
+        return channel -> client.admin().cluster().reroute(clusterRerouteRequest, new RestToXContentListener<>(channel));
     }
 
     private static final Set<String> RESPONSE_PARAMS;

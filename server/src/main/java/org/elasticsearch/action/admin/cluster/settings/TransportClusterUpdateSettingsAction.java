@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -38,7 +37,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -50,10 +48,10 @@ public class TransportClusterUpdateSettingsAction extends
     private final ClusterSettings clusterSettings;
 
     @Inject
-    public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportClusterUpdateSettingsAction(TransportService transportService, ClusterService clusterService,
                                                 ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettings clusterSettings) {
-        super(settings, ClusterUpdateSettingsAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
+        super(ClusterUpdateSettingsAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver, ClusterUpdateSettingsRequest::new);
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
@@ -160,7 +158,7 @@ public class TransportClusterUpdateSettingsAction extends
                     @Override
                     public void onFailure(String source, Exception e) {
                         //if the reroute fails we only log
-                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to perform [{}]", source), e);
+                        logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", source), e);
                         listener.onFailure(new ElasticsearchException("reroute after update settings failed", e));
                     }
 
@@ -174,13 +172,18 @@ public class TransportClusterUpdateSettingsAction extends
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to perform [{}]", source), e);
+                logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", source), e);
                 super.onFailure(source, e);
             }
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                ClusterState clusterState = updater.updateSettings(currentState, request.transientSettings(), request.persistentSettings());
+                final ClusterState clusterState =
+                        updater.updateSettings(
+                                currentState,
+                                clusterSettings.upgradeSettings(request.transientSettings()),
+                                clusterSettings.upgradeSettings(request.persistentSettings()),
+                                logger);
                 changed = clusterState != currentState;
                 return clusterState;
             }

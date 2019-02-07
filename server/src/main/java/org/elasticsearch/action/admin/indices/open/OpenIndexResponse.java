@@ -24,8 +24,6 @@ import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -33,7 +31,7 @@ import java.io.IOException;
 /**
  * A response for a open index action.
  */
-public class OpenIndexResponse extends ShardsAcknowledgedResponse implements ToXContentObject {
+public class OpenIndexResponse extends ShardsAcknowledgedResponse {
 
     private static final ConstructingObjectParser<OpenIndexResponse, Void> PARSER = new ConstructingObjectParser<>("open_index", true,
             args -> new OpenIndexResponse((boolean) args[0], (boolean) args[1]));
@@ -42,17 +40,16 @@ public class OpenIndexResponse extends ShardsAcknowledgedResponse implements ToX
         declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
     }
 
-    OpenIndexResponse() {
+    public OpenIndexResponse() {
     }
 
-    OpenIndexResponse(boolean acknowledged, boolean shardsAcknowledged) {
+    public OpenIndexResponse(boolean acknowledged, boolean shardsAcknowledged) {
         super(acknowledged, shardsAcknowledged);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        readAcknowledged(in);
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             readShardsAcknowledged(in);
         }
@@ -61,19 +58,9 @@ public class OpenIndexResponse extends ShardsAcknowledgedResponse implements ToX
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeAcknowledged(out);
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             writeShardsAcknowledged(out);
         }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        addAcknowledgedField(builder);
-        addShardsAcknowledgedField(builder);
-        builder.endObject();
-        return builder;
     }
 
     public static OpenIndexResponse fromXContent(XContentParser parser) {

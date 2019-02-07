@@ -19,9 +19,28 @@
 
 apply plugin: 'elasticsearch.docs-test'
 
+/* List of files that have snippets that will not work until platinum tests can occur ... */
+buildRestTests.expectedUnconvertedCandidates = [
+        'reference/ml/transforms.asciidoc',
+        'reference/ml/apis/delete-calendar-event.asciidoc',
+        'reference/ml/apis/get-bucket.asciidoc',
+        'reference/ml/apis/get-category.asciidoc',
+        'reference/ml/apis/get-influencer.asciidoc',
+        'reference/ml/apis/get-job-stats.asciidoc',
+        'reference/ml/apis/get-overall-buckets.asciidoc',
+        'reference/ml/apis/get-record.asciidoc',
+        'reference/ml/apis/get-snapshot.asciidoc',
+        'reference/ml/apis/post-data.asciidoc',
+        'reference/ml/apis/revert-snapshot.asciidoc',
+        'reference/ml/apis/update-snapshot.asciidoc',
+]
+
 integTestCluster {
-  /* Enable regexes in painless so our tests don't complain about example
-   * snippets that use them. */
+  if ("default".equals(integTestCluster.distribution)) {
+    setting 'xpack.license.self_generated.type', 'trial'
+  }
+
+  // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
   Closure configFile = {
     extraConfigFile it, "src/test/cluster/config/$it"
@@ -31,15 +50,18 @@ integTestCluster {
   configFile 'analysis/synonym.txt'
   configFile 'analysis/stemmer_override.txt'
   configFile 'userdict_ja.txt'
+  configFile 'userdict_ko.txt'
   configFile 'KeywordTokenizer.rbbi'
   extraConfigFile 'hunspell/en_US/en_US.aff', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff'
   extraConfigFile 'hunspell/en_US/en_US.dic', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+
+  // TODO: remove this for 7.0, this exists to allow the doc examples in 6.x to continue using the defaults
+  systemProperty 'es.scripting.update.ctx_in_params', 'false'
 }
 
-// Build the cluster with all plugins
-
+// build the cluster with all plugins
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
   /* Skip repositories. We just aren't going to be able to test them so it
    * doesn't make sense to waste time installing them. */
@@ -58,7 +80,13 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'build.gradle'
   // That is where the snippets go, not where they come from!
   exclude 'build'
+  // Just syntax examples
+  exclude 'README.asciidoc'
+  // Broken code snippet tests
+  exclude 'reference/graph/explore.asciidoc'
 }
+
+listSnippets.docs = buildRestTests.docs
 
 Closure setupTwitter = { String name, int count ->
   buildRestTests.setups[name] = '''
@@ -111,7 +139,6 @@ buildRestTests.setups['host'] = '''
   - do:
       nodes.info:
         metric: [ http, transport ]
-  - is_true: nodes.$master.http.publish_address
   - set: {nodes.$master.http.publish_address: host}
   - set: {nodes.$master.transport.publish_address: transport_host}
 '''
@@ -222,31 +249,6 @@ buildRestTests.doFirst {
     buildRestTests.setups['bank'].replace('#bank_data#', accounts)
 }
 
-buildRestTests.setups['range_index'] = '''
-  - do :
-        indices.create:
-          index: range_index
-          body:
-            settings:
-              number_of_shards: 2
-              number_of_replicas: 1
-            mappings:
-              _doc:
-                properties:
-                  expected_attendees:
-                    type: integer_range
-                  time_frame:
-                    type: date_range
-                    format: yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis
-  - do:
-        bulk:
-          index: range_index
-          type: _doc
-          refresh: true
-          body: |
-            {"index":{"_id": 1}}
-            {"expected_attendees": {"gte": 10, "lte": 20}, "time_frame": {"gte": "2015-10-31 12:00:00", "lte": "2015-11-01"}}'''
-
 // Used by index boost doc
 buildRestTests.setups['index_boost'] = '''
   - do:
@@ -285,8 +287,8 @@ buildRestTests.setups['stackoverflow'] = '''
           body: |'''
 
 // Make Kibana strongly connected to elasticsearch and logstash
-// Make Kibana rarer (and therefore higher-ranking) than Javascript
-// Make Javascript strongly connected to jquery and angular
+// Make Kibana rarer (and therefore higher-ranking) than JavaScript
+// Make JavaScript strongly connected to jquery and angular
 // Make Cabana strongly connected to elasticsearch but only as a result of a single author
 
 for (int i = 0; i < 150; i++) {
@@ -390,9 +392,9 @@ buildRestTests.setups['exams'] = '''
           refresh: true
           body: |
             {"index":{}}
-            {"grade": 100}
+            {"grade": 100, "weight": 2}
             {"index":{}}
-            {"grade": 50}'''
+            {"grade": 50, "weight": 3}'''
 
 buildRestTests.setups['stored_example_script'] = '''
   # Simple script to load a field. Not really a good example, but a simple one.
@@ -407,25 +409,25 @@ buildRestTests.setups['stored_scripted_metric_script'] = '''
   - do:
       put_script:
         id: "my_init_script"
-        body: { "script": { "lang": "painless", "source": "params._agg.transactions = []" } }
+        body: { "script": { "lang": "painless", "source": "state.transactions = []" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_map_script"
-        body: { "script": { "lang": "painless", "source": "params._agg.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
+        body: { "script": { "lang": "painless", "source": "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_combine_script"
-        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in params._agg.transactions) { profit += t; } return profit" } }
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in state.transactions) { profit += t; } return profit" } }
   - match: { acknowledged: true }
 
   - do:
       put_script:
         id: "my_reduce_script"
-        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in params._aggs) { profit += a; } return profit" } }
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in states) { profit += a; } return profit" } }
   - match: { acknowledged: true }
 '''
 
@@ -519,3 +521,641 @@ for (int i = 0; i < 5; i++) {
             {"index":{}}
             {"ip": "12.0.0.$i"}"""
 }
+// Used by SQL because it looks SQL-ish
+buildRestTests.setups['library'] = '''
+  - do:
+        indices.create:
+          include_type_name: true
+          index: library
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              book:
+                properties:
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  author:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  release_date:
+                    type: date
+                  page_count:
+                    type: short
+  - do:
+        bulk:
+          index: library
+          type: book
+          refresh: true
+          body: |
+            {"index":{"_id": "Leviathan Wakes"}}
+            {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+            {"index":{"_id": "Hyperion"}}
+            {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+            {"index":{"_id": "Dune"}}
+            {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+            {"index":{"_id": "Dune Messiah"}}
+            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+            {"index":{"_id": "Children of Dune"}}
+            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+            {"index":{"_id": "God Emperor of Dune"}}
+            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
+            {"index":{"_id": "Consider Phlebas"}}
+            {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
+            {"index":{"_id": "Pandora's Star"}}
+            {"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
+            {"index":{"_id": "Revelation Space"}}
+            {"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+            {"index":{"_id": "A Fire Upon the Deep"}}
+            {"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
+            {"index":{"_id": "Ender's Game"}}
+            {"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
+            {"index":{"_id": "1984"}}
+            {"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+            {"index":{"_id": "Fahrenheit 451"}}
+            {"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+            {"index":{"_id": "Brave New World"}}
+            {"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+            {"index":{"_id": "Foundation"}}
+            {"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
+            {"index":{"_id": "The Giver"}}
+            {"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
+            {"index":{"_id": "Slaughterhouse-Five"}}
+            {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
+            {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
+            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
+            {"index":{"_id": "Snow Crash"}}
+            {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+            {"index":{"_id": "Neuromancer"}}
+            {"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
+            {"index":{"_id": "The Handmaid's Tale"}}
+            {"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+            {"index":{"_id": "Starship Troopers"}}
+            {"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
+            {"index":{"_id": "The Left Hand of Darkness"}}
+            {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
+            {"index":{"_id": "The Moon is a Harsh Mistress"}}
+            {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+
+'''
+buildRestTests.setups['sensor_rollup_job'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _doc:
+              properties:
+                timestamp:
+                  type: date
+                temperature:
+                  type: long
+                voltage:
+                  type: float
+                node:
+                  type: keyword
+  - do:
+      raw:
+        method: PUT
+        path: _rollup/job/sensor
+        body:  >
+            {
+                "index_pattern": "sensor-*",
+                "rollup_index": "sensor_rollup",
+                "cron": "*/30 * * * * ?",
+                "page_size" :1000,
+                "groups" : {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "interval": "1h",
+                    "delay": "7d"
+                  },
+                  "terms": {
+                    "fields": ["node"]
+                  }
+                },
+                "metrics": [
+                    {
+                        "field": "temperature",
+                        "metrics": ["min", "max", "sum"]
+                    },
+                    {
+                        "field": "voltage",
+                        "metrics": ["avg"]
+                    }
+                ]
+            }
+'''
+buildRestTests.setups['sensor_started_rollup_job'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _doc:
+              properties:
+                timestamp:
+                  type: date
+                temperature:
+                  type: long
+                voltage:
+                  type: float
+                node:
+                  type: keyword
+
+  - do:
+      bulk:
+        index: sensor-1
+        type: _doc
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+  - do:
+      raw:
+        method: PUT
+        path: _rollup/job/sensor
+        body:  >
+            {
+                "index_pattern": "sensor-*",
+                "rollup_index": "sensor_rollup",
+                "cron": "* * * * * ?",
+                "page_size" :1000,
+                "groups" : {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "interval": "1h",
+                    "delay": "7d"
+                  },
+                  "terms": {
+                    "fields": ["node"]
+                  }
+                },
+                "metrics": [
+                    {
+                        "field": "temperature",
+                        "metrics": ["min", "max", "sum"]
+                    },
+                    {
+                        "field": "voltage",
+                        "metrics": ["avg"]
+                    }
+                ]
+            }
+  - do:
+      raw:
+        method: POST
+        path: _rollup/job/sensor/_start
+'''
+
+buildRestTests.setups['sensor_index'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _doc:
+              properties:
+                timestamp:
+                  type: date
+                temperature:
+                  type: long
+                voltage:
+                  type: float
+                node:
+                  type: keyword
+                load:
+                  type: double
+                net_in:
+                  type: long
+                net_out:
+                  type: long
+                hostname:
+                  type: keyword
+                datacenter:
+                  type: keyword
+'''
+
+buildRestTests.setups['sensor_prefab_data'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _doc:
+              properties:
+                timestamp:
+                  type: date
+                temperature:
+                  type: long
+                voltage:
+                  type: float
+                node:
+                  type: keyword
+  - do:
+      indices.create:
+        index: sensor_rollup
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _doc:
+              properties:
+                node.terms.value:
+                  type: keyword
+                temperature.sum.value:
+                  type: double
+                temperature.max.value:
+                  type: double
+                temperature.min.value:
+                  type: double
+                timestamp.date_histogram.time_zone:
+                  type: keyword
+                timestamp.date_histogram.interval:
+                  type: keyword
+                timestamp.date_histogram.timestamp:
+                  type: date
+                timestamp.date_histogram._count:
+                  type: long
+                voltage.avg.value:
+                  type: double
+                voltage.avg._count:
+                  type: long
+                _rollup.id:
+                  type: keyword
+                _rollup.version:
+                  type: long
+              _meta:
+                _rollup:
+                  sensor:
+                    cron: "* * * * * ?"
+                    rollup_index: "sensor_rollup"
+                    index_pattern: "sensor-*"
+                    timeout: "20s"
+                    page_size: 1000
+                    groups:
+                      date_histogram:
+                        delay: "7d"
+                        field: "timestamp"
+                        interval: "60m"
+                        time_zone: "UTC"
+                      terms:
+                        fields:
+                          - "node"
+                    id: sensor
+                    metrics:
+                      - field: "temperature"
+                        metrics:
+                          - min
+                          - max
+                          - sum
+                      - field: "voltage"
+                        metrics:
+                          - avg
+
+  - do:
+      bulk:
+        index: sensor_rollup
+        type: _doc
+        refresh: true
+        body: |
+          {"index":{}}
+          {"node.terms.value":"b","temperature.sum.value":201.0,"temperature.max.value":201.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":201.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.800000190734863,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516640400000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"c","temperature.sum.value":200.0,"temperature.max.value":200.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":200.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.199999809265137,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516381200000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"a","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.099999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516554000000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"a","temperature.sum.value":200.0,"temperature.max.value":200.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":200.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.199999809265137,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516726800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"b","temperature.sum.value":198.0,"temperature.max.value":198.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":198.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.599999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516467600000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"c","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.0,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516294800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+
+'''
+buildRestTests.setups['sample_job'] = '''
+  - do:
+      xpack.ml.put_job:
+        job_id: "sample_job"
+        body:  >
+          {
+            "description" : "Very basic job",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "function": "count"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+'''
+buildRestTests.setups['farequote_index'] = '''
+  - do:
+        indices.create:
+          index: farequote
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              metric:
+                properties:
+                  time:
+                    type: date
+                  responsetime:
+                    type: float
+                  airline:
+                     type: keyword
+                  doc_count:
+                     type: integer       
+'''
+buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index'] + '''
+  - do:
+        bulk:
+          index: farequote
+          type: metric
+          refresh: true
+          body: |
+            {"index": {"_id":"1"}}
+            {"airline":"JZA","responsetime":990.4628,"time":"2016-02-07T00:00:00+0000", "doc_count": 5}
+            {"index": {"_id":"2"}}
+            {"airline":"JBU","responsetime":877.5927,"time":"2016-02-07T00:00:00+0000", "doc_count": 23}
+            {"index": {"_id":"3"}}            
+            {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000", "doc_count": 42}
+'''
+buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data'] + '''
+  - do:
+      xpack.ml.put_job:
+        job_id: "farequote"
+        body:  >
+          {
+            "analysis_config": {
+              "bucket_span": "60m",
+              "detectors": [{
+                "function": "mean",
+                "field_name": "responsetime",
+                "by_field_name": "airline"
+              }],
+            "summary_count_field_name": "doc_count"
+            },
+            "data_description": {
+              "time_field": "time"
+            }
+          }
+'''
+buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_job'] + '''
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: "datafeed-farequote"
+        body:  >
+          {
+          "job_id":"farequote",
+          "indexes":"farequote"
+          }
+'''          
+buildRestTests.setups['server_metrics_index'] = '''
+  - do:
+        indices.create:
+          index: server-metrics
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              metric:
+                properties:
+                  timestamp:
+                    type: date
+                  total:
+                    type: long
+'''
+buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_metrics_index'] + '''
+  - do:
+        bulk:
+          index: server-metrics
+          type: metric
+          refresh: true
+          body: |
+            {"index": {"_id":"1177"}}
+            {"timestamp":"2017-03-23T13:00:00","total":40476}
+            {"index": {"_id":"1178"}}
+            {"timestamp":"2017-03-23T13:00:00","total":15287}
+            {"index": {"_id":"1179"}}
+            {"timestamp":"2017-03-23T13:00:00","total":-776}
+            {"index": {"_id":"1180"}}
+            {"timestamp":"2017-03-23T13:00:00","total":11366}
+            {"index": {"_id":"1181"}}
+            {"timestamp":"2017-03-23T13:00:00","total":3606}
+            {"index": {"_id":"1182"}}
+            {"timestamp":"2017-03-23T13:00:00","total":19006}
+            {"index": {"_id":"1183"}}
+            {"timestamp":"2017-03-23T13:00:00","total":38613}
+            {"index": {"_id":"1184"}}
+            {"timestamp":"2017-03-23T13:00:00","total":19516}
+            {"index": {"_id":"1185"}}
+            {"timestamp":"2017-03-23T13:00:00","total":-258}
+            {"index": {"_id":"1186"}}
+            {"timestamp":"2017-03-23T13:00:00","total":9551}
+            {"index": {"_id":"1187"}}
+            {"timestamp":"2017-03-23T13:00:00","total":11217}
+            {"index": {"_id":"1188"}}
+            {"timestamp":"2017-03-23T13:00:00","total":22557}
+            {"index": {"_id":"1189"}}
+            {"timestamp":"2017-03-23T13:00:00","total":40508}
+            {"index": {"_id":"1190"}}
+            {"timestamp":"2017-03-23T13:00:00","total":11887}
+            {"index": {"_id":"1191"}}
+            {"timestamp":"2017-03-23T13:00:00","total":31659}
+'''
+buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metrics_data'] + '''
+  - do:
+      xpack.ml.put_job:
+        job_id: "total-requests"
+        body:  >
+          {
+            "description" : "Total sum of requests",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "detector_description": "Sum of total",
+                "function": "sum",
+                "field_name": "total"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+'''
+buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server_metrics_job'] + '''
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: "datafeed-total-requests"
+        body:  >
+          {
+          "job_id":"total-requests",
+          "indexes":"server-metrics"
+          }
+'''
+buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_metrics_datafeed'] + '''
+  - do:
+      xpack.ml.open_job:
+        job_id: "total-requests"
+'''
+buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
+  - do:
+      xpack.ml.start_datafeed:
+        datafeed_id: "datafeed-total-requests"
+'''
+buildRestTests.setups['calendar_outages'] = '''
+  - do:
+        xpack.ml.put_calendar:
+          calendar_id: "planned-outages"
+'''
+buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages'] + '''
+  - do:
+        xpack.ml.post_calendar_events:
+          calendar_id: "planned-outages"
+          body: >
+            { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z", "calendar_id": "planned-outages" }
+
+
+'''
+buildRestTests.setups['calendar_outages_openjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
+  - do:
+       xpack.ml.put_calendar:
+         calendar_id: "planned-outages"
+'''
+buildRestTests.setups['calendar_outages_addjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
+  - do:
+       xpack.ml.put_calendar:
+         calendar_id: "planned-outages"
+         body:  >
+           {
+           "job_ids": ["total-requests"]
+           }
+'''
+buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages_addjob'] + '''
+  - do:
+       xpack.ml.post_calendar_events:
+         calendar_id: "planned-outages"
+         body:  >
+           { "events" : [
+           { "description": "event 1", "start_time": "1513641600000", "end_time": "1513728000000"},
+           { "description": "event 2", "start_time": "1513814400000", "end_time": "1513900800000"},
+           { "description": "event 3", "start_time": "1514160000000", "end_time": "1514246400000"}
+           ]}
+'''
+
+// used by median absolute deviation aggregation
+buildRestTests.setups['reviews'] = '''
+  - do:
+        indices.create:
+          index: reviews
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              _doc:
+                properties:
+                  product:
+                    type: keyword
+                  rating:
+                    type: long
+  - do:
+        bulk:
+          index: reviews
+          type: _doc
+          refresh: true
+          body: |
+            {"index": {"_id": "1"}}
+            {"product": "widget-foo", "rating": 1}
+            {"index": {"_id": "2"}}
+            {"product": "widget-foo", "rating": 5}
+'''
+
+buildRestTests.setups['remote_cluster'] = buildRestTests.setups['host'] + '''
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.remote.remote_cluster.seeds: $transport_host
+'''
+
+buildRestTests.setups['remote_cluster_and_leader_index'] = buildRestTests.setups['remote_cluster'] + '''
+  - do:
+      indices.create:
+        index: leader_index
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
+            index.soft_deletes.enabled: true
+'''
+
+buildRestTests.setups['seats'] = '''
+  - do:
+        indices.create:
+          index: seats
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              _doc:
+                properties:
+                  theatre:
+                    type: keyword
+                  cost:
+                    type: long
+  - do:
+        bulk:
+          index: seats
+          type: _doc
+          refresh: true
+          body: |
+            {"index":{}}
+            {"theatre": "Skyline", "cost": 1}
+            {"index":{}}
+            {"theatre": "Graye", "cost": 5}
+            {"index":{}}
+            {"theatre": "Graye", "cost": 8}
+            {"index":{}}
+            {"theatre": "Skyline", "cost": 10}'''

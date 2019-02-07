@@ -19,19 +19,19 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -40,9 +40,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -123,12 +121,13 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             XContentBuilder shuffled = shuffleXContent(builder);
 
 
-            XContentParser parser = createParser(shuffled);
-            parser.nextToken();
-            RescorerBuilder<?> secondRescoreBuilder = RescorerBuilder.parseFromXContent(parser);
-            assertNotSame(rescoreBuilder, secondRescoreBuilder);
-            assertEquals(rescoreBuilder, secondRescoreBuilder);
-            assertEquals(rescoreBuilder.hashCode(), secondRescoreBuilder.hashCode());
+            try (XContentParser parser = createParser(shuffled)) {
+                parser.nextToken();
+                RescorerBuilder<?> secondRescoreBuilder = RescorerBuilder.parseFromXContent(parser);
+                assertNotSame(rescoreBuilder, secondRescoreBuilder);
+                assertEquals(rescoreBuilder, secondRescoreBuilder);
+                assertEquals(rescoreBuilder.hashCode(), secondRescoreBuilder.hashCode());
+            }
         }
     }
 
@@ -172,6 +171,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
 
     class AlwaysRewriteQueryBuilder extends MatchAllQueryBuilder {
 
+        @Override
         protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
             return new MatchAllQueryBuilder();
         }
@@ -200,13 +200,13 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         rescoreBuilder.setQueryWeight(randomFloat());
         rescoreBuilder.setRescoreQueryWeight(randomFloat());
         rescoreBuilder.setScoreMode(QueryRescoreMode.Max);
+        rescoreBuilder.windowSize(randomIntBetween(0, 100));
 
-        QueryRescoreContext rescoreContext = (QueryRescoreContext) rescoreBuilder.buildContext(mockShardContext);
         QueryRescorerBuilder rescoreRewritten = rescoreBuilder.rewrite(mockShardContext);
         assertEquals(rescoreRewritten.getQueryWeight(), rescoreBuilder.getQueryWeight(), 0.01f);
         assertEquals(rescoreRewritten.getRescoreQueryWeight(), rescoreBuilder.getRescoreQueryWeight(), 0.01f);
         assertEquals(rescoreRewritten.getScoreMode(), rescoreBuilder.getScoreMode());
-
+        assertEquals(rescoreRewritten.windowSize(), rescoreBuilder.windowSize());
     }
 
     /**
@@ -215,67 +215,61 @@ public class QueryRescorerBuilderTests extends ESTestCase {
     public void testUnknownFieldsExpection() throws IOException {
 
         String rescoreElement = "{\n" +
-                "    \"window_size\" : 20,\n" +
-                "    \"bad_rescorer_name\" : { }\n" +
-                "}\n";
-        {
-            XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertEquals("Unknown RescorerBuilder [bad_rescorer_name]", e.getMessage());
+            "    \"window_size\" : 20,\n" +
+            "    \"bad_rescorer_name\" : { }\n" +
+            "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
+            Exception e = expectThrows(NamedObjectNotFoundException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("[3:27] unable to parse RescorerBuilder with name [bad_rescorer_name]: parser not found", e.getMessage());
         }
-
         rescoreElement = "{\n" +
-                "    \"bad_fieldName\" : 20\n" +
-                "}\n";
-        {
-            XContentParser parser = createParser(rescoreElement);
+            "    \"bad_fieldName\" : 20\n" +
+            "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
             Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertEquals("rescore doesn't support [bad_fieldName]", e.getMessage());
         }
 
         rescoreElement = "{\n" +
-                "    \"window_size\" : 20,\n" +
-                "    \"query\" : [ ]\n" +
-                "}\n";
-        {
-            XContentParser parser = createParser(rescoreElement);
+            "    \"window_size\" : 20,\n" +
+            "    \"query\" : [ ]\n" +
+            "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
             Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertEquals("unexpected token [START_ARRAY] after [query]", e.getMessage());
         }
 
         rescoreElement = "{ }";
-        {
-            XContentParser parser = createParser(rescoreElement);
+        try (XContentParser parser = createParser(rescoreElement)) {
             Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
             assertEquals("missing rescore type", e.getMessage());
         }
 
         rescoreElement = "{\n" +
-                "    \"window_size\" : 20,\n" +
-                "    \"query\" : { \"bad_fieldname\" : 1.0  } \n" +
-                "}\n";
-        {
-            XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(IllegalArgumentException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertEquals("[query] unknown field [bad_fieldname], parser not found", e.getMessage());
+            "    \"window_size\" : 20,\n" +
+            "    \"query\" : { \"bad_fieldname\" : 1.0  } \n" +
+            "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
+            XContentParseException e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("[3:17] [query] unknown field [bad_fieldname], parser not found", e.getMessage());
         }
 
         rescoreElement = "{\n" +
-                "    \"window_size\" : 20,\n" +
-                "    \"query\" : { \"rescore_query\" : { \"unknown_queryname\" : { } } } \n" +
-                "}\n";
-        {
-            XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertEquals("[query] failed to parse field [rescore_query]", e.getMessage());
+            "    \"window_size\" : 20,\n" +
+            "    \"query\" : { \"rescore_query\" : { \"unknown_queryname\" : { } } } \n" +
+            "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
+            Exception e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertThat(e.getMessage(), containsString("[query] failed to parse field [rescore_query]"));
         }
 
         rescoreElement = "{\n" +
-                "    \"window_size\" : 20,\n" +
-                "    \"query\" : { \"rescore_query\" : { \"match_all\" : { } } } \n"
-                + "}\n";
-        XContentParser parser = createParser(rescoreElement);
-        RescorerBuilder.parseFromXContent(parser);
+            "    \"window_size\" : 20,\n" +
+            "    \"query\" : { \"rescore_query\" : { \"match_all\" : { } } } \n"
+            + "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
+            RescorerBuilder.parseFromXContent(parser);
+        }
     }
 
     /**

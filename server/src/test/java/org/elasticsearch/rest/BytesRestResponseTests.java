@@ -29,7 +29,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -154,10 +153,14 @@ public class BytesRestResponseTests extends ESTestCase {
                 new SearchShardTarget("node_1", new Index("foo", "_na_"), 1, null));
         ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
                 new SearchShardTarget("node_1", new Index("foo", "_na_"), 2, null));
-        SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",  new ShardSearchFailure[] {failure, failure1});
+        SearchPhaseExecutionException ex = new SearchPhaseExecutionException("search", "all shards failed",
+            new ShardSearchFailure[] {failure, failure1});
         BytesRestResponse response = new BytesRestResponse(channel, new RemoteTransportException("foo", ex));
         String text = response.content().utf8ToString();
-        String expected = "{\"error\":{\"root_cause\":[{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}],\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}]},\"status\":400}";
+        String expected = "{\"error\":{\"root_cause\":[{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}]," +
+            "\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\",\"grouped\":true," +
+            "\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":{\"type\":\"parsing_exception\"," +
+            "\"reason\":\"foobar\",\"line\":1,\"col\":2}}]},\"status\":400}";
         assertEquals(expected.trim(), text.trim());
         String stackTrace = ExceptionsHelper.stackTrace(ex);
         assertTrue(stackTrace.contains("Caused by: ParsingException[foobar]"));
@@ -165,27 +168,7 @@ public class BytesRestResponseTests extends ESTestCase {
 
     public void testResponseWhenPathContainsEncodingError() throws IOException {
         final String path = "%a";
-        final RestRequest request = new RestRequest(NamedXContentRegistry.EMPTY, Collections.emptyMap(), path, Collections.emptyMap()) {
-            @Override
-            public Method method() {
-                return null;
-            }
-
-            @Override
-            public String uri() {
-                return null;
-            }
-
-            @Override
-            public boolean hasContent() {
-                return false;
-            }
-
-            @Override
-            public BytesReference content() {
-                return null;
-            }
-        };
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RestUtils.decodeComponent(request.rawPath()));
         final RestChannel channel = new DetailedExceptionRestChannel(request);
         // if we try to decode the path, this will throw an IllegalArgumentException again
@@ -338,7 +321,7 @@ public class BytesRestResponseTests extends ESTestCase {
                 builder.field("status", randomFrom(RestStatus.values()).getStatus());
                 builder.endObject();
 
-                try (XContentParser parser = createParser(builder.contentType().xContent(), builder.bytes())) {
+                try (XContentParser parser = createParser(builder.contentType().xContent(), BytesReference.bytes(builder))) {
                     BytesRestResponse.errorFromXContent(parser);
                 }
             }

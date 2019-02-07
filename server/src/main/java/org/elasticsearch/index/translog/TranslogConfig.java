@@ -89,7 +89,7 @@ public final class TranslogConfig {
     }
 
     /**
-     * The translog buffer size. Default is <tt>8kb</tt>
+     * The translog buffer size. Default is {@code 8kb}
      */
     public ByteSizeValue getBufferSize() {
         return bufferSize;

@@ -55,12 +55,10 @@ instance, if the `user` field were mapped as follows:
 PUT /example
 {
   "mappings": {
-    "doc": {
-      "properties": {
-        "user": {
-          "type": "keyword",
-          "null_value": "_null_"
-        }
+    "properties": {
+      "user": {
+        "type": "keyword",
+        "null_value": "_null_"
       }
     }
   }

@@ -49,7 +49,8 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         }
 
         internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setLocal(true).execute().actionGet().isTimedOut(), equalTo(false));
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2")
+            .setLocal(true).execute().actionGet().isTimedOut(), equalTo(false));
 
         // still no shard should be allocated
         try {
@@ -62,7 +63,8 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
         // now, start a node data, and see that it gets with shards
         internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true).build());
-        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").setLocal(true).execute().actionGet().isTimedOut(), equalTo(false));
+        assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3")
+            .setLocal(true).execute().actionGet().isTimedOut(), equalTo(false));
 
         IndexResponse indexResponse = client().index(Requests.indexRequest("test").type("type1").id("1")
             .source(source("1", "test"), XContentType.JSON)).actionGet();

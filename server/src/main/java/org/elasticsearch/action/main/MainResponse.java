@@ -41,18 +41,16 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     private ClusterName clusterName;
     private String clusterUuid;
     private Build build;
-    boolean available;
 
     MainResponse() {
     }
 
-    public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build, boolean available) {
+    public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
         this.nodeName = nodeName;
         this.version = version;
         this.clusterName = clusterName;
         this.clusterUuid = clusterUuid;
         this.build = build;
-        this.available = available;
     }
 
     public String getNodeName() {
@@ -62,6 +60,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     public Version getVersion() {
         return version;
     }
+
 
     public ClusterName getClusterName() {
         return clusterName;
@@ -75,10 +74,6 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         return build;
     }
 
-    public boolean isAvailable() {
-        return available;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -87,7 +82,9 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
         Build.writeBuild(build, out);
-        out.writeBoolean(available);
+        if (out.getVersion().before(Version.V_7_0_0)) {
+            out.writeBoolean(true);
+        }
     }
 
     @Override
@@ -98,7 +95,9 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         clusterName = new ClusterName(in);
         clusterUuid = in.readString();
         build = Build.readBuild(in);
-        available = in.readBoolean();
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            in.readBoolean();
+        }
     }
 
     @Override
@@ -108,7 +107,9 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("cluster_name", clusterName.value());
         builder.field("cluster_uuid", clusterUuid);
         builder.startObject("version")
-            .field("number", version.toString())
+            .field("number", build.getQualifiedVersion())
+            .field("build_flavor", build.flavor().displayName())
+            .field("build_type", build.type().displayName())
             .field("build_hash", build.shortHash())
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
@@ -130,10 +131,22 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
         PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {
-            response.build = new Build((String) value.get("build_hash"), (String) value.get("build_date"),
-                    (boolean) value.get("build_snapshot"));
-            response.version = Version.fromString((String) value.get("number"));
-            response.available = true;
+            final String buildFlavor = (String) value.get("build_flavor");
+            final String buildType = (String) value.get("build_type");
+            response.build =
+                    new Build(
+                            buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor),
+                            buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType),
+                            (String) value.get("build_hash"),
+                            (String) value.get("build_date"),
+                            (boolean) value.get("build_snapshot"),
+                            (String) value.get("number")
+                    );
+            response.version = Version.fromString(
+                ((String) value.get("number"))
+                    .replace("-SNAPSHOT", "")
+                    .replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", "")
+            );
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }
 
@@ -154,12 +167,22 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
                 Objects.equals(version, other.version) &&
                 Objects.equals(clusterUuid, other.clusterUuid) &&
                 Objects.equals(build, other.build) &&
-                Objects.equals(available, other.available) &&
                 Objects.equals(clusterName, other.clusterName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeName, version, clusterUuid, build, clusterName, available);
+        return Objects.hash(nodeName, version, clusterUuid, build, clusterName);
+    }
+
+    @Override
+    public String toString() {
+        return "MainResponse{" +
+            "nodeName='" + nodeName + '\'' +
+            ", version=" + version +
+            ", clusterName=" + clusterName +
+            ", clusterUuid='" + clusterUuid + '\'' +
+            ", build=" + build +
+            '}';
     }
 }

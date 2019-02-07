@@ -20,14 +20,15 @@
 package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
+
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.secure_sm.SecureSM;
@@ -78,7 +79,8 @@ public class BootstrapForTesting {
         }
 
         // just like bootstrap, initialize natives, then SM
-        Bootstrap.initializeNatives(javaTmpDir, true, true, true);
+        final boolean systemCallFilter = Booleans.parseBoolean(System.getProperty("tests.system_call_filter", "true"));
+        Bootstrap.initializeNatives(javaTmpDir, true, systemCallFilter, true);
 
         // initialize probes
         Bootstrap.initializeProbes();
@@ -88,7 +90,7 @@ public class BootstrapForTesting {
 
         // check for jar hell
         try {
-            final Logger logger = ESLoggerFactory.getLogger(JarHell.class);
+            final Logger logger = LogManager.getLogger(JarHell.class);
             JarHell.checkJarHell(logger::debug);
         } catch (Exception e) {
             throw new RuntimeException("found jar hell in test classpath", e);
@@ -139,6 +141,7 @@ public class BootstrapForTesting {
                     addClassCodebase(codebases,"plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
                     addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
                     addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
+                    addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
                 final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true);
@@ -173,9 +176,12 @@ public class BootstrapForTesting {
     /** Add the codebase url of the given classname to the codebases map, if the class exists. */
     private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {
         try {
-            Class clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
-            if (codebases.put(name, clazz.getProtectionDomain().getCodeSource().getLocation()) != null) {
-                throw new IllegalStateException("Already added " + name + " codebase for testing");
+            Class<?> clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
+            URL location = clazz.getProtectionDomain().getCodeSource().getLocation();
+            if (location.toString().endsWith(".jar") == false) {
+                if (codebases.put(name, location) != null) {
+                    throw new IllegalStateException("Already added " + name + " codebase for testing");
+                }
             }
         } catch (ClassNotFoundException e) {
             // no class, fall through to not add. this can happen for any tests that do not include

@@ -22,6 +22,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -47,5 +48,10 @@ public class FailedNodeException extends ElasticsearchException {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(nodeId);
+    }
+
+    @Override
+    protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("node_id", nodeId);
     }
 }

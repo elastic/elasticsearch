@@ -91,6 +91,20 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     }
 
     /**
+     * The sequence number assigned to the last operation that has changed this document, if found.
+     */
+    public long getSeqNo() {
+        return getResult.getSeqNo();
+    }
+
+    /**
+     * The primary term of the last primary that has changed this document, if found.
+     */
+    public long getPrimaryTerm() {
+        return getResult.getPrimaryTerm();
+    }
+
+    /**
      * The source of the document if exists.
      */
     public byte[] getSourceAsBytes() {
@@ -129,7 +143,6 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     /**
      * The source of the document (As a map).
      */
-    @SuppressWarnings({"unchecked"})
     public Map<String, Object> getSourceAsMap() throws ElasticsearchParseException {
         return getResult.sourceAsMap();
     }
@@ -150,7 +163,6 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
      * @deprecated Use {@link GetResponse#getSource()} instead
      */
     @Deprecated
-    @Override
     public Iterator<DocumentField> iterator() {
         return getResult.iterator();
     }

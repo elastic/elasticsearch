@@ -22,8 +22,14 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.AliasesRequest;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterState.FeatureAware;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -31,6 +37,7 @@ import org.elasticsearch.cluster.NamedDiffable;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -38,12 +45,11 @@ import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -79,7 +85,7 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, ToXContentFragment {
 
-    private static final Logger logger = Loggers.getLogger(MetaData.class);
+    private static final Logger logger = LogManager.getLogger(MetaData.class);
 
     public static final String ALL = "_all";
 
@@ -117,22 +123,28 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
      */
     public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
-    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
+    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment, ClusterState.FeatureAware {
 
         EnumSet<XContentContext> context();
     }
 
+    public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE =
+        Setting.intSetting("cluster.max_shards_per_node", 1000, 1, Property.Dynamic, Property.NodeScope);
+
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING =
         Setting.boolSetting("cluster.blocks.read_only", false, Property.Dynamic, Property.NodeScope);
 
-    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false,
-        false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)",
+        false, false, false, RestStatus.FORBIDDEN,
+        EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     public static final Setting<Boolean> SETTING_READ_ONLY_ALLOW_DELETE_SETTING =
         Setting.boolSetting("cluster.blocks.read_only_allow_delete", false, Property.Dynamic, Property.NodeScope);
 
-    public static final ClusterBlock CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(13, "cluster read-only / allow delete (api)",
-        false, false, true, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+    public static final ClusterBlock CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK =
+        new ClusterBlock(13, "cluster read-only / allow delete (api)",
+        false, false, true, RestStatus.FORBIDDEN,
+            EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     public static final MetaData EMPTY_META_DATA = builder().build();
 
@@ -149,6 +161,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     private final String clusterUUID;
     private final long version;
 
+    private final CoordinationMetaData coordinationMetaData;
+
     private final Settings transientSettings;
     private final Settings persistentSettings;
     private final Settings settings;
@@ -157,7 +171,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     private final ImmutableOpenMap<String, Custom> customs;
 
     private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
-    private final int numberOfShards;
+    private final int totalOpenIndexShards;
 
     private final String[] allIndices;
     private final String[] allOpenIndices;
@@ -165,13 +179,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
     private final SortedMap<String, AliasOrIndex> aliasAndIndexLookup;
 
-    @SuppressWarnings("unchecked")
-    MetaData(String clusterUUID, long version, Settings transientSettings, Settings persistentSettings,
+    MetaData(String clusterUUID, long version, CoordinationMetaData coordinationMetaData,
+             Settings transientSettings, Settings persistentSettings,
              ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates,
              ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] allOpenIndices, String[] allClosedIndices,
              SortedMap<String, AliasOrIndex> aliasAndIndexLookup) {
         this.clusterUUID = clusterUUID;
         this.version = version;
+        this.coordinationMetaData = coordinationMetaData;
         this.transientSettings = transientSettings;
         this.persistentSettings = persistentSettings;
         this.settings = Settings.builder().put(persistentSettings).put(transientSettings).build();
@@ -179,13 +194,15 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         this.customs = customs;
         this.templates = templates;
         int totalNumberOfShards = 0;
-        int numberOfShards = 0;
+        int totalOpenIndexShards = 0;
         for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
             totalNumberOfShards += cursor.value.getTotalNumberOfShards();
-            numberOfShards += cursor.value.getNumberOfShards();
+            if (IndexMetaData.State.OPEN.equals(cursor.value.getState())) {
+                totalOpenIndexShards += cursor.value.getTotalNumberOfShards();
+            }
         }
         this.totalNumberOfShards = totalNumberOfShards;
-        this.numberOfShards = numberOfShards;
+        this.totalOpenIndexShards = totalOpenIndexShards;
 
         this.allIndices = allIndices;
         this.allOpenIndices = allOpenIndices;
@@ -214,6 +231,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
     public Settings persistentSettings() {
         return this.persistentSettings;
+    }
+
+    public CoordinationMetaData coordinationMetaData() {
+        return this.coordinationMetaData;
     }
 
     public boolean hasAlias(String alias) {
@@ -245,50 +266,87 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     /**
-     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
-     * that point to the specified concrete indices or match partially with the indices via wildcards.
+     * Finds the specific index aliases that point to the requested concrete indices directly
+     * or that match with the indices via wildcards.
      *
-     * @param aliases         The names of the index aliases to find
-     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
-     * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
-     * present for that index
+     * @param concreteIndices The concrete indices that the aliases must point to in order to be returned.
+     * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
+     * aliases then the result will <b>not</b> include the index's key.
      */
-    public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
+    public ImmutableOpenMap<String, List<AliasMetaData>> findAllAliases(final String[] concreteIndices) {
+        return findAliases(Strings.EMPTY_ARRAY, concreteIndices);
+    }
+
+    /**
+     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards, and
+     * that point to the specified concrete indices (directly or matching indices via wildcards).
+     *
+     * @param aliasesRequest The request to find aliases for
+     * @param concreteIndices The concrete indices that the aliases must point to in order to be returned.
+     * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
+     * aliases then the result will <b>not</b> include the index's key.
+     */
+    public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final AliasesRequest aliasesRequest, final String[] concreteIndices) {
+        return findAliases(aliasesRequest.aliases(), concreteIndices);
+    }
+
+    /**
+     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards, and
+     * that point to the specified concrete indices (directly or matching indices via wildcards).
+     *
+     * @param aliases The aliases to look for. Might contain include or exclude wildcards.
+     * @param concreteIndices The concrete indices that the aliases must point to in order to be returned
+     * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
+     * aliases then the result will <b>not</b> include the index's key.
+     */
+    private ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final String[] aliases, final String[] concreteIndices) {
         assert aliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableOpenMap.of();
         }
-
-        boolean matchAllAliases = matchAllAliases(aliases);
+        String[] patterns = new String[aliases.length];
+        boolean[] include = new boolean[aliases.length];
+        for (int i = 0; i < aliases.length; i++) {
+            String alias = aliases[i];
+            if (alias.charAt(0) == '-') {
+                patterns[i] = alias.substring(1);
+                include[i] = false;
+            } else {
+                patterns[i] = alias;
+                include[i] = true;
+            }
+        }
+        boolean matchAllAliases = patterns.length == 0;
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
-        for (String index : intersection) {
+        for (String index : concreteIndices) {
             IndexMetaData indexMetaData = indices.get(index);
             List<AliasMetaData> filteredValues = new ArrayList<>();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData value = cursor.value;
-                if (matchAllAliases || Regex.simpleMatch(aliases, value.alias())) {
+                boolean matched = matchAllAliases;
+                String alias = value.alias();
+                for (int i = 0; i < patterns.length; i++) {
+                    if (include[i]) {
+                        if (matched == false) {
+                            String pattern = patterns[i];
+                            matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, alias);
+                        }
+                    } else if (matched) {
+                        matched = Regex.simpleMatch(patterns[i], alias) == false;
+                    }
+                }
+                if (matched) {
                     filteredValues.add(value);
                 }
             }
-
-            if (!filteredValues.isEmpty()) {
+            if (filteredValues.isEmpty() == false) {
                 // Make the list order deterministic
                 CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasMetaData::alias));
+                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
-            mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
         }
         return mapBuilder.build();
-    }
-
-    private static boolean matchAllAliases(final String[] aliases) {
-        for (String alias : aliases) {
-            if (alias.equals(ALL)) {
-                return true;
-            }
-        }
-        return aliases.length == 0;
     }
 
     /**
@@ -470,18 +528,54 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     /**
-     * Returns indexing routing for the given index.
+     * Returns indexing routing for the given <code>aliasOrIndex</code>. Resolves routing from the alias metadata used
+     * in the write index.
      */
-    // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions
-    // in the index,bulk,update and delete apis.
-    public String resolveIndexRouting(@Nullable String parent, @Nullable String routing, String aliasOrIndex) {
+    public String resolveWriteIndexRouting(@Nullable String routing, String aliasOrIndex) {
         if (aliasOrIndex == null) {
-            return routingOrParent(parent, routing);
+            return routing;
         }
 
         AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
         if (result == null || result.isAlias() == false) {
-            return routingOrParent(parent, routing);
+            return routing;
+        }
+        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
+        IndexMetaData writeIndex = alias.getWriteIndex();
+        if (writeIndex == null) {
+            throw new IllegalArgumentException("alias [" + aliasOrIndex + "] does not have a write index");
+        }
+        AliasMetaData aliasMd = writeIndex.getAliases().get(alias.getAliasName());
+        if (aliasMd.indexRouting() != null) {
+            if (aliasMd.indexRouting().indexOf(',') != -1) {
+                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value ["
+                    + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
+            }
+            if (routing != null) {
+                if (!routing.equals(aliasMd.indexRouting())) {
+                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it ["
+                        + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
+                }
+            }
+            // Alias routing overrides the parent routing (if any).
+            return aliasMd.indexRouting();
+        }
+        return routing;
+    }
+
+    /**
+     * Returns indexing routing for the given index.
+     */
+    // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions
+    // in the index,bulk,update and delete apis.
+    public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex) {
+        if (aliasOrIndex == null) {
+            return routing;
+        }
+
+        AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
+        if (result == null || result.isAlias() == false) {
+            return routing;
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
         if (result.getIndices().size() > 1) {
@@ -490,17 +584,19 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         AliasMetaData aliasMd = alias.getFirstAliasMetaData();
         if (aliasMd.indexRouting() != null) {
             if (aliasMd.indexRouting().indexOf(',') != -1) {
-                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
+                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" +
+                    aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
             }
             if (routing != null) {
                 if (!routing.equals(aliasMd.indexRouting())) {
-                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
+                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" +
+                        aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }
             }
             // Alias routing overrides the parent routing (if any).
             return aliasMd.indexRouting();
         }
-        return routingOrParent(parent, routing);
+        return routing;
     }
 
     private void rejectSingleIndexOperation(String aliasOrIndex, AliasOrIndex result) {
@@ -509,14 +605,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         for (IndexMetaData indexMetaData : result.getIndices()) {
             indexNames[i++] = indexMetaData.getIndex().getName();
         }
-        throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
-    }
-
-    private String routingOrParent(@Nullable String parent, @Nullable String routing) {
-        if (routing == null) {
-            return parent;
-        }
-        return routing;
+        throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" +
+            Arrays.toString(indexNames) + "], can't execute a single index op");
     }
 
     public boolean hasIndex(String index) {
@@ -597,12 +687,22 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
 
+    /**
+     * Gets the total number of shards from all indices, including replicas and
+     * closed indices.
+     * @return The total number shards from all indices.
+     */
     public int getTotalNumberOfShards() {
         return this.totalNumberOfShards;
     }
 
-    public int getNumberOfShards() {
-        return this.numberOfShards;
+    /**
+     * Gets the total number of open shards from all indices. Includes
+     * replicas, but does not include shards that are part of closed indices.
+     * @return The total number of open shards from all indices.
+     */
+    public int getTotalOpenIndexShards() {
+        return this.totalOpenIndexShards;
     }
 
     /**
@@ -629,13 +729,12 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
     /**
      * @param concreteIndex The concrete index to check if routing is required
-     * @param type          The type to check if routing is required
      * @return Whether routing is required according to the mapping for the specified index and type
      */
-    public boolean routingRequired(String concreteIndex, String type) {
+    public boolean routingRequired(String concreteIndex) {
         IndexMetaData indexMetaData = indices.get(concreteIndex);
         if (indexMetaData != null) {
-            MappingMetaData mappingMetaData = indexMetaData.getMappings().get(type);
+            MappingMetaData mappingMetaData = indexMetaData.mapping();
             if (mappingMetaData != null) {
                 return mappingMetaData.routing().required();
             }
@@ -649,6 +748,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     public static boolean isGlobalStateEquals(MetaData metaData1, MetaData metaData2) {
+        if (!metaData1.coordinationMetaData.equals(metaData2.coordinationMetaData)) {
+            return false;
+        }
         if (!metaData1.persistentSettings.equals(metaData2.persistentSettings)) {
             return false;
         }
@@ -695,9 +797,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     private static class MetaDataDiff implements Diff<MetaData> {
 
         private long version;
-
         private String clusterUUID;
-
+        private CoordinationMetaData coordinationMetaData;
         private Settings transientSettings;
         private Settings persistentSettings;
         private Diff<ImmutableOpenMap<String, IndexMetaData>> indices;
@@ -707,6 +808,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         MetaDataDiff(MetaData before, MetaData after) {
             clusterUUID = after.clusterUUID;
             version = after.version;
+            coordinationMetaData = after.coordinationMetaData;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
             indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
@@ -717,6 +819,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         MetaDataDiff(StreamInput in) throws IOException {
             clusterUUID = in.readString();
             version = in.readLong();
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) { //TODO revisit after Zen2 BWC is implemented
+                coordinationMetaData = new CoordinationMetaData(in);
+            } else {
+                coordinationMetaData = CoordinationMetaData.EMPTY_META_DATA;
+            }
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexMetaData::readFrom,
@@ -730,6 +837,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(clusterUUID);
             out.writeLong(version);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+                coordinationMetaData.writeTo(out);
+            }
             Settings.writeSettingsToStream(transientSettings, out);
             Settings.writeSettingsToStream(persistentSettings, out);
             indices.writeTo(out);
@@ -742,6 +852,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             Builder builder = builder();
             builder.clusterUUID(clusterUUID);
             builder.version(version);
+            builder.coordinationMetaData(coordinationMetaData);
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
             builder.indices(indices.apply(part.indices));
@@ -755,6 +866,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         Builder builder = new Builder();
         builder.version = in.readLong();
         builder.clusterUUID = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            builder.coordinationMetaData(new CoordinationMetaData(in));
+        }
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
         int size = in.readVInt();
@@ -777,6 +891,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
         out.writeString(clusterUUID);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            coordinationMetaData.writeTo(out);
+        }
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
         out.writeVInt(indices.size());
@@ -789,14 +906,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
-        for (ObjectCursor<Custom> cursor : customs.values()) {
-            if (out.getVersion().onOrAfter(cursor.value.getMinimalSupportedVersion())) {
+        for (final ObjectCursor<Custom> cursor : customs.values()) {
+            if (FeatureAware.shouldSerialize(out, cursor.value)) {
                 numberOfCustoms++;
             }
         }
         out.writeVInt(numberOfCustoms);
-        for (ObjectCursor<Custom> cursor : customs.values()) {
-            if (out.getVersion().onOrAfter(cursor.value.getMinimalSupportedVersion())) {
+        for (final ObjectCursor<Custom> cursor : customs.values()) {
+            if (FeatureAware.shouldSerialize(out, cursor.value)) {
                 out.writeNamedWriteable(cursor.value);
             }
         }
@@ -815,6 +932,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         private String clusterUUID;
         private long version;
 
+        private CoordinationMetaData coordinationMetaData = CoordinationMetaData.EMPTY_META_DATA;
         private Settings transientSettings = Settings.Builder.EMPTY_SETTINGS;
         private Settings persistentSettings = Settings.Builder.EMPTY_SETTINGS;
 
@@ -832,6 +950,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         public Builder(MetaData metaData) {
             this.clusterUUID = metaData.clusterUUID;
+            this.coordinationMetaData = metaData.coordinationMetaData;
             this.transientSettings = metaData.transientSettings;
             this.persistentSettings = metaData.persistentSettings;
             this.version = metaData.version;
@@ -936,7 +1055,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         public IndexGraveyard indexGraveyard() {
-            @SuppressWarnings("unchecked") IndexGraveyard graveyard = (IndexGraveyard) getCustom(IndexGraveyard.TYPE);
+            IndexGraveyard graveyard = (IndexGraveyard) getCustom(IndexGraveyard.TYPE);
             return graveyard;
         }
 
@@ -955,10 +1074,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return this;
         }
 
-        public Builder updateNumberOfReplicas(int numberOfReplicas, String... indices) {
-            if (indices == null || indices.length == 0) {
-                indices = this.indices.keys().toArray(String.class);
-            }
+        /**
+         * Update the number of replicas for the specified indices.
+         *
+         * @param numberOfReplicas the number of replicas
+         * @param indices          the indices to update the number of replicas for
+         * @return the builder
+         */
+        public Builder updateNumberOfReplicas(final int numberOfReplicas, final String[] indices) {
             for (String index : indices) {
                 IndexMetaData indexMetaData = this.indices.get(index);
                 if (indexMetaData == null) {
@@ -966,6 +1089,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 }
                 put(IndexMetaData.builder(indexMetaData).numberOfReplicas(numberOfReplicas));
             }
+            return this;
+        }
+
+        public Builder coordinationMetaData(CoordinationMetaData coordinationMetaData) {
+            this.coordinationMetaData = coordinationMetaData;
             return this;
         }
 
@@ -1043,7 +1171,22 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             }
 
-            // build all indices map
+            SortedMap<String, AliasOrIndex> aliasAndIndexLookup = Collections.unmodifiableSortedMap(buildAliasAndIndexLookup());
+
+
+            // build all concrete indices arrays:
+            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
+            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
+            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
+            String[] allIndicesArray = allIndices.toArray(new String[allIndices.size()]);
+            String[] allOpenIndicesArray = allOpenIndices.toArray(new String[allOpenIndices.size()]);
+            String[] allClosedIndicesArray = allClosedIndices.toArray(new String[allClosedIndices.size()]);
+
+            return new MetaData(clusterUUID, version, coordinationMetaData, transientSettings, persistentSettings, indices.build(),
+                    templates.build(), customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
+        }
+
+        private SortedMap<String, AliasOrIndex> buildAliasAndIndexLookup() {
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
                 IndexMetaData indexMetaData = cursor.value;
@@ -1063,17 +1206,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                     });
                 }
             }
-            aliasAndIndexLookup = Collections.unmodifiableSortedMap(aliasAndIndexLookup);
-            // build all concrete indices arrays:
-            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
-            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
-            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            String[] allIndicesArray = allIndices.toArray(new String[allIndices.size()]);
-            String[] allOpenIndicesArray = allOpenIndices.toArray(new String[allOpenIndices.size()]);
-            String[] allClosedIndicesArray = allClosedIndices.toArray(new String[allClosedIndices.size()]);
-
-            return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
-                                customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
+            aliasAndIndexLookup.values().stream().filter(AliasOrIndex::isAlias)
+                .forEach(alias -> ((AliasOrIndex.Alias) alias).computeAndValidateWriteIndex());
+            return aliasAndIndexLookup;
         }
 
         public static String toXContent(MetaData metaData) throws IOException {
@@ -1081,7 +1216,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             builder.startObject();
             toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            return builder.string();
+            return Strings.toString(builder);
         }
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -1091,6 +1226,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             builder.field("version", metaData.version());
             builder.field("cluster_uuid", metaData.clusterUUID);
+
+            builder.startObject("cluster_coordination");
+            metaData.coordinationMetaData().toXContent(builder, params);
+            builder.endObject();
 
             if (!metaData.persistentSettings().isEmpty()) {
                 builder.startObject("settings");
@@ -1106,7 +1245,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             builder.startObject("templates");
             for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
-                IndexTemplateMetaData.Builder.toXContent(cursor.value, builder, params);
+                IndexTemplateMetaData.Builder.toXContentWithTypes(cursor.value, builder, params);
             }
             builder.endObject();
 
@@ -1159,7 +1298,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("settings".equals(currentFieldName)) {
+                    if ("cluster_coordination".equals(currentFieldName)) {
+                        builder.coordinationMetaData(CoordinationMetaData.fromXContent(parser));
+                    } else if ("settings".equals(currentFieldName)) {
                         builder.persistentSettings(Settings.fromXContent(parser));
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -1173,7 +1314,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                         try {
                             Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
                             builder.putCustom(custom.getWriteableName(), custom);
-                        } catch (UnknownNamedObjectException ex) {
+                        } catch (NamedObjectNotFoundException ex) {
                             logger.warn("Skipping unknown custom object with type {}", currentFieldName);
                             parser.skipChildren();
                         }

@@ -22,9 +22,11 @@ package org.elasticsearch.action.admin.cluster.repositories.put;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -43,7 +45,7 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
  * Registers a repository with given name, type and settings. If the repository with the same name already
  * exists in the cluster, the new repository will replace the existing repository.
  */
-public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryRequest> {
+public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryRequest> implements ToXContentObject {
 
     private String name;
 
@@ -161,7 +163,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string(), builder.contentType());
+            settings(Strings.toString(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -230,5 +232,20 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         out.writeString(type);
         writeSettingsToStream(settings, out);
         out.writeBoolean(verify);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("name", name);
+        builder.field("type", type);
+
+        builder.startObject("settings");
+        settings.toXContent(builder, params);
+        builder.endObject();
+
+        builder.field("verify", verify);
+        builder.endObject();
+        return builder;
     }
 }

@@ -38,10 +38,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
@@ -58,10 +58,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -157,7 +157,8 @@ import java.util.Set;
 public final class XMoreLikeThis {
 
 //    static {
-//        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9: "Remove this class once we upgrade to Lucene 5.0";
+//        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9:
+//                   "Remove this class once we upgrade to Lucene 5.0";
 //    }
 
     /**
@@ -608,7 +609,7 @@ public final class XMoreLikeThis {
     public Query like(int docNum) throws IOException {
         if (fieldNames == null) {
             // gather list of valid fields from lucene
-            Collection<String> fields = MultiFields.getIndexedFields(ir);
+            Collection<String> fields = FieldInfos.getIndexedFields(ir);
             fieldNames = fields.toArray(new String[fields.size()]);
         }
 
@@ -759,11 +760,11 @@ public final class XMoreLikeThis {
 
             if (queue.size() < limit) {
                 // there is still space in the queue
-                queue.add(new ScoreTerm(word, topField, score, idf, docFreq, tf));
+                queue.add(new ScoreTerm(word, topField, score));
             } else {
                 ScoreTerm term = queue.top();
                 if (term.score < score) { // update the smallest in the queue in place and update the queue.
-                    term.update(word, topField, score, idf, docFreq, tf);
+                    term.update(word, topField, score);
                     queue.updateTop();
                 }
             }
@@ -815,7 +816,7 @@ public final class XMoreLikeThis {
                 for (IndexableField field : fields) {
                     final String stringValue = field.stringValue();
                     if (stringValue != null) {
-                        addTermFrequencies(new FastStringReader(stringValue), termFreqMap, fieldName);
+                        addTermFrequencies(new StringReader(stringValue), termFreqMap, fieldName);
                     }
                 }
             } else {
@@ -1026,30 +1027,20 @@ public final class XMoreLikeThis {
     }
 
     private static class ScoreTerm {
-        // only really need 1st 3 entries, other ones are for troubleshooting
         String word;
         String topField;
         float score;
-        float idf;
-        int docFreq;
-        int tf;
 
-        ScoreTerm(String word, String topField, float score, float idf, int docFreq, int tf) {
+        ScoreTerm(String word, String topField, float score) {
             this.word = word;
             this.topField = topField;
             this.score = score;
-            this.idf = idf;
-            this.docFreq = docFreq;
-            this.tf = tf;
         }
 
-        void update(String word, String topField, float score, float idf, int docFreq, int tf) {
+        void update(String word, String topField, float score) {
             this.word = word;
             this.topField = topField;
             this.score = score;
-            this.idf = idf;
-            this.docFreq = docFreq;
-            this.tf = tf;
         }
     }
 

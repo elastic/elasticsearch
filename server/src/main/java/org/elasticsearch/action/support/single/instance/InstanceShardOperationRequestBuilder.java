@@ -25,10 +25,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
-public abstract class InstanceShardOperationRequestBuilder<Request extends InstanceShardOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends InstanceShardOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+public abstract class InstanceShardOperationRequestBuilder<Request extends InstanceShardOperationRequest<Request>,
+        Response extends ActionResponse, RequestBuilder extends InstanceShardOperationRequestBuilder<Request, Response, RequestBuilder>>
+        extends ActionRequestBuilder<Request, Response> {
 
-    protected InstanceShardOperationRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
+    protected InstanceShardOperationRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {
         super(client, action, request);
     }
 
@@ -39,7 +40,7 @@ public abstract class InstanceShardOperationRequestBuilder<Request extends Insta
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(TimeValue timeout) {
@@ -48,7 +49,7 @@ public abstract class InstanceShardOperationRequestBuilder<Request extends Insta
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(String timeout) {

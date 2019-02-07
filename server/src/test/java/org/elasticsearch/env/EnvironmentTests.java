@@ -21,6 +21,7 @@ package org.elasticsearch.env;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
@@ -28,6 +29,7 @@ import java.nio.file.Path;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,11 +39,11 @@ import static org.hamcrest.Matchers.hasToString;
  * Simple unit-tests for Environment.java
  */
 public class EnvironmentTests extends ESTestCase {
-    public Environment newEnvironment() throws IOException {
+    public Environment newEnvironment() {
         return newEnvironment(Settings.EMPTY);
     }
 
-    public Environment newEnvironment(Settings settings) throws IOException {
+    public Environment newEnvironment(Settings settings) {
         Settings build = Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
@@ -53,7 +55,8 @@ public class EnvironmentTests extends ESTestCase {
         Environment environment = newEnvironment();
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), nullValue());
-        environment = newEnvironment(Settings.builder().putList(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other").build());
+        environment = newEnvironment(Settings.builder()
+                .putList(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other").build());
         assertThat(environment.resolveRepoFile("/test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("test/repos/repo1"), notNullValue());
         assertThat(environment.resolveRepoFile("/another/repos/repo1"), notNullValue());
@@ -146,4 +149,23 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(e, hasToString(containsString("node does not require local storage yet path.data is set to [" + pathData + "]")));
     }
 
+    public void testNonExistentTempPathValidation() {
+        Settings build = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .build();
+        Environment environment = new Environment(build, null, createTempDir().resolve("this_does_not_exist"));
+        FileNotFoundException e = expectThrows(FileNotFoundException.class, environment::validateTmpFile);
+        assertThat(e.getMessage(), startsWith("Temporary file directory ["));
+        assertThat(e.getMessage(), endsWith("this_does_not_exist] does not exist or is not accessible"));
+    }
+
+    public void testTempPathValidationWhenRegularFile() throws IOException {
+        Settings build = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .build();
+        Environment environment = new Environment(build, null, createTempFile("something", ".test"));
+        IOException e = expectThrows(IOException.class, environment::validateTmpFile);
+        assertThat(e.getMessage(), startsWith("Configured temporary file directory ["));
+        assertThat(e.getMessage(), endsWith(".test] is not a directory"));
+    }
 }

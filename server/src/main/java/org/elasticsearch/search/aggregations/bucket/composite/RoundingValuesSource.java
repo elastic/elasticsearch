@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.common.rounding.Rounding;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -51,13 +51,17 @@ class RoundingValuesSource extends ValuesSource.Numeric {
         return false;
     }
 
+    public long round(long value) {
+        return rounding.round(value);
+    }
+
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
         SortedNumericDocValues values = vs.longValues(context);
         return new SortedNumericDocValues() {
             @Override
             public long nextValue() throws IOException {
-                return rounding.round(values.nextValue());
+                return round(values.nextValue());
             }
 
             @Override

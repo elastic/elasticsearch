@@ -17,12 +17,12 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -33,7 +33,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
@@ -47,7 +46,7 @@ import static org.mockito.Mockito.verify;
 public class GlobalCheckpointSyncActionTests extends ESTestCase {
 
     private ThreadPool threadPool;
-    private Transport transport;
+    private CapturingTransport transport;
     private ClusterService clusterService;
     private TransportService transportService;
     private ShardStateAction shardStateAction;
@@ -57,11 +56,11 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
+        transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,  boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null, threadPool);
+        shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
     }
 
     public void tearDown() throws Exception {
@@ -90,9 +89,6 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         final Translog.Durability durability = randomFrom(Translog.Durability.ASYNC, Translog.Durability.REQUEST);
         when(indexShard.getTranslogDurability()).thenReturn(durability);
 
-        final Translog translog = mock(Translog.class);
-        when(indexShard.getTranslog()).thenReturn(translog);
-
         final long globalCheckpoint = randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Integer.MAX_VALUE);
         final long lastSyncedGlobalCheckpoint;
         if (randomBoolean() && globalCheckpoint != SequenceNumbers.NO_OPS_PERFORMED) {
@@ -104,7 +100,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         }
 
         when(indexShard.getGlobalCheckpoint()).thenReturn(globalCheckpoint);
-        when(translog.getLastSyncedGlobalCheckpoint()).thenReturn(lastSyncedGlobalCheckpoint);
+        when(indexShard.getLastSyncedGlobalCheckpoint()).thenReturn(lastSyncedGlobalCheckpoint);
 
         final GlobalCheckpointSyncAction action = new GlobalCheckpointSyncAction(
             Settings.EMPTY,
@@ -114,7 +110,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
             threadPool,
             shardStateAction,
             new ActionFilters(Collections.emptySet()),
-            new IndexNameExpressionResolver(Settings.EMPTY));
+            new IndexNameExpressionResolver());
         final GlobalCheckpointSyncAction.Request primaryRequest = new GlobalCheckpointSyncAction.Request(indexShard.shardId());
         if (randomBoolean()) {
             action.shardOperationOnPrimary(primaryRequest, indexShard);

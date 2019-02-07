@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
@@ -32,38 +32,39 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
     public void testNullValueObject() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("obj1").field("type", "object").endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("obj1").endObject()
-                .field("value1", "test1")
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("obj1").endObject()
+                        .field("value1", "test1")
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
-        doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .nullField("obj1")
-                .field("value1", "test1")
-                .endObject()
-                .bytes(),
+        doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .nullField("obj1")
+                        .field("value1", "test1")
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
-        doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("obj1").field("field", "value").endObject()
-                .field("value1", "test1")
-                .endObject()
-                .bytes(),
+        doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("obj1").field("field", "value").endObject()
+                        .field("value1", "test1")
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().get("obj1.field"), equalTo("value"));

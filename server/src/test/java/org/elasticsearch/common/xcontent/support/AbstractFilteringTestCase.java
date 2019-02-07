@@ -1085,12 +1085,12 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
                 .endObject();
 
         Builder sampleWithRaw = builder -> {
-            BytesReference raw = XContentBuilder.builder(builder.contentType().xContent())
-                    .startObject()
-                        .field("content", "hello world!")
-                    .endObject()
-                    .bytes();
-            return builder.startObject().field("foo", 0).rawField("raw", raw).endObject();
+            BytesReference raw = BytesReference
+                    .bytes(XContentBuilder.builder(builder.contentType().xContent())
+                            .startObject()
+                                .field("content", "hello world!")
+                            .endObject());
+            return builder.startObject().field("foo", 0).rawField("raw", raw.streamInput()).endObject();
         };
 
         // Test method: rawField(String fieldName, BytesReference content)
@@ -1101,11 +1101,11 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         testFilter(expectedRawFieldNotFiltered, sampleWithRaw, emptySet(), singleton("f*"));
 
         sampleWithRaw = builder -> {
-            BytesReference raw = XContentBuilder.builder(builder.contentType().xContent())
-                    .startObject()
-                    .   field("content", "hello world!")
-                    .endObject()
-                    .bytes();
+            BytesReference raw = BytesReference
+                    .bytes(XContentBuilder.builder(builder.contentType().xContent())
+                            .startObject()
+                            .   field("content", "hello world!")
+                            .endObject());
             return builder.startObject().field("foo", 0).rawField("raw", raw.streamInput()).endObject();
         };
 

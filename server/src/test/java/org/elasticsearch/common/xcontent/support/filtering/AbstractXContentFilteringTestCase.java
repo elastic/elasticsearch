@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.xcontent.support.filtering;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -69,17 +71,19 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     }
 
     static void assertXContentBuilderAsString(final XContentBuilder expected, final XContentBuilder actual) {
-        assertThat(actual.bytes().utf8ToString(), is(expected.bytes().utf8ToString()));
+        assertThat(Strings.toString(actual), is(Strings.toString(expected)));
     }
 
     static void assertXContentBuilderAsBytes(final XContentBuilder expected, final XContentBuilder actual) {
-        try {
-            XContent xContent = XContentFactory.xContent(actual.contentType());
+        XContent xContent = XContentFactory.xContent(actual.contentType());
+        try (
             XContentParser jsonParser =
-                xContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, expected.bytes());
+                xContent.createParser(NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(expected).streamInput());
             XContentParser testParser =
-                xContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, actual.bytes());
-
+                xContent.createParser(NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(actual).streamInput());
+        ) {
             while (true) {
                 XContentParser.Token token1 = jsonParser.nextToken();
                 XContentParser.Token token2 = testParser.nextToken();

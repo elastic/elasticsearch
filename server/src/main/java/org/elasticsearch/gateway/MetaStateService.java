@@ -117,7 +117,8 @@ public class MetaStateService {
 
         if (globalMetaData != null) {
             metaDataBuilder = MetaData.builder(globalMetaData);
-//            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
+            // TODO https://github.com/elastic/elasticsearch/issues/38556
+            // assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
         } else {
             metaDataBuilder = MetaData.builder();
         }
@@ -126,7 +127,8 @@ public class MetaStateService {
             Tuple<IndexMetaData, Long> indexMetaDataAndGeneration =
                     INDEX_META_DATA_FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry,
                             nodeEnv.resolveIndexFolder(indexFolderName));
-//            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
+            // TODO https://github.com/elastic/elasticsearch/issues/38556
+            // assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
             IndexMetaData indexMetaData = indexMetaDataAndGeneration.v1();
             long generation = indexMetaDataAndGeneration.v2();
             if (indexMetaData != null) {

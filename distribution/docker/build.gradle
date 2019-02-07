@@ -68,15 +68,14 @@ void addCopyDockerContextTask(final boolean oss) {
     }
 
     if (local()) {
-    }
-    if (oss) {
-      from configurations.ossDockerSource
-    } else {
-      from configurations.dockerSource
-    }
+      if (oss) {
+        from configurations.ossDockerSource
+      } else {
+        from configurations.dockerSource
+      }
 
-    from configurations.dockerPlugins
-  }
+      from configurations.dockerPlugins
+    }
   }
 }
 

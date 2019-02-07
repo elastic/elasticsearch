@@ -13,7 +13,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -66,7 +65,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assumeTrue("this test should only run against the mixed or upgraded cluster",
                 CLUSTER_TYPE == ClusterType.MIXED || CLUSTER_TYPE == ClusterType.UPGRADED);
         Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token1");
-        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         Response getResponse = client().performRequest(getRequest);
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
@@ -77,7 +75,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         assumeTrue("the master must be on the latest version before we can write", isMasterOnLatestVersion());
         Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token2");
-        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
 
         Response getResponse = client().performRequest(getRequest);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
@@ -129,7 +126,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
         Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token2");
-        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
 
         Response getResponse = client().performRequest(getRequest);
         assertOK(getResponse);
@@ -145,7 +141,6 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertTokenDoesNotWork(token);
 
         getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token1");
-        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
 
         getResponse = client().performRequest(getRequest);
         source = (Map<String, Object>) entityAsMap(getResponse).get("_source");

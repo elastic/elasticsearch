@@ -14,7 +14,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -43,8 +42,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 public class CcrRestoreSourceService extends AbstractLifecycleComponent implements IndexEventListener {
@@ -210,7 +207,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             }
         }
 
-        private Tuple<BytesReference, Long> readFileBytes(String fileName, BytesReference reference) throws IOException {
+        private long readFileBytes(String fileName, BytesReference reference) throws IOException {
             Releasable lock = keyedLock.tryAcquire(fileName);
             if (lock == null) {
                 throw new IllegalStateException("can't read from the same file on the same session concurrently");
@@ -223,11 +220,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                         throw new UncheckedIOException(e);
                     }
                 });
-
-                long remainingSize = indexInput.length() - indexInput.getFilePointer();
-                if (remainingSize < reference.length()) {
-                    reference = reference.slice(0, Math.toIntExact(remainingSize));
-                }
 
                 BytesRefIterator refIterator = reference.iterator();
                 BytesRef ref;
@@ -242,7 +234,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                     IOUtils.close(indexInput);
                 }
 
-                return new Tuple<>(reference, offsetAfterRead);
+                return offsetAfterRead;
             }
         }
 
@@ -278,7 +270,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
          * @return the offset of the file after the read is complete
          * @throws IOException if the read fails
          */
-        public Tuple<BytesReference, Long> readFileBytes(String fileName, BytesReference reference) throws IOException {
+        public long readFileBytes(String fileName, BytesReference reference) throws IOException {
             CombinedRateLimiter rateLimiter = ccrSettings.getRateLimiter();
             long throttleTime = rateLimiter.maybePause(reference.length());
             throttleListener.accept(throttleTime);

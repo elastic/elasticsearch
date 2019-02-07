@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,7 +51,6 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
         extends HandledTransportAction<GetCcrRestoreFileChunkRequest, GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> {
 
         private final CcrRestoreSourceService restoreSourceService;
-        private final ThreadPool threadPool;
         private final BigArrays bigArrays;
 
         @Inject
@@ -60,7 +58,6 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
                                                      CcrRestoreSourceService restoreSourceService) {
             super(NAME, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new, ThreadPool.Names.GENERIC);
             TransportActionProxy.registerProxyAction(transportService, NAME, GetCcrRestoreFileChunkResponse::new);
-            this.threadPool = transportService.getThreadPool();
             this.restoreSourceService = restoreSourceService;
             this.bigArrays = bigArrays;
         }
@@ -76,10 +73,9 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkA
             // structure on the same thread. So the bytes will be copied before the reference is released.
             try (ReleasablePagedBytesReference reference = new ReleasablePagedBytesReference(array, bytesRequested, array)) {
                 try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
-                    Tuple<BytesReference, Long> tuple = sessionReader.readFileBytes(fileName, reference);
-                    long offsetAfterRead = tuple.v2();
-                    long offsetBeforeRead = offsetAfterRead - tuple.v1().length();
-                    listener.onResponse(new GetCcrRestoreFileChunkResponse(offsetBeforeRead, tuple.v1()));
+                    long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
+                    long offsetBeforeRead = offsetAfterRead - bytesRequested;
+                    listener.onResponse(new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
                 }
             } catch (IOException e) {
                 listener.onFailure(e);

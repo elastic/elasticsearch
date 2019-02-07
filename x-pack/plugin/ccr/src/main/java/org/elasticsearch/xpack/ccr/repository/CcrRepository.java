@@ -73,6 +73,7 @@ import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -374,6 +375,16 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             restore(snapshotFiles);
         }
 
+        private static class FileSession {
+            public FileSession(long lastTrackedSeqNo, long lastOffset) {
+                this.lastTrackedSeqNo = lastTrackedSeqNo;
+                this.lastOffset = lastOffset;
+            }
+
+            final long lastTrackedSeqNo;
+            final long lastOffset;
+        }
+
         @Override
         protected void restoreFiles(List<FileInfo> filesToRecover, Store store) throws IOException {
             logger.trace("[{}] starting CCR restore of {} files", shardId, filesToRecover);
@@ -383,7 +394,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 final AtomicReference<Tuple<StoreFileMetaData, Exception>> error = new AtomicReference<>();
 
                 final ArrayDeque<FileInfo> remainingFiles = new ArrayDeque<>(filesToRecover);
-                final ArrayDeque<FileInfo> inFlightRequests = new ArrayDeque<>();
+                final Map<FileInfo, FileSession> inFlightRequests = new HashMap<>();
                 final Object mutex = new Object();
 
                 while (true) {
@@ -391,7 +402,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         break;
                     }
                     final FileInfo fileToRecover;
-                    final long waitForOp;
+                    final FileSession fileSession;
                     synchronized (mutex) {
                         if (inFlightRequests.isEmpty() && remainingFiles.isEmpty()) {
                             break;
@@ -402,29 +413,34 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                 if (remainingFiles.isEmpty()) {
                                     break;
                                 }
-                                inFlightRequests.push(remainingFiles.pop());
+                                inFlightRequests.put(remainingFiles.pop(), new FileSession(NO_OPS_PERFORMED, 0));
                             }
                         }
-                        fileToRecover = inFlightRequests.removeFirst();
-                        inFlightRequests.addLast(fileToRecover);
-                        waitForOp = requestSeqIdTracker.getMaxSeqNo() + 1 - inFlightRequests.size();
+                        final Map.Entry<FileInfo, FileSession> minEntry =
+                            inFlightRequests.entrySet().stream().min(Comparator.comparingLong(e -> e.getValue().lastTrackedSeqNo)).get();
+                        fileSession = minEntry.getValue();
+                        fileToRecover = minEntry.getKey();
                     }
                     try {
-                        requestSeqIdTracker.waitForOpsToComplete(waitForOp);
+                        requestSeqIdTracker.waitForOpsToComplete(fileSession.lastTrackedSeqNo);
                         synchronized (mutex) {
                             // if file has been removed in the mean-while, it means that restore of this file completed, so start working
                             // on the next one
-                            if (inFlightRequests.contains(fileToRecover) == false) {
+                            if (inFlightRequests.containsKey(fileToRecover) == false) {
                                 continue;
                             }
                         }
-                        final int bytesRequested = Math.toIntExact(Math.min(ccrSettings.getChunkSize().getBytes(), fileToRecover.length()));
-                        final GetCcrRestoreFileChunkRequest request =
-                            new GetCcrRestoreFileChunkRequest(node, sessionUUID, fileToRecover.name(), bytesRequested);
-                        logger.trace("[{}] [{}] fetching chunk for file [{}]", shardId, snapshotId, fileToRecover.name());
-
                         final long requestSeqId = requestSeqIdTracker.generateSeqNo();
                         try {
+                            synchronized (mutex) {
+                                inFlightRequests.put(fileToRecover, new FileSession(requestSeqId, fileSession.lastOffset));
+                            }
+                            final int bytesRequested = Math.toIntExact(Math.min(ccrSettings.getChunkSize().getBytes(),
+                                fileToRecover.length() - fileSession.lastOffset));
+                            final GetCcrRestoreFileChunkRequest request =
+                                new GetCcrRestoreFileChunkRequest(node, sessionUUID, fileToRecover.name(), bytesRequested);
+                            logger.trace("[{}] [{}] fetching chunk for file [{}]", shardId, snapshotId, fileToRecover.name());
+
                             remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request,
                                 ActionListener.wrap(
                                     r -> threadPool.generic().execute(new AbstractRunnable() {
@@ -439,13 +455,20 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                             final int actualChunkSize = r.getChunk().length();
                                             final long nanosPaused = ccrSettings.getRateLimiter().maybePause(actualChunkSize);
                                             throttleListener.accept(nanosPaused);
-                                            final boolean lastChunk = r.getOffset() + actualChunkSize >= fileToRecover.length();
+                                            final long newOffset = r.getOffset() + actualChunkSize;
+                                            final boolean lastChunk = newOffset >= fileToRecover.length();
                                             multiFileWriter.writeFileChunk(fileToRecover.metadata(), r.getOffset(), r.getChunk(),
                                                 lastChunk);
                                             if (lastChunk) {
                                                 synchronized (mutex) {
-                                                    final boolean removed = inFlightRequests.remove(fileToRecover);
-                                                    assert removed : "file disappeared " + fileToRecover.name();
+                                                    final FileSession session = inFlightRequests.remove(fileToRecover);
+                                                    assert session != null : "session disappeared for " + fileToRecover.name();
+                                                }
+                                            } else {
+                                                synchronized (mutex) {
+                                                    final FileSession replaced = inFlightRequests.replace(fileToRecover,
+                                                        new FileSession(requestSeqId, newOffset));
+                                                    assert replaced != null : "session disappeared for " + fileToRecover.name();
                                                 }
                                             }
                                             requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);

@@ -57,12 +57,10 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class RemoteClusterServiceTests extends ESTestCase {

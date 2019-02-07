@@ -20,17 +20,8 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.Before;
-
-import java.io.IOException;
-
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase {
 

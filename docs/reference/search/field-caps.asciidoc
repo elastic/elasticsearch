@@ -3,7 +3,7 @@
 
 The field capabilities API allows to retrieve the capabilities of fields among multiple indices.
 
-The field capabilities api by default executes on all indices:
+The field capabilities API by default executes on all indices:
 
 [source,js]
 --------------------------------------------------
@@ -11,7 +11,7 @@ GET _field_caps?fields=rating
 --------------------------------------------------
 // CONSOLE
 
-... but the request can also be restricted to specific indices:
+...but the request can also be restricted to specific indices:
 
 [source,js]
 --------------------------------------------------
@@ -43,7 +43,7 @@ Supported request options:
 [float]
 === Field Capabilities
 
-The field capabilities api returns the following information per field:
+The field capabilities API returns the following information per field:
 
 [horizontal]
 `searchable`::

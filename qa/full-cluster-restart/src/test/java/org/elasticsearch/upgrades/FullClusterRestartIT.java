@@ -292,26 +292,32 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.startObject();
             {
                 mappingsAndSettings.startObject("mappings");
-                if (isRunningAgainstAncientCluster()) {
-                    mappingsAndSettings.startObject(type);
-                }
-                mappingsAndSettings.startObject("properties");
                 {
-                    mappingsAndSettings.startObject("field");
-                    mappingsAndSettings.field("type", "text");
+                    if (isRunningAgainstAncientCluster()) {
+                        mappingsAndSettings.startObject(type);
+                    }
+                    mappingsAndSettings.startObject("properties");
+                    {
+                        mappingsAndSettings.startObject("field");
+                        {
+                            mappingsAndSettings.field("type", "text");
+                        }
+                        mappingsAndSettings.endObject();
+                    }
                     mappingsAndSettings.endObject();
+                    if (isRunningAgainstAncientCluster()) {
+                        mappingsAndSettings.endObject();
+                    }
                 }
+                mappingsAndSettings.endObject();
                 if (isRunningAgainstAncientCluster() == false) {
                     // the default number of shards is now one so we have to set the number of shards to be more than one explicitly
                     mappingsAndSettings.startObject("settings");
-                    mappingsAndSettings.field("index.number_of_shards", 5);
+                    {
+                        mappingsAndSettings.field("index.number_of_shards", 5);
+                    }
                     mappingsAndSettings.endObject();
                 }
-                mappingsAndSettings.endObject();
-                if (isRunningAgainstAncientCluster()) {
-                    mappingsAndSettings.endObject();
-                }
-                mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
@@ -333,7 +339,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(updateSettingsRequest);
 
             Request shrinkIndexRequest = new Request("PUT", "/" + index + "/_shrink/" + shrunkenIndex);
-            if (getOldClusterVersion().onOrAfter(Version.V_6_4_0)) {
+            if (getOldClusterVersion().onOrAfter(Version.V_6_4_0) && getOldClusterVersion().before(Version.V_7_0_0)) {
                 shrinkIndexRequest.addParameter("copy_settings", "true");
             }
             shrinkIndexRequest.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1}}");
@@ -371,20 +377,30 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.startObject();
             {
                 mappingsAndSettings.startObject("mappings");
-                if (isRunningAgainstAncientCluster()) {
-                    mappingsAndSettings.startObject(type);
-                }
-                mappingsAndSettings.startObject("properties");
                 {
-                    mappingsAndSettings.startObject("field");
-                    mappingsAndSettings.field("type", "text");
+                    if (isRunningAgainstAncientCluster()) {
+                        mappingsAndSettings.startObject(type);
+                    }
+                    mappingsAndSettings.startObject("properties");
+                    {
+                        mappingsAndSettings.startObject("field");
+                        {
+                            mappingsAndSettings.field("type", "text");
+                        }
+                        mappingsAndSettings.endObject();
+                    }
                     mappingsAndSettings.endObject();
+                    if (isRunningAgainstAncientCluster()) {
+                        mappingsAndSettings.endObject();
+                    }
                 }
                 mappingsAndSettings.endObject();
-                if (isRunningAgainstAncientCluster()) {
+                if (isRunningAgainstAncientCluster() == false) {
+                    // the default number of shards is now one so we have to set the number of shards to be more than one explicitly
+                    mappingsAndSettings.startObject("settings");
+                    mappingsAndSettings.field("index.number_of_shards", 5);
                     mappingsAndSettings.endObject();
                 }
-                mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
@@ -753,6 +769,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request countRequest = new Request("GET", "/" + index + "/_search");
         countRequest.addParameter("size", "0");
         Map<String, Object> countResponse = entityAsMap(client().performRequest(countRequest));
+        refresh();
         assertTotalHits(count, countResponse);
 
         if (false == isRunningAgainstOldCluster()) {
@@ -989,9 +1006,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 }
                 request.setJsonEntity(doc);
                 client().performRequest(request);
-                if (rarely()) {
-                    refresh();
-                }
+                refresh();
             }
             client().performRequest(new Request("POST", "/" + index + "/_flush"));
             int liveDocs = numDocs;
@@ -1102,7 +1117,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // In 7.0, type names are no longer returned by default in get index template requests.
         // We therefore use the deprecated typed APIs when running against the current version.
-        if (isRunningAgainstOldCluster() == false) {
+        if (isRunningAgainstAncientCluster() == false) {
             getTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
         getTemplateRequest.setOptions(allowTypeRemovalWarnings());

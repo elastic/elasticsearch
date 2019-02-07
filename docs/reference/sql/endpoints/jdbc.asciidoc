@@ -53,7 +53,7 @@ Once registered, the driver understands the following syntax as an URL:
 
 ["source","text",subs="attributes"]
 ----
-jdbc:es://<1>[http|https]?<2>[host[:port]]*<3>/[prefix]*<4>[?[option=value]&<5>]*
+jdbc:es://<1>[http|https]://<2>[host[:port]]*<3>/[prefix]*<4>[?[option=value]&<5>]*
 ----
 
 <1> `jdbc:es://` prefix. Mandatory.

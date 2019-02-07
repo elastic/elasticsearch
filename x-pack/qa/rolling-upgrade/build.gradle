@@ -208,6 +208,7 @@ subprojects {
     Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
     oldClusterTestRunner.configure {
       systemProperty 'tests.rest.suite', 'old_cluster'
+      systemProperty 'tests.rest.blacklist', ['old_cluster/40_ml_datafeed_crud/*',].join(',')
     }
 
     Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure getOtherUnicastHostAddresses ->
@@ -244,11 +245,6 @@ subprojects {
         if (version.before('6.0.0')) {
           keystoreSetting 'xpack.security.authc.token.passphrase', 'token passphrase'
         }
-
-        systemProperty 'tests.rest.blacklist', [
-                'mixed_cluster/30_ml_jobs_crud/*',
-                'mixed_cluster/40_ml_datafeed_crud/*',
-        ].join(',')
       }
     }
 

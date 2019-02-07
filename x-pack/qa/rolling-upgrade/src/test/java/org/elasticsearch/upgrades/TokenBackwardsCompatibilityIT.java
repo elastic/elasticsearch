@@ -16,12 +16,14 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.document.RestGetAction;
+import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,7 +66,12 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertNotNull(token);
         assertTokenWorks(token);
 
+        // In this test either all or none tests or on a specific version:
+        boolean postSevenDotZeroNodes = getNodeId(v -> v.onOrAfter(Version.V_7_0_0)) != null;
         Request indexRequest1 = new Request("PUT", "token_backwards_compatibility_it/doc/old_cluster_token1");
+        if (postSevenDotZeroNodes) {
+            indexRequest1.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+        }
         indexRequest1.setJsonEntity(
                 "{\n" +
                 "    \"token\": \"" + token + "\"\n" +
@@ -79,11 +86,27 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertNotNull(token);
         assertTokenWorks(token);
         Request indexRequest2 = new Request("PUT", "token_backwards_compatibility_it/doc/old_cluster_token2");
+        if (postSevenDotZeroNodes) {
+            indexRequest2.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
+        }
         indexRequest2.setJsonEntity(
                 "{\n" +
                 "    \"token\": \"" + token + "\"\n" +
                 "}");
         client().performRequest(indexRequest2);
+    }
+
+    private String getNodeId(Predicate<Version> versionPredicate) throws IOException {
+        Response response = client().performRequest(new Request("GET", "_nodes"));
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+        for (String id : nodesAsMap.keySet()) {
+            Version version = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
+            if (versionPredicate.test(version)) {
+                return id;
+            }
+        }
+        return null;
     }
 
     public void testTokenWorksInMixedOrUpgradedCluster() throws Exception {

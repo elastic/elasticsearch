@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.hamcrest.Matcher;
@@ -474,11 +475,20 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void assertWatchIndexContentsWork() throws Exception {
         // Fetch a basic watch
         Request getRequest = new Request("GET", "_watcher/watch/bwc_watch");
-        getRequest.setOptions(
-            expectWarnings(
-                IndexAction.TYPES_DEPRECATION_MESSAGE
-            )
-        );
+        if (getOldClusterVersion().before(Version.V_7_0_0)) {
+            getRequest.setOptions(
+                expectWarnings(
+                    IndexAction.TYPES_DEPRECATION_MESSAGE,
+                    WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE
+                )
+            );
+        } else {
+            getRequest.setOptions(
+                expectWarnings(
+                    IndexAction.TYPES_DEPRECATION_MESSAGE
+                )
+            );
+        }
 
         Map<String, Object> bwcWatch = entityAsMap(client().performRequest(getRequest));
 
@@ -495,11 +505,20 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Fetch a watch with "fun" throttle periods
         getRequest = new Request("GET", "_watcher/watch/bwc_throttle_period");
-        getRequest.setOptions(
-            expectWarnings(
-                IndexAction.TYPES_DEPRECATION_MESSAGE
-            )
-        );
+        if (getOldClusterVersion().before(Version.V_7_0_0)) {
+            getRequest.setOptions(
+                expectWarnings(
+                    IndexAction.TYPES_DEPRECATION_MESSAGE,
+                    WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE
+                )
+            );
+        } else {
+            getRequest.setOptions(
+                expectWarnings(
+                    IndexAction.TYPES_DEPRECATION_MESSAGE
+                )
+            );
+        }
         bwcWatch = entityAsMap(client().performRequest(getRequest));
         assertThat(bwcWatch.get("found"), equalTo(true));
         source = (Map<String, Object>) bwcWatch.get("watch");

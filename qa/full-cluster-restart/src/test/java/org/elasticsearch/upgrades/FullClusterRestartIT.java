@@ -910,7 +910,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // In 7.0, type names are no longer expected by default in put index template requests.
         // We therefore use the deprecated typed APIs when running against the current version.
-        if (isRunningAgainstOldCluster() == false && getOldClusterVersion().major < 7) {
+        if (isRunningAgainstAncientCluster()) {
             createTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
         createTemplateRequest.setOptions(allowTypeRemovalWarnings());
@@ -1214,7 +1214,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String loadInfoDocument(String type) throws IOException {
         Request request = new Request("GET", "/info/" + this.type + "/" + index + "_" + type);
         request.addParameter("filter_path", "_source");
-        if (isRunningAgainstAncientCluster() == false && getOldClusterVersion().major < 7) {
+        if (isRunningAgainstAncientCluster()) {
             request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         }
         String doc = toStr(client().performRequest(request));

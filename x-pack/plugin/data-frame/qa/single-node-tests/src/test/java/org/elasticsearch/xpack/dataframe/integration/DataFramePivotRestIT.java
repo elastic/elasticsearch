@@ -75,6 +75,80 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
     }
 
+    public void testBiggerPivot() throws Exception {
+        String transformId = "biggerPivot";
+        String dataFrameIndex = "bigger_pivot_reviews";
+
+        final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + transformId);
+
+        String config = "{"
+                + " \"source\": \"reviews\","
+                + " \"dest\": \"" + dataFrameIndex + "\",";
+
+
+        config += " \"pivot\": {"
+                + "   \"group_by\": [ {"
+                + "     \"reviewer\": {"
+                + "       \"terms\": {"
+                + "         \"field\": \"user_id\""
+                + " } } } ],"
+                + "   \"aggregations\": {"
+                + "     \"avg_rating\": {"
+                + "       \"avg\": {"
+                + "         \"field\": \"stars\""
+                + " } },"
+                + "     \"sum_rating\": {"
+                + "       \"sum\": {"
+                + "         \"field\": \"stars\""
+                + " } },"
+                + "     \"cardinality_business\": {"
+                + "       \"cardinality\": {"
+                + "         \"field\": \"business_id\""
+                + " } },"
+                + "     \"min_rating\": {"
+                + "       \"min\": {"
+                + "         \"field\": \"stars\""
+                + " } },"
+                + "     \"max_rating\": {"
+                + "       \"max\": {"
+                + "         \"field\": \"stars\""
+                + " } },"
+                + "     \"count\": {"
+                + "       \"value_count\": {"
+                + "         \"field\": \"business_id\""
+                + " } }"
+                + " } }"
+                + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertTrue(indexExists(dataFrameIndex));
+
+        startAndWaitForTransform(transformId, dataFrameIndex);
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_4");
+
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
+        assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.sum_rating", searchResult)).get(0);
+        assertEquals(159, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.cardinality_business", searchResult)).get(0);
+        assertEquals(6, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.min_rating", searchResult)).get(0);
+        assertEquals(1, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.max_rating", searchResult)).get(0);
+        assertEquals(5, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.count", searchResult)).get(0);
+        assertEquals(41, actual.longValue());
+    }
+
     private void startAndWaitForTransform(String transformId, String dataFrameIndex) throws IOException, Exception {
         // start the transform
         final Request startTransformRequest = new Request("POST", DATAFRAME_ENDPOINT + transformId + "/_start");

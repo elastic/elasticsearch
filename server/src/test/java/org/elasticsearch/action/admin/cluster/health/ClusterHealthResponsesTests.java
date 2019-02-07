@@ -91,6 +91,7 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
         assertThat(clusterHealth.getUnassignedShards(), Matchers.equalTo(clusterStateHealth.getUnassignedShards()));
         assertThat(clusterHealth.getNumberOfNodes(), Matchers.equalTo(clusterStateHealth.getNumberOfNodes()));
         assertThat(clusterHealth.getNumberOfDataNodes(), Matchers.equalTo(clusterStateHealth.getNumberOfDataNodes()));
+        assertThat(clusterHealth.hasVotingExclusions(), Matchers.equalTo(clusterStateHealth.hasVotingExclusions()));
     }
 
     ClusterHealthResponse maybeSerialize(ClusterHealthResponse clusterHealth) throws IOException {
@@ -124,7 +125,7 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
             }
         }
         ClusterStateHealth stateHealth = new ClusterStateHealth(randomInt(100), randomInt(100), randomInt(100),
-                randomInt(100), randomInt(100), randomInt(100), randomInt(100),
+                randomInt(100), randomInt(100), randomInt(100), randomInt(100), randomBoolean(),
                 randomDoubleBetween(0d, 100d, true), randomFrom(ClusterHealthStatus.values()), indices);
 
         return new ClusterHealthResponse(randomAlphaOfLengthBetween(1, 10), randomInt(100), randomInt(100), randomInt(100),
@@ -175,7 +176,6 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
                         instance.getDelayedUnassignedShards() + between(1, 10), instance.getTaskMaxWaitingTime(),
                         instance.isTimedOut(), instance.getClusterStateHealth());
             case "taskMaxWaitingTime":
-
                 return new ClusterHealthResponse(instance.getClusterName(),
                         instance.getNumberOfPendingTasks(), instance.getNumberOfInFlightFetch(),
                         instance.getDelayedUnassignedShards(), new TimeValue(instance.getTaskMaxWaitingTime().millis() + between(1, 10)),
@@ -189,8 +189,8 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
                 ClusterStateHealth state = instance.getClusterStateHealth();
                 ClusterStateHealth newState = new ClusterStateHealth(state.getActivePrimaryShards() + between(1, 10),
                         state.getActiveShards(), state.getRelocatingShards(), state.getInitializingShards(), state.getUnassignedShards(),
-                        state.getNumberOfNodes(), state.getNumberOfDataNodes(), state.getActiveShardsPercent(), state.getStatus(),
-                        state.getIndices());
+                        state.getNumberOfNodes(), state.getNumberOfDataNodes(), state.hasVotingExclusions(),
+                        state.getActiveShardsPercent(), state.getStatus(), state.getIndices());
                 return new ClusterHealthResponse(instance.getClusterName(),
                         instance.getNumberOfPendingTasks(), instance.getNumberOfInFlightFetch(),
                         instance.getDelayedUnassignedShards(), instance.getTaskMaxWaitingTime(),

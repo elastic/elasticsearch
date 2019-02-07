@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -181,6 +182,25 @@ public class ClusterStateHealthTests extends ESTestCase {
         logger.info("cluster status: {}, expected {}", clusterStateHealth.getStatus(), counter.status());
         clusterStateHealth = maybeSerialize(clusterStateHealth);
         assertClusterHealth(clusterStateHealth, counter);
+    }
+
+    public void testHasVotingExclusions() throws IOException {
+        CoordinationMetaData.Builder builder = new CoordinationMetaData.Builder();
+        int numOfVotingExclusions = randomIntBetween(0, 5);
+        for (int i = 0; i < numOfVotingExclusions; i++) {
+            builder.addVotingConfigExclusion(
+                    new CoordinationMetaData.VotingConfigExclusion(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+        }
+
+        boolean hasVotingExclusions = numOfVotingExclusions != 0;
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metaData(MetaData.builder().coordinationMetaData(builder.build()).build()).build();
+
+        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
+        clusterStateHealth = maybeSerialize(clusterStateHealth);
+
+        assertThat(clusterStateHealth.hasVotingExclusions(), is(hasVotingExclusions));
     }
 
     public void testClusterHealthOnIndexCreation() {

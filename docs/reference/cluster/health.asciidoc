@@ -22,6 +22,7 @@ Returns this:
   "timed_out" : false,
   "number_of_nodes" : 1,
   "number_of_data_nodes" : 1,
+  "has_voting_exclusions" : false,
   "active_primary_shards" : 1,
   "active_shards" : 1,
   "relocating_shards" : 0,

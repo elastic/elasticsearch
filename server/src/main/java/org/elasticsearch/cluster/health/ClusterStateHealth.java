@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.health;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -40,6 +41,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
 
     private final int numberOfNodes;
     private final int numberOfDataNodes;
+    private final boolean hasVotingExclusions;
     private final int activeShards;
     private final int relocatingShards;
     private final int activePrimaryShards;
@@ -67,6 +69,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
     public ClusterStateHealth(final ClusterState clusterState, final String[] concreteIndices) {
         numberOfNodes = clusterState.nodes().getSize();
         numberOfDataNodes = clusterState.nodes().getDataNodes().size();
+        hasVotingExclusions = clusterState.coordinationMetaData().getVotingConfigExclusions().isEmpty() == false;
         indices = new HashMap<>();
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
@@ -134,6 +137,11 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         unassignedShards = in.readVInt();
         numberOfNodes = in.readVInt();
         numberOfDataNodes = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            hasVotingExclusions = in.readBoolean();
+        } else {
+            hasVotingExclusions = false;
+        }
         status = ClusterHealthStatus.fromValue(in.readByte());
         int size = in.readVInt();
         indices = new HashMap<>(size);
@@ -148,7 +156,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
      * For ClusterHealthResponse's XContent Parser
      */
     public ClusterStateHealth(int activePrimaryShards, int activeShards, int relocatingShards, int initializingShards, int unassignedShards,
-            int numberOfNodes, int numberOfDataNodes, double activeShardsPercent, ClusterHealthStatus status,
+            int numberOfNodes, int numberOfDataNodes, boolean hasVotingExclusions, double activeShardsPercent, ClusterHealthStatus status,
         Map<String, ClusterIndexHealth> indices) {
         this.activePrimaryShards = activePrimaryShards;
         this.activeShards = activeShards;
@@ -157,6 +165,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         this.unassignedShards = unassignedShards;
         this.numberOfNodes = numberOfNodes;
         this.numberOfDataNodes = numberOfDataNodes;
+        this.hasVotingExclusions = hasVotingExclusions;
         this.activeShardsPercent = activeShardsPercent;
         this.status = status;
         this.indices = indices;
@@ -190,6 +199,10 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         return this.numberOfDataNodes;
     }
 
+    public boolean hasVotingExclusions() {
+        return this.hasVotingExclusions;
+    }
+
     public ClusterHealthStatus getStatus() {
         return status;
     }
@@ -216,6 +229,9 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         out.writeVInt(unassignedShards);
         out.writeVInt(numberOfNodes);
         out.writeVInt(numberOfDataNodes);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(hasVotingExclusions);
+        }
         out.writeByte(status.value());
         out.writeVInt(indices.size());
         for (ClusterIndexHealth indexHealth : this) {
@@ -229,6 +245,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         return "ClusterStateHealth{" +
                 "numberOfNodes=" + numberOfNodes +
                 ", numberOfDataNodes=" + numberOfDataNodes +
+                ", hasVotingExclusions=" + hasVotingExclusions +
                 ", activeShards=" + activeShards +
                 ", relocatingShards=" + relocatingShards +
                 ", activePrimaryShards=" + activePrimaryShards +
@@ -247,6 +264,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         ClusterStateHealth that = (ClusterStateHealth) o;
         return numberOfNodes == that.numberOfNodes &&
                 numberOfDataNodes == that.numberOfDataNodes &&
+                hasVotingExclusions == that.hasVotingExclusions &&
                 activeShards == that.activeShards &&
                 relocatingShards == that.relocatingShards &&
                 activePrimaryShards == that.activePrimaryShards &&
@@ -259,7 +277,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
 
     @Override
     public int hashCode() {
-        return Objects.hash(numberOfNodes, numberOfDataNodes, activeShards, relocatingShards, activePrimaryShards, initializingShards,
-                unassignedShards, activeShardsPercent, status, indices);
+        return Objects.hash(numberOfNodes, numberOfDataNodes, hasVotingExclusions, activeShards, relocatingShards, activePrimaryShards,
+                initializingShards, unassignedShards, activeShardsPercent, status, indices);
     }
 }

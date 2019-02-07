@@ -10,26 +10,28 @@ some technical information about the cluster status per index:
 [source,java]
 --------------------------------------------------
 ClusterHealthResponse healths = client.admin().cluster().prepareHealth().get(); <1>
-String clusterName = healths.getClusterName();              <2>
-int numberOfDataNodes = healths.getNumberOfDataNodes();     <3>
-int numberOfNodes = healths.getNumberOfNodes();             <4>
+String clusterName = healths.getClusterName();                    <2>
+int numberOfDataNodes = healths.getNumberOfDataNodes();           <3>
+int numberOfNodes = healths.getNumberOfNodes();                   <4>
+boolean hasVotingExclusions = healths.hasVotingExclusions();      <5>
 
-for (ClusterIndexHealth health : healths.getIndices().values()) { <5>
-    String index = health.getIndex();                       <6>
-    int numberOfShards = health.getNumberOfShards();        <7>
-    int numberOfReplicas = health.getNumberOfReplicas();    <8>
-    ClusterHealthStatus status = health.getStatus();        <9>
+for (ClusterIndexHealth health : healths.getIndices().values()) { <6>
+    String index = health.getIndex();                             <7>
+    int numberOfShards = health.getNumberOfShards();              <8>
+    int numberOfReplicas = health.getNumberOfReplicas();          <9>
+    ClusterHealthStatus status = health.getStatus();              <10>
 }
 --------------------------------------------------
 <1> Get information for all indices
 <2> Access the cluster name
 <3> Get the total number of data nodes
 <4> Get the total number of nodes
-<5> Iterate over all indices
-<6> Index name
-<7> Number of shards
-<8> Number of replicas
-<9> Index status
+<5> Check if there are voting exclusions in the cluster state
+<6> Iterate over all indices
+<7> Index name
+<8> Number of shards
+<9> Number of replicas
+<10> Index status
 
 [[java-admin-cluster-health-wait-status]]
 ===== Wait for status

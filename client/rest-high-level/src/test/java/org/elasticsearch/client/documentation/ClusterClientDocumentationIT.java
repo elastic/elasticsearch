@@ -333,6 +333,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::health-response-nodes
         int numberOfNodes = response.getNumberOfNodes(); // <1>
         int numberOfDataNodes = response.getNumberOfDataNodes(); // <2>
+        boolean hasVotingExclusions = response.hasVotingExclusions(); // <3>
         // end::health-response-nodes
 
         {

@@ -769,12 +769,21 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertThat(index.mapperService().fullName("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 
-    public void testMappingVersionAfterDynamicMappingUpdate() {
+    public void testMappingVersionAfterDynamicMappingUpdate() throws Exception {
         createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
         client().prepareIndex("test", "type", "1").setSource("field", "text").get();
-        assertThat(clusterService.state().metaData().index("test").getMappingVersion(), equalTo(1 + previousVersion));
+        // This assertBusy is necessary. When a mapping update is needed as a document is indexed,
+        // the document is tried, rejected (due to mapping conflict), then a mapping update sent
+        // off, the document is then *immediately* retried to see if the mapping change has occurred
+        // quickly enough, and if it has, indexing does not wait for the next cluster state to occur
+        // before moving ahead. In very rare cases this immediate retry succeeds, which causes the
+        // indexing request to complete (because it was successful) but the new cluster state to not
+        // be propagated entirely yet. In that case, we need to wait because the mapping version
+        // will eventually be updated, it just hasn't been updated *yet*.
+        assertBusy(() ->
+            assertThat(clusterService.state().metaData().index("test").getMappingVersion(), equalTo(1 + previousVersion)));
     }
 
 }

@@ -25,7 +25,7 @@ ext.expansions = { oss ->
     'jdkUrl'              : 'https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz',
     'jdkVersion'          : '11.0.2',
     'license'             : oss ? 'Apache-2.0' : 'Elastic License',
-    'source_elasticsearch': local() ? "COPY $elasticsearch /opt" : "RUN curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch}",
+    'source_elasticsearch': local() ? "COPY $elasticsearch /opt/" : "RUN curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch}",
     'version'             : VersionProperties.elasticsearch
   ]
 }

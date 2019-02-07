@@ -34,6 +34,12 @@ ext.expansions = { oss ->
   ]
 }
 
+/*
+ * We need to be able to render a Dockerfile that references the official artifacts on https://artifacts.elastic.co. For this, we use a
+ * substitution in the Dockerfile template where we can either replace source_elasticsearch with a COPY from the Docker build context, or
+ * a RUN curl command to retrieve the artifact from https://artifacts.elastic.co. The system property build.docker.source, which can be
+ * either "local" (default) or "remote" controls which version of the Dockerfile is produced.
+ */
 private static boolean local() {
   final String buildDockerSource = System.getProperty("build.docker.source")
   if (buildDockerSource == null || "local".equals(buildDockerSource)) {

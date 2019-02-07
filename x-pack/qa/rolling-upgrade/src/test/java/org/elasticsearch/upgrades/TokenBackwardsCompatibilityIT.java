@@ -67,7 +67,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertTokenWorks(token);
 
         // In this test either all or none tests or on a specific version:
-        boolean postSevenDotZeroNodes = getNodeId(v -> v.onOrAfter(Version.V_7_0_0)) == null;
+        boolean postSevenDotZeroNodes = getNodeId(v -> v.onOrAfter(Version.V_7_0_0)) != null;
         Request indexRequest1 = new Request("PUT", "token_backwards_compatibility_it/doc/old_cluster_token1");
         if (postSevenDotZeroNodes) {
             indexRequest1.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));

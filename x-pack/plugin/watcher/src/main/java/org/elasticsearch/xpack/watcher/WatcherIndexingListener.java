@@ -102,7 +102,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     @Override
     public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
         if (isWatchDocument(shardId.getIndexName(), operation.type())) {
-            ZonedDateTime now = Instant.ofEpochMilli(clock.millis()).atZone(ZoneOffset.UTC);
+            ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
             try {
                 Watch watch = parser.parseWithSecrets(operation.id(), true, operation.source(), now, XContentType.JSON,
                     operation.getIfSeqNo(), operation.getIfPrimaryTerm());

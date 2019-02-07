@@ -36,6 +36,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -324,8 +325,9 @@ public class IndexActionTests extends ESTestCase {
         assertThat(indexRequest.getRefreshPolicy(), is(expectedRefreshPolicy));
 
         if (timestampField != null) {
+            final DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE_TIME;
             assertThat(indexRequest.sourceAsMap().keySet(), is(hasSize(2)));
-            assertThat(indexRequest.sourceAsMap(), hasEntry(timestampField, executionTime.toString()));
+            assertThat(indexRequest.sourceAsMap(), hasEntry(timestampField, formatter.format(executionTime)));
         } else {
             assertThat(indexRequest.sourceAsMap().keySet(), is(hasSize(1)));
         }

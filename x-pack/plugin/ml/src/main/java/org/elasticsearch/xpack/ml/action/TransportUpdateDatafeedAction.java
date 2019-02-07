@@ -87,7 +87,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
 
         CheckedConsumer<Boolean, Exception> updateConsumer = ok -> {
             datafeedConfigProvider.updateDatefeedConfig(request.getUpdate().getId(), request.getUpdate(), headers,
-                    jobConfigProvider::validateDatafeedJob, clusterService.state().nodes().getMinNodeVersion(),
+                    jobConfigProvider::validateDatafeedJob,
                     ActionListener.wrap(
                             updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
                             listener::onFailure

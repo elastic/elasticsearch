@@ -69,7 +69,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
-import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
+import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
@@ -405,8 +405,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING,
                     ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING,
                     ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING,
-                    SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING,
-                    SettingsBasedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+                    SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING,
+                    SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
                     UnicastZenPing.DISCOVERY_SEED_RESOLVER_MAX_CONCURRENT_RESOLVERS_SETTING,
                     UnicastZenPing.DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING,
                     UnicastZenPing.LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING,

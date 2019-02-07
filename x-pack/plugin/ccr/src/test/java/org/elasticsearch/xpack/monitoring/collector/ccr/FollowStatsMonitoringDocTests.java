@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -19,11 +20,10 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<FollowStatsMonitoringDoc> {
-
+    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
     private ShardFollowNodeTaskStatus status;
 
     @Override
@@ -146,7 +146,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                 equalTo(
                         "{"
                                 + "\"cluster_uuid\":\"_cluster\","
-                                + "\"timestamp\":\"" + new DateTime(timestamp, DateTimeZone.UTC).toString() + "\","
+                                + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(timestamp) + "\","
                                 + "\"interval_ms\":" + intervalMillis + ","
                                 + "\"type\":\"ccr_stats\","
                                 + "\"source_node\":{"
@@ -155,7 +155,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                         + "\"transport_address\":\"_addr\","
                                         + "\"ip\":\"_ip\","
                                         + "\"name\":\"_name\","
-                                        + "\"timestamp\":\"" + new DateTime(nodeTimestamp, DateTimeZone.UTC).toString() +  "\""
+                                        + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp) +  "\""
                                 + "},"
                                 + "\"ccr_stats\":{"
                                         + "\"remote_cluster\":\"leader_cluster\","

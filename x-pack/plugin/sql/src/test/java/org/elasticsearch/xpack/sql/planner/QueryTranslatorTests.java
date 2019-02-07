@@ -309,6 +309,20 @@ public class QueryTranslatorTests extends ESTestCase {
             tq.asBuilder().toString().replaceAll("\\s", ""));
     }
 
+    public void testTranslateInExpression_WhereClause_TextFieldWithKeyword() {
+        LogicalPlan p = plan("SELECT * FROM test WHERE some.string IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'))");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof TermsQuery);
+        TermsQuery tq = (TermsQuery) query;
+        assertEquals("{\"terms\":{\"some.string.typical\":[\"foo\",\"bar\",\"lala\"],\"boost\":1.0}}",
+            tq.asBuilder().toString().replaceAll("\\s", ""));
+    }
+
     public void testTranslateInExpression_WhereClauseAndNullHandling() {
         LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', null, 'lala', null, 'foo', concat('la', 'la'))");
         assertTrue(p instanceof Project);
@@ -321,19 +335,6 @@ public class QueryTranslatorTests extends ESTestCase {
         TermsQuery tq = (TermsQuery) query;
         assertEquals("{\"terms\":{\"keyword\":[\"foo\",\"lala\"],\"boost\":1.0}}",
             tq.asBuilder().toString().replaceAll("\\s", ""));
-    }
-
-    public void testTranslateInExpressionInvalidValues_WhereClause() {
-        LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', 'bar', keyword)");
-        assertTrue(p instanceof Project);
-        assertTrue(p.children().get(0) instanceof Filter);
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
-        assertEquals(
-                "Line 1:52: Comparisons against variables are not (currently) supported; "
-                        + "offender [keyword] in [keyword IN ('foo', 'bar', keyword)]",
-                ex.getMessage());
     }
 
     public void testTranslateInExpression_WhereClause_Painless() {
@@ -632,16 +633,16 @@ public class QueryTranslatorTests extends ESTestCase {
                         "\"sort\":[{\"keyword\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
         }
         {
-            PhysicalPlan p = optimizeAndPlan("SELECT LAST(keyword) FROM test");
+            PhysicalPlan p = optimizeAndPlan("SELECT LAST(date) FROM test");
             assertEquals(EsQueryExec.class, p.getClass());
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.output().size());
-            assertEquals("LAST(keyword)", eqe.output().get(0).qualifiedName());
-            assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
+            assertEquals("LAST(date)", eqe.output().get(0).qualifiedName());
+            assertTrue(eqe.output().get(0).dataType() == DataType.DATETIME);
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
-                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
-                    "\"sort\":[{\"keyword\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
+                    "\"sort\":[{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
         }
     }
 
@@ -661,17 +662,17 @@ public class QueryTranslatorTests extends ESTestCase {
 
         }
         {
-            PhysicalPlan p = optimizeAndPlan("SELECT LAST(keyword, int) FROM test");
+            PhysicalPlan p = optimizeAndPlan("SELECT LAST(date, int) FROM test");
             assertEquals(EsQueryExec.class, p.getClass());
             EsQueryExec eqe = (EsQueryExec) p;
             assertEquals(1, eqe.output().size());
-            assertEquals("LAST(keyword, int)", eqe.output().get(0).qualifiedName());
-            assertTrue(eqe.output().get(0).dataType() == DataType.KEYWORD);
+            assertEquals("LAST(date, int)", eqe.output().get(0).qualifiedName());
+            assertTrue(eqe.output().get(0).dataType() == DataType.DATETIME);
             assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
-                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
                     "\"sort\":[{\"int\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
-                    "{\"keyword\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+                    "{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
         }
     }
 }

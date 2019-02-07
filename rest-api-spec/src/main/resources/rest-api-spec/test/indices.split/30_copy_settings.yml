@@ -44,14 +44,11 @@
         target: "copy-settings-target"
         wait_for_active_shards: 1
         master_timeout: 10s
-        copy_settings: true
         body:
           settings:
             index.number_of_replicas: 0
             index.number_of_shards: 2
             index.merge.scheduler.max_thread_count: 2
-      warnings:
-        - "parameter [copy_settings] is deprecated and will be removed in 8.0.0"
 
 
   - do:
@@ -102,7 +99,6 @@
         target: "explicit-no-copy-settings-target"
         wait_for_active_shards: 1
         master_timeout: 10s
-        copy_settings: false
         body:
           settings:
             index.number_of_replicas: 0

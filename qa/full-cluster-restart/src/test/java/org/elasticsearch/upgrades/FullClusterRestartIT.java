@@ -92,7 +92,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     @Before
     public void setType() {
-        type = getOldClusterVersion().before(Version.V_7_0_0) ? "doc" : "_doc";
+        type = getOldClusterVersion().before(Version.V_6_7_0) ? "doc" : "_doc";
     }
 
     public void testSearch() throws Exception {
@@ -623,7 +623,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         client().performRequest(updateRequest);
 
         Request getRequest = new Request("GET", "/" + index + "/" + typeName + "/" + docId);
-        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        if (getOldClusterVersion().before(Version.V_6_7_0)) {
+            getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        }
         Map<String, Object> getRsp = entityAsMap(client().performRequest(getRequest));
         Map<?, ?> source = (Map<?, ?>) getRsp.get("_source");
         assertTrue("doc does not contain 'foo' key: " + source, source.containsKey("foo"));
@@ -688,7 +690,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
 
         Request request = new Request("GET", docLocation);
-        request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        if (getOldClusterVersion().before(Version.V_6_7_0)) {
+            request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        }
         assertThat(toStr(client().performRequest(request)), containsString(doc));
     }
 
@@ -841,7 +845,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      */
     public void testSnapshotRestore() throws IOException {
         int count;
-        if (isRunningAgainstOldCluster()) {
+        if (isRunningAgainstOldCluster() && getOldClusterVersion().major < 8) {
             // Create the index
             count = between(200, 300);
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
@@ -906,7 +910,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // In 7.0, type names are no longer expected by default in put index template requests.
         // We therefore use the deprecated typed APIs when running against the current version.
-        if (isRunningAgainstOldCluster() == false) {
+        if (isRunningAgainstOldCluster() == false && getOldClusterVersion().major < 7) {
             createTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
         createTemplateRequest.setOptions(allowTypeRemovalWarnings());
@@ -1130,7 +1134,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             expectedTemplate.put("index_patterns", singletonList("evil_*"));
         }
         expectedTemplate.put("settings", singletonMap("index", singletonMap("number_of_shards", "1")));
-        expectedTemplate.put("mappings", singletonMap(type, singletonMap("_source", singletonMap("enabled", true))));
+        // We don't have the type in the response starting with 7.0, but we won't have it on old cluster after upgrade
+        // either so look at the response to figure out the correct assertions
+        if (isTypeInTemplateResponse(getTemplateResponse)) {
+            expectedTemplate.put("mappings", singletonMap(type, singletonMap("_source", singletonMap("enabled", true))));
+        } else {
+            expectedTemplate.put("mappings", singletonMap("_source", singletonMap("enabled", true)));
+        }
+
         expectedTemplate.put("order", 0);
         Map<String, Object> aliases = new HashMap<>();
         aliases.put("alias1", emptyMap());
@@ -1140,8 +1151,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (false == expectedTemplate.equals(getTemplateResponse)) {
             NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
             builder.compareMaps(getTemplateResponse, expectedTemplate);
+            logger.info("expected: {}\nactual:{}", expectedTemplate, getTemplateResponse);
             fail("template doesn't match:\n" + builder.toString());
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean isTypeInTemplateResponse(Map<String, Object> getTemplateResponse) {
+        return ( (Map<String, Object>) (
+            (Map<String, Object>) getTemplateResponse.getOrDefault("test_template", emptyMap())
+        ).get("mappings")).get("_source") == null;
     }
 
     // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
@@ -1195,7 +1214,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String loadInfoDocument(String type) throws IOException {
         Request request = new Request("GET", "/info/" + this.type + "/" + index + "_" + type);
         request.addParameter("filter_path", "_source");
-        if (isRunningAgainstAncientCluster() == false) {
+        if (isRunningAgainstAncientCluster() == false && getOldClusterVersion().major < 7) {
             request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         }
         String doc = toStr(client().performRequest(request));

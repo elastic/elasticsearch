@@ -376,7 +376,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         }
 
         private static class FileSession {
-            public FileSession(long lastTrackedSeqNo, long lastOffset) {
+            FileSession(long lastTrackedSeqNo, long lastOffset) {
                 this.lastTrackedSeqNo = lastTrackedSeqNo;
                 this.lastOffset = lastOffset;
             }

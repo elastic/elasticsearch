@@ -67,6 +67,8 @@ void addCopyDockerContextTask(final boolean oss) {
       from 'src/docker/config'
     }
 
+    if (local()) {
+    }
     if (oss) {
       from configurations.ossDockerSource
     } else {
@@ -75,14 +77,13 @@ void addCopyDockerContextTask(final boolean oss) {
 
     from configurations.dockerPlugins
   }
+  }
 }
 
 void addCopyDockerfileTask(final boolean oss) {
   task(taskName("copy", oss, "Dockerfile"), type: Copy) {
+    dependsOn taskName("copy", oss, "DockerContext")
     inputs.properties(expansions(oss)) // ensure task is run when ext.expansions is changed
-    if (local()) {
-      mustRunAfter(taskName("copy", oss, "DockerContext"))
-    }
     into files(oss)
 
     from('src/docker/Dockerfile') {

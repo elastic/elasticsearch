@@ -50,6 +50,8 @@ default value is `10`. Since voting configuration exclusions are persistent and
 limited in number, you must clear the voting config exclusions list once the
 exclusions are no longer required.
 
+NOTE: Clusters should have no voting configuration exclusions in normal operation.
+
 There is also a
 <<modules-discovery-settings,`cluster.auto_shrink_voting_configuration` setting>>,
 which is set to true by default. If it is set to false, you must use this API to

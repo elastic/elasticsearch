@@ -26,7 +26,7 @@ for (ClusterIndexHealth health : healths.getIndices().values()) { <6>
 <2> Access the cluster name
 <3> Get the total number of data nodes
 <4> Get the total number of nodes
-<5> Check if there are voting exclusions in the cluster state
+<5> Check if there are <<voting-config-exclusions, voting exclusions>> in the cluster state
 <6> Iterate over all indices
 <7> Index name
 <8> Number of shards

@@ -137,7 +137,7 @@ include-tagged::{doc-tests-file}[{api}-response-nodes]
 --------------------------------------------------
 <1> Number of nodes in the cluster
 <2> Number of data nodes in the cluster
-<3> Whether cluster has voting exclusions
+<3> Whether cluster has <<voting-config-exclusions, voting exclusions>>
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

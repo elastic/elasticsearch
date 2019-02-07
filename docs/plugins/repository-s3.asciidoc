@@ -153,9 +153,9 @@ There are a number of storage systems that provide an S3-compatible API, and
 the `repository-s3` plugin allows you to use these systems in place of AWS S3.
 To do so, you should set the `s3.client.CLIENT_NAME.endpoint` setting to the
 system's endpoint. This setting accepts IP addresses and hostnames and may
-include a port. For example, the endpoint may be `"172.17.0.2"` or
-`"172.17.0.2:9000"`. You may also need to set `s3.client.CLIENT_NAME.protocol`
-to `http` if the endpoint does not support HTTPS.
+include a port. For example, the endpoint may be `172.17.0.2` or
+`172.17.0.2:9000`. You may also need to set `s3.client.CLIENT_NAME.protocol` to
+`http` if the endpoint does not support HTTPS.
 
 https://minio.io[Minio] is an example of a storage system that provides an
 S3-compatible API. The `repository-s3` plugin allows {es} to work with

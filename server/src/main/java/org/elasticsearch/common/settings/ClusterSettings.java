@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.JoinHelper;
@@ -67,9 +66,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.PeerFinder;
+import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
-import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
@@ -493,9 +492,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
                     ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,
                     ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
-                    LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
-                    DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING,
-                    DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING
+                    LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING
             )));
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.unmodifiableList(Arrays.asList(

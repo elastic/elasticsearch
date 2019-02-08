@@ -31,11 +31,14 @@ public class MetaDataIndexStateServiceUtils {
     }
 
     /**
-     * Allows to call {@link MetaDataIndexStateService#addIndexClosedBlocks(Index[], Map, ClusterState)} which is a protected method.
+     * Allows to call {@link MetaDataIndexStateService#addIndexClosedBlocks(Index[], Map, ClusterState, boolean)}
+     * which is a protected method.
      */
-    public static ClusterState addIndexClosedBlocks(final Index[] indices, final Map<Index, ClusterBlock> blockedIndices,
-                                                    final ClusterState state) {
-        return MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
+    public static ClusterState addIndexClosedBlocks(final Index[] indices,
+                                                    final Map<Index, ClusterBlock> blockedIndices,
+                                                    final ClusterState state,
+                                                    final boolean forced) {
+        return MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state, forced);
     }
 
     /**

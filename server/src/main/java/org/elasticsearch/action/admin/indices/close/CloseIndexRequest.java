@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -38,6 +39,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private boolean force = false;
 
     public CloseIndexRequest() {
     }
@@ -101,11 +103,29 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
         return this;
     }
 
+    /**
+     * Force the closing of indices without executing the pre-close sanity checks
+     */
+    public boolean force() {
+        return force;
+    }
+
+    /**
+     * Force the closing of indices without executing the pre-close sanity checks
+     */
+    public CloseIndexRequest force(final boolean force) {
+        this.force = force;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            force = in.readBoolean();
+        }
     }
 
     @Override
@@ -113,5 +133,8 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(force);
+        }
     }
 }

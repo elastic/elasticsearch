@@ -18,20 +18,30 @@
  */
 package org.elasticsearch.indices.state;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -304,6 +314,53 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsOpened(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(),
             indexer.totalIndexedDocs());
+    }
+
+    public void testForcedCloseCorruptedIndex() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        assertAcked(prepareCreate(indexName)
+            .setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()));
+
+        final int nbDocs = scaledRandomIntBetween(100, 1000);
+        final IndexRequestBuilder[] builders = new IndexRequestBuilder[nbDocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex(indexName, "_doc").setSource("field", "value");
+        }
+        indexRandom(randomBoolean(), builders);
+        ensureGreen();
+
+        final ClusterState clusterState = client().admin().cluster().prepareState().setIndices(indexName).get().getState();
+        final ShardRouting primaryShard  = clusterState.routingTable().index(indexName).shard(0).primaryShard();
+        assertTrue(primaryShard.active());
+
+        final NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats(primaryShard.currentNodeId()).setFs(true).get();
+        final FsInfo fsInfo = nodeStats.getNodes().get(0).getFs();
+
+        Path segmentInfos = null;
+        for (FsInfo.Path path : fsInfo) {
+            final Path file = PathUtils.get(path.getPath())
+                .resolve("indices")
+                .resolve(primaryShard.index().getUUID())
+                .resolve(Integer.toString(primaryShard.getId()))
+                .resolve("index");
+            if (Files.exists(file)) {
+                try (Directory dir = FSDirectory.open(file)) {
+                    segmentInfos = file.resolve(Lucene.readSegmentInfos(dir).getSegmentsFileName());
+                }
+            }
+        }
+
+        assertNotNull(segmentInfos);
+        Files.delete(segmentInfos);
+
+        AcknowledgedResponse closeIndexResponse = client().admin().indices().prepareClose(indexName).get();
+        assertFalse(closeIndexResponse.isAcknowledged());
+
+        closeIndexResponse = client().admin().indices().prepareClose(indexName).setForce(true).get();
+        assertTrue(closeIndexResponse.isAcknowledged());
+        assertIndexIsClosed(indexName);
     }
 
     static void assertIndexIsClosed(final String... indices) {

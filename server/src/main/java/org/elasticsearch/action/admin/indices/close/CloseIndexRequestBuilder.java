@@ -60,4 +60,9 @@ public class CloseIndexRequestBuilder
         request.indicesOptions(indicesOptions);
         return this;
     }
+
+    public CloseIndexRequestBuilder setForce(final boolean force) {
+        request.force(force);
+        return this;
+    }
 }

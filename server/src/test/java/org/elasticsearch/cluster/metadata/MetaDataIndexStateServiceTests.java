@@ -109,6 +109,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
                 assertIsClosed(blockedIndex.getName(), updatedState);
             } else {
                 assertIsOpened(blockedIndex.getName(), updatedState);
+                assertHasBlock(blockedIndex.getName(), updatedState, blockedIndices.get(blockedIndex));
                 assertThat(updatedState.blocks().hasIndexBlockWithId(blockedIndex.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
             }
         }
@@ -120,14 +121,15 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
             Index[] indices = new Index[]{new Index("_name", "_uid")};
             expectThrows(IndexNotFoundException.class, () ->
-                MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, initialState));
+                MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, initialState, randomBoolean()));
             assertTrue(blockedIndices.isEmpty());
         }
         {
             final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
             Index[] indices = Index.EMPTY_ARRAY;
 
-            ClusterState updatedState = MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, initialState);
+            ClusterState updatedState =
+                MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, initialState, randomBoolean());
             assertSame(initialState, updatedState);
             assertTrue(blockedIndices.isEmpty());
         }
@@ -136,7 +138,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             ClusterState state = addClosedIndex("closed", randomIntBetween(1, 3), randomIntBetween(0, 3), initialState);
             Index[] indices = new Index[]{state.metaData().index("closed").getIndex()};
 
-            ClusterState updatedState = MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
+            ClusterState updatedState = MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state, randomBoolean());
             assertSame(state, updatedState);
             assertTrue(blockedIndices.isEmpty());
 
@@ -147,7 +149,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             state = addOpenedIndex("opened", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
             Index[] indices = new Index[]{state.metaData().index("opened").getIndex(), state.metaData().index("closed").getIndex()};
 
-            ClusterState updatedState = MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
+            ClusterState updatedState = MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state, false);
             assertNotSame(state, updatedState);
 
             Index opened = updatedState.metaData().index("opened").getIndex();
@@ -167,7 +169,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
                         state = addOpenedIndex("closed", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
                     }
                     Index[] indices = new Index[]{state.metaData().index("restored").getIndex()};
-                    MetaDataIndexStateService.addIndexClosedBlocks(indices, unmodifiableMap(emptyMap()), state);
+                    MetaDataIndexStateService.addIndexClosedBlocks(indices, unmodifiableMap(emptyMap()), state, randomBoolean());
                 });
             assertThat(exception.getMessage(), containsString("Cannot close indices that are being restored: [[restored]]"));
         }
@@ -181,7 +183,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
                     state = addOpenedIndex("closed", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
                 }
                 Index[] indices = new Index[]{state.metaData().index("snapshotted").getIndex()};
-                MetaDataIndexStateService.addIndexClosedBlocks(indices, unmodifiableMap(emptyMap()), state);
+                MetaDataIndexStateService.addIndexClosedBlocks(indices, unmodifiableMap(emptyMap()), state, randomBoolean());
             });
             assertThat(exception.getMessage(), containsString("Cannot close indices that are being snapshotted: [[snapshotted]]"));
         }
@@ -204,7 +206,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
             Index index3 = state.metaData().index("index-3").getIndex();
             Index[] indices = new Index[]{index1, index2, index3};
 
-            ClusterState updatedState = MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
+            ClusterState updatedState = MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state, randomBoolean());
             assertNotSame(state, updatedState);
 
             for (Index index : indices) {
@@ -218,6 +220,41 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testAddIndexClosedBlocksWhenForced() {
+        final ClusterState initialState = ClusterState.builder(new ClusterName("testAddIndexClosedBlocksWhenForced")).build();
+
+        final int nbOpenedIndices = randomIntBetween(1, 5);
+        final Index[] indices = new Index[nbOpenedIndices + 1];
+
+        ClusterState state = initialState;
+        for (int i = 0; i < nbOpenedIndices; i++) {
+            final String indexName = "opened-" + i;
+            state = addOpenedIndex(indexName, randomIntBetween(1, 3), randomIntBetween(0, 3), state);
+            indices[i] = state.metaData().index(indexName).getIndex();
+        }
+
+        state = addClosedIndex("closed", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
+        indices[nbOpenedIndices] = state.metaData().index("closed").getIndex();
+        state = addOpenedIndex("other", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
+
+        final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
+        final ClusterState updatedState = MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state, true);
+        assertNotSame(state, updatedState);
+
+        assertFalse(blockedIndices.containsKey(updatedState.metaData().index("closed").getIndex()));
+        assertIsClosed("closed", updatedState);
+
+        assertFalse(blockedIndices.containsKey(updatedState.metaData().index("other").getIndex()));
+        assertIsOpened("other", updatedState);
+        assertNoBlock("other", updatedState);
+
+        for (int i = 0; i < nbOpenedIndices; i++) {
+            final String indexName = "opened-" + i;
+            assertTrue(blockedIndices.containsKey(updatedState.metaData().index(indexName).getIndex()));
+            assertIsClosed(indexName, updatedState); // forced close directly closes indices
+        }
+    }
+
     public void testAddIndexClosedBlocksReusesBlocks() {
         ClusterState state = ClusterState.builder(new ClusterName("testAddIndexClosedBlocksReuseBlocks")).build();
         state = addOpenedIndex("test", randomIntBetween(1, 3), randomIntBetween(0, 3), state);
@@ -226,13 +263,13 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
         Index[] indices = new Index[]{test};
 
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
-        state = MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state);
+        state = MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices, state, false);
 
         assertTrue(blockedIndices.containsKey(test));
         assertHasBlock(test.getName(), state, blockedIndices.get(test));
 
         final Map<Index, ClusterBlock> blockedIndices2 = new HashMap<>();
-        state = MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices2, state);
+        state = MetaDataIndexStateService.addIndexClosedBlocks(indices, blockedIndices2, state, false);
 
         assertTrue(blockedIndices2.containsKey(test));
         assertHasBlock(test.getName(), state, blockedIndices2.get(test));
@@ -384,5 +421,12 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
         assertThat("Index " + indexName + " must have only 1 block with [id=" + MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
             clusterState.blocks().indices().getOrDefault(indexName, emptySet()).stream()
                 .filter(clusterBlock -> clusterBlock.id() == MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID).count(), equalTo(1L));
+    }
+
+    private static void assertNoBlock(final String indexName, final ClusterState clusterState) {
+        assertThat(clusterState.blocks().hasIndexBlock(indexName, INDEX_CLOSED_BLOCK), is(false));
+        assertThat("Index " + indexName + " must not have a block with [id=" + MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID + "]",
+            clusterState.blocks().indices().getOrDefault(indexName, emptySet()).stream()
+                .filter(clusterBlock -> clusterBlock.id() == MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID).count(), equalTo(0L));
     }
 }

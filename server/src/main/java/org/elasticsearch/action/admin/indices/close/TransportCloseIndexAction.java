@@ -111,7 +111,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
             return;
         }
 
-        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(task.getId())
+        final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(task.getId(), request.force())
             .ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .indices(concreteIndices);

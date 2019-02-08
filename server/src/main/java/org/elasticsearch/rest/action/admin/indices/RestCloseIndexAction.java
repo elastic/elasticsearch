@@ -49,6 +49,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
+        closeIndexRequest.force(request.paramAsBoolean("force", closeIndexRequest.force()));
         return channel -> client.admin().indices().close(closeIndexRequest, new RestToXContentListener<>(channel));
     }
 

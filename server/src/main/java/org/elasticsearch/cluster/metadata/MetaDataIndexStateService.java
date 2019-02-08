@@ -125,6 +125,7 @@ public class MetaDataIndexStateService {
             throw new IllegalArgumentException("Index name is required");
         }
 
+        final boolean forced = request.force();
         clusterService.submitStateUpdateTask("add-block-index-to-close " + Arrays.toString(concreteIndices),
             new ClusterStateUpdateTask(Priority.URGENT) {
 
@@ -132,7 +133,7 @@ public class MetaDataIndexStateService {
 
                 @Override
                 public ClusterState execute(final ClusterState currentState) {
-                    return addIndexClosedBlocks(concreteIndices, blockedIndices, currentState);
+                    return addIndexClosedBlocks(concreteIndices, blockedIndices, currentState, forced);
                 }
 
                 @Override
@@ -199,8 +200,10 @@ public class MetaDataIndexStateService {
      * block (or reuses an existing one) to every index to close in the cluster state. After the cluster state is published, the shards
      * should start to reject writing operations and we can proceed with step 2.
      */
-    static ClusterState addIndexClosedBlocks(final Index[] indices, final Map<Index, ClusterBlock> blockedIndices,
-                                             final ClusterState currentState) {
+    static ClusterState addIndexClosedBlocks(final Index[] indices,
+                                             final Map<Index, ClusterBlock> blockedIndices,
+                                             final ClusterState currentState,
+                                             final boolean forced) {
         final MetaData.Builder metadata = MetaData.builder(currentState.metaData());
 
         final Set<IndexMetaData> indicesToClose = new HashSet<>();
@@ -223,9 +226,9 @@ public class MetaDataIndexStateService {
         // Check if index closing conflicts with any running snapshots
         SnapshotsService.checkIndexClosing(currentState, indicesToClose);
 
-        // If the cluster is in a mixed version that does not support the shard close action,
+        // If the close is forced or if the cluster is in a mixed version that does not support the shard close action,
         // we use the previous way to close indices and directly close them without sanity checks
-        final boolean useDirectClose = currentState.nodes().getMinNodeVersion().before(Version.V_6_7_0);
+        final boolean useDirectClose = forced || currentState.nodes().getMinNodeVersion().before(Version.V_6_7_0);
 
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
@@ -401,6 +404,7 @@ public class MetaDataIndexStateService {
                 if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                     logger.debug("verification of shards before closing {} succeeded but index is already closed", index);
                     assert currentState.blocks().hasIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
+                    closedIndices.add(index.getName());
                     continue;
                 }
                 final ClusterBlock closingBlock = blockedIndices.get(index);

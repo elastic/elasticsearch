@@ -58,3 +58,20 @@
 
   - match: { acknowledged: true }
   - match: { shards_acknowledged: true }
+---
+"Close index with force flag":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.close:
+        index: test_index
+        force: true

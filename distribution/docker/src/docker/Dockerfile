@@ -30,12 +30,12 @@ RUN groupadd -g 1000 elasticsearch && \
 
 WORKDIR /usr/share/elasticsearch
 
-${source_elasticsearch}
-
+COPY ${elasticsearch} /opt/
 RUN tar zxf /opt/${elasticsearch} --strip-components=1
 RUN mkdir -p config data logs
 RUN chmod 0775 config data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/
+
 
 ################################################################################
 # Build stage 1 (the actual elasticsearch image):

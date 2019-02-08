@@ -459,7 +459,6 @@ public class GeoDistanceIT extends ESIntegTestCase {
                 .addAggregation(geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894))
                         .field("location")
                         .unit(DistanceUnit.KILOMETERS)
-                        .distanceType(org.elasticsearch.common.geo.GeoDistance.ARC)
                         .addUnboundedTo(500)
                         .addRange(500, 1000)
                         .addUnboundedFrom(1000))

@@ -22,7 +22,6 @@ package org.elasticsearch.search.sort;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -392,7 +391,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
         client().prepareGet("locations", "location", "1").get();
 
         SearchResponse result = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery())
-                .setPostFilter(QueryBuilders.geoDistanceQuery("pin").geoDistance(GeoDistance.ARC).point(lat, lon).distance("1m")).get();
+                .setPostFilter(QueryBuilders.geoDistanceQuery("pin").point(lat, lon).distance("1m")).execute()
+                .actionGet();
 
         assertHitCount(result, 1);
     }

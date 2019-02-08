@@ -24,7 +24,6 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -338,8 +337,6 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         private final GeoPoint origin;
         private final IndexGeoPointFieldData fieldData;
 
-        private static final GeoDistance distFunction = GeoDistance.ARC;
-
         GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
                                          IndexGeoPointFieldData fieldData, MultiValueMode mode) {
             super(scale, decay, offset, func, mode);
@@ -358,20 +355,13 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
-                    if (geoPointValues.advanceExact(docId)) {
-                        int n = geoPointValues.docValueCount();
-                        resize(n);
-                        for (int i = 0; i < n; i++) {
-                            GeoPoint other = geoPointValues.nextValue();
-                            double distance = distFunction.calculate(
-                                origin.lat(), origin.lon(), other.lat(), other.lon(), DistanceUnit.METERS);
-                            values[i] = Math.max(0.0d, distance - offset);
-                        }
-                        sort();
-                        return true;
-                    } else {
-                        return false;
-                    }
+                    return geoPointValues.advanceExact(docId);
+                }
+
+                @Override
+                public double nextValue() throws IOException {
+                    GeoPoint other = geoPointValues.nextValue();
+                    return Math.max(0.0d, origin.distanceFrom(other));
                 }
             }), 0);
         }

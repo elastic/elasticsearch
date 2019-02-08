@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -49,17 +48,15 @@ public class GeoDistanceRangeAggregatorFactory
     private final GeoPoint origin;
     private final Range[] ranges;
     private final DistanceUnit unit;
-    private final GeoDistance distanceType;
     private final boolean keyed;
 
     public GeoDistanceRangeAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, GeoPoint origin,
-            Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed, SearchContext context,
+            Range[] ranges, DistanceUnit unit, boolean keyed, SearchContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.origin = origin;
         this.ranges = ranges;
         this.unit = unit;
-        this.distanceType = distanceType;
         this.keyed = keyed;
     }
 
@@ -73,7 +70,7 @@ public class GeoDistanceRangeAggregatorFactory
     @Override
     protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
+        DistanceSource distanceSource = new DistanceSource(valuesSource, origin, unit);
         return new RangeAggregator(name, factories, distanceSource, config.format(), rangeFactory, ranges, keyed, context,
                 parent,
                 pipelineAggregators, metaData);
@@ -82,16 +79,13 @@ public class GeoDistanceRangeAggregatorFactory
     private static class DistanceSource extends ValuesSource.Numeric {
 
         private final ValuesSource.GeoPoint source;
-        private final GeoDistance distanceType;
         private final DistanceUnit units;
         private final org.elasticsearch.common.geo.GeoPoint origin;
 
-        DistanceSource(ValuesSource.GeoPoint source, GeoDistance distanceType,
-                org.elasticsearch.common.geo.GeoPoint origin, DistanceUnit units) {
+        DistanceSource(ValuesSource.GeoPoint source, org.elasticsearch.common.geo.GeoPoint origin, DistanceUnit units) {
             this.source = source;
             // even if the geo points are unique, there's no guarantee the
             // distances are
-            this.distanceType = distanceType;
             this.units = units;
             this.origin = origin;
         }
@@ -109,7 +103,7 @@ public class GeoDistanceRangeAggregatorFactory
         @Override
         public SortedNumericDoubleValues doubleValues(LeafReaderContext ctx) {
             final MultiGeoPointValues geoValues = source.geoPointValues(ctx);
-            return GeoUtils.distanceValues(distanceType, units, geoValues, origin);
+            return GeoUtils.distanceValues(units, geoValues, origin);
         }
 
         @Override

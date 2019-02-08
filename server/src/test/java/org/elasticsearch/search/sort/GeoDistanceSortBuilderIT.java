@@ -22,10 +22,9 @@ package org.elasticsearch.search.sort;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -90,8 +89,8 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
             q[0] = new GeoPoint(2, 1);
             q[1] = new GeoPoint(2, 2);
         } else {
-            q[1] = new GeoPoint(2, 2);
-            q[0] = new GeoPoint(2, 1);
+            q[0] = new GeoPoint(2, 2);
+            q[1] = new GeoPoint(2, 1);
         }
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -99,40 +98,32 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MIN).order(SortOrder.ASC))
                 .get();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(2, 2, 3, 2, DistanceUnit.METERS), 10d));
-        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(2, 1, 5, 1, DistanceUnit.METERS), 10d));
+        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoUtils.arcDistance(2, 2, 3, 2), 10d));
+        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoUtils.arcDistance(2, 1, 5, 1), 10d));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MIN).order(SortOrder.DESC))
                 .get();
         assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(2, 1, 5, 1, DistanceUnit.METERS), 10d));
-        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(2, 2, 3, 2, DistanceUnit.METERS), 10d));
+        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoUtils.arcDistance(2, 1, 5, 1), 10d));
+        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoUtils.arcDistance(2, 2, 3, 2), 10d));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MAX).order(SortOrder.ASC))
                 .get();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(2, 2, 4, 1, DistanceUnit.METERS), 10d));
-        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(2, 1, 6, 2, DistanceUnit.METERS), 10d));
+        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoUtils.arcDistance(2, 2, 4, 1), 10d));
+        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoUtils.arcDistance(2, 1, 6, 2), 10d));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MAX).order(SortOrder.DESC))
                 .get();
         assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(2, 1, 6, 2, DistanceUnit.METERS), 10d));
-        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(2, 2, 4, 1, DistanceUnit.METERS), 10d));
+        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoUtils.arcDistance(2, 1, 6, 2), 10d));
+        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoUtils.arcDistance(2, 2, 4, 1), 10d));
     }
 
     public void testSingeToManyAvgMedian() throws ExecutionException, InterruptedException, IOException {
@@ -166,20 +157,16 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.AVG).order(SortOrder.ASC))
                 .get();
         assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(0, 0, 0, 4, DistanceUnit.METERS), 10d));
-        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(0, 0, 0, 5, DistanceUnit.METERS), 10d));
+        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoUtils.arcDistance(0, 0, 0, 4), 10d));
+        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoUtils.arcDistance(0, 0, 0, 5), 10d));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, q).sortMode(SortMode.MEDIAN).order(SortOrder.ASC))
                 .get();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(0, 0, 0, 4, DistanceUnit.METERS), 10d));
-        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(0, 0, 0, 5, DistanceUnit.METERS), 10d));
+        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoUtils.arcDistance(0, 0, 0, 4), 10d));
+        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoUtils.arcDistance(0, 0, 0, 5), 10d));
     }
 
     protected void createShuffeldJSONArray(XContentBuilder builder, GeoPoint[] pointsArray) throws IOException {
@@ -240,20 +227,16 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 .addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC))
                 .get();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(2.5, 1, 2, 1, DistanceUnit.METERS), 1.e-1));
-        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(4.5, 1, 2, 1, DistanceUnit.METERS), 1.e-1));
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoUtils.arcDistance(2.5, 1, 2, 1), 1.e-1));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoUtils.arcDistance(4.5, 1, 2, 1), 1.e-1));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(geoDistanceSortBuilder.sortMode(SortMode.MAX).order(SortOrder.ASC))
                 .get();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(3.25, 4, 2, 1, DistanceUnit.METERS), 1.e-1));
-        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(5.25, 4, 2, 1, DistanceUnit.METERS), 1.e-1));
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoUtils.arcDistance(3.25, 4, 2, 1), 1.e-1));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoUtils.arcDistance(5.25, 4, 2, 1), 1.e-1));
 
     }
 
@@ -323,10 +306,16 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
     private static void checkCorrectSortOrderForGeoSort(SearchResponse searchResponse) {
         assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(2, 2, 1, 2, DistanceUnit.METERS), 1.e-1));
-        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0],
-                closeTo(GeoDistance.ARC.calculate(2, 2, 1, 1, DistanceUnit.METERS), 1.e-1));
+        GeoPoint p1 = new GeoPoint(2, 2);
+        assertThat((Double) searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(p1.distanceFrom(new GeoPoint(1,2)), 1.e-1));
+        assertThat((Double) searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(p1.distanceFrom(new GeoPoint(1,1)), 1.e-1));
+    }
+
+    protected void createQPoints(List<String> qHashes, List<GeoPoint> qPoints) {
+        GeoPoint[] qp = {new GeoPoint(2, 1), new GeoPoint(2, 2), new GeoPoint(2, 3), new GeoPoint(2, 4)};
+        qPoints.addAll(Arrays.asList(qp));
+        String[] qh = {"s02equ04ven0", "s037ms06g7h0", "s065kk0dc540", "s06g7h0dyg00"};
+        qHashes.addAll(Arrays.asList(qh));
     }
 
     public void testCrossIndexIgnoreUnmapped() throws Exception {

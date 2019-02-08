@@ -289,9 +289,7 @@ GET /_search
                 "pin.location" : [-70, 40],
                 "order" : "asc",
                 "unit" : "km",
-                "mode" : "min",
-                "distance_type" : "arc",
-                "ignore_unmapped": true
+		        "mode" : "min",
             }
         }
     ],
@@ -301,12 +299,6 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
-
-
-
-`distance_type`::
-
-    How to compute the distance. Can either be `arc` (default), or `plane` (faster, but inaccurate on long distances and close to the poles).
 
 `mode`::
 

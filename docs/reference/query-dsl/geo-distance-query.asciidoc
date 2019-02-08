@@ -187,10 +187,6 @@ The following are options allowed on the filter:
     fall into this circle are considered to be matches. The `distance` can be
     specified in various units. See <<distance-units>>.
 
-`distance_type`::
-
-    How to compute the distance. Can either be `arc` (default), or `plane` (faster, but inaccurate on long distances and close to the poles).
-
 `_name`::
 
     Optional name field to identify the query

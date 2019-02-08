@@ -19,13 +19,21 @@
 
 package org.elasticsearch.test.hamcrest;
 
-import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.elasticsearch.common.unit.DistanceUnit;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.ShapeCollection;
+import org.locationtech.spatial4j.shape.impl.GeoCircle;
+import org.locationtech.spatial4j.shape.impl.RectangleImpl;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
+import org.locationtech.spatial4j.shape.jts.JtsPoint;
+import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.LineString;
+import com.vividsolutions.jts.geom.MultiLineString;
+import com.vividsolutions.jts.geom.MultiPoint;
+import com.vividsolutions.jts.geom.MultiPolygon;
+import com.vividsolutions.jts.geom.Polygon;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.hamcrest.Matcher;
 import org.junit.Assert;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -279,21 +287,7 @@ public class ElasticsearchGeoAssertions {
         }
     }
 
-    public static void assertDistance(String geohash1, String geohash2, Matcher<Double> match) {
-        GeoPoint p1 = new GeoPoint(geohash1);
-        GeoPoint p2 = new GeoPoint(geohash2);
-        assertDistance(p1.lat(), p1.lon(), p2.lat(),p2.lon(), match);
-    }
-
-    public static void assertDistance(double lat1, double lon1, double lat2, double lon2, Matcher<Double> match) {
-        assertThat(distance(lat1, lon1, lat2, lon2), match);
-    }
-
-    private static double distance(double lat1, double lon1, double lat2, double lon2) {
-        return GeoDistance.ARC.calculate(lat1, lon1, lat2, lon2, DistanceUnit.DEFAULT);
-    }
-
-    public static void assertValidException(XContentParser parser, Class<?> expectedException) {
+    public static void assertValidException(XContentParser parser, Class expectedException) {
         try {
             ShapeParser.parse(parser).buildS4J();
             Assert.fail("process completed successfully when " + expectedException.getName() + " expected");

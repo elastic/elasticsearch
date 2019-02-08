@@ -25,7 +25,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.search.internal.SearchContext;
@@ -71,10 +70,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         }
 
         if (randomBoolean()) {
-            qb.geoDistance(randomFrom(GeoDistance.values()));
-        }
-
-        if (randomBoolean()) {
             qb.ignoreUnmapped(randomBoolean());
         }
         return qb;
@@ -110,9 +105,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals("geohash must not be null or empty", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> query.geohash(""));
         assertEquals("geohash must not be null or empty", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> query.geoDistance(null));
-        assertEquals("geoDistance must not be null", e.getMessage());
     }
 
     /**
@@ -314,7 +306,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  \"geo_distance\" : {\n" +
                 "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
                 "    \"distance\" : 12000.0,\n" +
-                "    \"distance_type\" : \"arc\",\n" +
                 "    \"validation_method\" : \"STRICT\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +

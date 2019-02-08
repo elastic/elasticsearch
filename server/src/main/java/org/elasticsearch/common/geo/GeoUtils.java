@@ -629,8 +629,7 @@ public class GeoUtils {
      * Return a {@link SortedNumericDoubleValues} instance that returns the distances to a list of geo-points
      * for each document.
      */
-    public static SortedNumericDoubleValues distanceValues(final GeoDistance distance,
-                                                           final DistanceUnit unit,
+    public static SortedNumericDoubleValues distanceValues(final DistanceUnit unit,
                                                            final MultiGeoPointValues geoPointValues,
                                                            final GeoPoint... fromPoints) {
         final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
@@ -646,7 +645,7 @@ public class GeoUtils {
                 public double doubleValue() throws IOException {
                     final GeoPoint from = fromPoints[0];
                     final GeoPoint to = singleValues.geoPointValue();
-                    return distance.calculate(from.lat(), from.lon(), to.lat(), to.lon(), unit);
+                    return from.distanceFrom(to, unit);
                 }
 
             });
@@ -660,8 +659,7 @@ public class GeoUtils {
                         for (int i = 0; i < geoPointValues.docValueCount(); ++i) {
                             final GeoPoint point = geoPointValues.nextValue();
                             for (GeoPoint from : fromPoints) {
-                                values[v] = distance.calculate(from.lat(), from.lon(), point.lat(), point.lon(), unit);
-                                v++;
+                                values[v++] = from.distanceFrom(point, unit);
                             }
                         }
                         sort();

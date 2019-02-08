@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
@@ -235,7 +234,7 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link GeoDistance} aggregation with the given name.
+     * Create a new GeoDistance aggregation with the given name.
      */
     public static GeoDistanceAggregationBuilder geoDistance(String name, GeoPoint origin) {
         return new GeoDistanceAggregationBuilder(name, origin);

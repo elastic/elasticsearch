@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -18,10 +21,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -52,6 +58,8 @@ import java.util.function.Predicate;
  */
 public class TransportStartDataFrameAnalyticsAction
     extends TransportMasterNodeAction<StartDataFrameAnalyticsAction.Request, AcknowledgedResponse> {
+
+    private static final Logger LOGGER = LogManager.getLogger(TransportStartDataFrameAnalyticsAction.class);
 
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -107,7 +115,7 @@ public class TransportStartDataFrameAnalyticsAction
             new ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams>>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task) {
-                    listener.onResponse(new AcknowledgedResponse(true));
+                    waitForAnalyticsStarted(task, listener);
                 }
 
                 @Override
@@ -138,18 +146,110 @@ public class TransportStartDataFrameAnalyticsAction
         configProvider.get(request.getId(), configListener);
     }
 
-    public static class DataFrameAnalyticsTask extends AllocatedPersistentTask {
+    private void waitForAnalyticsStarted(PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> task,
+                                         ActionListener<AcknowledgedResponse> listener) {
+        AnalyticsPredicate predicate = new AnalyticsPredicate();
+        // TODO Add timeout parameter to the start analytics request and use it here instead of hardcoded value
+        persistentTasksService.waitForPersistentTaskCondition(task.getId(), predicate, TimeValue.timeValueSeconds(10),
+            new PersistentTasksService.WaitForPersistentTaskListener<PersistentTaskParams>() {
+
+                @Override
+                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<PersistentTaskParams> persistentTask) {
+                    if (predicate.exception != null) {
+                        // We want to return to the caller without leaving an unassigned persistent task, to match
+                        // what would have happened if the error had been detected in the "fast fail" validation
+                        cancelAnalyticsStart(task, predicate.exception, listener);
+                    } else {
+                        listener.onResponse(new AcknowledgedResponse(true));
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    listener.onFailure(new ElasticsearchException("Starting data frame analytics [" + task.getParams().getId()
+                        + "] timed out after [" + timeout + "]"));
+                }
+        });
+    }
+
+    /**
+     * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
+     * of endpoints waiting for a condition tested by this predicate would never get a response.
+     */
+    private class AnalyticsPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+
+        private volatile Exception exception;
+
+        @Override
+        public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+            if (persistentTask == null) {
+                return false;
+            }
+
+            PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
+            if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
+                assignment.isAssigned() == false) {
+                // Assignment has failed despite passing our "fast fail" validation
+                exception = new ElasticsearchStatusException("Could not start data frame analytics task, allocation explanation [" +
+                    assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
+                return true;
+            }
+            DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) persistentTask.getState();
+            DataFrameAnalyticsState analyticsState = taskState == null ? DataFrameAnalyticsState.STOPPED : taskState.getState();
+            return analyticsState == DataFrameAnalyticsState.STARTED;
+        }
+    }
+
+    private void cancelAnalyticsStart(
+        PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> persistentTask, Exception exception,
+        ActionListener<AcknowledgedResponse> listener) {
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(),
+            new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+                    // We succeeded in cancelling the persistent task, but the
+                    // problem that caused us to cancel it is the overall result
+                    listener.onFailure(exception);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    LOGGER.error("[" + persistentTask.getParams().getId() + "] Failed to cancel persistent task that could " +
+                        "not be assigned due to [" + exception.getMessage() + "]", e);
+                    listener.onFailure(exception);
+                }
+            }
+        );
+    }
+
+    public static class DataFrameAnalyticsTask extends AllocatedPersistentTask implements StartDataFrameAnalyticsAction.TaskMatcher {
 
         private final StartDataFrameAnalyticsAction.TaskParams taskParams;
+        @Nullable
+        private volatile Long reindexingTaskId;
 
         public DataFrameAnalyticsTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
                                       StartDataFrameAnalyticsAction.TaskParams taskParams) {
-            super(id, type, action, "data_frame_analytics-" + taskParams.getId(), parentTask, headers);
+            super(id, type, action, MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + taskParams.getId(), parentTask, headers);
             this.taskParams = Objects.requireNonNull(taskParams);
         }
 
         public StartDataFrameAnalyticsAction.TaskParams getParams() {
             return taskParams;
+        }
+
+        public void setReindexingTaskId(long reindexingTaskId) {
+            this.reindexingTaskId = reindexingTaskId;
+        }
+
+        @Nullable
+        public Long getReindexingTaskId() {
+            return reindexingTaskId;
         }
     }
 

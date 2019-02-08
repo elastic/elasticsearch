@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -20,6 +21,8 @@ import java.util.Objects;
 
 public class DataFrameAnalyticsTaskState implements PersistentTaskState {
 
+    public static final String NAME = MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME;
+
     private static ParseField STATE = new ParseField("state");
     private static ParseField ALLOCATION_ID = new ParseField("allocation_id");
 
@@ -27,7 +30,7 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState {
     private final long allocationId;
 
     private static final ConstructingObjectParser<DataFrameAnalyticsTaskState, Void> PARSER =
-            new ConstructingObjectParser<>(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, true,
+            new ConstructingObjectParser<>(NAME, true,
                 a -> new DataFrameAnalyticsTaskState((DataFrameAnalyticsState) a[0], (long) a[1]));
 
     static {
@@ -53,6 +56,11 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState {
         this.allocationId = allocationId;
     }
 
+    public DataFrameAnalyticsTaskState(StreamInput in) throws IOException {
+        this.state = DataFrameAnalyticsState.fromStream(in);
+        this.allocationId = in.readLong();
+    }
+
     public DataFrameAnalyticsState getState() {
         return state;
     }
@@ -63,7 +71,7 @@ public class DataFrameAnalyticsTaskState implements PersistentTaskState {
 
     @Override
     public String getWriteableName() {
-        return MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME;
+        return NAME;
     }
 
     @Override

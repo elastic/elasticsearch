@@ -41,7 +41,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     }
 
     public void testProcess_GivenEmptyResults() {
-        givenProcessResults(Arrays.asList(new AnalyticsResult(null), new AnalyticsResult(null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null), new AnalyticsResult(null, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -53,7 +53,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     public void testProcess_GivenRowResults() {
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1), new AnalyticsResult(rowResults2)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, null), new AnalyticsResult(rowResults2, null)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -69,6 +69,6 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     }
 
     private AnalyticsResultProcessor createResultProcessor() {
-        return new AnalyticsResultProcessor(dataFrameRowsJoiner);
+        return new AnalyticsResultProcessor(new AnalyticsProcessManager.ProcessContext(), dataFrameRowsJoiner);
     }
 }

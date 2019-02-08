@@ -226,13 +226,17 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private Map<String, Object> query = Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap());
         private Map<String, String> headers = Collections.emptyMap();
 
+        public Builder() {}
+
+        public Builder(String id) {
+            setId(id);
+        }
+
         public String getId() {
             return id;
         }
 
-        public Builder() {}
-
-        public Builder(DataFrameAnalyticsConfig config) {
+            public Builder(DataFrameAnalyticsConfig config) {
             this.id = config.id;
             this.source = config.source;
             this.dest = config.dest;

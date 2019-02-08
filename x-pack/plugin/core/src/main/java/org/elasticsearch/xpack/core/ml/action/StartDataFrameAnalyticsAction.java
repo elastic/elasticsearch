@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -160,6 +162,20 @@ public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> 
             builder.field(DataFrameAnalyticsConfig.ID.getPreferredName(), id);
             builder.endObject();
             return builder;
+        }
+    }
+
+    public interface TaskMatcher {
+
+        static boolean match(Task task, String expectedId) {
+            if (task instanceof TaskMatcher) {
+                if (MetaData.ALL.equals(expectedId)) {
+                    return true;
+                }
+                String expectedDescription = MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + expectedId;
+                return expectedDescription.equals(task.getDescription());
+            }
+            return false;
         }
     }
 }

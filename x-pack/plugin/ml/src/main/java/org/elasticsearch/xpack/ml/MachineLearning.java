@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -474,7 +475,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, environment, threadPool,
             analyticsProcessFactory);
         DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(client);
-        DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager(clusterService, client,
+        assert client instanceof NodeClient;
+        DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager(clusterService, (NodeClient) client,
             dataFrameAnalyticsConfigProvider, analyticsProcessManager);
         this.dataFrameAnalyticsManager.set(dataFrameAnalyticsManager);
 

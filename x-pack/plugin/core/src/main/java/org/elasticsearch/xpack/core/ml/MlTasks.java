@@ -29,7 +29,7 @@ public final class MlTasks {
 
     public static final String JOB_TASK_ID_PREFIX = "job-";
     public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
-    private static final String DATA_FRAME_ANALYTICS_TASK_ID_PREFIX = "data_frame_analytics-";
+    public static final String DATA_FRAME_ANALYTICS_TASK_ID_PREFIX = "data_frame_analytics-";
 
     public static final PersistentTasksCustomMetaData.Assignment AWAITING_UPGRADE =
         new PersistentTasksCustomMetaData.Assignment(null,

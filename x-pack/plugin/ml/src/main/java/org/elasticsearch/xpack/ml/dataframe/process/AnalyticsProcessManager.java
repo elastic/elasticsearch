@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
@@ -25,7 +26,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 public class AnalyticsProcessManager {
@@ -36,6 +40,7 @@ public class AnalyticsProcessManager {
     private final Environment environment;
     private final ThreadPool threadPool;
     private final AnalyticsProcessFactory processFactory;
+    private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
 
     public AnalyticsProcessManager(Client client, Environment environment, ThreadPool threadPool,
                                    AnalyticsProcessFactory analyticsProcessFactory) {
@@ -45,21 +50,24 @@ public class AnalyticsProcessManager {
         this.processFactory = Objects.requireNonNull(analyticsProcessFactory);
     }
 
-    public void runJob(DataFrameAnalyticsConfig config, DataFrameDataExtractorFactory dataExtractorFactory,
+    public void runJob(long taskAllocationId, DataFrameAnalyticsConfig config, DataFrameDataExtractorFactory dataExtractorFactory,
                        Consumer<Exception> finishHandler) {
         threadPool.generic().execute(() -> {
             DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
             AnalyticsProcess process = createProcess(config.getId(), createProcessConfig(config, dataExtractor));
+            processContextByAllocation.putIfAbsent(taskAllocationId, new ProcessContext());
             ExecutorService executorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
             DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
                 dataExtractorFactory.newExtractor(true));
-            AnalyticsResultProcessor resultProcessor = new AnalyticsResultProcessor(dataFrameRowsJoiner);
+            AnalyticsResultProcessor resultProcessor = new AnalyticsResultProcessor(processContextByAllocation.get(taskAllocationId),
+                dataFrameRowsJoiner);
             executorService.execute(() -> resultProcessor.process(process));
-            executorService.execute(() -> processData(config.getId(), dataExtractor, process, resultProcessor, finishHandler));
+            executorService.execute(
+                () -> processData(taskAllocationId, config.getId(), dataExtractor, process, resultProcessor, finishHandler));
         });
     }
 
-    private void processData(String jobId, DataFrameDataExtractor dataExtractor, AnalyticsProcess process,
+    private void processData(long taskAllocationId, String jobId, DataFrameDataExtractor dataExtractor, AnalyticsProcess process,
                              AnalyticsResultProcessor resultProcessor, Consumer<Exception> finishHandler) {
         try {
             writeHeaderRecord(dataExtractor, process);
@@ -85,6 +93,7 @@ public class AnalyticsProcessManager {
                 LOGGER.error("[{}] Error closing data frame analyzer process", jobId);
                 finishHandler.accept(e);
             }
+            processContextByAllocation.remove(taskAllocationId);
         }
     }
 
@@ -144,5 +153,20 @@ public class AnalyticsProcessManager {
         AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(dataSummary.rows, dataSummary.cols,
                 new ByteSizeValue(1, ByteSizeUnit.GB), 1, dataFrameAnalyses.get(0));
         return processConfig;
+    }
+
+    @Nullable
+    public Integer getProgressPercent(long allocationId) {
+        ProcessContext processContext = processContextByAllocation.get(allocationId);
+        return processContext == null ? null : processContext.progressPercent.get();
+    }
+
+    static class ProcessContext {
+
+        private final AtomicInteger progressPercent = new AtomicInteger(0);
+
+        void setProgressPercent(int progressPercent) {
+            this.progressPercent.set(progressPercent);
+        }
     }
 }

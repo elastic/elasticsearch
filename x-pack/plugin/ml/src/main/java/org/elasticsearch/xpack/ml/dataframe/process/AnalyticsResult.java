@@ -18,21 +18,30 @@ public class AnalyticsResult implements ToXContentObject {
 
     public static final ParseField TYPE = new ParseField("analytics_result");
 
+    public static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
+
     static final ConstructingObjectParser<AnalyticsResult, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
-            a -> new AnalyticsResult((RowResults) a[0]));
+            a -> new AnalyticsResult((RowResults) a[0], (Integer) a[1]));
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), RowResults.PARSER, RowResults.TYPE);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), PROGRESS_PERCENT);
     }
 
     private final RowResults rowResults;
+    private final Integer progressPercent;
 
-    public AnalyticsResult(RowResults rowResults) {
+    public AnalyticsResult(RowResults rowResults, Integer progressPercent) {
         this.rowResults = rowResults;
+        this.progressPercent = progressPercent;
     }
 
     public RowResults getRowResults() {
         return rowResults;
+    }
+
+    public Integer getProgressPercent() {
+        return progressPercent;
     }
 
     @Override
@@ -40,6 +49,9 @@ public class AnalyticsResult implements ToXContentObject {
         builder.startObject();
         if (rowResults != null) {
             builder.field(RowResults.TYPE.getPreferredName(), rowResults);
+        }
+        if (progressPercent != null) {
+            builder.field(PROGRESS_PERCENT.getPreferredName(), progressPercent);
         }
         builder.endObject();
         return builder;
@@ -55,11 +67,11 @@ public class AnalyticsResult implements ToXContentObject {
         }
 
         AnalyticsResult that = (AnalyticsResult) other;
-        return Objects.equals(rowResults, that.rowResults);
+        return Objects.equals(rowResults, that.rowResults) && Objects.equals(progressPercent, that.progressPercent);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rowResults);
+        return Objects.hash(rowResults, progressPercent);
     }
 }

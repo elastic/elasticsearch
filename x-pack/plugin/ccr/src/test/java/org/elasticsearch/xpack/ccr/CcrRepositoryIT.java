@@ -169,8 +169,12 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         assertNotEquals(leaderMetadata.getIndexUUID(), followerMetadata.getIndexUUID());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38100")
     public void testDocsAreRecovered() throws Exception {
+        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
+        String chunkSize = randomFrom("4KB", "128KB", "1MB");
+        settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), chunkSize));
+        assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
         String leaderIndex = "index1";
         String followerIndex = "index2";
@@ -243,6 +247,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         isRunning.set(false);
         thread.join();
+
+        settingsRequest = new ClusterUpdateSettingsRequest();
+        ByteSizeValue defaultValue = CcrSettings.RECOVERY_CHUNK_SIZE.getDefault(Settings.EMPTY);
+        settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), defaultValue));
+        assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
     }
 
     public void testRateLimitingIsEmployed() throws Exception {

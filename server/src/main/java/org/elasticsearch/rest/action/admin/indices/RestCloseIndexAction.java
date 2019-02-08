@@ -19,10 +19,13 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -32,6 +35,9 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 
 public class RestCloseIndexAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestCloseIndexAction.class));
+
     public RestCloseIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/_close", this);
@@ -49,7 +55,20 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
-        closeIndexRequest.force(request.paramAsBoolean("force", closeIndexRequest.force()));
+
+        final String forceParameter = request.param("force");
+        final boolean forced;
+        if (forceParameter == null) {
+            forced = closeIndexRequest.force();
+        } else {
+            deprecationLogger.deprecated("parameter [force] is deprecated but was [" + forceParameter + "]");
+            if (forceParameter.length() == 0) {
+                forced = true;
+            } else {
+                forced = Booleans.parseBoolean(forceParameter);
+            }
+        }
+        closeIndexRequest.force(forced);
         return channel -> client.admin().indices().close(closeIndexRequest, new RestToXContentListener<>(channel));
     }
 

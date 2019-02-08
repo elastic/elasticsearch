@@ -58,8 +58,14 @@
 
   - match: { acknowledged: true }
   - match: { shards_acknowledged: true }
+
 ---
 "Close index with force flag":
+  - skip:
+      version: " - 7.99.99"
+      reason: force parameter was added in 8.0.0
+      features: "warnings"
+
   - do:
       indices.create:
         index: test_index
@@ -75,3 +81,5 @@
       indices.close:
         index: test_index
         force: true
+      warnings:
+        - "parameter [force] is deprecated but was [true]"

@@ -46,7 +46,6 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.DeadHostState.TimeSupplier;
 
 import javax.net.ssl.SSLHandshakeException;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.client.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;

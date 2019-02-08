@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.elasticsearch.client;
 
 import java.util.ArrayList;
 import java.util.Collections;

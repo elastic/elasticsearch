@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.client.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;

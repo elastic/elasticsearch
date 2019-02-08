@@ -282,6 +282,10 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             asList("7.1.1", "7.2.0", "7.3.0", "8.0.0"),
             getVersionCollection("8.0.0").getUnreleased()
         );
+        assertVersionsEquals(
+            asList("6.6.1", "6.7.0", "7.0.0", "7.1.0"),
+            getVersionCollection("7.1.0").getUnreleased()
+        );
     }
 
     public void testGetBranch() {
@@ -298,12 +302,16 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             getVersionCollection("6.4.2")
         );
         assertUnreleasedBranchNames(
-            asList("5.6", "6.4", "6.x"),
+            asList("5.6", "6.4", "6.5"),
             getVersionCollection("6.6.0")
         );
         assertUnreleasedBranchNames(
             asList("7.1", "7.2", "7.x"),
             getVersionCollection("8.0.0")
+        );
+        assertUnreleasedBranchNames(
+            asList("6.6", "6.7", "7.0"),
+            getVersionCollection("7.1.0")
         );
     }
 
@@ -329,7 +337,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             getVersionCollection("8.0.0")
         );
         assertUnreleasedGradleProjectNames(
-            asList("staged", "minor"),
+            asList("maintenance", "staged", "minor"),
             getVersionCollection("7.1.0")
         );
     }

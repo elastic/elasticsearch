@@ -141,6 +141,12 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
             extension += '.gz'
           }
         }
+        if (bwcVersion.onOrAfter('7.0.0') && projectName.contains('deb')) {
+          classifier = "-amd64"
+        }
+        if (bwcVersion.onOrAfter('7.0.0') && projectName.contains('rpm')) {
+          classifier = "-x86_64"
+        }
         if (bwcVersion.onOrAfter('6.3.0')) {
             baseDir += projectName.endsWith('zip') || projectName.endsWith('tar') ? '/archives' : '/packages'
             // add oss variant first

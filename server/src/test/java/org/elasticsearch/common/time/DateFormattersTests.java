@@ -21,12 +21,16 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
+import java.time.temporal.TemporalField;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
@@ -95,6 +99,8 @@ public class DateFormattersTests extends ESTestCase {
         e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("1234.1234567890"));
         assertThat(e.getMessage(), is("failed to parse date field [1234.1234567890] with format [epoch_second]"));
     }
+
+
 
     public void testEpochMilliParsersWithDifferentFormatters() {
         DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time||epoch_millis");
@@ -247,5 +253,16 @@ public class DateFormattersTests extends ESTestCase {
         DateTimeFormatter roundupParser = formatter.getRoundupParser();
         assertThat(roundupParser.getLocale(), is(locale));
         assertThat(formatter.locale(), is(locale));
+    }
+
+    public void test0MillisAreFormatted() {
+        DateFormatter formatter = DateFormatter.forPattern("strict_date_time");
+
+        Clock clock = Clock.fixed(ZonedDateTime.of(2019,02,8,11,43,00,0,
+            ZoneOffset.UTC).toInstant(),ZoneOffset.UTC);
+
+        String formatted = formatter.formatMillis(clock.millis());
+
+        assertThat(formatted, is("2019-02-08T11:43:00.000Z"));
     }
 }

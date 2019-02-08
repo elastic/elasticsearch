@@ -26,7 +26,7 @@ import java.util.Objects;
  */
 public abstract class MonitoringDoc implements ToXContentObject {
 
-    private static final DateFormatter dateTimeFormatter = DateFormatter.forPattern("strict_date_time");
+    private static final DateFormatter dateTimeFormatter = DateFormatter.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
     private final String cluster;
     private final long timestamp;
     private final long intervalMillis;
@@ -126,9 +126,7 @@ public abstract class MonitoringDoc implements ToXContentObject {
      * @return a string representing the timestamp
      */
     public static String toUTC(final long timestamp) {
-        ZonedDateTime zonedDateTime = Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC);
-        return dateTimeFormatter.format(zonedDateTime);
-
+        return dateTimeFormatter.formatMillis(timestamp);
     }
 
     /**

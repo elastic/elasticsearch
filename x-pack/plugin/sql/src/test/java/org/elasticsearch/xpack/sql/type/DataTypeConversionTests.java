@@ -151,10 +151,10 @@ public class DataTypeConversionTests extends ESTestCase {
             Conversion conversion = conversionFor(KEYWORD, to);
             assertNull(conversion.convert(null));
 
-            assertEquals(date(0L), conversion.convert("1970-01-01T00:10:01Z"));
-            assertEquals(date(1483228800000L), conversion.convert("2017-01-01T00:11:00Z"));
-            assertEquals(date(-1672531200000L), conversion.convert("1917-01-01T00:11:00Z"));
-            assertEquals(date(18000000L), conversion.convert("1970-01-01T03:10:20-05:00"));
+            assertEquals(date(0L), conversion.convert("1970-01-01"));
+            assertEquals(date(1483228800000L), conversion.convert("2017-01-01"));
+            assertEquals(date(-1672531200000L), conversion.convert("1917-01-01"));
+            assertEquals(date(18000000L), conversion.convert("1970-01-01"));
 
             // double check back and forth conversion
             ZonedDateTime zdt = TestUtils.now();
@@ -162,7 +162,7 @@ public class DataTypeConversionTests extends ESTestCase {
             Conversion back = conversionFor(KEYWORD, DATE);
             assertEquals(DateUtils.asDateOnly(zdt), back.convert(forward.convert(zdt)));
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
-            assertEquals("cannot cast [0xff] to [date]:Invalid format: \"0xff\" is malformed at \"xff\"", e.getMessage());
+            assertEquals("cannot cast [0xff] to [date]: Text '0xff' could not be parsed at index 0", e.getMessage());
         }
     }
 
@@ -199,6 +199,7 @@ public class DataTypeConversionTests extends ESTestCase {
             Conversion conversion = conversionFor(KEYWORD, to);
             assertNull(conversion.convert(null));
 
+            assertEquals(dateTime(0L), conversion.convert("1970-01-01"));
             assertEquals(dateTime(1000L), conversion.convert("1970-01-01T00:00:01Z"));
             assertEquals(dateTime(1483228800000L), conversion.convert("2017-01-01T00:00:00Z"));
             assertEquals(dateTime(1483228800000L), conversion.convert("2017-01-01T00:00:00Z"));
@@ -210,7 +211,8 @@ public class DataTypeConversionTests extends ESTestCase {
             Conversion back = conversionFor(KEYWORD, DATETIME);
             assertEquals(dt, back.convert(forward.convert(dt)));
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
-            assertEquals("cannot cast [0xff] to [datetime]:Invalid format: \"0xff\" is malformed at \"xff\"", e.getMessage());
+            assertEquals("cannot cast [0xff] to [datetime]: failed to parse date field [0xff] with format [date_optional_time]",
+                e.getMessage());
         }
     }
 

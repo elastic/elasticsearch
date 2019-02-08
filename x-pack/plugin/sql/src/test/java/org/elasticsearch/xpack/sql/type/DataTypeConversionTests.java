@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Source;
@@ -157,7 +156,8 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(date(18000000L), conversion.convert("1970-01-01T03:10:20-05:00"));
 
             // double check back and forth conversion
-            ZonedDateTime zdt = TestUtils.now();
+
+            ZonedDateTime zdt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
             Conversion forward = conversionFor(DATE, KEYWORD);
             Conversion back = conversionFor(KEYWORD, DATE);
             assertEquals(DateUtils.asDateOnly(zdt), back.convert(forward.convert(zdt)));
@@ -205,7 +205,8 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(dateTime(18000000L), conversion.convert("1970-01-01T00:00:00-05:00"));
 
             // double check back and forth conversion
-            ZonedDateTime dt = TestUtils.now();
+
+            ZonedDateTime dt = org.elasticsearch.common.time.DateUtils.nowWithMillisResolution();
             Conversion forward = conversionFor(DATETIME, KEYWORD);
             Conversion back = conversionFor(KEYWORD, DATETIME);
             assertEquals(dt, back.convert(forward.convert(dt)));

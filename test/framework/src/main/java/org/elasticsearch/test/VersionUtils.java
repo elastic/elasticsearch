@@ -43,7 +43,7 @@ public class VersionUtils {
      * rules here match up with the rules in gradle then this should
      * produce sensible results.
      * @return a tuple containing versions with backwards compatibility
-     * guarantees in v1 and versions without the guranteees in v2
+     * guarantees in v1 and versions without the guarantees in v2
      */
     static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
         // group versions into major version
@@ -67,7 +67,11 @@ public class VersionUtils {
             // on a stable or release branch, ie N.x
             stableVersions = currentMajor;
             // remove the next maintenance bugfix
-            moveLastToUnreleased(previousMajor, unreleasedVersions);
+            final Version prevMajorLastMinor = moveLastToUnreleased(previousMajor, unreleasedVersions);
+            if (prevMajorLastMinor.revision == 0 && previousMajor.isEmpty() == false) {
+                // The latest minor in the previous major is a ".0" release, so there must be an unreleased bugfix for the minor before that
+                moveLastToUnreleased(previousMajor, unreleasedVersions);
+            }
         }
 
         // remove next minor

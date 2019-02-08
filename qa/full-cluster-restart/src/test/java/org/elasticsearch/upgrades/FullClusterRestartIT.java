@@ -843,6 +843,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * old and new versions. All of the snapshots include an index, a template,
      * and some routing configuration.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38603")
     public void testSnapshotRestore() throws IOException {
         int count;
         if (isRunningAgainstOldCluster() && getOldClusterVersion().major < 8) {
@@ -909,8 +910,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         createTemplateRequest.setJsonEntity(Strings.toString(templateBuilder));
 
         // In 7.0, type names are no longer expected by default in put index template requests.
-        // We therefore use the deprecated typed APIs when running against the current version.
-        if (isRunningAgainstAncientCluster()) {
+        // We therefore use the deprecated typed APIs when running against the current version, but testing with a pre-7 version
+        if (isRunningAgainstOldCluster() == false && getOldClusterVersion().major < 7) {
             createTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
         createTemplateRequest.setOptions(allowTypeRemovalWarnings());
@@ -1214,7 +1215,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String loadInfoDocument(String type) throws IOException {
         Request request = new Request("GET", "/info/" + this.type + "/" + index + "_" + type);
         request.addParameter("filter_path", "_source");
-        if (isRunningAgainstAncientCluster()) {
+        if (getOldClusterVersion().before(Version.V_6_7_0)) {
             request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         }
         String doc = toStr(client().performRequest(request));

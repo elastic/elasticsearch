@@ -617,7 +617,8 @@ public final class Verifier {
     private static void checkGroupingFunctionTarget(GroupingFunction f, Set<Failure> localFailures) {
         f.field().forEachDown(e -> {
             if (e instanceof GroupingFunction) {
-                localFailures.add(fail(f.field(), "Cannot embed a grouping function within another grouping", Expressions.name(f)));
+                localFailures.add(fail(f.field(), "Cannot embed grouping functions within each other, found [{}] in [{}]",
+                        Expressions.name(f.field()), Expressions.name(f)));
             }
         });
     }

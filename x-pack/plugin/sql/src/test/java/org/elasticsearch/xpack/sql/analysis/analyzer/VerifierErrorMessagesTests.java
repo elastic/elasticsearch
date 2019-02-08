@@ -571,7 +571,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupingsInHistogram() {
-        assertEquals("1:47: Cannot embed a grouping function within another grouping",
+        assertEquals(
+                "1:47: Cannot embed grouping functions within each other, found [HISTOGRAM(int, 1)] in [HISTOGRAM(HISTOGRAM(int, 1), 1)]",
                 error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(HISTOGRAM(int, 1), 1)"));
     }
 

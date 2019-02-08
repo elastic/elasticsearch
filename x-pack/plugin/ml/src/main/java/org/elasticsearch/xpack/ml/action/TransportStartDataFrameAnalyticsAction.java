@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -123,18 +122,16 @@ public class TransportStartDataFrameAnalyticsAction
             };
 
         // Start persistent task
-        ActionListener<ExtractedFields> validateListener = ActionListener.wrap(
-            config -> persistentTasksService.sendStartRequest(MlTasks.dataFrameAnalyticsTaskId(request.getId()),
+        ActionListener<Boolean> validateListener = ActionListener.wrap(
+            validated -> persistentTasksService.sendStartRequest(MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, taskParams, waitForAnalyticsToStart),
             listener::onFailure
         );
 
         // Validate config
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
-            config -> {
-                config.getParsedQuery(); // verify that stored query can be parsed.
-                DataFrameDataExtractorFactory.validate(client, Collections.emptyMap(), config.getSource(), validateListener);
-            },
+            config ->
+                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, Collections.emptyMap(), config, validateListener),
             listener::onFailure
         );
 

@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
@@ -84,37 +85,77 @@ public class DataFrameDataExtractorFactory {
     /**
      * Validate and create a new extractor factory
      *
-     * The index must exist and contain at least 1 compatible field or validations will fail.
+     * The destination index must exist and contain at least 1 compatible field or validations will fail.
      *
      * @param client ES Client used to make calls against the cluster
      * @param headers Headers to use
-     * @param dataFrameId The id of the referenced DataFrameAnalyticsConfiguration object
-     * @param index The index from which to extract data
-     * @param query The query for data extraction
+     * @param config The config from which to create the extractor factory
      * @param listener The listener to notify on creation or failure
      */
     public static void create(Client client,
                               Map<String, String> headers,
-                              String dataFrameId,
-                              String index,
-                              QueryBuilder query,
+                              DataFrameAnalyticsConfig config,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
 
-        validate(client, headers, index, ActionListener.wrap(
-            extractedFields -> listener.onResponse(new DataFrameDataExtractorFactory(client, dataFrameId, index, extractedFields, query)),
+        validateIndexAndExtractFields(client, headers, config.getDest(), ActionListener.wrap(
+            extractedFields -> listener.onResponse(
+                new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(), extractedFields, config.getParsedQuery())),
             listener::onFailure
         ));
     }
 
     /**
-     * Validates the index to verify that it exists and that there are fields for analysis
+     * Validates the source index and analytics config
      *
      * @param client ES Client to make calls
      * @param headers Headers for auth
-     * @param index The index to validate
+     * @param config Analytics config to validate
      * @param listener The listener to notify on failure or completion
      */
-    public static void validate(Client client, Map<String, String> headers, String index, ActionListener<ExtractedFields> listener) {
+    public static void validateConfigAndSourceIndex(Client client,
+                                                    Map<String, String> headers,
+                                                    DataFrameAnalyticsConfig config,
+                                                    ActionListener<Boolean> listener) {
+        validateIndexAndExtractFields(client, headers, config.getSource(), ActionListener.wrap(
+            fields -> {
+                config.getParsedQuery(); // validate query is acceptable
+                listener.onResponse(true);
+            },
+            listener::onFailure
+        ));
+    }
+
+    // Visible for testing
+    static ExtractedFields detectExtractedFields(String index, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+        Set<String> fields = fieldCapabilitiesResponse.get().keySet();
+        fields.removeAll(IGNORE_FIELDS);
+        removeFieldsWithIncompatibleTypes(fields, fieldCapabilitiesResponse);
+        List<String> sortedFields = new ArrayList<>(fields);
+        // We sort the fields to ensure the checksum for each document is deterministic
+        Collections.sort(sortedFields);
+        ExtractedFields extractedFields = ExtractedFields.build(sortedFields, Collections.emptySet(), fieldCapabilitiesResponse)
+                .filterFields(ExtractedField.ExtractionMethod.DOC_VALUE);
+        if (extractedFields.getAllFields().isEmpty()) {
+            throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index [{}]", index);
+        }
+        return extractedFields;
+    }
+
+    private static void removeFieldsWithIncompatibleTypes(Set<String> fields, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+        Iterator<String> fieldsIterator = fields.iterator();
+        while (fieldsIterator.hasNext()) {
+            String field = fieldsIterator.next();
+            Map<String, FieldCapabilities> fieldCaps = fieldCapabilitiesResponse.getField(field);
+            if (fieldCaps == null || COMPATIBLE_FIELD_TYPES.containsAll(fieldCaps.keySet()) == false) {
+                fieldsIterator.remove();
+            }
+        }
+    }
+
+    private static void validateIndexAndExtractFields(Client client,
+                                                      Map<String, String> headers,
+                                                      String index,
+                                                      ActionListener<ExtractedFields> listener) {
         // Step 2. Extract fields (if possible) and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
             fieldCapabilitiesResponse -> listener.onResponse(detectExtractedFields(index, fieldCapabilitiesResponse)),
@@ -137,32 +178,5 @@ public class DataFrameDataExtractorFactory {
             // This response gets discarded - the listener handles the real response
             return null;
         });
-    }
-
-    // Visible for testing
-    static ExtractedFields detectExtractedFields(String sourceIndex, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
-        Set<String> fields = fieldCapabilitiesResponse.get().keySet();
-        fields.removeAll(IGNORE_FIELDS);
-        removeFieldsWithIncompatibleTypes(fields, fieldCapabilitiesResponse);
-        List<String> sortedFields = new ArrayList<>(fields);
-        // We sort the fields to ensure the checksum for each document is deterministic
-        Collections.sort(sortedFields);
-        ExtractedFields extractedFields = ExtractedFields.build(sortedFields, Collections.emptySet(), fieldCapabilitiesResponse)
-                .filterFields(ExtractedField.ExtractionMethod.DOC_VALUE);
-        if (extractedFields.getAllFields().isEmpty()) {
-            throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index [{}]", sourceIndex);
-        }
-        return extractedFields;
-    }
-
-    private static void removeFieldsWithIncompatibleTypes(Set<String> fields, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
-        Iterator<String> fieldsIterator = fields.iterator();
-        while (fieldsIterator.hasNext()) {
-            String field = fieldsIterator.next();
-            Map<String, FieldCapabilities> fieldCaps = fieldCapabilitiesResponse.getField(field);
-            if (fieldCaps == null || COMPATIBLE_FIELD_TYPES.containsAll(fieldCaps.keySet()) == false) {
-                fieldsIterator.remove();
-            }
-        }
     }
 }

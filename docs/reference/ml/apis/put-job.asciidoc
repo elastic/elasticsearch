@@ -12,7 +12,13 @@ Instantiates a job.
 
 `PUT _xpack/ml/anomaly_detectors/<job_id>`
 
-//===== Description
+===== Description
+
+IMPORTANT: You must use {kib} or this API to create a {ml} job. Do not put a job
+            directly to the `.ml-config` index using the Elasticsearch index API.
+            If {es} {security-features} are enabled, do not give users `write`
+            privileges on the `.ml-config` index.
+
 
 ==== Path Parameters
 

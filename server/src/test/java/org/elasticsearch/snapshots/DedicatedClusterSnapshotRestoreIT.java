@@ -855,7 +855,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-
     public void testMasterAndDataShutdownDuringSnapshot() throws Exception {
         logger.info("-->  starting three master nodes and two data nodes");
         internalCluster().startMasterOnlyNodes(3);

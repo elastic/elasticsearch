@@ -200,19 +200,3 @@
         wait_for_completion: true
         task_id: $task
 
----
-"Create an index with _all explicitly disabled":
-  - skip:
-      features: warnings
-  - do:
-      warnings:
-        - "[_all] is deprecated in 6.0+ and will be removed in 7.0. As a replacement, you can use [copy_to] on mapping fields to create your own catch all field."
-      indices.create:
-        index: all-index
-        body:
-          mappings:
-            _all:
-              enabled: false
-            properties:
-              field:
-                type: text

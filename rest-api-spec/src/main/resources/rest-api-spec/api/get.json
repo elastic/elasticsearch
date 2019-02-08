@@ -58,14 +58,6 @@
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
         },
-        "_source_exclude": {
-          "type" : "list",
-          "description" : "A list of fields to exclude from the returned _source field"
-        },
-        "_source_include": {
-          "type" : "list",
-          "description" : "A list of fields to extract and return from the _source field"
-        },
         "version" : {
           "type" : "number",
           "description" : "Explicit version number for concurrency control"

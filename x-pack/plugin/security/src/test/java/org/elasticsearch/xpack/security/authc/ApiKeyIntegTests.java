@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -21,6 +22,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
@@ -54,8 +56,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
+@TestLogging("org.elasticsearch.xpack.security.authc.ApiKeyService:TRACE")
 public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     @Override
@@ -232,7 +237,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         verifyInvalidateResponse(1, responses, invalidateResponse);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38408")
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/38408")
     public void testGetAndInvalidateApiKeysWithExpiredAndInvalidatedApiKey() throws Exception {
         List<CreateApiKeyResponse> responses = createApiKeys(1, null);
         Instant created = Instant.now();
@@ -249,6 +254,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
             docId.set(searchResponse.getHits().getAt(0).getId());
         });
+        logger.info("searched and found API key with doc id = " + docId.get());
+        assertThat(docId.get(), is(notNullValue()));
+        assertThat(docId.get(), is(responses.get(0).getId()));
 
         // hack doc to modify the expiration time to the week before
         Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
@@ -259,6 +267,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         securityClient.invalidateApiKey(InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId()), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
+        if (invalidateResponse.getErrors().isEmpty() == false) {
+            logger.error("error occurred while invalidating API key by id : " + invalidateResponse.getErrors().stream()
+                    .map(ElasticsearchException::getMessage)
+                    .collect(Collectors.joining(", ")));
+        }
         verifyInvalidateResponse(1, responses, invalidateResponse);
 
         // try again
@@ -303,6 +316,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
             docId.set(searchResponse.getHits().getAt(0).getId());
         });
+        logger.info("searched and found API key with doc id = " + docId.get());
+        assertThat(docId.get(), is(notNullValue()));
+        assertThat(docId.get(), isIn(responses.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toList())));
 
         AtomicBoolean deleteTriggered = new AtomicBoolean(false);
         assertBusy(() -> {
@@ -333,6 +349,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
             docId.set(searchResponse.getHits().getAt(0).getId());
         });
+        logger.info("searched and found API key with doc id = " + docId.get());
+        assertThat(docId.get(), is(notNullValue()));
+        assertThat(docId.get(), isIn(responses.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toList())));
 
         // hack doc to modify the expiration time to the week before
         Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
@@ -490,6 +509,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertNotNull(response.getKey());
             responses.add(response);
         }
+        assertThat(responses.size(), is(noOfApiKeys));
         return responses;
     }
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.client.watcher;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
@@ -43,10 +42,8 @@ public final class PutWatchRequest implements Validatable {
     private final BytesReference source;
     private final XContentType xContentType;
     private boolean active = true;
-    private long version = Versions.MATCH_ANY;
     private long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
-
 
     public PutWatchRequest(String id, BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(id, "watch id is missing");
@@ -93,14 +90,6 @@ public final class PutWatchRequest implements Validatable {
      */
     public XContentType xContentType() {
         return xContentType;
-    }
-
-    public long getVersion() {
-        return version;
-    }
-
-    public void setVersion(long version) {
-        this.version = version;
     }
 
     /**

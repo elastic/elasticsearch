@@ -44,6 +44,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -58,6 +59,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -93,12 +95,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.empty;
@@ -552,6 +556,70 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 }
             }
         });
+    }
+
+    /**
+     * Waits until at least a give number of document is visible for searchers
+     *
+     * @param numDocs number of documents to wait for
+     * @param indexer a {@link org.elasticsearch.test.BackgroundIndexer}. Will be first checked for documents indexed.
+     *                This saves on unneeded searches.
+     * @return the actual number of docs seen.
+     */
+    public long waitForDocs(final long numDocs, final BackgroundIndexer indexer) throws InterruptedException {
+        // indexing threads can wait for up to ~1m before retrying when they first try to index into a shard which is not STARTED.
+        return waitForDocs(numDocs, 90, TimeUnit.SECONDS, indexer);
+    }
+
+    /**
+     * Waits until at least a give number of document is visible for searchers
+     *
+     * @param numDocs         number of documents to wait for
+     * @param maxWaitTime     if not progress have been made during this time, fail the test
+     * @param maxWaitTimeUnit the unit in which maxWaitTime is specified
+     * @param indexer         Will be first checked for documents indexed.
+     *                        This saves on unneeded searches.
+     * @return the actual number of docs seen.
+     */
+    public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, final BackgroundIndexer indexer)
+        throws InterruptedException {
+        final AtomicLong lastKnownCount = new AtomicLong(-1);
+        long lastStartCount = -1;
+        BooleanSupplier testDocs = () -> {
+            lastKnownCount.set(indexer.totalIndexedDocs());
+            if (lastKnownCount.get() >= numDocs) {
+                try {
+                    long count = indexer.getClient().prepareSearch()
+                        .setTrackTotalHits(true)
+                        .setSize(0)
+                        .setQuery(QueryBuilders.matchAllQuery())
+                        .get()
+                        .getHits().getTotalHits().value;
+
+                    if (count == lastKnownCount.get()) {
+                        // no progress - try to refresh for the next time
+                        indexer.getClient().admin().indices().prepareRefresh().get();
+                    }
+                    lastKnownCount.set(count);
+                } catch (Exception e) { // count now acts like search and barfs if all shards failed...
+                    logger.debug("failed to executed count", e);
+                    return false;
+                }
+                logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
+            } else {
+                logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
+            }
+            return lastKnownCount.get() >= numDocs;
+        };
+
+        while (!awaitBusy(testDocs, maxWaitTime, maxWaitTimeUnit)) {
+            if (lastStartCount == lastKnownCount.get()) {
+                // we didn't make any progress
+                fail("failed to reach " + numDocs + "docs");
+            }
+            lastStartCount = lastKnownCount.get();
+        }
+        return lastKnownCount.get();
     }
 
     static void removeCCRRelatedMetadataFromClusterState(ClusterService clusterService) throws Exception {

@@ -750,12 +750,8 @@ public final class TokenService {
                                     client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
                                         .setDoc("refresh_token", Collections.singletonMap("refreshed", true))
                                         .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-                                if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0)) {
-                                    updateRequest.setIfSeqNo(response.getSeqNo());
-                                    updateRequest.setIfPrimaryTerm(response.getPrimaryTerm());
-                                } else {
-                                    updateRequest.setVersion(response.getVersion());
-                                }
+                                updateRequest.setIfSeqNo(response.getSeqNo());
+                                updateRequest.setIfPrimaryTerm(response.getPrimaryTerm());
                                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
                                     ActionListener.<UpdateResponse>wrap(
                                         updateResponse -> createUserToken(authentication, userAuth, listener, metadata, true),

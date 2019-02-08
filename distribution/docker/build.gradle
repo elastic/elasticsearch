@@ -24,8 +24,8 @@ ext.expansions = { oss ->
   final String ingestUserAgent = "ingest-user-agent-${VersionProperties.elasticsearch}.zip"
   return [
     'elasticsearch'       : elasticsearch,
-    'jdkUrl'              : 'https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz',
-    'jdkVersion'          : '11.0.2',
+    'jdkUrl'              : 'https://download.java.net/java/GA/jdk11/13/GPL/openjdk-11.0.1_linux-x64_bin.tar.gz',
+    'jdkVersion'          : '11.0.1',
     'license'             : oss ? 'Apache-2.0' : 'Elastic License',
     'source_elasticsearch': local() ? "COPY $elasticsearch $ingestGeoip $ingestUserAgent /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
     'ingest-geoip-plugin' : local() ? "file:///opt/$ingestGeoip" : "ingest-geoip",

@@ -67,8 +67,3 @@
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: q3 }
 
----
-"Index with _all is available":
-  - do:
-      indices.get:
-        index: all-index

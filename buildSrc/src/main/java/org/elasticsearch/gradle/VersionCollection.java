@@ -171,30 +171,38 @@ public class VersionCollection {
     }
 
     public void forPreviousUnreleased(Consumer<UnreleasedVersionInfo> consumer) {
-        getUnreleased().stream()
+        List<UnreleasedVersionInfo> collect = getUnreleased().stream()
             .filter(version -> version.equals(currentVersion) == false)
-            .forEach(version -> consumer.accept(
-                new UnreleasedVersionInfo(
+            .map(version -> new UnreleasedVersionInfo(
                     version,
                     getBranchFor(version),
                     getGradleProjectNameFor(version)
                 )
-            ));
+            )
+            .collect(Collectors.toList());
+
+        collect.forEach(uvi -> consumer.accept(uvi));
     }
 
     private String getGradleProjectNameFor(Version version) {
         if (version.equals(currentVersion)) {
             throw new IllegalArgumentException("The Gradle project to build " + version + " is the current build.");
         }
+
         Map<Integer, List<Version>> releasedMajorGroupedByMinor = getReleasedMajorGroupedByMinor();
 
         if (version.getRevision() == 0) {
-            if (releasedMajorGroupedByMinor
-                .get(releasedMajorGroupedByMinor.keySet().stream().max(Integer::compareTo).orElse(0))
-                .contains(version)) {
-                return "minor";
+            List<Version> unreleasedStagedOrMinor = getUnreleased().stream()
+                .filter(v -> v.getRevision() == 0)
+                .collect(Collectors.toList());
+            if (unreleasedStagedOrMinor.size() > 2) {
+                if (unreleasedStagedOrMinor.get(unreleasedStagedOrMinor.size() - 2).equals(version)) {
+                    return "minor";
+                } else{
+                    return "staged";
+                }
             } else {
-                return "staged";
+                return "minor";
             }
         } else {
             if (releasedMajorGroupedByMinor
@@ -239,8 +247,10 @@ public class VersionCollection {
             unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 1));
             if (groupByMinor.getOrDefault(greatestMinor - 1, emptyList()).size() == 1) {
                 // we found that the previous minor is staged but not yet released
-                // in this case, the minor before that has a bugfix
-                unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
+                // in this case, the minor before that has a bugfix, should there be such a minor
+                if (greatestMinor >= 2) {
+                    unreleased.add(getLatestVersionByKey(groupByMinor, greatestMinor - 2));
+                }
             }
         }
 

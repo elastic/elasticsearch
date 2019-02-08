@@ -77,10 +77,12 @@ public class DefaultAuthenticationFailureHandler implements AuthenticationFailur
             return 0;
         } else if (headerValue.regionMatches(true, 0, "bearer", 0, "bearer".length())) {
             return 1;
-        } else if (headerValue.regionMatches(true, 0, "basic", 0, "basic".length())) {
+        } else if (headerValue.regionMatches(true, 0, "apikey", 0, "apikey".length())) {
             return 2;
-        } else {
+        } else if (headerValue.regionMatches(true, 0, "basic", 0, "basic".length())) {
             return 3;
+        } else {
+            return 4;
         }
     }
 

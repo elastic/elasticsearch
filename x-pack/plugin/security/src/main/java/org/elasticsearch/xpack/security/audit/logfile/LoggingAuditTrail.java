@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -52,6 +53,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -424,13 +426,14 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void accessGranted(String requestId, Authentication authentication, String action, TransportMessage msg, String[] roleNames) {
+    public void accessGranted(String requestId, Authentication authentication, String action, TransportMessage msg,
+                              AuthorizationInfo authorizationInfo) {
         final User user = authentication.getUser();
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = indices(msg);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(user),
-                    Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
+                    Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "access_granted")
@@ -440,9 +443,9 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withSubject(authentication)
                         .withRestOrTransportOrigin(msg, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
-                        .with(PRINCIPAL_ROLES_FIELD_NAME, roleNames)
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
+                        .with(authorizationInfo.asMap())
                         .build();
                 logger.info(logEntry);
             }
@@ -450,11 +453,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message,
+                             AuthorizationInfo authorizationInfo) {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                    Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
+                    Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "access_denied")
@@ -464,7 +468,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withSubject(authentication)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
-                        .with(PRINCIPAL_ROLES_FIELD_NAME, roleNames)
+                        .with(authorizationInfo.asMap())
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
@@ -572,11 +576,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void runAsGranted(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void runAsGranted(String requestId, Authentication authentication, String action, TransportMessage message,
+                             AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                    Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
+                    Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_granted")
@@ -586,7 +591,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withRunAsSubject(authentication)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
-                        .with(PRINCIPAL_ROLES_FIELD_NAME, roleNames)
+                        .with(authorizationInfo.asMap())
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
@@ -596,11 +601,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void runAsDenied(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void runAsDenied(String requestId, Authentication authentication, String action, TransportMessage message,
+                            AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                    Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
+                    Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
                 final StringMapMessage logEntry = new LogEntryBuilder()
                         .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
                         .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
@@ -610,7 +616,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                         .withRunAsSubject(authentication)
                         .withRestOrTransportOrigin(message, threadContext)
                         .with(INDICES_FIELD_NAME, indices.orElse(null))
-                        .with(PRINCIPAL_ROLES_FIELD_NAME, roleNames)
+                        .with(authorizationInfo.asMap())
                         .withOpaqueId(threadContext)
                         .withXForwardedFor(threadContext)
                         .build();
@@ -620,14 +626,14 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void runAsDenied(String requestId, Authentication authentication, RestRequest request, String[] roleNames) {
+    public void runAsDenied(String requestId, Authentication authentication, RestRequest request, AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)
                 && eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                        Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), Optional.empty())) == false) {
+                        Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), Optional.empty())) == false) {
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "run_as_denied")
-                    .with(PRINCIPAL_ROLES_FIELD_NAME, roleNames)
+                    .with(authorizationInfo.asMap())
                     .withRestUriAndMethod(request)
                     .withRunAsSubject(authentication)
                     .withRestOrigin(request)
@@ -777,29 +783,40 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             return this;
         }
 
+        LogEntryBuilder with(Map<String, Object> map) {
+            for (Entry<String, Object> entry : map.entrySet()) {
+                Object value = entry.getValue();
+                if (value.getClass().isArray()) {
+                    logEntry.with(entry.getKey(), toQuotedJsonArray((Object[]) value));
+                } else {
+                    logEntry.with(entry.getKey(), value);
+                }
+            }
+            return this;
+        }
+
         StringMapMessage build() {
             return logEntry;
         }
 
-        String toQuotedJsonArray(String[] values) {
+        String toQuotedJsonArray(Object[] values) {
             assert values != null;
             final StringBuilder stringBuilder = new StringBuilder();
             final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
             stringBuilder.append("[");
-            for (final String value : values) {
+            for (final Object value : values) {
                 if (value != null) {
                     if (stringBuilder.length() > 1) {
                         stringBuilder.append(",");
                     }
                     stringBuilder.append("\"");
-                    jsonStringEncoder.quoteAsString(value, stringBuilder);
+                    jsonStringEncoder.quoteAsString(value.toString(), stringBuilder);
                     stringBuilder.append("\"");
                 }
             }
             stringBuilder.append("]");
             return stringBuilder.toString();
         }
-
     }
 
 
@@ -997,7 +1014,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
          * user field (such as `anonymous_access_denied`) as well as events from the
          * "elastic" username.
          */
-        AuditEventMetaInfo(Optional<User> user, Optional<String> realm, Optional<String[]> roles, Optional<String[]> indices) {
+        AuditEventMetaInfo(Optional<User> user, Optional<String> realm, Optional<AuthorizationInfo> authorizationInfo,
+                           Optional<String[]> indices) {
             this.principal = user.map(u -> u.principal()).orElse("");
             this.realm = realm.orElse("");
             // Supplier indirection and lazy generation of Streams serves 2 purposes:
@@ -1005,8 +1023,12 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             // conditions on the `principal` and `realm` fields
             // 2. reusability of the AuditEventMetaInfo instance: in this case Streams have
             // to be regenerated as they cannot be operated upon twice
-            this.roles = () -> roles.filter(r -> r.length > 0).filter(a -> Arrays.stream(a).anyMatch(Objects::nonNull))
-                    .map(Arrays::stream).orElse(Stream.of(""));
+            this.roles = () -> authorizationInfo.filter(info -> {
+                final Object value = info.asMap().get("user.roles");
+                return value instanceof String[] &&
+                    ((String[]) value).length != 0 &&
+                    Arrays.stream((String[]) value).anyMatch(Objects::nonNull);
+            }).map(info -> Arrays.stream((String[]) info.asMap().get("user.roles"))).orElse(Stream.of(""));
             this.indices = () -> indices.filter(i -> i.length > 0).filter(a -> Arrays.stream(a).anyMatch(Objects::nonNull))
                     .map(Arrays::stream).orElse(Stream.of(""));
         }

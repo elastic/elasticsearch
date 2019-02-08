@@ -106,7 +106,8 @@ public class XPackLicenseState {
                             "The following X-Pack security functionality will be disabled: authentication, authorization, " +
                                 "ip filtering, and auditing. Please restart your node after applying the license.",
                             "Field and document level access control will be disabled.",
-                            "Custom realms will be ignored."
+                            "Custom realms will be ignored.",
+                            "A custom authorization engine will be ignored."
                         };
                 }
                 break;
@@ -119,7 +120,8 @@ public class XPackLicenseState {
                     case PLATINUM:
                         return new String[] {
                             "Field and document level access control will be disabled.",
-                            "Custom realms will be ignored."
+                            "Custom realms will be ignored.",
+                            "A custom authorization engine will be ignored."
                         };
                 }
                 break;
@@ -134,7 +136,8 @@ public class XPackLicenseState {
                             "Authentication will be limited to the native realms.",
                             "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
-                            "Custom realms will be ignored."
+                            "Custom realms will be ignored.",
+                            "A custom authorization engine will be ignored."
                         };
                 }
         }
@@ -480,6 +483,17 @@ public class XPackLicenseState {
         final Status localStatus = status;
         return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL)
             && localStatus.active;
+    }
+
+    /**
+     * @return whether a custom authorization engine is allowed based on the license {@link OperationMode}
+     * @see org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings
+     */
+    public synchronized boolean isAuthorizationEngineAllowed() {
+        final boolean isSecurityCurrentlyEnabled =
+            isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabledByTrialVersion, isSecurityEnabled);
+        return isSecurityCurrentlyEnabled && (status.mode == OperationMode.PLATINUM || status.mode == OperationMode.TRIAL)
+            && status.active;
     }
 
     /**

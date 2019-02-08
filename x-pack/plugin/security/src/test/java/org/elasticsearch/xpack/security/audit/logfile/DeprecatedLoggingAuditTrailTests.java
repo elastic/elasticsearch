@@ -357,7 +357,8 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
             user = new User("_username", new String[]{"r1"});
         }
         final String role = randomAlphaOfLengthBetween(1, 6);
-        auditTrail.accessGranted(randomAlphaOfLength(12), createAuthentication(user), "_action", message, new String[] { role });
+        auditTrail.accessGranted(randomAlphaOfLength(12), createAuthentication(user), "_action", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
         final String userInfo = (runAs ? "principal=[running as], realm=[lookRealm], run_by_principal=[_username], run_by_realm=[authRealm]"
                 : "principal=[_username], realm=[authRealm]") + ", roles=[" + role + "]";
         if (message instanceof IndicesRequest) {
@@ -372,7 +373,8 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "access_granted").build();
         auditTrail = new DeprecatedLoggingAuditTrail(settings, clusterService, logger, threadContext);
-        auditTrail.accessGranted(randomAlphaOfLength(12), createAuthentication(user), "_action", message, new String[] { role });
+        auditTrail.accessGranted(randomAlphaOfLength(12), createAuthentication(user), "_action", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
         assertEmptyLog(logger);
     }
 
@@ -381,14 +383,16 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
         DeprecatedLoggingAuditTrail auditTrail = new DeprecatedLoggingAuditTrail(settings, clusterService, logger, threadContext);
         final TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
         final String role = randomAlphaOfLengthBetween(1, 6);
-        auditTrail.accessGranted(null, createAuthentication(SystemUser.INSTANCE), "internal:_action", message, new String[] { role });
+        auditTrail.accessGranted(null, createAuthentication(SystemUser.INSTANCE), "internal:_action", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
         assertEmptyLog(logger);
 
         // test enabled
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.include", "system_access_granted").build();
         auditTrail = new DeprecatedLoggingAuditTrail(settings, clusterService, logger, threadContext);
         final String origins = DeprecatedLoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
-        auditTrail.accessGranted(null, createAuthentication(SystemUser.INSTANCE), "internal:_action", message, new String[] { role });
+        auditTrail.accessGranted(null, createAuthentication(SystemUser.INSTANCE), "internal:_action", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO, prefix + "[transport] [access_granted]\t" + origins + ", principal=[" +
                     SystemUser.INSTANCE.principal()
@@ -414,7 +418,8 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
             user = new User("_username", new String[]{"r1"});
         }
         final String role = randomAlphaOfLengthBetween(1, 6);
-        auditTrail.accessGranted(randomAlphaOfLength(12), createAuthentication(user), "internal:_action", message, new String[] { role });
+        auditTrail.accessGranted(randomAlphaOfLength(12), createAuthentication(user), "internal:_action", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
         final String userInfo = (runAs ? "principal=[running as], realm=[lookRealm], run_by_principal=[_username], run_by_realm=[authRealm]"
                 : "principal=[_username], realm=[authRealm]") + ", roles=[" + role + "]";
         if (message instanceof IndicesRequest) {
@@ -429,7 +434,8 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "access_granted").build();
         auditTrail = new DeprecatedLoggingAuditTrail(settings, clusterService, logger, threadContext);
-        auditTrail.accessGranted(randomAlphaOfLength(12), createAuthentication(user), "internal:_action", message, new String[] { role });
+        auditTrail.accessGranted(randomAlphaOfLength(12), createAuthentication(user), "internal:_action", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
         assertEmptyLog(logger);
     }
 
@@ -446,7 +452,8 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
             user = new User("_username", new String[]{"r1"});
         }
         final String role = randomAlphaOfLengthBetween(1, 6);
-        auditTrail.accessDenied(randomAlphaOfLength(12), createAuthentication(user), "_action", message, new String[] { role });
+        auditTrail.accessDenied(randomAlphaOfLength(12), createAuthentication(user), "_action", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
         final String userInfo = (runAs ? "principal=[running as], realm=[lookRealm], run_by_principal=[_username], run_by_realm=[authRealm]"
                 : "principal=[_username], realm=[authRealm]") + ", roles=[" + role + "]";
         if (message instanceof IndicesRequest) {
@@ -461,7 +468,8 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "access_denied").build();
         auditTrail = new DeprecatedLoggingAuditTrail(settings, clusterService, logger, threadContext);
-        auditTrail.accessDenied(randomAlphaOfLength(12), createAuthentication(user), "_action", message, new String[] { role });
+        auditTrail.accessDenied(randomAlphaOfLength(12), createAuthentication(user), "_action", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
         assertEmptyLog(logger);
     }
 
@@ -582,7 +590,8 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
         final String origins = DeprecatedLoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
         final User user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         final String role = randomAlphaOfLengthBetween(1, 6);
-        auditTrail.runAsGranted(randomAlphaOfLength(12), createAuthentication(user), "_action", message, new String[] { role });
+        auditTrail.runAsGranted(randomAlphaOfLength(12), createAuthentication(user), "_action", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO,
                     prefix + "[transport] [run_as_granted]\t" + origins
@@ -599,7 +608,8 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "run_as_granted").build();
         auditTrail = new DeprecatedLoggingAuditTrail(settings, clusterService, logger, threadContext);
-        auditTrail.runAsGranted(randomAlphaOfLength(12), createAuthentication(user), "_action", message, new String[] { role });
+        auditTrail.runAsGranted(randomAlphaOfLength(12), createAuthentication(user), "_action", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
         assertEmptyLog(logger);
     }
 
@@ -610,7 +620,8 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
         final String origins = DeprecatedLoggingAuditTrail.originAttributes(threadContext, message, auditTrail.localNodeInfo);
         final User user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         final String role = randomAlphaOfLengthBetween(1, 6);
-        auditTrail.runAsDenied(randomAlphaOfLength(12), createAuthentication(user), "_action", message, new String[] { role });
+        auditTrail.runAsDenied(randomAlphaOfLength(12), createAuthentication(user), "_action", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
         if (message instanceof IndicesRequest) {
             assertMsg(logger, Level.INFO,
                     prefix + "[transport] [run_as_denied]\t" + origins
@@ -627,7 +638,8 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
         settings = Settings.builder().put(settings).put("xpack.security.audit.logfile.events.exclude", "run_as_denied").build();
         auditTrail = new DeprecatedLoggingAuditTrail(settings, clusterService, logger, threadContext);
-        auditTrail.runAsDenied(randomAlphaOfLength(12), createAuthentication(user), "_action", message, new String[] { role });
+        auditTrail.runAsDenied(randomAlphaOfLength(12), createAuthentication(user), "_action", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
         assertEmptyLog(logger);
     }
 
@@ -760,10 +772,12 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
             auditTrail.authenticationFailed(realm, new MockToken(), "_action", message);
             assertThat(output.size(), is(logEntriesCount++));
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
-            auditTrail.accessGranted(requestId, createAuthentication(user), "_action", message, new String[] { role });
+            auditTrail.accessGranted(requestId, createAuthentication(user), "_action", message,
+                () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
             assertThat(output.size(), is(logEntriesCount++));
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
-            auditTrail.accessDenied(requestId, createAuthentication(user), "_action", message, new String[] { role });
+            auditTrail.accessDenied(requestId, createAuthentication(user), "_action", message,
+                () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
             assertThat(output.size(), is(logEntriesCount++));
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
             auditTrail.tamperedRequest(requestId, "_action", message);
@@ -772,10 +786,12 @@ public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
             auditTrail.tamperedRequest(requestId, user, "_action", message);
             assertThat(output.size(), is(logEntriesCount++));
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
-            auditTrail.runAsGranted(requestId, createAuthentication(user), "_action", message, new String[] { role });
+            auditTrail.runAsGranted(requestId, createAuthentication(user), "_action", message,
+                () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
             assertThat(output.size(), is(logEntriesCount++));
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
-            auditTrail.runAsDenied(requestId, createAuthentication(user), "_action", message, new String[] { role });
+            auditTrail.runAsDenied(requestId, createAuthentication(user), "_action", message,
+                () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { role }));
             assertThat(output.size(), is(logEntriesCount++));
             assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
             auditTrail.authenticationSuccess(requestId, realm, user, "_action", message);

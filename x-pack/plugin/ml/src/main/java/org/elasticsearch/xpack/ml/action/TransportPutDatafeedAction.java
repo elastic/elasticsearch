@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -149,7 +150,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();
-            for (HasPrivilegesResponse.ResourcePrivileges index : response.getIndexPrivileges()) {
+            for (ResourcePrivileges index : response.getIndexPrivileges()) {
                 builder.field(index.getResource());
                 builder.map(index.getPrivileges());
             }

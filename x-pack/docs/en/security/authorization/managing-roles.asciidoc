@@ -179,7 +179,7 @@ There are two available mechanisms to define roles: using the _Role Management A
 or in local files on the {es} nodes. You can also implement
 custom roles providers.  If you need to integrate with another system to retrieve
 user roles, you can build a custom roles provider plugin. For more information,
-see <<custom-roles-provider, Custom Roles Provider Extension>>.
+see <<custom-roles-authorization, Customizing Roles and Authorization>>.
 
 [float]
 [[roles-management-ui]]

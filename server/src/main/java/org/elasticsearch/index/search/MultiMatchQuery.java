@@ -233,9 +233,13 @@ public class MultiMatchQuery extends MatchQuery {
                     continue;
                 } catch (ElasticsearchParseException parseException) {
                     // date fields throw an ElasticsearchParseException with the
-                    // underlying IAE as the cause, ignore this field if that is
+                    // underlying IAE as the root cause, ignore this field if that is
                     // the case
-                    if (parseException.getCause() instanceof IllegalArgumentException) {
+                    Throwable cause = parseException;
+                    while (cause.getCause() != null && cause.getCause() != cause) {
+                        cause = cause.getCause();
+                    };    
+                    if (cause instanceof IllegalArgumentException) {
                         continue;
                     }
                     throw parseException;

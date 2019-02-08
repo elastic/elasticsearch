@@ -29,11 +29,13 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.State;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.junit.After;
 import org.junit.Before;
 
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -190,7 +192,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         final TransportMessage message = mock(TransportMessage.class);
         final Authentication authentication = mock(Authentication.class);
         auditTrail.accessGranted(randomAlphaOfLengthBetween(6, 12), authentication, randomAlphaOfLengthBetween(6, 40), message,
-            new String[] { "role" });
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { "role" }));
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -204,7 +206,8 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         createAuditTrail(excludedEvents);
         final TransportMessage message = mock(TransportMessage.class);
         final Authentication authentication = new Authentication(SystemUser.INSTANCE, new RealmRef(null, null, null), null);
-        auditTrail.accessGranted(randomAlphaOfLengthBetween(6, 12), authentication, "internal:foo", message, new String[] { "role" });
+        auditTrail.accessGranted(randomAlphaOfLengthBetween(6, 12), authentication, "internal:foo", message,
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { "role" }));
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -220,7 +223,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         final TransportMessage message = mock(TransportMessage.class);
         final Authentication authentication = mock(Authentication.class);
         auditTrail.accessDenied(randomAlphaOfLengthBetween(6, 12), authentication, randomAlphaOfLengthBetween(6, 40), message,
-            new String[] { "role" });
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { "role" }));
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -283,7 +286,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
 
         auditTrail.runAsGranted(randomAlphaOfLengthBetween(6, 12), authentication, randomAlphaOfLengthBetween(6, 40), message,
-            new String[] { "role" });
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { "role" }));
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -298,7 +301,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         Authentication authentication = mock(Authentication.class);
 
         auditTrail.runAsDenied(randomAlphaOfLengthBetween(6, 12), authentication, randomAlphaOfLengthBetween(6, 40), message,
-            new String[] { "role" });
+            () -> Collections.singletonMap(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME, new String[] { "role" }));
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 

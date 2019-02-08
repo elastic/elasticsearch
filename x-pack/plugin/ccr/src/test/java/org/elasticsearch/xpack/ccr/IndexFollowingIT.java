@@ -966,6 +966,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest2).actionGet());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38617")
     public void testIndexFallBehind() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),

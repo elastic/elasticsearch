@@ -115,9 +115,8 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
                 + "] mismatches maximum sequence number [" + maxSeqNo + "] on index shard " + shardId);
         }
 
-        final boolean forced = indexShard.isSyncNeeded();
-        indexShard.flush(new FlushRequest().force(forced));
-        logger.trace("{} shard is ready for closing [forced:{}]", shardId, forced);
+        indexShard.flush(new FlushRequest().force(true));
+        logger.trace("{} shard is ready for closing", shardId);
     }
 
     @Override

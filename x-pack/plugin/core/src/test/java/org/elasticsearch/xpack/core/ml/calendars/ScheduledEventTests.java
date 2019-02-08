@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.calendars;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -17,9 +18,6 @@ import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 
 import java.io.IOException;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.EnumSet;
 import java.util.List;
@@ -29,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEvent> {
 
     public static ScheduledEvent createScheduledEvent(String calendarId) {
-        ZonedDateTime start = nowWithMillisResolution();
+        ZonedDateTime start = DateUtils.nowWithMillisResolution();
         return new ScheduledEvent(randomAlphaOfLength(10), start, start.plusSeconds(randomIntBetween(1, 10000)),
                 calendarId, null);
     }
@@ -119,9 +117,5 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             ScheduledEvent.LENIENT_PARSER.apply(parser, null);
         }
-    }
-
-    private static ZonedDateTime nowWithMillisResolution() {
-        return Instant.ofEpochMilli(Clock.systemUTC().millis()).atZone(ZoneOffset.UTC);
     }
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -369,7 +370,14 @@ public class MlConfigMigrator {
                         indexResponse -> {
                             listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
                         },
-                        listener::onFailure),
+                        e -> {
+                            if (e instanceof VersionConflictEngineException) {
+                                // the snapshot already exists
+                                listener.onResponse(Boolean.TRUE);
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }),
                 client::index
         );
     }
@@ -402,7 +410,8 @@ public class MlConfigMigrator {
     public static Job updateJobForMigration(Job job) {
         Job.Builder builder = new Job.Builder(job);
         Map<String, Object> custom = job.getCustomSettings() == null ? new HashMap<>() : new HashMap<>(job.getCustomSettings());
-        custom.put(MIGRATED_FROM_VERSION, job.getJobVersion());
+        String version = job.getJobVersion() != null ? job.getJobVersion().toString() : null;
+        custom.put(MIGRATED_FROM_VERSION, version);
         builder.setCustomSettings(custom);
         // Increase the model memory limit for 6.1 - 6.3 jobs
         Version jobVersion = job.getJobVersion();

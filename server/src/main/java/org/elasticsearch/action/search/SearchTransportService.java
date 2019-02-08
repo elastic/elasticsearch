@@ -358,7 +358,7 @@ public class SearchTransportService {
         TransportActionProxy.registerProxyActionWithDynamicResponseType(transportService, QUERY_ACTION_NAME,
             (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);
 
-        transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<QuerySearchRequest>() {
                 @Override
                 public void messageReceived(QuerySearchRequest request, TransportChannel channel, Task task) {
@@ -368,7 +368,7 @@ public class SearchTransportService {
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, QuerySearchResult::new);
 
-        transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {
                 @Override
                 public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel, Task task) {
@@ -378,7 +378,7 @@ public class SearchTransportService {
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
 
-        transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {
                 @Override
                 public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel, Task task) {
@@ -388,7 +388,7 @@ public class SearchTransportService {
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, ScrollQueryFetchSearchResult::new);
 
-        transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ShardFetchRequest::new, ThreadPool.Names.SEARCH,
+        transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ShardFetchRequest::new, ThreadPool.Names.SAME,
             new TaskAwareTransportRequestHandler<ShardFetchRequest>() {
                 @Override
                 public void messageReceived(ShardFetchRequest request, TransportChannel channel, Task task){
@@ -398,7 +398,7 @@ public class SearchTransportService {
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, FetchSearchResult::new);
 
-        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ShardFetchSearchRequest::new, ThreadPool.Names.SEARCH, true, true,
+        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ShardFetchSearchRequest::new, ThreadPool.Names.SAME, true, true,
             new TaskAwareTransportRequestHandler<ShardFetchSearchRequest>() {
                 @Override
                 public void messageReceived(ShardFetchSearchRequest request, TransportChannel channel, Task task) {

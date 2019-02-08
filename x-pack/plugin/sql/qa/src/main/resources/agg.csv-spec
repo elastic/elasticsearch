@@ -3,7 +3,7 @@
 //
 
 singlePercentileWithoutComma
-SELECT gender, PERCENTILE(emp_no, 97) p1 FROM test_emp GROUP BY gender;
+SELECT gender, PERCENTILE(emp_no, 90 + 7) p1 FROM test_emp GROUP BY gender;
 
 gender:s             | p1:d
 null                 |10019.0           
@@ -48,7 +48,7 @@ M                    |10084.349             |10093.502
 ;
 
 percentileRank
-SELECT gender, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp GROUP BY gender;
+SELECT gender, PERCENTILE_RANK(emp_no, 10000 + 25) rank FROM test_emp GROUP BY gender;
 
 gender:s             | rank:d
 null                 |100.0             
@@ -309,4 +309,82 @@ SELECT HISTOGRAM(emp_no % 100, 10) AS h, COUNT(*) as c FROM test_emp GROUP BY h 
 20             |10             
 10             |10             
 0              |10   
+;
+
+histogramGroupByWithoutAlias
+schema::h:ts|c:l
+SELECT HISTOGRAM(birth_date, INTERVAL 1 YEAR) AS h, COUNT(*) as c FROM test_emp GROUP BY HISTOGRAM(birth_date, INTERVAL 1 YEAR) ORDER BY h DESC;
+
+         h          |       c       
+--------------------+---------------
+1964-02-02T00:00:00Z|5              
+1963-02-07T00:00:00Z|7              
+1962-02-12T00:00:00Z|6              
+1961-02-17T00:00:00Z|8              
+1960-02-23T00:00:00Z|7              
+1959-02-28T00:00:00Z|9              
+1958-03-05T00:00:00Z|6              
+1957-03-10T00:00:00Z|6              
+1956-03-15T00:00:00Z|4              
+1955-03-21T00:00:00Z|4              
+1954-03-26T00:00:00Z|7              
+1953-03-31T00:00:00Z|10             
+1952-04-05T00:00:00Z|10             
+1951-04-11T00:00:00Z|1              
+null                |10   
+;
+
+countAll
+schema::all_names:l|c:l
+SELECT COUNT(ALL first_name) all_names, COUNT(*) c FROM test_emp;
+
+   all_names   |       c
+---------------+---------------
+90             |100
+;
+
+countAllCountTypesWithHaving
+schema::ln:l|dln:l|fn:l|dfn:l|ccc:l
+SELECT COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_name) fn, COUNT(distinct first_name) dfn, COUNT(*) ccc FROM test_emp GROUP BY gender HAVING dln>5 AND ln>32 AND dfn>1 AND fn>1 AND ccc>5;
+
+      ln       |     dln     |      fn       |     dfn    |      ccc
+---------------+-------------+---------------+------------+-------------
+33             |32           |32             |32          |33
+57             |54           |48             |48          |57
+;
+
+aggCountEqualityFalse
+schema::areEqual:b|ln:l|dln:l
+SELECT COUNT(last_name)=COUNT(DISTINCT last_name) AS areEqual, COUNT(last_name) ln, COUNT(DISTINCT last_name) dln FROM test_emp;
+
+   areEqual    |      ln       |      dln
+---------------+---------------+---------------
+false          |100            |96
+;
+
+aggCountEqualityTrue
+schema::areEqual:b|fn:l|dfn:l
+SELECT COUNT(first_name)=COUNT(DISTINCT first_name) AS areEqual, COUNT(first_name) fn, COUNT(DISTINCT first_name) dfn FROM test_emp;
+
+   areEqual    |      fn       |      dfn
+---------------+---------------+---------------
+true           |90             |90
+;
+
+aggCountAllEquality
+schema::areEqual:b|afn:l
+SELECT COUNT(first_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_name) afn FROM test_emp;
+
+   areEqual    |      afn      
+---------------+---------------
+true           |90             
+;
+
+aggCountAllDifferentFields
+schema::areEqual:b|afn:l|aln:l
+SELECT COUNT(ALL last_name)=COUNT(ALL first_name) AS areEqual, COUNT(ALL first_name) afn, COUNT(ALL last_name) aln FROM test_emp;
+
+   areEqual    |      afn      |      aln
+---------------+---------------+---------------
+false          |90             |100
 ;

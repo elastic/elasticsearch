@@ -1,0 +1,37 @@
+[[release-highlights-6.6.0]]
+== 6.6.0 release highlights
+++++
+<titleabbrev>6.6.0</titleabbrev>
+++++
+
+See also <<release-notes-6.6.0,{es} 6.6.0 release notes>>. 
+
+[float]
+=== Index lifecycle management (Beta)
+
+The index lifecycle management feature breaks the lifecycle of an index into four phases: hot, warm, cold, and delete phase.
+You can define an index lifecycle policy which enables you to:
+
+* Have one primary shard on each hot node to maximize indexing throughput.
+* Replace the hot index with a new empty index as soon as the existing index is “full” or after a time period. 
+* Move the old index to warm nodes, where it can be shrunk to a single shard and force-merged down to a single segment for optimized storage and querying. 
+* Later, move the index to cold nodes for cheaper storage.
+
+See <<index-lifecycle-management>>. 
+[float]
+=== Frozen indices
+
+<<frozen-indices,Frozen indices>> allow for a much higher ratio of disk storage to heap memory, at the expense of search latency. When an index is frozen, it takes up no heap 
+memory, allowing a single node to easily manage thousands of indices with very low overhead. When a search targets frozen indices, the query will fully open,
+search, and then close each index sequentially. Frozen indices are replicated, unlike closed indexes. 
+Frozen indices provide a new set of choices for how to optimize your cluster cost and performance around your needs.
+
+[float]
+=== BKD-backed geoshapes
+
+In 6.0, we introduced Bkd-backed geopoints, which resulted in significant
+storage, memory and performance improvements for querying geopoints. With 6.6.0,
+we bring the same Bkd-based benefits to geoshapes. Indexing is faster, it will take up less space on disk, and will use less memory.
+
+In combination with this work, we are introducing a new experimental field,
+`geo`, that combine the `geo_point` and `geo_hash` field. The `geo` field is also backed by BKD trees.

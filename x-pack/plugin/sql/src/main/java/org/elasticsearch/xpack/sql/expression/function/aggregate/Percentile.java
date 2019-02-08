@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class Percentile extends NumericAggregate implements EnclosedAgg {
 
@@ -41,6 +42,11 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
 
     @Override
     protected TypeResolution resolveType() {
+        if (!percent.foldable()) {
+            return new TypeResolution(format(null, "Second argument of PERCENTILE must be a constant, received [{}]",
+                Expressions.name(percent)));
+        }
+
         TypeResolution resolution = super.resolveType();
 
         if (TypeResolution.TYPE_RESOLVED.equals(resolution)) {

@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.ZonedDateTime;
 
@@ -33,16 +33,21 @@ import static org.elasticsearch.xpack.sql.type.DataType.values;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.commonType;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
 
-
 public class DataTypeConversionTests extends ESTestCase {
-    public void testConversionToString() {
-        Conversion conversion = conversionFor(DOUBLE, KEYWORD);
-        assertNull(conversion.convert(null));
-        assertEquals("10.0", conversion.convert(10.0));
 
-        conversion = conversionFor(DATE, KEYWORD);
-        assertNull(conversion.convert(null));
-        assertEquals("1970-01-01T00:00:00.000Z", conversion.convert(dateTime(0)));
+    public void testConversionToString() {
+        DataType to = KEYWORD;
+        {
+            Conversion conversion = conversionFor(DOUBLE, to);
+            assertNull(conversion.convert(null));
+            assertEquals("10.0", conversion.convert(10.0));
+        }
+        {
+            Conversion conversion = conversionFor(DATE, to);
+            assertNull(conversion.convert(null));
+            assertEquals("1973-11-29T21:33:09.101Z", conversion.convert(dateTime(123456789101L)));
+            assertEquals("1966-02-02T02:26:50.899Z", conversion.convert(dateTime(-123456789101L)));
+        }
     }
 
     /**
@@ -71,12 +76,20 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(1L, conversion.convert(true));
             assertEquals(0L, conversion.convert(false));
         }
-        Conversion conversion = conversionFor(KEYWORD, to);
-        assertNull(conversion.convert(null));
-        assertEquals(1L, conversion.convert("1"));
-        assertEquals(0L, conversion.convert("-0"));
-        Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
-        assertEquals("cannot cast [0xff] to [Long]", e.getMessage());
+        {
+            Conversion conversion = conversionFor(DATE, to);
+            assertNull(conversion.convert(null));
+            assertEquals(123456789101L, conversion.convert(dateTime(123456789101L)));
+            assertEquals(-123456789101L, conversion.convert(dateTime(-123456789101L)));
+        }
+        {
+            Conversion conversion = conversionFor(KEYWORD, to);
+            assertNull(conversion.convert(null));
+            assertEquals(1L, conversion.convert("1"));
+            assertEquals(0L, conversion.convert("-0"));
+            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
+            assertEquals("cannot cast [0xff] to [Long]", e.getMessage());
+        }
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35683")
@@ -89,7 +102,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(dateTime(10L), conversion.convert(10.1));
             assertEquals(dateTime(11L), conversion.convert(10.6));
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
-            assertEquals("[" + Double.MAX_VALUE + "] out of [Long] range", e.getMessage());
+            assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }
         {
             Conversion conversion = conversionFor(INTEGER, to);
@@ -103,44 +116,60 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(dateTime(1), conversion.convert(true));
             assertEquals(dateTime(0), conversion.convert(false));
         }
-        Conversion conversion = conversionFor(KEYWORD, to);
-        assertNull(conversion.convert(null));
+        {
+            Conversion conversion = conversionFor(DATE, to);
+            assertNull(conversion.convert(null));
+            assertEquals(dateTime(123379200000L), conversion.convert(dateTime(123456789101L)));
+            assertEquals(dateTime(-123465600000L), conversion.convert(dateTime(-123456789101L)));
+        }
+        {
+            Conversion conversion = conversionFor(KEYWORD, to);
+            assertNull(conversion.convert(null));
 
-        assertEquals(dateTime(1000L), conversion.convert("1970-01-01T00:00:01Z"));
-        assertEquals(dateTime(1483228800000L), conversion.convert("2017-01-01T00:00:00Z"));
-        assertEquals(dateTime(18000000L), conversion.convert("1970-01-01T00:00:00-05:00"));
-        
-        // double check back and forth conversion
-        ZonedDateTime dt = ZonedDateTime.now(DateUtils.UTC);
-        Conversion forward = conversionFor(DATE, KEYWORD);
-        Conversion back = conversionFor(KEYWORD, DATE);
-        assertEquals(dt, back.convert(forward.convert(dt)));
-        Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
-        assertEquals("cannot cast [0xff] to [Date]:Invalid format: \"0xff\" is malformed at \"xff\"", e.getMessage());
+            assertEquals(dateTime(1000L), conversion.convert("1970-01-01T00:00:01Z"));
+            assertEquals(dateTime(1483228800000L), conversion.convert("2017-01-01T00:00:00Z"));
+            assertEquals(dateTime(1483228800000L), conversion.convert("2017-01-01T00:00:00Z"));
+            assertEquals(dateTime(18000000L), conversion.convert("1970-01-01T00:00:00-05:00"));
+
+            // double check back and forth conversion
+            ZonedDateTime dt = TestUtils.now();
+            Conversion forward = conversionFor(DATE, KEYWORD);
+            Conversion back = conversionFor(KEYWORD, DATE);
+            assertEquals(dt, back.convert(forward.convert(dt)));
+            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
+            assertEquals("cannot cast [0xff] to [Datetime]:Invalid format: \"0xff\" is malformed at \"xff\"", e.getMessage());
+        }
     }
 
     public void testConversionToDouble() {
+        DataType to = DOUBLE;
         {
-            Conversion conversion = conversionFor(FLOAT, DOUBLE);
+            Conversion conversion = conversionFor(FLOAT, to);
             assertNull(conversion.convert(null));
             assertEquals(10.0, (double) conversion.convert(10.0f), 0.00001);
             assertEquals(10.1, (double) conversion.convert(10.1f), 0.00001);
             assertEquals(10.6, (double) conversion.convert(10.6f), 0.00001);
         }
         {
-            Conversion conversion = conversionFor(INTEGER, DOUBLE);
+            Conversion conversion = conversionFor(INTEGER, to);
             assertNull(conversion.convert(null));
             assertEquals(10.0, (double) conversion.convert(10), 0.00001);
             assertEquals(-134.0, (double) conversion.convert(-134), 0.00001);
         }
         {
-            Conversion conversion = conversionFor(BOOLEAN, DOUBLE);
+            Conversion conversion = conversionFor(BOOLEAN, to);
             assertNull(conversion.convert(null));
             assertEquals(1.0, (double) conversion.convert(true), 0);
             assertEquals(0.0, (double) conversion.convert(false), 0);
         }
         {
-            Conversion conversion = conversionFor(KEYWORD, DOUBLE);
+            Conversion conversion = conversionFor(DATE, to);
+            assertNull(conversion.convert(null));
+            assertEquals(1.23456789101E11, (double) conversion.convert(dateTime(123456789101L)), 0);
+            assertEquals(-1.23456789101E11, (double) conversion.convert(dateTime(-123456789101L)), 0);
+        }
+        {
+            Conversion conversion = conversionFor(KEYWORD, to);
             assertNull(conversion.convert(null));
             assertEquals(1.0, (double) conversion.convert("1"), 0);
             assertEquals(0.0, (double) conversion.convert("-0"), 0);
@@ -151,36 +180,44 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToBoolean() {
+        DataType to = BOOLEAN;
         {
-            Conversion conversion = conversionFor(FLOAT, BOOLEAN);
+            Conversion conversion = conversionFor(FLOAT, to);
             assertNull(conversion.convert(null));
             assertEquals(true, conversion.convert(10.0f));
             assertEquals(true, conversion.convert(-10.0f));
             assertEquals(false, conversion.convert(0.0f));
         }
         {
-            Conversion conversion = conversionFor(INTEGER, BOOLEAN);
+            Conversion conversion = conversionFor(INTEGER, to);
             assertNull(conversion.convert(null));
             assertEquals(true, conversion.convert(10));
             assertEquals(true, conversion.convert(-10));
             assertEquals(false, conversion.convert(0));
         }
         {
-            Conversion conversion = conversionFor(LONG, BOOLEAN);
+            Conversion conversion = conversionFor(LONG, to);
             assertNull(conversion.convert(null));
             assertEquals(true, conversion.convert(10L));
             assertEquals(true, conversion.convert(-10L));
             assertEquals(false, conversion.convert(0L));
         }
         {
-            Conversion conversion = conversionFor(DOUBLE, BOOLEAN);
+            Conversion conversion = conversionFor(DOUBLE, to);
             assertNull(conversion.convert(null));
             assertEquals(true, conversion.convert(10.0d));
             assertEquals(true, conversion.convert(-10.0d));
             assertEquals(false, conversion.convert(0.0d));
         }
         {
-            Conversion conversion = conversionFor(KEYWORD, BOOLEAN);
+            Conversion conversion = conversionFor(DATE, to);
+            assertNull(conversion.convert(null));
+            assertEquals(true, conversion.convert(dateTime(123456789101L)));
+            assertEquals(true, conversion.convert(dateTime(-123456789101L)));
+            assertEquals(false, conversion.convert(dateTime(0L)));
+        }
+        {
+            Conversion conversion = conversionFor(KEYWORD, to);
             assertNull(conversion.convert(null));
             // We only handled upper and lower case true and false
             assertEquals(true, conversion.convert("true"));
@@ -204,8 +241,9 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToInt() {
+        DataType to = INTEGER;
         {
-            Conversion conversion = conversionFor(DOUBLE, INTEGER);
+            Conversion conversion = conversionFor(DOUBLE, to);
             assertNull(conversion.convert(null));
             assertEquals(10, conversion.convert(10.0));
             assertEquals(10, conversion.convert(10.1));
@@ -213,11 +251,21 @@ public class DataTypeConversionTests extends ESTestCase {
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert(Long.MAX_VALUE));
             assertEquals("[" + Long.MAX_VALUE + "] out of [Int] range", e.getMessage());
         }
+        {
+            Conversion conversion = conversionFor(DATE, to);
+            assertNull(conversion.convert(null));
+            assertEquals(12345678, conversion.convert(dateTime(12345678L)));
+            assertEquals(223456789, conversion.convert(dateTime(223456789L)));
+            assertEquals(-123456789, conversion.convert(dateTime(-123456789L)));
+            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert(dateTime(Long.MAX_VALUE)));
+            assertEquals("[" + Long.MAX_VALUE + "] out of [Int] range", e.getMessage());
+        }
     }
 
     public void testConversionToShort() {
+        DataType to = SHORT;
         {
-            Conversion conversion = conversionFor(DOUBLE, SHORT);
+            Conversion conversion = conversionFor(DOUBLE, to);
             assertNull(conversion.convert(null));
             assertEquals((short) 10, conversion.convert(10.0));
             assertEquals((short) 10, conversion.convert(10.1));
@@ -225,17 +273,36 @@ public class DataTypeConversionTests extends ESTestCase {
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert(Integer.MAX_VALUE));
             assertEquals("[" + Integer.MAX_VALUE + "] out of [Short] range", e.getMessage());
         }
+        {
+            Conversion conversion = conversionFor(DATE, to);
+            assertNull(conversion.convert(null));
+            assertEquals((short) 12345, conversion.convert(dateTime(12345L)));
+            assertEquals((short) -12345, conversion.convert(dateTime(-12345L)));
+            Exception e = expectThrows(SqlIllegalArgumentException.class,
+                () -> conversion.convert(dateTime(Integer.MAX_VALUE)));
+            assertEquals("[" + Integer.MAX_VALUE + "] out of [Short] range", e.getMessage());
+        }
     }
 
     public void testConversionToByte() {
+        DataType to = BYTE;
         {
-            Conversion conversion = conversionFor(DOUBLE, BYTE);
+            Conversion conversion = conversionFor(DOUBLE, to);
             assertNull(conversion.convert(null));
             assertEquals((byte) 10, conversion.convert(10.0));
             assertEquals((byte) 10, conversion.convert(10.1));
             assertEquals((byte) 11, conversion.convert(10.6));
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert(Short.MAX_VALUE));
             assertEquals("[" + Short.MAX_VALUE + "] out of [Byte] range", e.getMessage());
+        }
+        {
+            Conversion conversion = conversionFor(DATE, to);
+            assertNull(conversion.convert(null));
+            assertEquals((byte) 123, conversion.convert(dateTime(123L)));
+            assertEquals((byte) -123, conversion.convert(dateTime(-123L)));
+            Exception e = expectThrows(SqlIllegalArgumentException.class,
+                () -> conversion.convert(dateTime(Integer.MAX_VALUE)));
+            assertEquals("[" + Integer.MAX_VALUE + "] out of [Byte] range", e.getMessage());
         }
     }
 
@@ -264,7 +331,7 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(NULL, commonType(NULL, NULL));
         assertEquals(INTEGER, commonType(INTEGER, KEYWORD));
         assertEquals(LONG, commonType(TEXT, LONG));
-        assertEquals(null, commonType(TEXT, KEYWORD));
+        assertNull(commonType(TEXT, KEYWORD));
         assertEquals(SHORT, commonType(SHORT, BYTE));
         assertEquals(FLOAT, commonType(BYTE, FLOAT));
         assertEquals(FLOAT, commonType(FLOAT, INTEGER));
@@ -278,9 +345,9 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToUnsupported() {
-            Exception e = expectThrows(SqlIllegalArgumentException.class,
-                () -> conversionFor(INTEGER, UNSUPPORTED));
-            assertEquals("cannot convert from [INTEGER] to [UNSUPPORTED]", e.getMessage());
+        Exception e = expectThrows(SqlIllegalArgumentException.class,
+            () -> conversionFor(INTEGER, UNSUPPORTED));
+        assertEquals("cannot convert from [INTEGER] to [UNSUPPORTED]", e.getMessage());
     }
 
     public void testStringToIp() {

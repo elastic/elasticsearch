@@ -159,7 +159,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 new SetAsOptimized());
 
-        return Arrays.asList(aggregate, operators, local, label);
+        return Arrays.asList(operators, aggregate, local, label);
     }
 
 

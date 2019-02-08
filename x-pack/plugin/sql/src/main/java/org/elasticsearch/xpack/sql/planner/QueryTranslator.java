@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AndAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.CardinalityAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.ExtendedStatsAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.FilterExistsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByNumericHistogram;
@@ -99,7 +100,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -135,7 +135,7 @@ final class QueryTranslator {
             new MatrixStatsAggs(),
             new PercentilesAggs(),
             new PercentileRanksAggs(),
-            new DistinctCounts(),
+            new CountAggs(),
             new DateTimes()
             );
 
@@ -429,7 +429,13 @@ final class QueryTranslator {
     static String field(AggregateFunction af) {
         Expression arg = af.field();
         if (arg instanceof FieldAttribute) {
-            return ((FieldAttribute) arg).name();
+            FieldAttribute field = (FieldAttribute) arg;
+            // COUNT(DISTINCT) uses cardinality aggregation which works on exact values (not changed by analyzers or normalizers)
+            if (af instanceof Count && ((Count) af).distinct()) {
+                // use the `keyword` version of the field, if there is one
+                return field.isInexact() ? field.exactAttribute().name() : field.name();
+            }
+            return field.name();
         }
         if (arg instanceof Literal) {
             return String.valueOf(((Literal) arg).value());
@@ -675,16 +681,6 @@ final class QueryTranslator {
 
         @Override
         protected QueryTranslation asQuery(In in, boolean onAggs) {
-            Optional<Expression> firstNotFoldable = in.list().stream().filter(expression -> !expression.foldable()).findFirst();
-
-            if (firstNotFoldable.isPresent()) {
-                throw new SqlIllegalArgumentException(
-                    "Line {}:{}: Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
-                    firstNotFoldable.get().location().getLineNumber(),
-                    firstNotFoldable.get().location().getColumnNumber(),
-                    Expressions.name(firstNotFoldable.get()),
-                    in.name());
-            }
 
             if (in.value() instanceof NamedExpression) {
                 NamedExpression ne = (NamedExpression) in.value();
@@ -702,7 +698,9 @@ final class QueryTranslator {
                 else {
                     Query q = null;
                     if (in.value() instanceof FieldAttribute) {
-                        q = new TermsQuery(in.location(), ne.name(), in.list());
+                        FieldAttribute fa = (FieldAttribute) in.value();
+                        // equality should always be against an exact match (which is important for strings)
+                        q = new TermsQuery(in.location(), fa.isInexact() ? fa.exactAttribute().name() : fa.name(), in.list());
                     } else {
                         q = new ScriptQuery(in.location(), in.asScript());
                     }
@@ -772,15 +770,16 @@ final class QueryTranslator {
     //
     // Agg translators
     //
-
-    static class DistinctCounts extends SingleValueAggTranslator<Count> {
+    
+    static class CountAggs extends SingleValueAggTranslator<Count> {
 
         @Override
         protected LeafAgg toAgg(String id, Count c) {
-            if (!c.distinct()) {
-                return null;
+            if (c.distinct()) {
+                return new CardinalityAgg(id, field(c));
+            } else {
+                return new FilterExistsAgg(id, field(c));
             }
-            return new CardinalityAgg(id, field(c));
         }
     }
 

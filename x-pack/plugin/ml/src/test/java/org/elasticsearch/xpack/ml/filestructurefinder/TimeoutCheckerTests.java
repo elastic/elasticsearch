@@ -72,6 +72,9 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
             } finally {
                 TimeoutChecker.watchdog.unregister();
             }
+        } finally {
+            // ensure the interrupted flag is cleared to stop it making subsequent tests fail
+            Thread.interrupted();
         }
     }
 
@@ -89,6 +92,9 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
                 assertEquals("Aborting grok captures test during [should timeout] as it has taken longer than the timeout of [" +
                     timeout + "]", e.getMessage());
             });
+        } finally {
+            // ensure the interrupted flag is cleared to stop it making subsequent tests fail
+            Thread.interrupted();
         }
     }
 }

@@ -977,14 +977,24 @@ SELECT COUNT(*) AS count FROM emp;
 // end::aggCountStar
 ;
 
+aggCountAll
+// tag::aggCountAll
+SELECT COUNT(ALL last_name) AS count_all, COUNT(DISTINCT last_name) count_distinct FROM emp;
+
+   count_all   |  count_distinct  
+---------------+------------------
+100            |96   
+// end::aggCountAll
+;
+
 aggCountDistinct
 // tag::aggCountDistinct
 
-SELECT COUNT(DISTINCT hire_date) AS hires FROM emp;
+SELECT COUNT(DISTINCT hire_date) unique_hires, COUNT(hire_date) AS hires FROM emp;
 
-     hires      
----------------
-99       
+  unique_hires  |     hires
+----------------+---------------
+99              |100
 // end::aggCountDistinct
 ;
 

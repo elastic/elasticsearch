@@ -120,8 +120,6 @@ Snapshot/Restore::
 [[release-notes-6.5.2]]
 == {es} version 6.5.2
 
-coming[6.5.2]
-
 Also see <<breaking-changes-6.5,Breaking changes in 6.5>>.
 
 
@@ -258,9 +256,8 @@ Java High Level REST Client::
 * add start trial API to HLRC {pull}32799[#32799]
 
 Machine Learning::
-* [ML] Label anomalies with  multi_bucket_impact {pull}34233[#34233]
-* [ML] Add a file structure determination endpoint {pull}33471[#33471]
-* [ML] Partition-wise maximum scores {pull}32748[#32748]
+* Add a file structure determination endpoint {pull}33471[#33471]
+* Partition-wise maximum scores {pull}32748[#32748]
 
 Mapping::
 * New Annotated_text field type {pull}30364[#30364] (issue: {issue}29467[#29467])
@@ -446,18 +443,34 @@ Logging::
 * Logging: Make node name consistent in logger {pull}31588[#31588]
 
 Machine Learning::
-* ML: Adding support for lazy nodes (#29991) {pull}34538[#34538] (issue: {issue}29991[#29991])
-* [ML] Add an ingest pipeline definition to structure finder {pull}34350[#34350]
-* [ML] Add a timeout option to file structure finder {pull}34117[#34117]
-* [ML] Allow asynchronous job deletion {pull}34058[#34058] (issue: {issue}32836[#32836])
-* Make certain ML node settings dynamic (#33565) {pull}33961[#33961] (issue: {issue}33565[#33565])
-* [ML] Display integers without .0 in file structure field stats {pull}33947[#33947]
-* [ML] Return both Joda and Java formats from structure finder {pull}33900[#33900]
-* Adding node_count to ML Usage (#33850) {pull}33863[#33863] (issue: {issue}33850[#33850])
+* Adding support for lazy nodes {pull}34538[#34538] (issue: {issue}29991[#29991])
+* Add an ingest pipeline definition to structure finder {pull}34350[#34350]
+* Add a timeout option to file structure finder {pull}34117[#34117]
+* Allow asynchronous job deletion {pull}34058[#34058] (issue: {issue}32836[#32836])
+* Make certain ML node settings dynamic {pull}33961[#33961] (issue: {issue}33565[#33565])
+* Display integers without .0 in file structure field stats {pull}33947[#33947]
+* Return both Joda and Java formats from structure finder {pull}33900[#33900]
+* Adding node_count to ML Usage {pull}33863[#33863] (issue: {issue}33850[#33850])
 * Delete custom index if the only contained job is deleted {pull}33788[#33788] (issue: {issue}30075[#30075])
-* [ML] Allow overrides for some file structure detection decisions {pull}33630[#33630]
-* [ML] Minor improvements to categorization Grok pattern creation {pull}33353[#33353]
-* [ML] Delete forecast API (#31134) {pull}33218[#33218] (issue: {issue}31134[#31134])
+* Allow overrides for some file structure detection decisions {pull}33630[#33630]
+* Minor improvements to categorization Grok pattern creation {pull}33353[#33353]
+* Delete forecast API {pull}33218[#33218] (issue: {issue}31134[#31134])
+* Perform anomaly detection on features derived from multiple bucket values to
+improve the robustness of detection with respect to misconfigured bucket lengths
+and to improve the detection of long lasting anomalies. {ml-pull}175[#175]
+* Support decomposing a time series into a piecewise linear trend and with
+piecewise constant scaling of the periodic components. This extends our
+decomposition functionality to handle the same types of change points that our
+modelling capabilities do. {ml-pull}198[#198]
+* Increased independence of anomaly scores across partitions. {ml-pull}182[#182]
+* Avoid potential false positives at model start up when first detecting new
+components of the time series decomposition. {ml-pull}218[#218]
+* Add a new label (`multi_bucket_impact`) to record level anomaly results. The
+value is on a scale of -5 to +5 where -5 means the anomaly is purely single
+bucket and +5 means the anomaly is purely multi bucket. {pull}34233[#34233],
+{ml-pull}230[#230]
+* Improve our ability to detect change points in the presence of outliers.
+{ml-pull}265[#265]
 
 Mapping::
 * Preserve the order of nested documents in the Lucene index {pull}34225[#34225] (issue: {issue}33587[#33587])
@@ -677,14 +690,10 @@ Logging::
 * Logging: Configure the node name when we have it {pull}32983[#32983] (issue: {issue}32793[#32793])
 
 Machine Learning::
-* [ML] Prevent notifications being created on deletion of a non existent job {pull}35337[#35337] (issues: {issue}34058[#34058], {issue}35336[#35336])
-* [ML] Prevent default job values overwriting nulled fields {pull}34804[#34804]
 * Handle pre-6.x time fields {pull}34373[#34373]
-* [ML] Get job stats request should filter non-ML job tasks {pull}33516[#33516] (issue: {issue}33515[#33515])
-* [ML] Prevent NPE parsing the stop datafeed request. {pull}33347[#33347]
-* [ML] fix updating opened jobs scheduled events (#31651) {pull}32881[#32881] (issue: {issue}31651[#31651])
-* Clear Job#finished_time when it is opened (#32605) {pull}32755[#32755]
-* [ML] Fix thread leak when waiting for job flush (#32196) {pull}32541[#32541] (issue: {issue}32196[#32196])
+* Fix updating opened jobs scheduled events {pull}32881[#32881] (issue: {issue}31651[#31651])
+* Clear Job#finished_time when it is opened {pull}32755[#32755]
+* Fix thread leak when waiting for job flush {pull}32541[#32541] (issue: {issue}32196[#32196])
 
 Mapping::
 * Fix field mapping updates with similarity {pull}33634[#33634] (issue: {issue}33611[#33611])

@@ -52,7 +52,6 @@
   - do:
       ccr.resume_follow:
         index: bar
-        body: {}
   - is_true: acknowledged
 
   - do:

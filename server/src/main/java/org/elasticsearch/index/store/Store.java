@@ -1437,7 +1437,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     segmentCommitInfos.getCommitLuceneVersion().major;
             }
             final SequenceNumbers.CommitInfo seqno = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
-            bootstrapNewHistory(seqno.maxSeqNo, seqno.localCheckpoint);
+            bootstrapNewHistory(seqno.localCheckpoint, seqno.maxSeqNo);
         } finally {
             metadataLock.writeLock().unlock();
         }

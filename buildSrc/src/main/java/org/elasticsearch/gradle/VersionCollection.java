@@ -221,7 +221,7 @@ public class VersionCollection {
                 // The .x branch will always point to the latest minor (for that major), so a "minor" project will be on the .x branch
                 //  unless there is more recent (higher) minor.
                 final Version latestInMajor = getLatestVersionByKey(groupByMajor, version.getMajor());
-                if (latestInMajor.getMinor() == version.getMinor()) {
+                if (latestInMajor.getMinor() == version.getMinor() && isFinalMinor(version) == false) {
                     return version.getMajor() + ".x";
                 } else {
                     return version.getMajor() + "." + version.getMinor();
@@ -233,6 +233,15 @@ public class VersionCollection {
             default:
                 throw new IllegalStateException("Unexpected Gradle project name");
         }
+    }
+
+    /**
+     * There is no way to infer that 6.7 is the final minor release in the 6.x series until we add a 7.0.1 or 7.1.0 version.
+     * Based on the available versions (7.0.0, 6.7.0, 6.6.1, 6.6.0) the logical conclusion is that 7.0.0 is "master" and 6.7.0 is "6.x"
+     * This method force 6.7.0 to be recognised as being on the "6.7" branch
+     */
+    private boolean isFinalMinor(Version version) {
+        return (version.getMajor() == 6 && version.getMinor() == 7);
     }
 
     public List<Version> getUnreleased() {

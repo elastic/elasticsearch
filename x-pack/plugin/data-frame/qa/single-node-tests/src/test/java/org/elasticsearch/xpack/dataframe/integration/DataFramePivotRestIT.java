@@ -75,6 +75,80 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_26", 3.918918918);
     }
 
+    public void testHistogramPivot() throws Exception {
+        String transformId = "simpleHistogramPivot";
+        String dataFrameIndex = "pivot_reviews_via_histogram";
+
+        final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + transformId);
+
+        String config = "{"
+            + " \"source\": \"reviews\","
+            + " \"dest\": \"" + dataFrameIndex + "\",";
+
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": [ {"
+            + "     \"every_2\": {"
+            + "       \"histogram\": {"
+            + "         \"interval\": 2,\"field\":\"stars\""
+            + " } } } ],"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertTrue(indexExists(dataFrameIndex));
+
+        startAndWaitForTransform(transformId, dataFrameIndex);
+
+        // we expect 3 documents as there shall be 5 unique star values and we are bucketing every 2 starting at 0
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        assertEquals(3, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+        assertOnePivotValue(dataFrameIndex + "/_search?q=every_2:0.0", 1.0);
+    }
+
+    public void testDateHistogramPivot() throws Exception {
+        String transformId = "simpleDateHistogramPivot";
+        String dataFrameIndex = "pivot_reviews_via_date_histogram";
+
+        final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + transformId);
+
+        String config = "{"
+            + " \"source\": \"reviews\","
+            + " \"dest\": \"" + dataFrameIndex + "\",";
+
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": [ {"
+            + "     \"by_day\": {"
+            + "       \"date_histogram\": {"
+            + "         \"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\""
+            + " } } } ],"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } } } }"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertTrue(indexExists(dataFrameIndex));
+
+        startAndWaitForTransform(transformId, dataFrameIndex);
+
+        // we expect 17 documents as there shall be 21 days worth of docs
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        assertEquals(21, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+        assertOnePivotValue(dataFrameIndex + "/_search?q=by_day:2017-01-15", 3.82);
+    }
+
     private void startAndWaitForTransform(String transformId, String dataFrameIndex) throws IOException, Exception {
         // start the transform
         final Request startTransformRequest = new Request("POST", DATAFRAME_ENDPOINT + transformId + "/_start");

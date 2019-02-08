@@ -44,8 +44,10 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             builder.startObject();
             {
                 builder.startObject("mappings")
-                    .startObject("_doc")
                       .startObject("properties")
+                        .startObject("timestamp")
+                           .field("type", "date")
+                        .endObject()
                         .startObject("user_id")
                           .field("type", "keyword")
                         .endObject()
@@ -56,7 +58,6 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                           .field("type", "integer")
                         .endObject()
                       .endObject()
-                    .endObject()
                   .endObject();
             }
             builder.endObject();
@@ -68,11 +69,17 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
         // create index
         final StringBuilder bulk = new StringBuilder();
+        int day = 10;
         for (int i = 0; i < numDocs; i++) {
             bulk.append("{\"index\":{\"_index\":\"reviews\"}}\n");
             long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % 27);
             int stars = distributionTable[(i * 33) % distributionTable.length];
             long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
+            int hour = randomIntBetween(10, 20);
+            int min = randomIntBetween(30, 59);
+            int sec = randomIntBetween(30, 59);
+
+            String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec + "Z";
             bulk.append("{\"user_id\":\"")
                 .append("user_")
                 .append(user)
@@ -81,7 +88,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 .append(business)
                 .append("\",\"stars\":")
                 .append(stars)
-                .append("}\n");
+                .append(",\"timestamp\":\"")
+                .append(date_string)
+                .append("\"}\n");
 
             if (i % 50 == 0) {
                 bulk.append("\r\n");
@@ -91,6 +100,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 client().performRequest(bulkRequest);
                 // clear the builder
                 bulk.setLength(0);
+                day += 1;
             }
         }
         bulk.append("\r\n");

@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -276,7 +277,6 @@ public class IndexActionTests extends ESTestCase {
                 fieldName + "] or [ctx.payload._doc." + fieldName + "]"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38581")
     public void testIndexActionExecuteSingleDoc() throws Exception {
         boolean customId = randomBoolean();
         boolean docIdAsParam = customId && randomBoolean();
@@ -287,7 +287,7 @@ public class IndexActionTests extends ESTestCase {
                 refreshPolicy);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client, TimeValue.timeValueSeconds(30),
                 TimeValue.timeValueSeconds(30));
-        ZonedDateTime executionTime = ZonedDateTime.now(ZoneOffset.UTC);
+        ZonedDateTime executionTime = DateUtils.nowWithMillisResolution();
         Payload payload;
 
         if (customId && docIdAsParam == false) {

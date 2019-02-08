@@ -294,7 +294,7 @@ public class SqlParserTests extends ESTestCase {
     }
 
     public void testLimitStackOverflowForInAndLiteralsIsNotApplied() {
-        int noChildren = 100_000;
+        int noChildren = 10_000;
         LogicalPlan plan = parseStatement("SELECT * FROM t WHERE a IN(" +
             Joiner.on(",").join(nCopies(noChildren, "a + 10")) + "," +
             Joiner.on(",").join(nCopies(noChildren, "-(-a - 10)")) + "," +

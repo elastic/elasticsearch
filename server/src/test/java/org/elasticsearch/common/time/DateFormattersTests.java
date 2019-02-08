@@ -22,7 +22,6 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -30,7 +29,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
-import java.time.temporal.TemporalField;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;

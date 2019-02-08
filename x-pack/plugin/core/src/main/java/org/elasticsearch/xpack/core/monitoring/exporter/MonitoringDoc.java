@@ -16,9 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.Objects;
 
 /**

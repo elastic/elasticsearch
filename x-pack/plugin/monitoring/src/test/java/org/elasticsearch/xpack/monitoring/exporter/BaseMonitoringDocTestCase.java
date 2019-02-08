@@ -26,10 +26,6 @@ import org.elasticsearch.xpack.monitoring.collector.shards.ShardMonitoringDoc;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

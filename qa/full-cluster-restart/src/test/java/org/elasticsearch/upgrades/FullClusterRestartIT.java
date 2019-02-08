@@ -907,8 +907,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         createTemplateRequest.setJsonEntity(Strings.toString(templateBuilder));
 
         // In 7.0, type names are no longer expected by default in put index template requests.
-        // We therefore use the deprecated typed APIs when running against the current version.
-        if (isRunningAgainstAncientCluster()) {
+        // We therefore use the deprecated typed APIs when running against the current version, but testing with a pre-7 version
+        if (isRunningAgainstOldCluster() == false && getOldClusterVersion().major < 7) {
             createTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
         createTemplateRequest.setOptions(allowTypeRemovalWarnings());

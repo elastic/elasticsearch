@@ -1,5 +1,5 @@
 {
-  "xpack.rollup.start_job": {
+  "rollup.start_job": {
     "documentation": "",
     "methods": [ "POST" ],
     "url": {

@@ -1,5 +1,5 @@
 {
-  "xpack.watcher.stats": {
+  "watcher.stats": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stats.html",
     "methods": [ "GET" ],
     "url": {

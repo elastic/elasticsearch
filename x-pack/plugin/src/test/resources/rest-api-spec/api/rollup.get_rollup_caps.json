@@ -1,5 +1,5 @@
 {
-  "xpack.rollup.get_rollup_caps": {
+  "rollup.get_rollup_caps": {
     "documentation": "",
     "methods": [ "GET" ],
     "url": {

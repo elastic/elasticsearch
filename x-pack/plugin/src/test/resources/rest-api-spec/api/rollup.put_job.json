@@ -1,5 +1,5 @@
 {
-  "xpack.rollup.put_job": {
+  "rollup.put_job": {
     "documentation": "",
     "methods": [ "PUT" ],
     "url": {

@@ -1,5 +1,5 @@
 {
-  "xpack.license.post": {
+  "license.post": {
     "documentation": "https://www.elastic.co/guide/en/x-pack/current/license-management.html",
     "methods": ["PUT", "POST"],
     "url": {

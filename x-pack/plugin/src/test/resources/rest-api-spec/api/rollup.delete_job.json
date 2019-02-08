@@ -1,5 +1,5 @@
 {
-  "xpack.rollup.delete_job": {
+  "rollup.delete_job": {
     "documentation": "",
     "methods": [ "DELETE" ],
     "url": {

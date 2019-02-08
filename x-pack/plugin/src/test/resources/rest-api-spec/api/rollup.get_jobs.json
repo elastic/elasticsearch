@@ -1,5 +1,5 @@
 {
-  "xpack.rollup.get_jobs": {
+  "rollup.get_jobs": {
     "documentation": "",
     "methods": [ "GET" ],
     "url": {

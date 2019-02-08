@@ -1,5 +1,5 @@
 {
-  "xpack.license.get_basic_status": {
+  "license.get_basic_status": {
     "documentation": "https://www.elastic.co/guide/en/x-pack/current/license-management.html",
     "methods": ["GET"],
     "url": {

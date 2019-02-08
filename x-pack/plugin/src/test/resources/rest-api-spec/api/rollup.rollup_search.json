@@ -1,5 +1,5 @@
 {
-  "xpack.rollup.rollup_search": {
+  "rollup.rollup_search": {
     "documentation": "",
     "methods": [ "GET", "POST" ],
     "url": {

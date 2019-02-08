@@ -1,5 +1,5 @@
 {
-  "xpack.license.delete": {
+  "license.delete": {
     "documentation": "https://www.elastic.co/guide/en/x-pack/current/license-management.html",
     "methods": ["DELETE"],
     "url": {

@@ -1,5 +1,5 @@
 {
-  "xpack.watcher.deactivate_watch": {
+  "watcher.deactivate_watch": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-deactivate-watch.html",
     "methods": [ "PUT", "POST" ],
     "url": {

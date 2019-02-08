@@ -1,5 +1,5 @@
 {
-    "xpack.sql.query": {
+    "sql.query": {
       "documentation": "Execute SQL",
       "methods": [ "POST", "GET" ],
       "url": {

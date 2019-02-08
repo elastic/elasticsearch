@@ -1,5 +1,5 @@
 {
-    "xpack.sql.translate": {
+    "sql.translate": {
       "documentation": "Translate SQL into Elasticsearch queries",
       "methods": [ "POST", "GET" ],
       "url": {

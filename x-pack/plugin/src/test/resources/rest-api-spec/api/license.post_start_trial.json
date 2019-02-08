@@ -1,5 +1,5 @@
 {
-  "xpack.license.post_start_trial": {
+  "license.post_start_trial": {
     "documentation": "https://www.elastic.co/guide/en/x-pack/current/license-management.html",
     "methods": ["POST"],
     "url": {

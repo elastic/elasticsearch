@@ -59,7 +59,6 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkR
         extends HandledTransportAction<GetCcrRestoreFileChunkRequest, GetCcrRestoreFileChunkResponse> {
 
         private final CcrRestoreSourceService restoreSourceService;
-        private final ThreadPool threadPool;
         private final BigArrays bigArrays;
 
         @Inject
@@ -69,7 +68,6 @@ public class GetCcrRestoreFileChunkAction extends Action<GetCcrRestoreFileChunkR
             super(settings, NAME, transportService.getThreadPool(), transportService, actionFilters, resolver,
                 GetCcrRestoreFileChunkRequest::new, ThreadPool.Names.GENERIC);
             TransportActionProxy.registerProxyAction(transportService, NAME, GetCcrRestoreFileChunkResponse::new);
-            this.threadPool = transportService.getThreadPool();
             this.restoreSourceService = restoreSourceService;
             this.bigArrays = bigArrays;
         }

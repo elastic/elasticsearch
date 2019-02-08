@@ -974,11 +974,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertEquals(0, snapshotsInProgress.entries().size());
         }, 30, TimeUnit.SECONDS);
 
-        logger.info("-->  verify that the snapshot is done");
+        logger.info("-->  verify that snapshot failed");
         GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
             .prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
         SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
-        assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
+        assertEquals(SnapshotState.FAILED, snapshotInfo.state());
     }
 
     /**

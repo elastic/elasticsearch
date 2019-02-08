@@ -1430,12 +1430,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final Map<String, String> userData = segmentCommitInfos.getUserData();
             final String rawLocalCheckpoint = userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
             final String rawMaxSeqNo = userData.get(SequenceNumbers.MAX_SEQ_NO);
-            if (rawLocalCheckpoint == null) {
-                assert rawMaxSeqNo == null : "Local checkpoint null but max sequence number: " + rawMaxSeqNo;
-                // If the local checkpoint is null we expect that this is Lucene version 6 or earlier
-                assert segmentCommitInfos.getCommitLuceneVersion().major < 7 : "Found Lucene version: " +
-                    segmentCommitInfos.getCommitLuceneVersion().major;
-            }
+            assert (rawLocalCheckpoint == null) == (rawMaxSeqNo == null) :
+                "local checkpoint was " + rawLocalCheckpoint + " but max seq no was " + rawMaxSeqNo;
+
+            assert rawLocalCheckpoint != null || segmentCommitInfos.getCommitLuceneVersion().major < 7 :
+                "Found Lucene version: " + segmentCommitInfos.getCommitLuceneVersion().major;
             final SequenceNumbers.CommitInfo seqno = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
             bootstrapNewHistory(seqno.localCheckpoint, seqno.maxSeqNo);
         } finally {

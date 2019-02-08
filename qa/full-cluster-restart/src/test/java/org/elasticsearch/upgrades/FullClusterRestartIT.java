@@ -843,6 +843,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * old and new versions. All of the snapshots include an index, a template,
      * and some routing configuration.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38603")
     public void testSnapshotRestore() throws IOException {
         int count;
         if (isRunningAgainstOldCluster() && getOldClusterVersion().major < 8) {
@@ -1214,7 +1215,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String loadInfoDocument(String type) throws IOException {
         Request request = new Request("GET", "/info/" + this.type + "/" + index + "_" + type);
         request.addParameter("filter_path", "_source");
-        if (isRunningAgainstAncientCluster()) {
+        if (getOldClusterVersion().before(Version.V_6_7_0)) {
             request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         }
         String doc = toStr(client().performRequest(request));

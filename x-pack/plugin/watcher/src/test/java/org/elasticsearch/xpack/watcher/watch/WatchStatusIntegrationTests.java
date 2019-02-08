@@ -8,10 +8,14 @@ package org.elasticsearch.xpack.watcher.watch;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -25,6 +29,9 @@ import static org.hamcrest.Matchers.notNullValue;
 public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     public void testThatStatusGetsUpdated() {
+        timeWarp().clock().setTime(
+            ZonedDateTime.of(2019,02,9,15,9,50,687670, ZoneOffset.UTC));
+
         WatcherClient watcherClient = watcherClient();
         watcherClient.preparePutWatch("_name")
                 .setSource(watchBuilder()
@@ -46,7 +53,7 @@ public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestC
         String lastChecked = source.getValue("status.last_checked");
 
         assertThat(lastChecked, is(notNullValue()));
-        assertThat(getWatchResponse.getStatus().lastChecked().toString(), is(lastChecked));
+        assertThat(WatcherDateTimeUtils.formatDate(getWatchResponse.getStatus().lastChecked()), is(lastChecked));
     }
 
 }

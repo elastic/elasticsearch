@@ -43,7 +43,7 @@ public class VersionUtils {
      * rules here match up with the rules in gradle then this should
      * produce sensible results.
      * @return a tuple containing versions with backwards compatibility
-     * guarantees in v1 and versions without the guranteees in v2
+     * guarantees in v1 and versions without the guarantees in v2
      */
     static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
         // group versions into major version
@@ -52,7 +52,7 @@ public class VersionUtils {
         // this breaks b/c 5.x is still in version list but master doesn't care about it!
         //assert majorVersions.size() == 2;
         // TODO: remove oldVersions, we should only ever have 2 majors in Version
-        List<Version> oldVersions = majorVersions.getOrDefault((int)current.major - 2, Collections.emptyList());
+        List<List<Version>> oldVersions = splitByMinor(majorVersions.getOrDefault((int)current.major - 2, Collections.emptyList()));
         List<List<Version>> previousMajor = splitByMinor(majorVersions.get((int)current.major - 1));
         List<List<Version>> currentMajor = splitByMinor(majorVersions.get((int)current.major));
 
@@ -67,7 +67,11 @@ public class VersionUtils {
             // on a stable or release branch, ie N.x
             stableVersions = currentMajor;
             // remove the next maintenance bugfix
-            moveLastToUnreleased(previousMajor, unreleasedVersions);
+            final Version prevMajorLastMinor = moveLastToUnreleased(previousMajor, unreleasedVersions);
+            if (prevMajorLastMinor.revision == 0 && previousMajor.isEmpty() == false) {
+                // The latest minor in the previous major is a ".0" release, so there must be an unreleased bugfix for the minor before that
+                moveLastToUnreleased(previousMajor, unreleasedVersions);
+            }
         }
 
         // remove next minor
@@ -78,12 +82,21 @@ public class VersionUtils {
                 moveLastToUnreleased(stableVersions, unreleasedVersions);
             }
             // remove the next bugfix
-            moveLastToUnreleased(stableVersions, unreleasedVersions);
+            if (stableVersions.isEmpty() == false) {
+                moveLastToUnreleased(stableVersions, unreleasedVersions);
+            }
         }
 
-        List<Version> releasedVersions = Stream.concat(oldVersions.stream(),
-            Stream.concat(previousMajor.stream(), currentMajor.stream()).flatMap(List::stream))
-            .collect(Collectors.toList());
+        // If none of the previous major was released, then the last minor and bugfix of the old version was not released either.
+        if (previousMajor.isEmpty()) {
+            assert currentMajor.isEmpty() : currentMajor;
+            // minor of the old version is being staged
+            moveLastToUnreleased(oldVersions, unreleasedVersions);
+            // bugix of the old version is also being staged
+            moveLastToUnreleased(oldVersions, unreleasedVersions);
+        }
+        List<Version> releasedVersions = Stream.of(oldVersions, previousMajor, currentMajor)
+            .flatMap(List::stream).flatMap(List::stream).collect(Collectors.toList());
         Collections.sort(unreleasedVersions); // we add unreleased out of order, so need to sort here
         return new Tuple<>(Collections.unmodifiableList(releasedVersions), Collections.unmodifiableList(unreleasedVersions));
     }

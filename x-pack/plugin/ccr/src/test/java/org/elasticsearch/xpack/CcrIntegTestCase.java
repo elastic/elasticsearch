@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -487,6 +488,9 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             }
             IndexShard indexShard = cluster.getInstance(IndicesService.class, state.nodes().get(shardRouting.currentNodeId()).getName())
                 .indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
+            if (indexShard.state() != IndexShardState.STARTED) {
+                continue;
+            }
             docs.put(shardRouting.shardId().id(), IndexShardTestCase.getDocIdAndSeqNos(indexShard).stream()
                 .map(d -> new DocIdSeqNoAndTerm(d.getId(), d.getSeqNo(), 1L))  // normalize primary term as the follower use its own term
                 .collect(Collectors.toList()));

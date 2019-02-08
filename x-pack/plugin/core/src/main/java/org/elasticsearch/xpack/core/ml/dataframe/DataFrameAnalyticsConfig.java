@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -44,14 +45,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
                 if (exception.getCause() instanceof IllegalArgumentException) {
                     throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT,
-                            id,
-                            exception.getCause().getMessage()),
-                        exception.getCause());
+                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, id), exception.getCause());
                 } else {
                     throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, exception, id),
-                        exception);
+                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, id), exception);
                 }
             }
         };
@@ -103,7 +100,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         if (analyses.size() > 1) {
             throw new UnsupportedOperationException("Does not yet support multiple analyses");
         }
-        this.query = query == null ? null : Collections.unmodifiableMap(query);
+        this.query = Collections.unmodifiableMap(query);
         this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
     }
 
@@ -112,11 +109,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         source = in.readString();
         dest = in.readString();
         analyses = in.readList(DataFrameAnalysisConfig::new);
-        if (in.readBoolean()) {
-            this.query = in.readMap();
-        } else {
-            this.query = null;
-        }
+        this.query = in.readMap();
         this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
     }
 
@@ -150,7 +143,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
      * Calls the lazy parser and returns any gathered deprecations
      * @return The deprecations from parsing the query
      */
-    public List<String> getQueryDeprecations() {
+    List<String> getQueryDeprecations() {
         return getQueryDeprecations(lazyQueryParser);
     }
 
@@ -170,9 +163,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
             builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
         }
-        if (query != null) {
-            builder.field(QUERY.getPreferredName(), query);
-        }
+        builder.field(QUERY.getPreferredName(), query);
         builder.endObject();
         return builder;
     }
@@ -183,10 +174,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         out.writeString(source);
         out.writeString(dest);
         out.writeList(analyses);
-        out.writeBoolean(query != null);
-        if (query != null) {
-            out.writeMap(query);
-        }
+        out.writeMap(query);
     }
 
     @Override
@@ -219,6 +207,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private List<DataFrameAnalysisConfig> analyses;
         private Map<String, Object> query;
 
+        public Builder() {
+            try {
+                query = QUERY_TRANSFORMER.toMap(QueryBuilders.matchAllQuery());
+            } catch (IOException ex) { /*Should never happen*/ }
+        }
+
         public String getId() {
             return id;
         }
@@ -245,16 +239,16 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         public Builder setParsedQuery(QueryBuilder query) {
             try {
-                setQuery(QUERY_TRANSFORMER.toMap(query));
+                setQuery(QUERY_TRANSFORMER.toMap(ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName())));
                 return this;
             } catch (IOException exception) { // This exception should never really throw as we are simply transforming the object to a map
                     throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, id, exception.getMessage()), exception);
+                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, id), exception);
             }
         }
 
         public Builder setQuery(Map<String, Object> query) {
-            this.query = query;
+            this.query = ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName());
             return this;
         }
 

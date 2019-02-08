@@ -15,9 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
@@ -75,7 +73,7 @@ public class DataFrameDataExtractorFactory {
                 analyticsId,
                 extractedFields,
                 Arrays.asList(index),
-                query == null ? QueryBuilders.matchAllQuery() : query,
+                query,
                 1000,
                 Collections.emptyMap(),
                 includeSource
@@ -83,27 +81,56 @@ public class DataFrameDataExtractorFactory {
         return new DataFrameDataExtractor(client, context);
     }
 
-    public static void create(Client client, Map<String, String> headers, DataFrameAnalyticsConfig config,
+    /**
+     * Validate and create a new extractor factory
+     *
+     * The index must exist and contain at least 1 compatible field or validations will fail.
+     *
+     * @param client ES Client used to make calls against the cluster
+     * @param headers Headers to use
+     * @param dataFrameId The id of the referenced DataFrameAnalyticsConfiguration object
+     * @param index The index from which to extract data
+     * @param query The query for data extraction
+     * @param listener The listener to notify on creation or failure
+     */
+    public static void create(Client client,
+                              Map<String, String> headers,
+                              String dataFrameId,
+                              String index,
+                              QueryBuilder query,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
 
-        // Step 2. Construct the factory and notify listener
+        validate(client, headers, index, ActionListener.wrap(
+            extractedFields -> listener.onResponse(new DataFrameDataExtractorFactory(client, dataFrameId, index, extractedFields, query)),
+            listener::onFailure
+        ));
+    }
+
+    /**
+     * Validates the index to verify that it exists and that there are fields for analysis
+     *
+     * @param client ES Client to make calls
+     * @param headers Headers for auth
+     * @param index The index to validate
+     * @param listener The listener to notify on failure or completion
+     */
+    public static void validate(Client client, Map<String, String> headers, String index, ActionListener<ExtractedFields> listener) {
+        // Step 2. Extract fields (if possible) and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
-                fieldCapabilitiesResponse -> {
-                    listener.onResponse(new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(),
-                        detectExtractedFields(config.getSource(), fieldCapabilitiesResponse), config.getParsedQuery()));
-                }, e -> {
-                    if (e instanceof IndexNotFoundException) {
-                        listener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "
-                            + ((IndexNotFoundException) e).getIndex() + " does not exist"));
-                    } else {
-                        listener.onFailure(e);
-                    }
+            fieldCapabilitiesResponse -> listener.onResponse(detectExtractedFields(index, fieldCapabilitiesResponse)),
+            e -> {
+                if (e instanceof IndexNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "
+                        + ((IndexNotFoundException) e).getIndex() + " does not exist"));
+                } else {
+                    listener.onFailure(e);
                 }
+            }
         );
 
         // Step 1. Get field capabilities necessary to build the information of how to extract fields
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
-        fieldCapabilitiesRequest.indices(config.getSource());
+        fieldCapabilitiesRequest.indices(index);
         fieldCapabilitiesRequest.fields("*");
         ClientHelper.executeWithHeaders(headers, ClientHelper.ML_ORIGIN, client, () -> {
             client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);

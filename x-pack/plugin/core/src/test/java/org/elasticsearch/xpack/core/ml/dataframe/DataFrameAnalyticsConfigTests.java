@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -63,16 +62,15 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         String source = randomAlphaOfLength(10);
         String dest = randomAlphaOfLength(10);
         List<DataFrameAnalysisConfig> analyses = Collections.singletonList(DataFrameAnalysisConfigTests.randomConfig());
-        QueryBuilder queryBuilder = randomBoolean() ?
-            QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)) :
-            null;
-        return new DataFrameAnalyticsConfig.Builder()
+        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
             .setAnalyses(analyses)
             .setSource(source)
-            .setDest(dest)
-            .setParsedQuery(queryBuilder)
-            .build();
+            .setDest(dest);
+        if (randomBoolean()) {
+            builder.setParsedQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+        }
+        return builder.build();
     }
 
     public static String randomValidId() {

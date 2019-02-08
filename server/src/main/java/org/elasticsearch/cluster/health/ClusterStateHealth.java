@@ -137,8 +137,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         unassignedShards = in.readVInt();
         numberOfNodes = in.readVInt();
         numberOfDataNodes = in.readVInt();
-        //TODO change it to V_7_1_0 once https://github.com/elastic/elasticsearch/pull/38513 is merged
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
             hasVotingExclusions = in.readBoolean();
         } else {
             hasVotingExclusions = false;
@@ -230,8 +229,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         out.writeVInt(unassignedShards);
         out.writeVInt(numberOfNodes);
         out.writeVInt(numberOfDataNodes);
-        //TODO change it to V_7_1_0 once https://github.com/elastic/elasticsearch/pull/38513 is merged
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
             out.writeBoolean(hasVotingExclusions);
         }
         out.writeByte(status.value());

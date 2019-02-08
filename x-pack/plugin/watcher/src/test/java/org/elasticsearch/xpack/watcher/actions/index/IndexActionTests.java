@@ -277,7 +277,6 @@ public class IndexActionTests extends ESTestCase {
                 fieldName + "] or [ctx.payload._doc." + fieldName + "]"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38581")
     public void testIndexActionExecuteSingleDoc() throws Exception {
         boolean customId = randomBoolean();
         boolean docIdAsParam = customId && randomBoolean();

@@ -218,7 +218,14 @@ public class VersionCollection {
     private String getBranchFor(Version version) {
         switch (getGradleProjectNameFor(version)) {
             case "minor":
-                return version.getMajor() + ".x";
+                // The .x branch will always point to the latest minor (for that major), so a "minor" project will be on the .x branch
+                //  unless there is more recent (higher) minor.
+                final Version latestInMajor = getLatestVersionByKey(groupByMajor, version.getMajor());
+                if (latestInMajor.getMinor() == version.getMinor()) {
+                    return version.getMajor() + ".x";
+                } else {
+                    return version.getMajor() + "." + version.getMinor();
+                }
             case "staged":
             case "maintenance":
             case "bugfix":
@@ -234,7 +241,15 @@ public class VersionCollection {
         unreleased.add(currentVersion);
 
         // the tip of the previous major is unreleased for sure, be it a minor or a bugfix
-        unreleased.add(getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1));
+        final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
+        unreleased.add(latestOfPreviousMajor);
+        if (latestOfPreviousMajor.getRevision() == 0) {
+            // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1) is also unreleased
+            final Version previousMinor = getLatestInMinor(latestOfPreviousMajor.getMajor(), latestOfPreviousMajor.getMinor() - 1);
+            if (previousMinor != null) {
+                unreleased.add(previousMinor);
+            }
+        }
 
         final Map<Integer, List<Version>> groupByMinor = getReleasedMajorGroupedByMinor();
         int greatestMinor = groupByMinor.keySet().stream().max(Integer::compareTo).orElse(0);
@@ -260,6 +275,13 @@ public class VersionCollection {
                 .distinct()
                 .collect(Collectors.toList())
         );
+    }
+
+    private Version getLatestInMinor(int major, int minor) {
+        return groupByMajor.get(major).stream()
+            .filter(v -> v.getMinor() == minor)
+            .max(Version::compareTo)
+            .orElse(null);
     }
 
     private Version getLatestVersionByKey(Map<Integer, List<Version>> groupByMajor, int key) {

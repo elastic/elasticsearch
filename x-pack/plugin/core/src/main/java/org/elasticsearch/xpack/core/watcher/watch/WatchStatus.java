@@ -80,6 +80,10 @@ public class WatchStatus implements ToXContentObject, Streamable {
         return lastChecked;
     }
 
+    public ZonedDateTime lastMetCondition() {
+        return lastMetCondition;
+    }
+
     public ActionStatus actionStatus(String actionId) {
         return actions.get(actionId);
     }

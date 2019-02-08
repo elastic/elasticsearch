@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.watcher.watch;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -25,6 +25,7 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule.
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
@@ -50,10 +51,14 @@ public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestC
         GetResponse getResponse = client().prepareGet(".watches", "doc", "_name").get();
         getResponse.getSource();
         XContentSource source = new XContentSource(getResponse.getSourceAsBytesRef(), XContentType.JSON);
-        String lastChecked = source.getValue("status.last_checked");
 
-        assertThat(lastChecked, is(notNullValue()));
-        assertThat(WatcherDateTimeUtils.formatDate(getWatchResponse.getStatus().lastChecked()), is(lastChecked));
+        String lastChecked = source.getValue("status.last_checked");
+        assertThat(lastChecked, WatcherTestUtils.isSameDate(getWatchResponse.getStatus().lastChecked()));
+
+        // not started yet, so both nulls
+        String lastMetCondition = source.getValue("status.last_met_condition");
+        assertThat(lastMetCondition, is(nullValue()));
+        assertThat(getWatchResponse.getStatus().lastMetCondition(), is(nullValue()));
     }
 
 }

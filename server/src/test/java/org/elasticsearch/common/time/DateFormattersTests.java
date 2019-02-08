@@ -255,12 +255,9 @@ public class DateFormattersTests extends ESTestCase {
 
     public void test0MillisAreFormatted() {
         DateFormatter formatter = DateFormatter.forPattern("strict_date_time");
-
-        Clock clock = Clock.fixed(ZonedDateTime.of(2019,02,8,11,43,00,0,
-            ZoneOffset.UTC).toInstant(),ZoneOffset.UTC);
-
+        Clock clock = Clock.fixed(ZonedDateTime.of(2019, 02, 8, 11, 43, 00, 0,
+            ZoneOffset.UTC).toInstant(), ZoneOffset.UTC);
         String formatted = formatter.formatMillis(clock.millis());
-
         assertThat(formatted, is("2019-02-08T11:43:00.000Z"));
     }
 }

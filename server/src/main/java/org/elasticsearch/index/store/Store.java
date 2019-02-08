@@ -1426,22 +1426,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public void bootstrapNewHistory() throws IOException {
         metadataLock.writeLock().lock();
         try {
-            SegmentInfos segmentCommitInfos = readLastCommittedSegmentsInfo();
-            Map<String, String> userData = segmentCommitInfos.getUserData();
-            final long maxSeqNo = Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO));
-            String rawLocalCheckpoint = userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
-            final long localCheckpoint;
+            final SegmentInfos segmentCommitInfos = readLastCommittedSegmentsInfo();
+            final Map<String, String> userData = segmentCommitInfos.getUserData();
+            final String rawLocalCheckpoint = userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
+            final String rawMaxSeqNo = userData.get(SequenceNumbers.MAX_SEQ_NO);
             if (rawLocalCheckpoint == null) {
-                // If the local checkpoint is null this user data is from pre-6.0. Prior to 6.0 we would set
-                // the local checkpoint equal to the max sequence number
-                localCheckpoint = maxSeqNo;
-                // If the local checkpoint we expect that this is Lucene version 6 or earlier
+                assert rawMaxSeqNo == null : "Local checkpoint null but max sequence number: " + rawMaxSeqNo;
+                // If the local checkpoint is null we expect that this is Lucene version 6 or earlier
                 assert segmentCommitInfos.getCommitLuceneVersion().major < 7 : "Found Lucene version: " +
                     segmentCommitInfos.getCommitLuceneVersion().major;
-            } else {
-                localCheckpoint = Long.parseLong(rawLocalCheckpoint);
             }
-            bootstrapNewHistory(localCheckpoint, maxSeqNo);
+            final SequenceNumbers.CommitInfo seqno = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
+            bootstrapNewHistory(seqno.maxSeqNo, seqno.localCheckpoint);
         } finally {
             metadataLock.writeLock().unlock();
         }

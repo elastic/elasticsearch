@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.security.authc;
 import com.google.common.collect.Sets;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -277,7 +280,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         awaitApiKeysRemoverCompletion();
 
-        client().admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
+        refreshSecurityIndex();
 
         // Verify that 1st invalidated API key is deleted whereas the next one is not
         getApiKeyResponseListener = new PlainActionFuture<>();
@@ -291,7 +294,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private void awaitBusySoThatExpiredApiKeysRemoverCanBeTriggered(Client client) throws InterruptedException {
         final AtomicReference<Long> ref = new AtomicReference<Long>(0L);
         for (ApiKeyService apiKeyService : internalCluster().getInstances(ApiKeyService.class)) {
-            ref.set((apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered() > ref.get()) ? apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered() : ref.get());
+            ref.set((apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered() > ref.get())
+                    ? apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered()
+                    : ref.get());
         }
         awaitBusy(() -> (client.threadPool().relativeTimeInMillis() - ref.get() < DELETE_INTERVAL_MILLIS), 5, TimeUnit.SECONDS);
     }
@@ -315,15 +320,19 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the expiration time to a day before
         Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(dayBefore));
-        client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", createdApiKeys.get(0).getId())
+        UpdateResponse expirationDateUpdatedResponse = client
+                .prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", createdApiKeys.get(0).getId())
                 .setDoc("expiration_time", dayBefore.toEpochMilli()).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // Expire the 2nd key such that it cannot be deleted by the remover
         // hack doc to modify the expiration time to the week before
         Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(weekBefore));
-        client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", createdApiKeys.get(1).getId())
+        expirationDateUpdatedResponse = client
+                .prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", createdApiKeys.get(1).getId())
                 .setDoc("expiration_time", weekBefore.toEpochMilli()).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
         // Invalidate to trigger the remover
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
@@ -332,7 +341,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         awaitApiKeysRemoverCompletion();
 
-        client().admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
+        refreshSecurityIndex();
 
         // Verify get API keys does not return expired and deleted key
         getApiKeyResponseListener = new PlainActionFuture<>();
@@ -358,6 +367,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             } else {
                 fail("unexpected API key " + apiKey);
             }
+        }
+    }
+
+    private void refreshSecurityIndex() {
+        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
+        if (refreshResponse.getFailedShards() > 0) {
+            // retry
+            refreshResponse = client().admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
+            assertThat(refreshResponse.getFailedShards(), is(0));
         }
     }
 

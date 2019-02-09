@@ -572,6 +572,7 @@ class BuildPlugin implements Plugin<Project> {
             patternLayout {
                 artifact "elasticsearch/[module]-[revision](-[classifier]).[ext]"
             }
+            // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
             credentials(HttpHeaderCredentials) {
                 name = "X-Elastic-No-KPI"
                 value = "1"

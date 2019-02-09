@@ -3,14 +3,12 @@
 [[sql-odbc-installation]]
 === Driver installation
 
-experimental[]
-
-The {product} can be installed on Microsoft Windows using an MSI package. The installation process is simple and is composed of standard MSI wizard steps.
+The {odbc} can be installed on Microsoft Windows using an MSI package. The installation process is simple and is composed of standard MSI wizard steps.
 
 [[prerequisites]]
 ==== Installation Prerequisites
 
-Before you install the {product} you need to meet the following prerequisites;
+Before you install the {odbc} you need to meet the following prerequisites;
 
 * Windows 10 64 bit _or_ Windows Server 2016 64 bit operating system
 * .NET Framework 4.0 full - https://www.microsoft.com/en-au/download/details.aspx?id=17718
@@ -26,7 +24,7 @@ NOTE: It is not possible to inline upgrade using the MSI. In order to upgrade, y
 [[download]]
 ==== Download the `.msi` package(s)
 
-Download the `.msi` package for {product} {version} from:
+Download the `.msi` package for {odbc} {version} from:
 https://www.elastic.co/downloads/odbc-client
 
 There are two versions of the installer available:

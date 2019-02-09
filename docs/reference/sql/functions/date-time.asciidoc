@@ -3,8 +3,6 @@
 [[sql-functions-datetime]]
 === Date/Time and Interval Functions and Operators
 
-beta[]
-
 {es-sql} offers a wide range of facilities for performing date/time manipulations.
 
 [[sql-functions-datetime-interval]]
@@ -90,8 +88,6 @@ include-tagged::{sql-specs}/docs.csv-spec[dtIntervalMul]
 --------------------------------------------------
 
 ==== Functions
-
-beta[]
 
 [[sql-functions-current-date]]
 ==== `CURRENT_DATE/CURDATE`

@@ -49,6 +49,7 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.client.DeadHostState.TimeSupplier;
 
 import javax.net.ssl.SSLHandshakeException;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.ConnectException;

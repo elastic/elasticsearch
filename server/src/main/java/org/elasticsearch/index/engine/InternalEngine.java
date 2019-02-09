@@ -2076,7 +2076,6 @@ public class InternalEngine extends Engine {
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
                 try {
-                    assert failedEngine.get() != null || hasSnapshottedCommits() == false : "not all snapshotted commits released";
                     indexWriter.rollback();
                 } catch (AlreadyClosedException ex) {
                     failOnTragicEvent(ex);

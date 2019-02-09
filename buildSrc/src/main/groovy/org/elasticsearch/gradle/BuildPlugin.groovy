@@ -39,6 +39,7 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPlugin
@@ -50,6 +51,7 @@ import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
+import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
 import org.gradle.process.ExecSpec
@@ -569,6 +571,14 @@ class BuildPlugin implements Plugin<Project> {
             url "https://artifacts.elastic.co/downloads"
             patternLayout {
                 artifact "elasticsearch/[module]-[revision](-[classifier]).[ext]"
+            }
+            // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
+            credentials(HttpHeaderCredentials) {
+                name = "X-Elastic-No-KPI"
+                value = "1"
+            }
+            authentication {
+                header(HttpHeaderAuthentication)
             }
         }
         repos.maven {

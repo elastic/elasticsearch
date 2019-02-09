@@ -3,12 +3,12 @@
 [[sql-spec]]
 == SQL Language
 
-This chapter describes the SQL semantics supported in X-Pack namely:
+This chapter describes the SQL syntax and semantics supported namely:
 
 <<sql-data-types>>:: Data types
 <<sql-commands>>:: Commands
 <<sql-index-patterns>>:: Index patterns
 
 include::data-types.asciidoc[]
-include::syntax/index.asciidoc[]
+include::syntax/commands/index.asciidoc[]
 include::index-patterns.asciidoc[]

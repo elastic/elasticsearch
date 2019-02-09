@@ -122,6 +122,9 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         setNodes(nodes);
+        if (JavaVersion.current().compareTo(JavaVersion.parse("1.8.0")) < 0) {
+            logger.warn("use of the low-level REST client on JDK 7 is deprecated and will be removed in version 7.0.0 of the client");
+        }
     }
 
     /**

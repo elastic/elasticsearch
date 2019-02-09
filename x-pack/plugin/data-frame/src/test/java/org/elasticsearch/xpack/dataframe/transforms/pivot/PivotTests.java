@@ -28,15 +28,19 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.Aggregations.AggregationType;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -47,8 +51,10 @@ public class PivotTests extends ESTestCase {
 
     private NamedXContentRegistry namedXContentRegistry;
     private Client client;
-    private final String[] supportedAggregations = { "avg", "max" };
-    private final String[] unsupportedAggregations = { "min" };
+
+    private final Set<String> supportedAggregations = Stream.of(AggregationType.values()).map(AggregationType::getName)
+            .collect(Collectors.toSet());
+    private final String[] unsupportedAggregations = { "stats" };
 
     @Before
     public void registerAggregationNamedObjects() throws Exception {
@@ -173,7 +179,7 @@ public class PivotTests extends ESTestCase {
     }
 
     private AggregationConfig getValidAggregationConfig() throws IOException {
-        return getAggregationConfig(supportedAggregations[randomIntBetween(0, supportedAggregations.length - 1)]);
+        return getAggregationConfig(randomFrom(supportedAggregations));
     }
 
     private AggregationConfig getAggregationConfig(String agg) throws IOException {

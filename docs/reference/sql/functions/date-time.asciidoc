@@ -89,6 +89,8 @@ include-tagged::{sql-specs}/docs.csv-spec[dtIntervalMul]
 
 ==== Functions
 
+Functions that target date/time.
+
 [[sql-functions-current-date]]
 ==== `CURRENT_DATE/CURDATE`
 

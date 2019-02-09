@@ -154,7 +154,7 @@ the server that the certificate was meant for.
 * Enabled. Certificate identity chain validated.
 +
 This setting is equivalent to the previous one, with one additional check against certificate's revocation. This offers the strongest
-security option and is the recommended setting for odbcion deployments.
+security option and is the recommended setting for production deployments.
 +
 * Certificate File
 +

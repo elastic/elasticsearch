@@ -287,9 +287,18 @@ public class SqlParserTests extends ESTestCase {
     }
 
     public void testLimitStackOverflowForInAndLiteralsIsNotApplied() {
-        int noChildren = 100_000;
+        int noChildren = 10_000;
         LogicalPlan plan = parseStatement("SELECT * FROM t WHERE a IN(" +
-            Joiner.on(",").join(nCopies(noChildren, "a + b")) + ")");
+            Joiner.on(",").join(nCopies(noChildren, "a + 10")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "-(-a - 10)")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "20")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "-20")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "20.1234")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "-20.4321")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "1.1234E56")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "-1.4321E-65")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "'foo'")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "'bar'")) + ")");
 
         assertEquals(With.class, plan.getClass());
         assertEquals(Project.class, ((With) plan).child().getClass());
@@ -298,8 +307,17 @@ public class SqlParserTests extends ESTestCase {
         assertEquals(In.class, filter.condition().getClass());
         In in = (In) filter.condition();
         assertEquals("?a", in.value().toString());
-        assertEquals(noChildren, in.list().size());
-        assertThat(in.list().get(0).toString(), startsWith("(a) + (b)#"));
+        assertEquals(noChildren * 2 + 8, in.list().size());
+        assertThat(in.list().get(0).toString(), startsWith("(a) + 10#"));
+        assertThat(in.list().get(noChildren).toString(), startsWith("-(-?a) - 10#"));
+        assertEquals("20", in.list().get(noChildren * 2).toString());
+        assertEquals("-20", in.list().get(noChildren * 2 + 1).toString());
+        assertEquals("20.1234", in.list().get(noChildren * 2 + 2).toString());
+        assertEquals("-20.4321", in.list().get(noChildren * 2 + 3).toString());
+        assertEquals("1.1234E56", in.list().get(noChildren * 2 + 4).toString());
+        assertEquals("-1.4321E-65", in.list().get(noChildren * 2 + 5).toString());
+        assertEquals("foo", in.list().get(noChildren * 2 + 6).toString());
+        assertEquals("bar", in.list().get(noChildren * 2 + 7).toString());
     }
 
     public void testDecrementOfDepthCounter() {

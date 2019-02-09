@@ -72,19 +72,11 @@ import static org.hamcrest.Matchers.startsWith;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
-    public void testUnassignedPrimaryWithExistingOpenedIndex() throws Exception {
-        runTestUnassignedPrimaryWithExistingIndex(IndexMetaData.State.OPEN);
-    }
-
-    public void testUnassignedPrimaryWithExistingClosedIndex() throws Exception {
-        runTestUnassignedPrimaryWithExistingIndex(IndexMetaData.State.CLOSE);
-    }
-
-    private void runTestUnassignedPrimaryWithExistingIndex(final IndexMetaData.State indexState) throws Exception {
+    public void testUnassignedPrimaryWithExistingIndex() throws Exception {
         logger.info("--> starting 2 nodes");
         internalCluster().startNodes(2);
 
-        prepareIndex(indexState, 1, 0);
+        prepareIndex(1, 0);
 
         logger.info("--> stopping the node with the primary");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName()));
@@ -158,19 +150,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
-    public void testUnassignedReplicaDelayedAllocationForOpenedIndex() throws Exception {
-        runTestUnassignedReplicaDelayedAllocation(IndexMetaData.State.OPEN);
-    }
-
-    public void testUnassignedReplicaDelayedAllocationForClosedIndex() throws Exception {
-        runTestUnassignedReplicaDelayedAllocation(IndexMetaData.State.CLOSE);
-    }
-
-    private void runTestUnassignedReplicaDelayedAllocation(final IndexMetaData.State indexState) throws Exception {
+    public void testUnassignedReplicaDelayedAllocation() throws Exception {
         logger.info("--> starting 3 nodes");
         internalCluster().startNodes(3);
 
-        prepareIndex(indexState, 1, 1);
+        prepareIndex(1, 1);
         logger.info("--> stopping the node with the replica");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode().getName()));
         ensureStableCluster(2);
@@ -284,19 +268,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
-    public void testUnassignedReplicaWithPriorCopyForOpenedIndex() throws Exception {
-        runTestUnassignedReplicaWithPriorCopy(IndexMetaData.State.OPEN);
-    }
-
-    public void testUnassignedReplicaWithPriorCopyForClosedIndex() throws Exception {
-        runTestUnassignedReplicaWithPriorCopy(IndexMetaData.State.CLOSE);
-    }
-
-    private void runTestUnassignedReplicaWithPriorCopy(final IndexMetaData.State indexState) throws Exception {
+    public void testUnassignedReplicaWithPriorCopy() throws Exception {
         logger.info("--> starting 3 nodes");
         List<String> nodes = internalCluster().startNodes(3);
 
-        prepareIndex(indexState, 1, 1);
+        prepareIndex(1, 1);
         String primaryNodeName = primaryNodeName();
         nodes.remove(primaryNodeName);
 
@@ -418,7 +394,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         logger.info("--> creating an index with 1 primary, 0 replicas, with allocation filtering so the primary can't be assigned");
         prepareIndex(IndexMetaData.State.OPEN, 1, 0,
-            Settings.builder().put("index.routing.allocation.include._name", "non_existent_node").build(), ActiveShardCount.NONE);
+            Settings.builder().put("index.routing.allocation.include._name", "non_existent_node").build(),
+            ActiveShardCount.NONE);
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
@@ -504,19 +481,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
-    public void testAllocationFilteringPreventsShardMoveForOpenedIndex() throws Exception {
-        runTestAllocationFilteringPreventsShardMove(IndexMetaData.State.OPEN);
-    }
-
-    public void testAllocationFilteringPreventsShardMoveForClosedIndex() throws Exception {
-        runTestAllocationFilteringPreventsShardMove(IndexMetaData.State.CLOSE);
-    }
-
-    private void runTestAllocationFilteringPreventsShardMove(final IndexMetaData.State indexState) throws Exception {
+    public void testAllocationFilteringPreventsShardMove() throws Exception {
         logger.info("--> starting 2 nodes");
         internalCluster().startNodes(2);
 
-        prepareIndex(indexState, 1, 0);
+        prepareIndex(1, 0);
 
         logger.info("--> setting up allocation filtering to prevent allocation to both nodes");
         client().admin().indices().prepareUpdateSettings("idx").setSettings(
@@ -620,21 +589,12 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
-    public void testRebalancingNotAllowedForOpenedIndex() throws Exception {
-        runTestRebalancingNotAllowed(IndexMetaData.State.OPEN);
-    }
-
-    public void testRebalancingNotAllowedForClosedIndex() throws Exception {
-        runTestRebalancingNotAllowed(IndexMetaData.State.CLOSE);
-    }
-
-    private void runTestRebalancingNotAllowed(final IndexMetaData.State indexState) throws Exception {
+    public void testRebalancingNotAllowed() throws Exception {
         logger.info("--> starting a single node");
         internalCluster().startNode();
         ensureStableCluster(1);
 
-        logger.info("--> creating an index with 5 shards, all allocated to the single node");
-        prepareIndex(indexState, 5, 0);
+        prepareIndex(5, 0);
 
         logger.info("--> disabling rebalancing on the index");
         client().admin().indices().prepareUpdateSettings("idx").setSettings(
@@ -741,20 +701,12 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
-    public void testWorseBalanceForOpenedIndex() throws Exception {
-        runTestWorseBalance(IndexMetaData.State.OPEN);
-    }
-
-    public void testWorseBalanceForClosedIndex() throws Exception {
-        runTestWorseBalance(IndexMetaData.State.CLOSE);
-    }
-
-    private void runTestWorseBalance(final IndexMetaData.State indexState) throws Exception {
+    public void testWorseBalance() throws Exception {
         logger.info("--> starting a single node");
         internalCluster().startNode();
         ensureStableCluster(1);
 
-        prepareIndex(indexState, 5, 0);
+        prepareIndex(5, 0);
 
         logger.info("--> setting balancing threshold really high, so it won't be met");
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(
@@ -852,20 +804,12 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
-    public void testBetterBalanceButCannotAllocateForOpenedIndex() throws Exception {
-        runTestBetterBalanceButCannotAllocate(IndexMetaData.State.OPEN);
-    }
-
-    public void testBetterBalanceButCannotAllocateForClosedIndex() throws Exception {
-        runTestBetterBalanceButCannotAllocate(IndexMetaData.State.CLOSE);
-    }
-
-    private void runTestBetterBalanceButCannotAllocate(final IndexMetaData.State indexState) throws Exception {
+    public void testBetterBalanceButCannotAllocate() throws Exception {
         logger.info("--> starting a single node");
         String firstNode = internalCluster().startNode();
         ensureStableCluster(1);
 
-        prepareIndex(indexState, 5, 0);
+        prepareIndex(5, 0);
 
         logger.info("--> setting up allocation filtering to only allow allocation to the current node");
         client().admin().indices().prepareUpdateSettings("idx").setSettings(
@@ -970,21 +914,14 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
-    public void testAssignedReplicaOnSpecificNodeForOpenedIndex() throws Exception {
-        runTestAssignedReplicaOnSpecificNode(IndexMetaData.State.OPEN);
-    }
-
-    public void testAssignedReplicaOnSpecificNodeForClosedIndex() throws Exception {
-        runTestAssignedReplicaOnSpecificNode(IndexMetaData.State.CLOSE);
-    }
-
-    private void runTestAssignedReplicaOnSpecificNode(final IndexMetaData.State indexState) throws Exception {
+    public void testAssignedReplicaOnSpecificNode() throws Exception {
         logger.info("--> starting 3 nodes");
         List<String> nodes = internalCluster().startNodes(3);
 
         String excludedNode = nodes.get(randomIntBetween(0, 2));
-        prepareIndex(indexState, 1, 2,
-            Settings.builder().put("index.routing.allocation.exclude._name", excludedNode).build(), ActiveShardCount.from(2));
+        prepareIndex(randomIndexState(), 1, 2,
+            Settings.builder().put("index.routing.allocation.exclude._name", excludedNode).build(),
+            ActiveShardCount.from(2));
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
@@ -1074,15 +1011,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
-    public void testCannotAllocateStaleReplicaExplanationForOpenedIndex() throws Exception {
-        runTestCannotAllocateStaleReplicaExplanation(IndexMetaData.State.OPEN);
-    }
-
-    public void testCannotAllocateStaleReplicaExplanationForClosedIndex() throws Exception {
-        runTestCannotAllocateStaleReplicaExplanation(IndexMetaData.State.CLOSE);
-    }
-
-    private void runTestCannotAllocateStaleReplicaExplanation(final IndexMetaData.State indexState) throws Exception {
+    public void testCannotAllocateStaleReplicaExplanation() throws Exception {
         logger.info("--> starting 3 nodes");
         final String masterNode = internalCluster().startNode();
         // start replica node first, so it's path will be used first when we start a node after
@@ -1107,6 +1036,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> stop node with the replica shard");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
 
+        final IndexMetaData.State indexState = randomIndexState();
         if (indexState == IndexMetaData.State.OPEN) {
             logger.info("--> index more data, now the replica is stale");
             indexData();
@@ -1229,8 +1159,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         return explanation;
     }
 
-    private void prepareIndex(final IndexMetaData.State state, final int numPrimaries, final int numReplicas) {
-        prepareIndex(state, numPrimaries, numReplicas, Settings.EMPTY, ActiveShardCount.ALL);
+    private void prepareIndex(final int numPrimaries, final int numReplicas) {
+        prepareIndex(randomIndexState(), numPrimaries, numReplicas, Settings.EMPTY, ActiveShardCount.ALL);
     }
 
     private void prepareIndex(final IndexMetaData.State state, final int numPrimaries, final int numReplicas,
@@ -1258,6 +1188,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 .get();
             assertThat(clusterHealthResponse.getStatus().value(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW.value()));
         }
+    }
+
+    private static IndexMetaData.State randomIndexState() {
+        return randomFrom(IndexMetaData.State.values());
     }
 
     private void indexData() {

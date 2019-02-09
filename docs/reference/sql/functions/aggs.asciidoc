@@ -3,8 +3,6 @@
 [[sql-functions-aggs]]
 === Aggregate Functions
 
-beta[]
-
 Functions for computing a _single_ result from a set of input values.
 {es-sql} supports aggregate functions only alongside <<sql-syntax-group-by,grouping>> (implicit or explicit).
 

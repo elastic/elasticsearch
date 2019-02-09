@@ -3,8 +3,6 @@
 [[sql-functions-search]]
 === Full-Text Search Functions
 
-beta[]
-
 Search functions should be used when performing full-text search, namely
 when the `MATCH` or `QUERY` predicates are being used.
 Outside a, so-called, search context, these functions will return default values

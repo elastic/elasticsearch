@@ -240,21 +240,17 @@ public final class TransportPutFollowAction
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
         assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "PutFollowAction does not support DEFAULT.";
-        activeShardsObserver.waitForActiveShards(new String[]{request.getFollowerIndex()},
-            request.waitForActiveShards(), request.timeout(), result -> {
-                if (result) {
-                    FollowParameters parameters = request.getParameters();
-                    ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
-                        resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
-                        resumeFollowRequest.setParameters(new FollowParameters(parameters));
-                        client.execute(ResumeFollowAction.INSTANCE, resumeFollowRequest, ActionListener.wrap(
-                        r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
-                        listener::onFailure
-                    ));
-                } else {
-                    listener.onResponse(new PutFollowAction.Response(true, false, false));
-                }
-            }, listener::onFailure);
+        FollowParameters parameters = request.getParameters();
+        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
+        resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
+        resumeFollowRequest.setParameters(new FollowParameters(parameters));
+        client.execute(ResumeFollowAction.INSTANCE, resumeFollowRequest, ActionListener.wrap(
+            r -> activeShardsObserver.waitForActiveShards(new String[]{request.getFollowerIndex()},
+                request.waitForActiveShards(), request.timeout(), result ->
+                    listener.onResponse(new PutFollowAction.Response(true, result, r.isAcknowledged())),
+                listener::onFailure),
+            listener::onFailure
+        ));
     }
 
     @Override

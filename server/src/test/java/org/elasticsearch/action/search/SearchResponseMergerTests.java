@@ -54,10 +54,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -110,6 +112,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         SearchResponseMerger merger = new SearchResponseMerger(0, 0, SearchContext.TRACK_TOTAL_HITS_ACCURATE,
             searchTimeProvider, flag -> null);
         PriorityQueue<Tuple<ShardId, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
+        final Set<ShardId> shardIdDeduplicator = new HashSet<>();
         int numIndices = numResponses * randomIntBetween(1, 3);
         Iterator<Map.Entry<String, Index[]>> indicesPerCluster = randomRealisticIndices(numIndices, numResponses).entrySet().iterator();
         for (int i = 0; i < numResponses; i++) {
@@ -120,6 +123,11 @@ public class SearchResponseMergerTests extends ESTestCase {
             ShardSearchFailure[] shardSearchFailures = new ShardSearchFailure[numFailures];
             for (int j = 0; j < numFailures; j++) {
                 ShardId shardId = new ShardId(randomFrom(indices), j);
+                while (shardIdDeduplicator.add(shardId) == false) {
+                    // prevent having multiple failures for the same shardId, otherwise the ordering of the priority queue isn't
+                    // fully deterministic randomly braking assertions on instance equality
+                    shardId = new ShardId(randomFrom(indices), j);
+                }
                 ShardSearchFailure failure;
                 if (randomBoolean()) {
                     SearchShardTarget searchShardTarget = new SearchShardTarget(randomAlphaOfLength(6), shardId, clusterAlias, null);

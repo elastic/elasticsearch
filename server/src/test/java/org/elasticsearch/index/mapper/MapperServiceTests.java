@@ -323,4 +323,25 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             + " that indices can have at most one type.", e.getMessage());
     }
 
+    public void testLimitOfContextMappings() throws Throwable {
+        final String index = "test";
+        XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().startObject().startObject("properties")
+            .startObject("suggest").field("type", "completion").startArray("contexts");
+        for (int i = 0; i < MapperService.COMPLETION_CONTEXTS_LIMIT + 1; i++) {
+            mappingBuilder.startObject();
+            mappingBuilder.field("name", Integer.toString(i));
+            mappingBuilder.field("type", "category");
+            mappingBuilder.endObject();
+        }
+
+        mappingBuilder.endArray().endObject().endObject().endObject();
+        String mappings = Strings.toString(mappingBuilder);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            createIndex(index).mapperService().merge("type1", new CompressedXContent(mappings), MergeReason.MAPPING_UPDATE);
+        });
+        assertTrue(e.getMessage(),
+            e.getMessage().contains("Limit of contexts [" + MapperService.COMPLETION_CONTEXTS_LIMIT +
+                "] in index [" + index + "] has been exceeded"));
+    }
 }

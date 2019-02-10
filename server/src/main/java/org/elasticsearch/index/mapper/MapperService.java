@@ -108,6 +108,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT,
                 Property.Dynamic, Property.IndexScope, Property.Deprecated);
 
+    // Maximum allowed number of completion contexts in a mapping
+    public static final int COMPLETION_CONTEXTS_LIMIT = 10;
+
     //TODO this needs to be cleaned up: _timestamp and _ttl are not supported anymore, _field_names, _seq_no, _version and _source are
     //also missing, not sure if on purpose. See IndicesModule#getMetadataMappers
     private static final String[] SORTED_META_FIELDS = new String[]{
@@ -497,6 +500,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, fieldTypes::get);
 
             if (reason == MergeReason.MAPPING_UPDATE) {
+                checkCompletionContextsLimit(fieldMappers);
                 // this check will only be performed on the master node when there is
                 // a call to the update mapping API. For all other cases like
                 // the master node restoring mappings from disk or data nodes
@@ -555,6 +559,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         assert results.values().stream().allMatch(this::assertSerialization);
 
         return results;
+    }
+
+    private void checkCompletionContextsLimit(List<FieldMapper> fieldMappers) {
+        for (FieldMapper fieldMapper : fieldMappers) {
+            if (CompletionFieldMapper.CONTENT_TYPE.equals(fieldMapper.typeName())) {
+                CompletionFieldMapper.CompletionFieldType fieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
+                if (fieldType.hasContextMappings() && fieldType.getContextMappings().size() > COMPLETION_CONTEXTS_LIMIT) {
+                    throw new IllegalArgumentException("Limit of contexts [" + COMPLETION_CONTEXTS_LIMIT + "] in index ["
+                        + index().getName() + "] has been exceeded");
+                }
+            }
+        }
     }
 
     private boolean assertMappersShareSameFieldType() {

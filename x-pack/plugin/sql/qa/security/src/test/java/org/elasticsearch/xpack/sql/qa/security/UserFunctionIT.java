@@ -37,6 +37,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.randomMode;
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 
 public class UserFunctionIT extends ESRestTestCase {
 
@@ -60,7 +61,7 @@ public class UserFunctionIT extends ESRestTestCase {
     @Before
     private void setUpUsers() throws IOException {
         int usersCount = name.getMethodName().startsWith("testSingle") ? 1 : randomIntBetween(5,  15);
-        users = new ArrayList<String>(usersCount);
+        users = new ArrayList<>(usersCount);
         users.addAll(randomUnique(() -> randomAlphaOfLengthBetween(1, 15), usersCount));
         for (String user : users) {
             createUser(user, MINIMAL_ACCESS_ROLE);
@@ -80,7 +81,7 @@ public class UserFunctionIT extends ESRestTestCase {
         
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
-                columnInfo(mode, "USER", "keyword", JDBCType.VARCHAR, 0)));
+                columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 0)));
         expected.put("rows", Arrays.asList(Arrays.asList(randomUserName)));
         Map<String, Object> actual = runSql(randomUserName, mode, SQL);
         
@@ -96,7 +97,7 @@ public class UserFunctionIT extends ESRestTestCase {
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
-                columnInfo(mode, "USER", "keyword", JDBCType.VARCHAR, 0)));
+                columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 0)));
         expected.put("rows", Arrays.asList(Arrays.asList(randomUserName),
                                            Arrays.asList(randomUserName),
                                            Arrays.asList(randomUserName)));
@@ -114,7 +115,7 @@ public class UserFunctionIT extends ESRestTestCase {
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
-                columnInfo(mode, "USER", "keyword", JDBCType.VARCHAR, 0)));
+                columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 0)));
         expected.put("rows", Collections.<ArrayList<String>>emptyList());
         String anotherRandomUserName = randomValueOtherThan(randomUserName, () -> randomAlphaOfLengthBetween(1, 15));
         Map<String, Object> actual = runSql(randomUserName, mode, SQL + " FROM test WHERE USER()='" + anotherRandomUserName + "' LIMIT 3");
@@ -129,7 +130,7 @@ public class UserFunctionIT extends ESRestTestCase {
             Map<String, Object> expected = new HashMap<>();
 
             expected.put("columns", Arrays.asList(
-                         columnInfo(mode, "USER", "keyword", JDBCType.VARCHAR, 0)));
+                    columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 0)));
             expected.put("rows", Arrays.asList(Arrays.asList(randomlyPickedUsername)));
             Map<String, Object> actual = runSql(randomlyPickedUsername, mode, SQL);
             
@@ -147,7 +148,7 @@ public class UserFunctionIT extends ESRestTestCase {
         
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
-                     columnInfo(mode, "USER", "keyword", JDBCType.VARCHAR, 0)));
+                columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 0)));
         expected.put("rows", Arrays.asList(Arrays.asList(randomUserName),
                                            Arrays.asList(randomUserName),
                                            Arrays.asList(randomUserName)));
@@ -178,7 +179,7 @@ public class UserFunctionIT extends ESRestTestCase {
     }
     
     private Map<String, Object> runSql(String asUser, HttpEntity entity) throws IOException {
-        Request request = new Request("POST", "/_sql");
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         if (asUser != null) {
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("es-security-runas-user", asUser);
@@ -203,7 +204,7 @@ public class UserFunctionIT extends ESRestTestCase {
     }
 
     private void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/test/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {

@@ -3,9 +3,9 @@
 === Integrating with other authentication systems
 
 If you are using an authentication system that is not supported out-of-the-box
-by {security}, you can create a custom realm to interact with it to authenticate
-users. You implement a custom realm as an SPI loaded security extension
-as part of an ordinary elasticsearch plugin.
+by the {es} {security-features}, you can create a custom realm to interact with
+it to authenticate users. You implement a custom realm as an SPI loaded security
+extension as part of an ordinary elasticsearch plugin.
 
 [[implementing-custom-realm]]
 ==== Implementing a custom realm
@@ -50,8 +50,8 @@ public AuthenticationFailureHandler getAuthenticationFailureHandler() {
 ----------------------------------------------------
 +
 The `getAuthenticationFailureHandler` method is used to optionally provide a
-custom `AuthenticationFailureHandler`, which will control how {security} responds
-in certain authentication failure events.
+custom `AuthenticationFailureHandler`, which will control how the
+{es} {security-features} respond in certain authentication failure events.
 +
 [source,java]
 ----------------------------------------------------

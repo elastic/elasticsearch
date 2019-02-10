@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.job.JobManager;
 
 import java.io.IOException;
@@ -54,7 +56,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
 
     @Inject
     public TransportUpdateFilterAction(TransportService transportService, ActionFilters actionFilters, Client client,
-                                       JobManager jobManager) {
+                                       JobManager jobManager, ClusterService clusterService) {
         super(UpdateFilterAction.NAME, transportService, actionFilters,
             (Supplier<UpdateFilterAction.Request>) UpdateFilterAction.Request::new);
         this.client = client;
@@ -63,14 +65,14 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
 
     @Override
     protected void doExecute(Task task, UpdateFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
-        ActionListener<FilterWithVersion> filterListener = ActionListener.wrap(filterWithVersion -> {
+        ActionListener<FilterWithSeqNo> filterListener = ActionListener.wrap(filterWithVersion -> {
             updateFilter(filterWithVersion, request, listener);
         }, listener::onFailure);
 
         getFilterWithVersion(request.getFilterId(), filterListener);
     }
 
-    private void updateFilter(FilterWithVersion filterWithVersion, UpdateFilterAction.Request request,
+    private void updateFilter(FilterWithSeqNo filterWithVersion, UpdateFilterAction.Request request,
                               ActionListener<PutFilterAction.Response> listener) {
         MlFilter filter = filterWithVersion.filter;
 
@@ -94,17 +96,20 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         }
 
         MlFilter updatedFilter = MlFilter.builder(filter.getId()).setDescription(description).setItems(items).build();
-        indexUpdatedFilter(updatedFilter, filterWithVersion.version, request, listener);
+        indexUpdatedFilter(
+            updatedFilter, filterWithVersion.seqNo, filterWithVersion.primaryTerm, request, listener);
     }
 
-    private void indexUpdatedFilter(MlFilter filter, long version, UpdateFilterAction.Request request,
+    private void indexUpdatedFilter(MlFilter filter, final long seqNo, final long primaryTerm,
+                                    UpdateFilterAction.Request request,
                                     ActionListener<PutFilterAction.Response> listener) {
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
-        indexRequest.version(version);
+        indexRequest.setIfSeqNo(seqNo);
+        indexRequest.setIfPrimaryTerm(primaryTerm);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
             indexRequest.source(filter.toXContent(builder, params));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);
@@ -113,8 +118,10 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, new ActionListener<IndexResponse>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
-                jobManager.notifyFilterChanged(filter, request.getAddItems(), request.getRemoveItems());
-                listener.onResponse(new PutFilterAction.Response(filter));
+                jobManager.notifyFilterChanged(filter, request.getAddItems(), request.getRemoveItems(), ActionListener.wrap(
+                        response -> listener.onResponse(new PutFilterAction.Response(filter)),
+                        listener::onFailure
+                ));
             }
 
             @Override
@@ -131,7 +138,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         });
     }
 
-    private void getFilterWithVersion(String filterId, ActionListener<FilterWithVersion> listener) {
+    private void getFilterWithVersion(String filterId, ActionListener<FilterWithSeqNo> listener) {
         GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, MlFilter.documentId(filterId));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
@@ -143,7 +150,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
                              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             MlFilter filter = MlFilter.LENIENT_PARSER.apply(parser, null).build();
-                            listener.onResponse(new FilterWithVersion(filter, getDocResponse.getVersion()));
+                            listener.onResponse(new FilterWithSeqNo(filter, getDocResponse));
                         }
                     } else {
                         this.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.FILTER_NOT_FOUND, filterId)));
@@ -160,14 +167,17 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         });
     }
 
-    private static class FilterWithVersion {
+    private static class FilterWithSeqNo {
 
         private final MlFilter filter;
-        private final long version;
+        private final long seqNo;
+        private final long primaryTerm;
 
-        private FilterWithVersion(MlFilter filter, long version) {
+        private FilterWithSeqNo(MlFilter filter, GetResponse getDocResponse) {
             this.filter = filter;
-            this.version = version;
+            this.seqNo = getDocResponse.getSeqNo();
+            this.primaryTerm = getDocResponse.getPrimaryTerm();
+
         }
     }
 }

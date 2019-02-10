@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -89,6 +90,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             final int id = idStart + i;
             Request indexDoc = new Request("PUT", index + "/test/" + id);
             indexDoc.setJsonEntity("{\"test\": \"test_" + randomAsciiOfLength(2) + "\"}");
+            indexDoc.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
             client().performRequest(indexDoc);
         }
         return numDocs;
@@ -298,7 +300,11 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 if (randomBoolean()) {
                     indexDocs(index, i, 1); // update
                 } else if (randomBoolean()) {
-                    client().performRequest(new Request("DELETE", index + "/test/" + i));
+                    if (getNodeId(v -> v.onOrAfter(Version.V_7_0_0)) == null) {
+                        client().performRequest(new Request("DELETE", index + "/test/" + i));
+                    } else {
+                        client().performRequest(new Request("DELETE", index + "/_doc/" + i));
+                    }
                 }
             }
         }

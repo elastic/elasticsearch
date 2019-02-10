@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-get-auto-follow-pattern]]
-=== Get Auto-Follow Pattern API
+=== Get auto-follow pattern API
 ++++
-<titleabbrev>Get Auto-Follow Pattern</titleabbrev>
+<titleabbrev>Get auto-follow pattern</titleabbrev>
 ++++
 
 beta[]

@@ -75,12 +75,12 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
     @Override
     public void testToQuery() throws IOException {
         super.testToQuery();
-        assertWarnings(TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testMustRewrite() throws IOException {
         super.testMustRewrite();
-        assertWarnings(TypeFieldMapper.TypeFieldType.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
     }
 }

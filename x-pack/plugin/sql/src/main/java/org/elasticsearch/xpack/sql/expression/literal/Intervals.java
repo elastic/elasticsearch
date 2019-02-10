@@ -10,9 +10,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.Duration;
@@ -44,7 +47,23 @@ public final class Intervals {
 
     private Intervals() {}
 
-    public static TemporalAmount of(Location source, long duration, TimeUnit unit) {
+    public static long inMillis(Literal literal) {
+        Object fold = Foldables.valueOf(literal);
+        Check.isTrue(fold instanceof Interval, "Expected interval, received [{}]", fold);
+        TemporalAmount interval = ((Interval<?>) fold).interval();
+        long millis = 0;
+        if (interval instanceof Period) {
+            Period p = (Period) interval;
+            millis = p.toTotalMonths() * 30 * 24 * 60 * 60 * 1000;
+        } else {
+            Duration d = (Duration) interval;
+            millis = d.toMillis();
+        }
+        
+        return millis;
+    }
+
+    public static TemporalAmount of(Source source, long duration, TimeUnit unit) {
         // Cannot use Period.of since it accepts int so use plus which accepts long
         // Further more Period and Duration have inconsistent addition methods but plus is there
         try {
@@ -71,7 +90,7 @@ public final class Intervals {
         }
     }
 
-    public static DataType intervalType(Location source, TimeUnit leading, TimeUnit trailing) {
+    public static DataType intervalType(Source source, TimeUnit leading, TimeUnit trailing) {
         if (trailing == null) {
             switch (leading) {
                 case YEAR:
@@ -189,7 +208,7 @@ public final class Intervals {
             this.name = name;
         }
 
-        TemporalAmount parse(Location source, String string) {
+        TemporalAmount parse(Source source, String string) {
             int unitIndex = 0;
             int startToken = 0;
             int endToken = 0;
@@ -313,7 +332,7 @@ public final class Intervals {
         int MAX_HOUR = 23;
         int MAX_MINUTE = 59;
         int MAX_SECOND = 59;
-        int MAX_MILLI = 999999999;
+        int MAX_MILLI = 999;
         
         char DOT = '.';
         char SPACE = ' ';
@@ -389,7 +408,7 @@ public final class Intervals {
                 .build());
     }
 
-    public static TemporalAmount parseInterval(Location source, String value, DataType intervalType) {
+    public static TemporalAmount parseInterval(Source source, String value, DataType intervalType) {
         return PARSERS.get(intervalType).parse(source, value);
     }
 

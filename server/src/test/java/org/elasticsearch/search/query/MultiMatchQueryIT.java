@@ -203,7 +203,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.OR).useDisMax(false).type(type))).get();
+                        .operator(Operator.OR).type(type))).get();
         assertFirstHit(searchResponse, anyOf(hasId("theone"), hasId("theother")));
         assertThat(searchResponse.getHits().getHits()[0].getScore(), greaterThan(searchResponse.getHits().getHits()[1].getScore()));
 
@@ -323,14 +323,14 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         cutoffFrequency = randomBoolean() ? Math.min(1, numDocs * 1.f / between(10, 20)) : 1.f / between(10, 20);
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.OR).useDisMax(false).cutoffFrequency(cutoffFrequency).type(type))).get();
+                        .operator(Operator.OR).cutoffFrequency(cutoffFrequency).type(type))).get();
         assertFirstHit(searchResponse, anyOf(hasId("theone"), hasId("theother")));
         assertThat(searchResponse.getHits().getHits()[0].getScore(), greaterThan(searchResponse.getHits().getHits()[1].getScore()));
         long size = searchResponse.getHits().getTotalHits().value;
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomizeType(multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category")
-                        .operator(Operator.OR).useDisMax(false).type(type))).get();
+                        .operator(Operator.OR).type(type))).get();
         assertFirstHit(searchResponse, anyOf(hasId("theone"), hasId("theother")));
         assertThat("common terms expected to be a way smaller result set", size, lessThan(searchResponse.getHits().getTotalHits().value));
 
@@ -399,7 +399,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 SearchResponse left = client().prepareSearch("test").setSize(numDocs)
                         .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
                         .setQuery(randomizeType(multiMatchQueryBuilder
-                                .operator(op).useDisMax(false).minimumShouldMatch(minShouldMatch).type(type))).get();
+                                .operator(op).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch).type(type))).get();
 
                 SearchResponse right = client().prepareSearch("test").setSize(numDocs)
                         .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
@@ -418,7 +418,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 SearchResponse left = client().prepareSearch("test").setSize(numDocs)
                         .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
                         .setQuery(randomizeType(multiMatchQuery("capta", "full_name", "first_name", "last_name", "category")
-                                .type(MatchQuery.Type.PHRASE_PREFIX).useDisMax(false).minimumShouldMatch(minShouldMatch))).get();
+                                .type(MatchQuery.Type.PHRASE_PREFIX).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch))).get();
 
                 SearchResponse right = client().prepareSearch("test").setSize(numDocs)
                         .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
@@ -437,7 +437,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                     left = client().prepareSearch("test").setSize(numDocs)
                             .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))
                             .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
-                                    .type(MatchQuery.Type.PHRASE).useDisMax(false).minimumShouldMatch(minShouldMatch))).get();
+                                    .type(MatchQuery.Type.PHRASE).minimumShouldMatch(minShouldMatch))).get();
                 } else {
                     left = client().prepareSearch("test").setSize(numDocs)
                             .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_id"))

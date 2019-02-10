@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-delete-role-mapping]]
 === Delete role mappings API
+++++
+<titleabbrev>Delete role mappings</titleabbrev>
+++++
 
 Removes role mappings.
 

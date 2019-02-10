@@ -18,7 +18,6 @@ class ScrollDataExtractorContext {
     final String jobId;
     final TimeBasedExtractedFields extractedFields;
     final String[] indices;
-    final String[] types;
     final QueryBuilder query;
     final List<SearchSourceBuilder.ScriptField> scriptFields;
     final int scrollSize;
@@ -26,13 +25,12 @@ class ScrollDataExtractorContext {
     final long end;
     final Map<String, String> headers;
 
-    ScrollDataExtractorContext(String jobId, TimeBasedExtractedFields extractedFields, List<String> indices, List<String> types,
-                                      QueryBuilder query, List<SearchSourceBuilder.ScriptField> scriptFields, int scrollSize,
-                                      long start, long end, Map<String, String> headers) {
+    ScrollDataExtractorContext(String jobId, TimeBasedExtractedFields extractedFields, List<String> indices, QueryBuilder query,
+                               List<SearchSourceBuilder.ScriptField> scriptFields, int scrollSize, long start, long end,
+                               Map<String, String> headers) {
         this.jobId = Objects.requireNonNull(jobId);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.indices = indices.toArray(new String[indices.size()]);
-        this.types = types.toArray(new String[types.size()]);
         this.query = Objects.requireNonNull(query);
         this.scriptFields = Objects.requireNonNull(scriptFields);
         this.scrollSize = scrollSize;

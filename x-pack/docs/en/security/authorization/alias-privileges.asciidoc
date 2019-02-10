@@ -4,7 +4,8 @@
 
 Elasticsearch allows to execute operations against {ref}/indices-aliases.html[index aliases],
 which are effectively virtual indices. An alias points to one or more indices,
-holds metadata and potentially a filter. {security} treats aliases and indices
+holds metadata and potentially a filter. The {es} {security-features} treat
+aliases and indices
 the same. Privileges for indices actions are granted on specific indices or
 aliases. In order for an indices action to be authorized, the user that executes
 it needs to have permissions for that action on all the specific indices or

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ml-find-file-structure]]
-=== Find File Structure API
+=== Find file structure API
 ++++
-<titleabbrev>Find File Structure</titleabbrev>
+<titleabbrev>Find file structure</titleabbrev>
 ++++
 
 experimental[]
@@ -164,37 +164,40 @@ format corresponds to the primary timestamp, but you do not want to specify the
 full `grok_pattern`.
 
 If this parameter is not specified, the structure finder chooses the best format from
-the formats it knows, which are these Joda formats and their Java time equivalents:
+the formats it knows, which are these Java time formats and their Joda equivalents:
 
-* `dd/MMM/YYYY:HH:mm:ss Z`
-* `EEE MMM dd HH:mm zzz YYYY`
-* `EEE MMM dd HH:mm:ss YYYY`
-* `EEE MMM dd HH:mm:ss zzz YYYY`
-* `EEE MMM dd YYYY HH:mm zzz`
-* `EEE MMM dd YYYY HH:mm:ss zzz`
-* `EEE, dd MMM YYYY HH:mm Z`
-* `EEE, dd MMM YYYY HH:mm ZZ`
-* `EEE, dd MMM YYYY HH:mm:ss Z`
-* `EEE, dd MMM YYYY HH:mm:ss ZZ`
+* `dd/MMM/yyyy:HH:mm:ss XX`
+* `EEE MMM dd HH:mm zzz yyyy`
+* `EEE MMM dd HH:mm:ss yyyy`
+* `EEE MMM dd HH:mm:ss zzz yyyy`
+* `EEE MMM dd yyyy HH:mm zzz`
+* `EEE MMM dd yyyy HH:mm:ss zzz`
+* `EEE, dd MMM yyyy HH:mm XX`
+* `EEE, dd MMM yyyy HH:mm XXX`
+* `EEE, dd MMM yyyy HH:mm:ss XX`
+* `EEE, dd MMM yyyy HH:mm:ss XXX`
 * `ISO8601`
 * `MMM  d HH:mm:ss`
 * `MMM  d HH:mm:ss,SSS`
-* `MMM  d YYYY HH:mm:ss`
+* `MMM  d yyyy HH:mm:ss`
 * `MMM dd HH:mm:ss`
 * `MMM dd HH:mm:ss,SSS`
-* `MMM dd YYYY HH:mm:ss`
-* `MMM dd, YYYY h:mm:ss a`
+* `MMM dd yyyy HH:mm:ss`
+* `MMM dd, yyyy h:mm:ss a`
 * `TAI64N`
 * `UNIX`
 * `UNIX_MS`
-* `YYYY-MM-dd HH:mm:ss`
-* `YYYY-MM-dd HH:mm:ss,SSS`
-* `YYYY-MM-dd HH:mm:ss,SSS Z`
-* `YYYY-MM-dd HH:mm:ss,SSSZ`
-* `YYYY-MM-dd HH:mm:ss,SSSZZ`
-* `YYYY-MM-dd HH:mm:ssZ`
-* `YYYY-MM-dd HH:mm:ssZZ`
-* `YYYYMMddHHmmss`
+* `yyyy-MM-dd HH:mm:ss`
+* `yyyy-MM-dd HH:mm:ss,SSS`
+* `yyyy-MM-dd HH:mm:ss,SSS XX`
+* `yyyy-MM-dd HH:mm:ss,SSSXX`
+* `yyyy-MM-dd HH:mm:ss,SSSXXX`
+* `yyyy-MM-dd HH:mm:ssXX`
+* `yyyy-MM-dd HH:mm:ssXXX`
+* `yyyy-MM-dd'T'HH:mm:ss,SSS`
+* `yyyy-MM-dd'T'HH:mm:ss,SSSXX`
+* `yyyy-MM-dd'T'HH:mm:ss,SSSXXX`
+* `yyyyMMddHHmmss`
 
 --
 
@@ -603,11 +606,11 @@ If the request does not encounter errors, you receive the following result:
     },
     "tpep_dropoff_datetime" : {
       "type" : "date",
-      "format" : "YYYY-MM-dd HH:mm:ss"
+      "format" : "yyyy-MM-dd HH:mm:ss"
     },
     "tpep_pickup_datetime" : {
       "type" : "date",
-      "format" : "YYYY-MM-dd HH:mm:ss"
+      "format" : "yyyy-MM-dd HH:mm:ss"
     },
     "trip_distance" : {
       "type" : "double"
@@ -621,7 +624,7 @@ If the request does not encounter errors, you receive the following result:
           "field" : "tpep_pickup_datetime",
           "timezone" : "{{ beat.timezone }}",
           "formats" : [
-            "YYYY-MM-dd HH:mm:ss"
+            "yyyy-MM-dd HH:mm:ss"
           ]
         }
       }
@@ -1287,10 +1290,9 @@ If the request does not encounter errors, you receive the following result:
     was chosen because it comes first in the column order. If you prefer
     `tpep_dropoff_datetime` then force it to be chosen using the
     `timestamp_field` query parameter.
-<8> `joda_timestamp_formats` are used to tell Logstash and Ingest pipeline how
-    to parse timestamps.
+<8> `joda_timestamp_formats` are used to tell Logstash how to parse timestamps.
 <9> `java_timestamp_formats` are the Java time formats recognized in the time
-    fields. In future Ingest pipeline will switch to use this format.
+    fields. Elasticsearch mappings and Ingest pipeline use this format.
 <10> The timestamp format in this sample doesn't specify a timezone, so to
      accurately convert them to UTC timestamps to store in Elasticsearch it's
      necessary to supply the timezone they relate to. `need_client_timezone`
@@ -1396,7 +1398,7 @@ this:
           "field" : "timestamp",
           "timezone" : "{{ beat.timezone }}",
           "formats" : [
-            "ISO8601"
+            "yyyy-MM-dd'T'HH:mm:ss,SSS"
           ]
         }
       },
@@ -1556,7 +1558,7 @@ this:
           "field" : "timestamp",
           "timezone" : "{{ beat.timezone }}",
           "formats" : [
-            "ISO8601"
+            "yyyy-MM-dd'T'HH:mm:ss,SSS"
           ]
         }
       },

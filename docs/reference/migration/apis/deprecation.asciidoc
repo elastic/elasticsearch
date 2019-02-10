@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[migration-api-deprecation]]
-=== Deprecation Info APIs
+=== Deprecation info APIs
+++++
+<titleabbrev>Deprecation info</titleabbrev>
+++++
 
 The deprecation API is to be used to retrieve information about different
 cluster, node, and index level settings that use deprecated features that will
@@ -51,7 +54,7 @@ Example response:
     {
       "level" : "critical",
       "message" : "Cluster name cannot contain ':'",
-      "url" : "{ref}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_cluster_name",
+      "url" : "{ref-70}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_cluster_name",
       "details" : "This cluster is named [mycompany:logging], which contains the illegal character ':'."
     }
   ],
@@ -61,11 +64,12 @@ Example response:
       {
         "level" : "warning",
         "message" : "Index name cannot contain ':'",
-        "url" : "{ref}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_index_name",
+        "url" : "{ref-70}/breaking-changes-7.0.html#_literal_literal_is_no_longer_allowed_in_index_name",
         "details" : "This index is named [logs:apache], which contains the illegal character ':'."
       }
     ]
-  }
+  },
+  "ml_settings" : [ ]
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -106,7 +110,8 @@ key. Similarly, any node-level warnings are found under `node_settings`. Since
 only a select subset of your nodes might incorporate these settings, it is
 important to read the `details` section for more information about which nodes
 are affected. Index warnings are sectioned off per index and can be filtered
-using an index-pattern in the query.
+using an index-pattern in the query. Machine Learning related deprecation
+warnings can be found under the `ml_settings` key.
 
 The following example request shows only index-level deprecations of all
 `logstash-*` indices:

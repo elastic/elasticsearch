@@ -20,8 +20,11 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -143,6 +146,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testQueryBuilderBWC() throws Exception {
+        final String type = getOldClusterVersion().before(Version.V_7_0_0) ? "doc" : "_doc";
         String index = "queries";
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
@@ -155,7 +159,9 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             }
             {
                 mappingsAndSettings.startObject("mappings");
-                mappingsAndSettings.startObject("doc");
+                if (isRunningAgainstAncientCluster()) {
+                    mappingsAndSettings.startObject(type);
+                }
                 mappingsAndSettings.startObject("properties");
                 {
                     mappingsAndSettings.startObject("query");
@@ -174,16 +180,21 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 }
                 mappingsAndSettings.endObject();
                 mappingsAndSettings.endObject();
-                mappingsAndSettings.endObject();
+                if (isRunningAgainstAncientCluster()) {
+                    mappingsAndSettings.endObject();
+                }
             }
             mappingsAndSettings.endObject();
             Request request = new Request("PUT", "/" + index);
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            request.setOptions(options);
             request.setJsonEntity(Strings.toString(mappingsAndSettings));
             Response rsp = client().performRequest(request);
             assertEquals(200, rsp.getStatusLine().getStatusCode());
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
-                request = new Request("PUT", "/" + index + "/doc/" + Integer.toString(i));
+                request = new Request("PUT", "/" + index + "/" + type + "/" + Integer.toString(i));
                 request.setJsonEntity((String) CANDIDATES.get(i)[0]);
                 rsp = client().performRequest(request);
                 assertEquals(201, rsp.getStatusLine().getStatusCode());
@@ -196,7 +207,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 QueryBuilder expectedQueryBuilder = (QueryBuilder) CANDIDATES.get(i)[1];
                 Request request = new Request("GET", "/" + index + "/_search");
                 request.setJsonEntity("{\"query\": {\"ids\": {\"values\": [\"" + Integer.toString(i) + "\"]}}, " +
-                        "\"docvalue_fields\": [{\"field\":\"query.query_builder_field\", \"format\":\"use_field_mapping\"}]}");
+                        "\"docvalue_fields\": [{\"field\":\"query.query_builder_field\"}]}");
                 Response rsp = client().performRequest(request);
                 assertEquals(200, rsp.getStatusLine().getStatusCode());
                 Map<?, ?> hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>)toMap(rsp).get("hits")).get("hits")).get(0);

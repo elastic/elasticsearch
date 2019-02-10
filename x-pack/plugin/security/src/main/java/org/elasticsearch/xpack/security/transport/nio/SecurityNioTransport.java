@@ -28,7 +28,8 @@ import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.transport.nio.NioTcpServerChannel;
 import org.elasticsearch.transport.nio.NioTransport;
@@ -76,8 +77,9 @@ public class SecurityNioTransport extends NioTransport {
     public SecurityNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
                                 PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                                 CircuitBreakerService circuitBreakerService, @Nullable final IPFilter authenticator,
-                                SSLService sslService) {
-        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
+                                SSLService sslService, NioGroupFactory groupFactory) {
+        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
+            groupFactory);
         this.authenticator = authenticator;
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
@@ -86,7 +88,6 @@ public class SecurityNioTransport extends NioTransport {
             Map<String, SSLConfiguration> profileConfiguration = SecurityNetty4Transport.getTransportProfileConfigurations(settings,
                 sslService, transportConfiguration);
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
-
         } else {
             profileConfiguration = Collections.emptyMap();
         }
@@ -214,7 +215,7 @@ public class SecurityNioTransport extends NioTransport {
 
         protected SSLEngine createSSLEngine(SocketChannel channel) throws IOException {
             SSLEngine sslEngine;
-            SSLConfiguration defaultConfig = profileConfiguration.get(TcpTransport.DEFAULT_PROFILE);
+            SSLConfiguration defaultConfig = profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
             SSLConfiguration sslConfig = profileConfiguration.getOrDefault(profileName, defaultConfig);
             boolean hostnameVerificationEnabled = sslConfig.verificationMode().isHostnameVerificationEnabled();
             if (hostnameVerificationEnabled) {
@@ -233,7 +234,7 @@ public class SecurityNioTransport extends NioTransport {
         private final SNIHostName serverName;
 
         private SecurityClientTcpChannelFactory(RawChannelFactory rawChannelFactory, SNIHostName serverName) {
-            super(rawChannelFactory, TcpTransport.DEFAULT_PROFILE, true);
+            super(rawChannelFactory, TransportSettings.DEFAULT_PROFILE, true);
             this.serverName = serverName;
         }
 

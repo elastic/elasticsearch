@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -23,7 +23,7 @@ public enum DatafeedState implements PersistentTaskState {
 
     STARTED, STOPPED, STARTING, STOPPING;
 
-    public static final String NAME = StartDatafeedAction.TASK_NAME;
+    public static final String NAME = MlTasks.DATAFEED_TASK_NAME;
 
     private static final ConstructingObjectParser<DatafeedState, Void> PARSER =
             new ConstructingObjectParser<>(NAME, args -> fromString((String) args[0]));

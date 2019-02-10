@@ -32,7 +32,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.NodesFaultDetection;
@@ -43,10 +43,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.nio.MockNioTransport;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -136,10 +137,10 @@ public class ZenFaultDetectionTests extends ESTestCase {
                 Settings.builder()
                     .put(settings)
                     // trace zenfd actions but keep the default otherwise
-                    .putList(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), TransportLivenessAction.NAME)
+                    .putList(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), TransportLivenessAction.NAME)
                     .build(),
-                new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService,
-                    namedWriteableRegistry, new NetworkService(Collections.emptyList()), version),
+                new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
+                    PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry, circuitBreakerService),
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 (boundAddress) ->
@@ -222,6 +223,12 @@ public class ZenFaultDetectionTests extends ESTestCase {
         }
 
         assertThat(failureReason[0], matcher);
+
+        assertWarnings(
+            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in Elasticsearch and will be removed in a future " +
+                "release! See the breaking changes documentation for the next major version.",
+            "[discovery.zen.fd.ping_interval] setting was deprecated in Elasticsearch and will be removed in a future " +
+                "release! See the breaking changes documentation for the next major version.");
     }
 
     public void testMasterFaultDetectionConnectOnDisconnect() throws InterruptedException {
@@ -261,6 +268,12 @@ public class ZenFaultDetectionTests extends ESTestCase {
         }
 
         assertThat(failureReason[0], matcher);
+
+        assertWarnings(
+            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in Elasticsearch and will be removed in a future " +
+                "release! See the breaking changes documentation for the next major version.",
+            "[discovery.zen.fd.ping_interval] setting was deprecated in Elasticsearch and will be removed in a future " +
+                "release! See the breaking changes documentation for the next major version.");
     }
 
     public void testMasterFaultDetectionNotSizeLimited() throws InterruptedException {
@@ -300,6 +313,12 @@ public class ZenFaultDetectionTests extends ESTestCase {
         assertThat(inFlightRequestsBreaker.getTrippedCount(), equalTo(0L));
         assertThat(pingProbeA.completedPings(), greaterThanOrEqualTo(minExpectedPings));
         assertThat(pingProbeB.completedPings(), greaterThanOrEqualTo(minExpectedPings));
+
+        assertWarnings(
+            "[discovery.zen.fd.connect_on_network_disconnect] setting was deprecated in Elasticsearch and will be removed in a future " +
+                "release! See the breaking changes documentation for the next major version.",
+            "[discovery.zen.fd.ping_interval] setting was deprecated in Elasticsearch and will be removed in a future " +
+                "release! See the breaking changes documentation for the next major version.");
     }
 
     private static class PingProbe extends MockTransportService.Tracer {

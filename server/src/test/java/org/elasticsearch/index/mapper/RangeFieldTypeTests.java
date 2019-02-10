@@ -48,6 +48,8 @@ import org.junit.Before;
 import java.net.InetAddress;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class RangeFieldTypeTests extends FieldTypeTestCase {
     RangeType type;
     protected static String FIELDNAME = "field";
@@ -62,13 +64,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             addModifier(new Modifier("format", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date", Locale.ROOT));
+                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
                 }
             });
             addModifier(new Modifier("locale", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("date_optional_time", Locale.CANADA));
+                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("date_optional_time").withLocale(Locale.CANADA));
                 }
             });
         }
@@ -111,17 +113,18 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         fieldType.setHasDocValues(false);
         ShapeRelation relation = randomFrom(ShapeRelation.values());
 
-        // dates will break the default format
+        // dates will break the default format, month/day of month is turned around in the format
         final String from = "2016-15-06T15:29:50+08:00";
         final String to = "2016-16-06T15:29:50+08:00";
 
         ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
             () -> fieldType.rangeQuery(from, to, true, true, relation, null, null, context));
-        assertEquals("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]",
-            ex.getMessage());
+        assertThat(ex.getMessage(),
+            containsString("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]")
+        );
 
         // setting mapping format which is compatible with those dates
-        final DateFormatter formatter = DateFormatter.forPattern("yyyy-dd-MM'T'HH:mm:ssZZ");
+        final DateFormatter formatter = DateFormatter.forPattern("yyyy-dd-MM'T'HH:mm:ssZZZZZ");
         assertEquals(1465975790000L, formatter.parseMillis(from));
         assertEquals(1466062190000L, formatter.parseMillis(to));
 

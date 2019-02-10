@@ -25,6 +25,6 @@ public class DefaultTarTests extends ArchiveTestCase {
 
     @Override
     protected Distribution distribution() {
-        return Distribution.DEFAULT_TAR;
+        return Distribution.DEFAULT_LINUX;
     }
 }

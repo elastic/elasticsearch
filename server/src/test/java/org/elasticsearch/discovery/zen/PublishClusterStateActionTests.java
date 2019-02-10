@@ -57,6 +57,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.After;
 import org.junit.Before;
 
@@ -182,8 +183,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
                                           ThreadPool threadPool, Logger logger, Map<String, MockNode> nodes) throws Exception {
         final Settings settings = Settings.builder()
                 .put("name", name)
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "").put(
-                     TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "").put(
+                     TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .put(basSettings)
                 .build();
 
@@ -412,6 +413,10 @@ public class PublishClusterStateActionTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState).blocks(ClusterBlocks.builder()
             .addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK)).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
+
+        assertWarnings(
+            "[discovery.zen.publish_diff.enable] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.");
     }
 
 
@@ -463,6 +468,10 @@ public class PublishClusterStateActionTests extends ESTestCase {
             assertSameState(node.clusterState, clusterState);
             assertThat(node.clusterState.nodes().getLocalNode(), equalTo(node.discoveryNode));
         }
+
+        assertWarnings(
+            "[discovery.zen.publish_diff.enable] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.");
     }
 
     public void testSerializationFailureDuringDiffPublishing() throws Exception {
@@ -624,6 +633,12 @@ public class PublishClusterStateActionTests extends ESTestCase {
             }
             assertThat(exception.getMessage(), containsString(timeOutNodes > 0 ? "timed out" : "failed"));
         }
+
+        assertWarnings(
+            "[discovery.zen.publish_timeout] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.",
+            "[discovery.zen.commit_timeout] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.");
     }
 
     public void testOutOfOrderCommitMessages() throws Throwable {
@@ -706,6 +721,10 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 assertThat(node.clusterState.stateUUID(), not(equalTo(state.stateUUID())));
             }
         }
+
+        assertWarnings(
+            "[discovery.zen.commit_timeout] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.");
     }
 
     private void assertPublishClusterStateStats(String description, MockNode node, long expectedFull, long expectedIncompatibleDiffs,

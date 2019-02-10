@@ -26,8 +26,6 @@ import org.apache.tools.ant.filters.FixCrLfFilter
 import java.nio.file.Files
 import java.nio.file.Path
 
-Collection distributions = project('archives').subprojects + project('packages').subprojects
-
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -339,8 +337,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 }
 
 task run(type: RunTask) {
-  distribution = System.getProperty('run.distribution', 'zip')
-  if (distribution == 'zip') {
+  distribution = System.getProperty('run.distribution', 'default')
+  if (distribution == 'default') {
     String licenseType = System.getProperty("run.license_type", "basic")
     if (licenseType == 'trial') {
       setting 'xpack.ml.enabled', 'true'

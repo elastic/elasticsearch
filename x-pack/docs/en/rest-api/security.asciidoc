@@ -2,7 +2,7 @@
 [[security-api]]
 == Security APIs
 
-You can use the following APIs to perform {security} activities.
+You can use the following APIs to perform security activities.
 
 * <<security-api-authenticate>>
 * <<security-api-clear-cache>>
@@ -52,6 +52,17 @@ without requiring basic authentication:
 * <<security-api-invalidate-token,Invalidate token>>
 
 [float]
+[[security-api-keys]]
+=== API Keys
+
+You can use the following APIs to create, retrieve and invalidate API keys for access
+without requiring basic authentication:
+
+* <<security-api-create-api-key,Create API Key>>
+* <<security-api-get-api-key,Get API Key>>
+* <<security-api-invalidate-api-key,Invalidate API Key>>
+
+[float]
 [[security-user-apis]]
 === Users
 
@@ -66,12 +77,12 @@ native realm:
 * <<security-api-get-user,Get users>>
 
 
-include::security/put-app-privileges.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
-include::security/create-role-mappings.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
+include::security/put-app-privileges.asciidoc[]
+include::security/create-role-mappings.asciidoc[]
 include::security/create-roles.asciidoc[]
 include::security/create-users.asciidoc[]
 include::security/delete-app-privileges.asciidoc[]
@@ -88,3 +99,6 @@ include::security/get-users.asciidoc[]
 include::security/has-privileges.asciidoc[]
 include::security/invalidate-tokens.asciidoc[]
 include::security/ssl.asciidoc[]
+include::security/create-api-keys.asciidoc[]
+include::security/invalidate-api-keys.asciidoc[]
+include::security/get-api-keys.asciidoc[]

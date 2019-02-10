@@ -19,8 +19,7 @@ import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.TypesTests;
-
-import java.util.TimeZone;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 public class DatabaseFunctionTests extends ESTestCase {
 
@@ -29,8 +28,10 @@ public class DatabaseFunctionTests extends ESTestCase {
         SqlParser parser = new SqlParser();
         EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-basic.json", true));
         Analyzer analyzer = new Analyzer(
-                new Configuration(TimeZone.getTimeZone("UTC"), Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-                                  Protocol.PAGE_TIMEOUT, null, randomFrom(Mode.values()), null, clusterName),
+                new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+                                  Protocol.PAGE_TIMEOUT, null, 
+                                  randomFrom(Mode.values()), randomAlphaOfLength(10),
+                                  null, clusterName),
                 new FunctionRegistry(),
                 IndexResolution.valid(test),
                 new Verifier(new Metrics())

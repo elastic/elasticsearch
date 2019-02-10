@@ -19,26 +19,27 @@ Never expose an unprotected node to the public internet.
 
 `network.host`::
 
-The node will bind to this hostname or IP address and _publish_ (advertise) this
-host to other nodes in the cluster. Accepts an IP address, hostname, a
+The node will bind to this hostname or IP address and _publish_ (advertise)
+this host to other nodes in the cluster. Accepts an IP address, hostname, a
 <<network-interface-values,special value>>, or an array of any combination of
 these. Note that any values containing a `:` (e.g., an IPv6 address or
-containing one of the <<network-interface-values,special value>>) must be quoted
-because `:` is a special character in YAML.
+containing one of the <<network-interface-values,special values>>) must be
+quoted because `:` is a special character in YAML.
 +
 Defaults to `_local_`.
 
-`discovery.zen.ping.unicast.hosts`::
+`discovery.seed_hosts`::
 
 In order to join a cluster, a node needs to know the hostname or IP address of
 at least some of the other nodes in the cluster.  This setting provides the
-initial list of other nodes that this node will try to contact. Accepts IP
-addresses or hostnames.  If a hostname lookup resolves to multiple IP
-addresses then each IP address will be used for discovery.
+initial list of addresses this node will try to contact. Accepts IP addresses
+or hostnames. If a hostname lookup resolves to multiple IP addresses then each
+IP address will be used for discovery.
 https://en.wikipedia.org/wiki/Round-robin_DNS[Round robin DNS] -- returning a
 different IP from a list on each lookup -- can be used for discovery; non-
-existent IP addresses will throw exceptions and cause another DNS lookup
-on the next round of pinging (subject to JVM DNS caching).
+existent IP addresses will throw exceptions and cause another DNS lookup on the
+next round of pinging (subject to <<networkaddress-cache-ttl,JVM DNS
+caching>>).
 +
 Defaults to `["127.0.0.1", "[::1]"]`.
 
@@ -50,7 +51,7 @@ range.
 +
 Defaults to `9200-9300`.
 
-`transport.tcp.port`::
+`transport.port`::
 
 Port to bind for communication between nodes. Accepts a single value or a
 range. If a range is specified, the node will bind to the first available port

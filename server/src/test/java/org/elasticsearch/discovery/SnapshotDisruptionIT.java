@@ -18,38 +18,38 @@
  */
 package org.elasticsearch.discovery;
 
-import java.util.Arrays;
-import java.util.Collection;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import org.elasticsearch.test.transport.MockTransportService;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests snapshot operations during disruptions.
@@ -67,8 +67,6 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
-            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
-            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s")
             .build();
     }
 
@@ -130,17 +128,7 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         logger.info("--> waiting for disruption to start");
         assertTrue(disruptionStarted.await(1, TimeUnit.MINUTES));
 
-        logger.info("--> wait until the snapshot is done");
-        assertBusy(() -> {
-            SnapshotsInProgress snapshots = dataNodeClient().admin().cluster().prepareState().setLocal(false).get().getState()
-                .custom(SnapshotsInProgress.TYPE);
-            if (snapshots != null && snapshots.entries().size() > 0) {
-                logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
-                fail("Snapshot is still running");
-            } else {
-                logger.info("Snapshot is no longer in the cluster state");
-            }
-        }, 1, TimeUnit.MINUTES);
+        assertAllSnapshotsCompleted();
 
         logger.info("--> verify that snapshot was successful or no longer exist");
         assertBusy(() -> {
@@ -159,17 +147,33 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         try {
             future.get();
         } catch (Exception ex) {
-            logger.info("--> got exception from hanged master", ex);
             Throwable cause = ex.getCause();
-            assertThat(cause, instanceOf(MasterNotDiscoveredException.class));
-            cause = cause.getCause();
-            assertThat(cause, instanceOf(FailedToCommitClusterStateException.class));
+            if (cause.getCause() instanceof ConcurrentSnapshotExecutionException) {
+                logger.info("--> got exception from race in master operation retries");
+            } else {
+                logger.info("--> got exception from hanged master", ex);
+            }
         }
 
-        logger.info("--> verify that snapshot eventually will be created due to retries");
+        assertAllSnapshotsCompleted();
+    }
+
+    private void assertAllSnapshotsCompleted() throws Exception {
+        logger.info("--> wait until the snapshot is done");
         assertBusy(() -> {
-            assertSnapshotExists("test-repo", "test-snap-2");
-        }, 1, TimeUnit.MINUTES);
+            ClusterState state = dataNodeClient().admin().cluster().prepareState().get().getState();
+            SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
+            SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            if (snapshots != null && snapshots.entries().isEmpty() == false) {
+                logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
+                fail("Snapshot is still running");
+            } else if (snapshotDeletionsInProgress != null && snapshotDeletionsInProgress.hasDeletionsInProgress()) {
+                logger.info("Current snapshot deletion state [{}]", snapshotDeletionsInProgress);
+                fail("Snapshot deletion is still running");
+            } else {
+                logger.info("Snapshot is no longer in the cluster state");
+            }
+        }, 1L, TimeUnit.MINUTES);
     }
 
     private void assertSnapshotExists(String repository, String snapshot) {

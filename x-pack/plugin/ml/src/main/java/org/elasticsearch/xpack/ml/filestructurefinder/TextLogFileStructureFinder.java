@@ -123,7 +123,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             .setNeedClientTimezone(needClientTimeZone)
             .setGrokPattern(grokPattern)
             .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(grokPattern, interimTimestampField,
-                bestTimestamp.v1().jodaTimestampFormats, needClientTimeZone))
+                bestTimestamp.v1().javaTimestampFormats, needClientTimeZone))
             .setMappings(mappings)
             .setFieldStats(fieldStats)
             .setExplanation(explanation)
@@ -155,7 +155,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         int remainingLines = sampleLines.length;
         double differenceBetweenTwoHighestWeights = 0.0;
         for (String sampleLine : sampleLines) {
-            TimestampMatch match = TimestampFormatFinder.findFirstMatch(sampleLine, overrides.getTimestampFormat());
+            TimestampMatch match = TimestampFormatFinder.findFirstMatch(sampleLine, overrides.getTimestampFormat(), timeoutChecker);
             if (match != null) {
                 TimestampMatch pureMatch = new TimestampMatch(match.candidateIndex, "", match.jodaTimestampFormats,
                     match.javaTimestampFormats, match.simplePattern, match.grokPatternName, "");

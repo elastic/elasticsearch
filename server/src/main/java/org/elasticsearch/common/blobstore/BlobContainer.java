@@ -78,9 +78,7 @@ public interface BlobContainer {
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
-     * using an atomic write operation if the implementation supports it. When the BlobContainer implementation
-     * does not provide a specific implementation of writeBlobAtomic(String, InputStream, long), then
-     * the {@link #writeBlob(String, InputStream, long, boolean)} method is used.
+     * using an atomic write operation if the implementation supports it.
      *
      * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
      * same name already exists, the operation will fail and an {@link IOException} will be thrown.
@@ -97,11 +95,7 @@ public interface BlobContainer {
      * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
-    default void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
-        throws IOException {
-        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
-    }
-
+    void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
     /**
      * Deletes a blob with giving name, if the blob exists. If the blob does not exist,
      * this method throws a NoSuchFileException.

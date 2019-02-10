@@ -92,24 +92,24 @@ public class DateMathExpressionResolverTests extends ESTestCase {
     }
 
     public void testExpression_CustomFormat() throws Exception {
-        List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{YYYY.MM.dd}}>"));
+        List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd}}>"));
         assertThat(results.size(), equalTo(1));
         assertThat(results.get(0),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
     }
 
     public void testExpression_EscapeStatic() throws Exception {
         List<String> result = expressionResolver.resolve(context, Arrays.asList("<.mar\\{v\\}el-{now/d}>"));
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0),
-            equalTo(".mar{v}el-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".mar{v}el-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
     }
 
     public void testExpression_EscapeDateFormat() throws Exception {
-        List<String> result = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{'\\{year\\}'YYYY}}>"));
+        List<String> result = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{'\\{year\\}'yyyy}}>"));
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("'{year}'YYYY").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".marvel-" + DateTimeFormat.forPattern("'{year}'yyyy").print(new DateTime(context.getStartTime(), UTC))));
     }
 
     public void testExpression_MixedArray() throws Exception {
@@ -147,10 +147,10 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             now = DateTime.now(UTC).withHourOfDay(0).withMinuteOfHour(0).withSecondOfMinute(0);
         }
         Context context = new Context(this.context.getState(), this.context.getOptions(), now.getMillis());
-        List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{YYYY.MM.dd|" + timeZone.getID() + "}}>"));
+        List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd|" + timeZone.getID() + "}}>"));
         assertThat(results.size(), equalTo(1));
         logger.info("timezone: [{}], now [{}], name: [{}]", timeZone, now, results.get(0));
-        assertThat(results.get(0), equalTo(".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(now.withZone(timeZone))));
+        assertThat(results.get(0), equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(now.withZone(timeZone))));
     }
 
     public void testExpressionInvalidUnescaped() throws Exception {

@@ -50,12 +50,12 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.MockNioTransport;
 
 import java.io.IOException;
@@ -109,7 +109,7 @@ public final class MockTransportService extends TransportService {
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
         // a different default port range per JVM unless the incoming settings override it
         int basePort = 10300 + (JVM_ORDINAL * 100); // use a non-default port otherwise some cluster in this JVM might reuse a port
-        settings = Settings.builder().put(TcpTransport.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
+        settings = Settings.builder().put(TransportSettings.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
             new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService());
@@ -130,7 +130,8 @@ public final class MockTransportService extends TransportService {
      * Build the service.
      *
      * @param clusterSettings if non null the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-     *                        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
+     *                        updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and
+     *                        {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
      */
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
                                 @Nullable ClusterSettings clusterSettings) {
@@ -143,7 +144,8 @@ public final class MockTransportService extends TransportService {
      * Build the service.
      *
      * @param clusterSettings if non null the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-     *                        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
+     *                        updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and
+     *                        {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
      */
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
                                 Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
@@ -238,13 +240,6 @@ public final class MockTransportService extends TransportService {
     /**
      * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
      */
-    public void addFailToSendNoConnectRule(TransportAddress transportAddress, final String... blockedActions) {
-        addFailToSendNoConnectRule(transportAddress, new HashSet<>(Arrays.asList(blockedActions)));
-    }
-
-    /**
-     * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
-     */
     public void addFailToSendNoConnectRule(TransportService transportService, final Set<String> blockedActions) {
         for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
             addFailToSendNoConnectRule(transportAddress, blockedActions);
@@ -319,7 +314,7 @@ public final class MockTransportService extends TransportService {
             }
 
             // TODO: Replace with proper setting
-            TimeValue connectingTimeout = TransportService.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
+            TimeValue connectingTimeout = TransportSettings.CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
             try {
                 if (delay.millis() < connectingTimeout.millis()) {
                     Thread.sleep(delay.millis());
@@ -373,7 +368,7 @@ public final class MockTransportService extends TransportService {
                         runnable.run();
                     } else {
                         requestsToSendWhenCleared.add(runnable);
-                        threadPool.schedule(delay, ThreadPool.Names.GENERIC, runnable);
+                        threadPool.schedule(runnable, delay, ThreadPool.Names.GENERIC);
                     }
                 }
             }
@@ -444,19 +439,6 @@ public final class MockTransportService extends TransportService {
     }
 
     /**
-     * Adds a new get connection behavior that is used for communication with the given delegate service.
-     *
-     * @return {@code true} if no other get connection behavior was registered for any of the addresses bound by delegate service.
-     */
-    public boolean addGetConnectionBehavior(TransportService transportService, StubbableConnectionManager.GetConnectionBehavior behavior) {
-        boolean noRegistered = true;
-        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
-            noRegistered &= addGetConnectionBehavior(transportAddress, behavior);
-        }
-        return noRegistered;
-    }
-
-    /**
      * Adds a get connection behavior that is used for communication with the given delegate address.
      *
      * @return {@code true} if no other get connection behavior was registered for this address before.
@@ -472,19 +454,6 @@ public final class MockTransportService extends TransportService {
      */
     public boolean addGetConnectionBehavior(StubbableConnectionManager.GetConnectionBehavior behavior) {
         return connectionManager().setDefaultGetConnectionBehavior(behavior);
-    }
-
-    /**
-     * Adds a node connected behavior that is used for the given delegate service.
-     *
-     * @return {@code true} if no other node connected behavior was registered for any of the addresses bound by delegate service.
-     */
-    public boolean addNodeConnectedBehavior(TransportService transportService, StubbableConnectionManager.NodeConnectedBehavior behavior) {
-        boolean noRegistered = true;
-        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
-            noRegistered &= addNodeConnectedBehavior(transportAddress, behavior);
-        }
-        return noRegistered;
     }
 
     /**
@@ -534,10 +503,6 @@ public final class MockTransportService extends TransportService {
 
     public void addTracer(Tracer tracer) {
         activeTracers.add(tracer);
-    }
-
-    public boolean removeTracer(Tracer tracer) {
-        return activeTracers.remove(tracer);
     }
 
     public void clearTracers() {

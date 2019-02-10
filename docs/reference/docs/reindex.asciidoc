@@ -138,8 +138,8 @@ POST _reindex
 // CONSOLE
 // TEST[setup:twitter]
 
-You can limit the documents by adding a type to the `source` or by adding a
-query. This will only copy tweets made by `kimchy` into `new_twitter`:
+You can limit the documents by adding a query to the `source`.
+This will only copy tweets made by `kimchy` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
@@ -147,7 +147,6 @@ POST _reindex
 {
   "source": {
     "index": "twitter",
-    "type": "_doc",
     "query": {
       "term": {
         "user": "kimchy"
@@ -162,21 +161,19 @@ POST _reindex
 // CONSOLE
 // TEST[setup:twitter]
 
-`index` and `type` in `source` can both be lists, allowing you to copy from
-lots of sources in one request. This will copy documents from the `_doc` and
-`post` types in the `twitter` and `blog` indices.
+`index` in `source` can be a list, allowing you to copy from lots 
+of sources in one request. This will copy documents from the
+`twitter` and `blog` indices:
 
 [source,js]
 --------------------------------------------------
 POST _reindex
 {
   "source": {
-    "index": ["twitter", "blog"],
-    "type": ["_doc", "post"]
+    "index": ["twitter", "blog"]
   },
   "dest": {
-    "index": "all_together",
-    "type": "_doc"
+    "index": "all_together"
   }
 }
 --------------------------------------------------
@@ -299,7 +296,6 @@ Think of the possibilities! Just be careful; you are able to
 change:
 
  * `_id`
- * `_type`
  * `_index`
  * `_version`
  * `_routing`
@@ -870,13 +866,15 @@ which will return:
   "_index": "test2",
   "_type": "_doc",
   "_version": 1,
+  "_seq_no": 44,
+  "_primary_term": 1,
   "_source": {
     "text": "words words",
     "tag": "foo"
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term": 1/"_primary_term" : $body._primary_term/]
 
 [float]
 [[docs-reindex-slice]]

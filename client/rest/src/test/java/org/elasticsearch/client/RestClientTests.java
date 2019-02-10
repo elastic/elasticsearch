@@ -57,7 +57,7 @@ public class RestClientTests extends RestClientTestCase {
     public void testCloseIsIdempotent() throws IOException {
         List<Node> nodes = singletonList(new Node(new HttpHost("localhost", 9200)));
         CloseableHttpAsyncClient closeableHttpAsyncClient = mock(CloseableHttpAsyncClient.class);
-        RestClient restClient = new RestClient(closeableHttpAsyncClient, 1_000, new Header[0], nodes, null, null, null, false);
+        RestClient restClient = new RestClient(closeableHttpAsyncClient, new Header[0], nodes, null, null, null, false);
         restClient.close();
         verify(closeableHttpAsyncClient, times(1)).close();
         restClient.close();
@@ -273,6 +273,15 @@ public class RestClientTests extends RestClientTestCase {
             blacklist.put(n3.getHost(), new DeadHostState(new DeadHostState(new DeadHostState(timeSupplier))));
 
             /*
+             * case when fewer nodeTuple than blacklist, wont result in any IllegalCapacityException
+             */
+            {
+                NodeTuple<List<Node>> fewerNodeTuple = new NodeTuple<>(Arrays.asList(n1, n2), null);
+                assertSelectLivingHosts(Arrays.asList(n1), fewerNodeTuple, blacklist, NodeSelector.ANY);
+                assertSelectLivingHosts(Arrays.asList(n2), fewerNodeTuple, blacklist, not1);
+            }
+
+            /*
              * selectHosts will revive a single host if regardless of
              * blacklist time. It'll revive the node that is closest
              * to being revived that the NodeSelector is ok with.
@@ -344,8 +353,7 @@ public class RestClientTests extends RestClientTestCase {
 
     private static RestClient createRestClient() {
         List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
-        return new RestClient(mock(CloseableHttpAsyncClient.class), randomLongBetween(1_000, 30_000),
-                new Header[] {}, nodes, null, null, null, false);
+        return new RestClient(mock(CloseableHttpAsyncClient.class), new Header[] {}, nodes, null, null, null, false);
     }
 
     public void testRoundRobin() throws IOException {

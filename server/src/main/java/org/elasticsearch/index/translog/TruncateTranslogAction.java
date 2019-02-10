@@ -71,6 +71,8 @@ public class TruncateTranslogAction {
             commits = DirectoryReader.listCommits(indexDirectory);
         } catch (IndexNotFoundException infe) {
             throw new ElasticsearchException("unable to find a valid shard at [" + indexPath + "]", infe);
+        } catch (IOException e) {
+            throw new ElasticsearchException("unable to list commits at [" + indexPath + "]", e);
         }
 
         // Retrieve the generation and UUID from the existing data
@@ -207,7 +209,7 @@ public class TruncateTranslogAction {
      */
     private static int writeEmptyTranslog(Path filename, String translogUUID) throws IOException {
         try (FileChannel fc = FileChannel.open(filename, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)) {
-            TranslogHeader header = new TranslogHeader(translogUUID, TranslogHeader.UNKNOWN_PRIMARY_TERM);
+            TranslogHeader header = new TranslogHeader(translogUUID, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             header.write(fc);
             return header.sizeInBytes();
         }

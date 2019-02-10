@@ -24,7 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -38,23 +37,20 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -70,31 +66,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.settings.Setting.intSetting;
-import static org.elasticsearch.common.settings.Setting.listSetting;
-import static org.elasticsearch.common.settings.Setting.timeSetting;
-
 public class TransportService extends AbstractLifecycleComponent implements TransportMessageListener, TransportConnectionListener {
     private static final Logger logger = LogManager.getLogger(TransportService.class);
 
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_RECOVERY =
-        intSetting("transport.connections_per_node.recovery", 2, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_BULK =
-        intSetting("transport.connections_per_node.bulk", 3, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_REG =
-        intSetting("transport.connections_per_node.reg", 6, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_STATE =
-        intSetting("transport.connections_per_node.state", 1, 1, Setting.Property.NodeScope);
-    public static final Setting<Integer> CONNECTIONS_PER_NODE_PING =
-        intSetting("transport.connections_per_node.ping", 1, 1, Setting.Property.NodeScope);
-    public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
-        timeSetting("transport.tcp.connect_timeout", NetworkService.TCP_CONNECT_TIMEOUT, Setting.Property.NodeScope);
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
 
@@ -123,13 +101,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {};
 
     // tracer log
-
-    public static final Setting<List<String>> TRACE_LOG_INCLUDE_SETTING =
-        listSetting("transport.tracer.include", emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
-    public static final Setting<List<String>> TRACE_LOG_EXCLUDE_SETTING =
-        listSetting("transport.tracer.exclude",
-            Arrays.asList("internal:discovery/zen/fd*", "internal:coordination/fault_detection/*", TransportLivenessAction.NAME),
-            Function.identity(), Property.Dynamic, Property.NodeScope);
 
     private final Logger tracerLog;
 
@@ -172,7 +143,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      * Build the service.
      *
      * @param clusterSettings if non null, the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
- *        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
+ *   *    updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
      */
     public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor transportInterceptor,
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
@@ -184,7 +155,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor transportInterceptor,
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders, ConnectionManager connectionManager) {
-        super(settings);
         // The only time we do not want to validate node connections is when this is a transport client using the simple node sampler
         this.validateConnections = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false ||
             TransportClient.CLIENT_TRANSPORT_SNIFF.get(settings);
@@ -193,8 +163,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         this.localNodeFactory = localNodeFactory;
         this.connectionManager = connectionManager;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        setTracerLogInclude(TRACE_LOG_INCLUDE_SETTING.get(settings));
-        setTracerLogExclude(TRACE_LOG_EXCLUDE_SETTING.get(settings));
+        setTracerLogInclude(TransportSettings.TRACE_LOG_INCLUDE_SETTING.get(settings));
+        setTracerLogExclude(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
         taskManager = createTaskManager(settings, threadPool, taskHeaders);
         this.interceptor = transportInterceptor;
@@ -203,8 +173,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         remoteClusterService = new RemoteClusterService(settings, this);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
-            clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
-            clusterSettings.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
+            clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
+            clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
             if (connectToRemoteCluster) {
                 remoteClusterService.listenForUpdates(clusterSettings);
             }
@@ -652,7 +622,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             }
             if (timeoutHandler != null) {
                 assert options.timeout() != null;
-                timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
+                timeoutHandler.scheduleTimeout(options.timeout());
             }
             connection.sendRequest(requestId, action, request, options); // local node optimization happens upstream
         } catch (final Exception e) {
@@ -983,9 +953,18 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 responseHandlers.prune(h -> h.connection().getCacheKey().equals(connection.getCacheKey()));
             // callback that an exception happened, but on a different thread since we don't
             // want handlers to worry about stack overflows
-            getExecutorService().execute(() -> {
-                for (Transport.ResponseContext holderToNotify : pruned) {
-                    holderToNotify.handler().handleException(new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
+            getExecutorService().execute(new Runnable() {
+                @Override
+                public void run() {
+                    for (Transport.ResponseContext holderToNotify : pruned) {
+                        holderToNotify.handler().handleException(
+                            new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "onConnectionClosed(" + connection.getNode() + ")";
                 }
             });
         } catch (EsRejectedExecutionException ex) {
@@ -1019,7 +998,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         private final long sentTime = threadPool.relativeTimeInMillis();
         private final String action;
         private final DiscoveryNode node;
-        volatile ScheduledFuture future;
+        volatile Scheduler.Cancellable cancellable;
 
         TimeoutHandler(long requestId, DiscoveryNode node, String action) {
             this.requestId = requestId;
@@ -1054,12 +1033,18 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         public void cancel() {
             assert responseHandlers.contains(requestId) == false :
                 "cancel must be called after the requestId [" + requestId + "] has been removed from clientHandlers";
-            FutureUtils.cancel(future);
+            if (cancellable != null) {
+                cancellable.cancel();
+            }
         }
 
         @Override
         public String toString() {
             return "timeout handler for [" + requestId + "][" + action + "]";
+        }
+
+        private void scheduleTimeout(TimeValue timeout) {
+            this.cancellable = threadPool.schedule(this, timeout, ThreadPool.Names.GENERIC);
         }
     }
 

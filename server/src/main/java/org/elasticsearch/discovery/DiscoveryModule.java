@@ -37,9 +37,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.single.SingleNodeDiscovery;
-import org.elasticsearch.discovery.zen.FileBasedUnicastHostsProvider;
-import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
@@ -55,6 +52,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -69,13 +67,17 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 public class DiscoveryModule {
     private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
 
-    public static final String ZEN_DISCOVERY_TYPE = "zen";
-    public static final String ZEN2_DISCOVERY_TYPE = "zen2";
+    public static final String ZEN_DISCOVERY_TYPE = "legacy-zen";
+    public static final String ZEN2_DISCOVERY_TYPE = "zen";
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
         new Setting<>("discovery.type", ZEN2_DISCOVERY_TYPE, Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> DISCOVERY_HOSTS_PROVIDER_SETTING =
-        Setting.listSetting("discovery.zen.hosts_provider", Collections.emptyList(), Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING =
+        Setting.listSetting("discovery.zen.hosts_provider", Collections.emptyList(), Function.identity(),
+            Property.NodeScope, Property.Deprecated);
+    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING =
+        Setting.listSetting("discovery.seed_providers", Collections.emptyList(), Function.identity(),
+            Property.NodeScope);
 
     private final Discovery discovery;
 
@@ -84,13 +86,13 @@ public class DiscoveryModule {
                            ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
                            AllocationService allocationService, Path configFile, GatewayMetaState gatewayMetaState) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
-        final Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
-        hostProviders.put("settings", () -> new SettingsBasedHostsProvider(settings, transportService));
-        hostProviders.put("file", () -> new FileBasedUnicastHostsProvider(configFile));
+        final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
+        hostProviders.put("settings", () -> new SettingsBasedSeedHostsProvider(settings, transportService));
+        hostProviders.put("file", () -> new FileBasedSeedHostsProvider(configFile));
         for (DiscoveryPlugin plugin : plugins) {
-            plugin.getZenHostsProviders(transportService, networkService).forEach((key, value) -> {
+            plugin.getSeedHostProviders(transportService, networkService).forEach((key, value) -> {
                 if (hostProviders.put(key, value) != null) {
-                    throw new IllegalArgumentException("Cannot register zen hosts provider [" + key + "] twice");
+                    throw new IllegalArgumentException("Cannot register seed provider [" + key + "] twice");
                 }
             });
             BiConsumer<DiscoveryNode, ClusterState> joinValidator = plugin.getJoinValidator();
@@ -98,28 +100,29 @@ public class DiscoveryModule {
                 joinValidators.add(joinValidator);
             }
         }
-        List<String> hostsProviderNames = DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
+
+        List<String> seedProviderNames = getSeedProviderNames(settings);
         // for bwc purposes, add settings provider even if not explicitly specified
-        if (hostsProviderNames.contains("settings") == false) {
-            List<String> extendedHostsProviderNames = new ArrayList<>();
-            extendedHostsProviderNames.add("settings");
-            extendedHostsProviderNames.addAll(hostsProviderNames);
-            hostsProviderNames = extendedHostsProviderNames;
+        if (seedProviderNames.contains("settings") == false) {
+            List<String> extendedSeedProviderNames = new ArrayList<>();
+            extendedSeedProviderNames.add("settings");
+            extendedSeedProviderNames.addAll(seedProviderNames);
+            seedProviderNames = extendedSeedProviderNames;
         }
 
-        final Set<String> missingProviderNames = new HashSet<>(hostsProviderNames);
+        final Set<String> missingProviderNames = new HashSet<>(seedProviderNames);
         missingProviderNames.removeAll(hostProviders.keySet());
         if (missingProviderNames.isEmpty() == false) {
-            throw new IllegalArgumentException("Unknown zen hosts providers " + missingProviderNames);
+            throw new IllegalArgumentException("Unknown seed providers " + missingProviderNames);
         }
 
-        List<UnicastHostsProvider> filteredHostsProviders = hostsProviderNames.stream()
+        List<SeedHostsProvider> filteredSeedProviders = seedProviderNames.stream()
             .map(hostProviders::get).map(Supplier::get).collect(Collectors.toList());
 
-        final UnicastHostsProvider hostsProvider = hostsResolver -> {
+        final SeedHostsProvider seedHostsProvider = hostsResolver -> {
             final List<TransportAddress> addresses = new ArrayList<>();
-            for (UnicastHostsProvider provider : filteredHostsProviders) {
-                addresses.addAll(provider.buildDynamicHosts(hostsResolver));
+            for (SeedHostsProvider provider : filteredSeedProviders) {
+                addresses.addAll(provider.getSeedAddresses(hostsResolver));
             }
             return Collections.unmodifiableList(addresses);
         };
@@ -127,31 +130,34 @@ public class DiscoveryModule {
         Map<String, Supplier<Discovery>> discoveryTypes = new HashMap<>();
         discoveryTypes.put(ZEN_DISCOVERY_TYPE,
             () -> new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier,
-                clusterSettings, hostsProvider, allocationService, Collections.unmodifiableCollection(joinValidators), gatewayMetaState));
+                clusterSettings, seedHostsProvider, allocationService, joinValidators, gatewayMetaState));
         discoveryTypes.put(ZEN2_DISCOVERY_TYPE, () -> new Coordinator(NODE_NAME_SETTING.get(settings), settings, clusterSettings,
             transportService, namedWriteableRegistry, allocationService, masterService,
-            () -> gatewayMetaState.getPersistedState(settings, (ClusterApplierService) clusterApplier), hostsProvider, clusterApplier,
-            Randomness.get()));
-        discoveryTypes.put("single-node", () -> new SingleNodeDiscovery(settings, transportService, masterService, clusterApplier));
-        for (DiscoveryPlugin plugin : plugins) {
-            plugin.getDiscoveryTypes(threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier, clusterSettings,
-                hostsProvider, allocationService, gatewayMetaState).forEach((key, value) -> {
-                if (discoveryTypes.put(key, value) != null) {
-                    throw new IllegalArgumentException("Cannot register discovery type [" + key + "] twice");
-                }
-            });
-        }
+            () -> gatewayMetaState.getPersistedState(settings, (ClusterApplierService) clusterApplier), seedHostsProvider, clusterApplier,
+            joinValidators, new Random(Randomness.get().nextLong())));
+        discoveryTypes.put("single-node", () -> new SingleNodeDiscovery(settings, transportService, masterService, clusterApplier,
+            gatewayMetaState));
         String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
         Supplier<Discovery> discoverySupplier = discoveryTypes.get(discoveryType);
         if (discoverySupplier == null) {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
-        logger.info("using discovery type [{}] and host providers {}", discoveryType, hostsProviderNames);
+        logger.info("using discovery type [{}] and seed hosts providers {}", discoveryType, seedProviderNames);
         discovery = Objects.requireNonNull(discoverySupplier.get());
+    }
+
+    private List<String> getSeedProviderNames(Settings settings) {
+        if (LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings)) {
+            if (DISCOVERY_SEED_PROVIDERS_SETTING.exists(settings)) {
+                throw new IllegalArgumentException("it is forbidden to set both [" + DISCOVERY_SEED_PROVIDERS_SETTING.getKey() + "] and ["
+                    + LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + "]");
+            }
+            return LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
+        }
+        return DISCOVERY_SEED_PROVIDERS_SETTING.get(settings);
     }
 
     public Discovery getDiscovery() {
         return discovery;
     }
-
 }

@@ -68,7 +68,7 @@ public class SqlRequestParsersTests extends ESTestCase {
         
         request = generateRequest("{\"cursor\" : \"whatever\", \"client_id\" : \"CLI\"}",
                 SqlClearCursorRequest::fromXContent);
-        assertEquals("cli", request.clientId());
+        assertNull(request.clientId());
         assertEquals(Mode.PLAIN, request.mode());
         assertEquals("whatever", request.getCursor());
         
@@ -114,10 +114,10 @@ public class SqlRequestParsersTests extends ESTestCase {
         assertEquals("whatever", request.cursor());
         assertEquals("select", request.query());
         
-        List<SqlTypedParamValue> list = new ArrayList<SqlTypedParamValue>(1);
+        List<SqlTypedParamValue> list = new ArrayList<>(1);
         list.add(new SqlTypedParamValue("whatever", 123));
         assertEquals(list, request.params());
-        assertEquals("UTC", request.timeZone().getID());
+        assertEquals("UTC", request.zoneId().getId());
         assertEquals(TimeValue.parseTimeValue("5s", "request_timeout"), request.requestTimeout());
         assertEquals(TimeValue.parseTimeValue("10s", "page_timeout"), request.pageTimeout());
     }

@@ -71,7 +71,7 @@ public class LeaderChecker {
     // the timeout for each check sent to the leader
     public static final Setting<TimeValue> LEADER_CHECK_TIMEOUT_SETTING =
         Setting.timeSetting("cluster.fault_detection.leader_check.timeout",
-            TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     // the number of failed checks that must happen before the leader is considered to have failed.
     public static final Setting<Integer> LEADER_CHECK_RETRY_COUNT_SETTING =
@@ -203,7 +203,7 @@ public class LeaderChecker {
         @Override
         public void close() {
             if (isClosed.compareAndSet(false, true) == false) {
-                logger.debug("already closed");
+                logger.trace("already closed, doing nothing");
             } else {
                 logger.debug("closed");
             }
@@ -211,7 +211,7 @@ public class LeaderChecker {
 
         void handleWakeUp() {
             if (isClosed.get()) {
-                logger.debug("closed check scheduler woken up, doing nothing");
+                logger.trace("closed check scheduler woken up, doing nothing");
                 return;
             }
 
@@ -289,7 +289,7 @@ public class LeaderChecker {
             if (isClosed.compareAndSet(false, true)) {
                 transportService.getThreadPool().generic().execute(onLeaderFailure);
             } else {
-                logger.debug("already closed, not failing leader");
+                logger.trace("already closed, not failing leader");
             }
         }
 
@@ -301,7 +301,7 @@ public class LeaderChecker {
 
         private void scheduleNextWakeUp() {
             logger.trace("scheduling next check of {} for [{}] = {}", leader, LEADER_CHECK_INTERVAL_SETTING.getKey(), leaderCheckInterval);
-            transportService.getThreadPool().schedule(leaderCheckInterval, Names.SAME, new Runnable() {
+            transportService.getThreadPool().schedule(new Runnable() {
                 @Override
                 public void run() {
                     handleWakeUp();
@@ -311,7 +311,7 @@ public class LeaderChecker {
                 public String toString() {
                     return "scheduled check of leader " + leader;
                 }
-            });
+            }, leaderCheckInterval, Names.SAME);
         }
     }
 

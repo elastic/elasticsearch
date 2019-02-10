@@ -6,9 +6,10 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Objects;
 
 public class LenientCompare {
@@ -53,9 +54,9 @@ public class LenientCompare {
         }
 
         // special case for date/times. If v1 is not a dateTime, we'll try to convert it to a datetime
-        if (v2 instanceof DateTime) {
-            if (v1 instanceof DateTime) {
-                return ((DateTime) v1).compareTo((DateTime) v2);
+        if (v2 instanceof ZonedDateTime) {
+            if (v1 instanceof ZonedDateTime) {
+                return ((ZonedDateTime) v1).compareTo((ZonedDateTime) v2);
             }
             if (v1 instanceof String) {
                 try {
@@ -64,12 +65,12 @@ public class LenientCompare {
                     return null;
                 }
             } else if (v1 instanceof Number) {
-                v1 = new DateTime(((Number) v1).longValue(), DateTimeZone.UTC);
+                v1 = Instant.ofEpochMilli(((Number) v1).longValue()).atZone(ZoneOffset.UTC);
             } else {
                 // cannot convert to date...
                 return null;
             }
-            return ((DateTime) v1).compareTo((DateTime) v2);
+            return ((ZonedDateTime) v1).compareTo((ZonedDateTime) v2);
         }
 
         if (v1.getClass() != v2.getClass() || Comparable.class.isAssignableFrom(v1.getClass())) {

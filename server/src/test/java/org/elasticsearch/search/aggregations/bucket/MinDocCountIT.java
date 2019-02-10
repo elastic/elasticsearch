@@ -22,11 +22,10 @@ package org.elasticsearch.search.aggregations.bucket;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -84,19 +83,19 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             scripts.put("doc['d']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles value = (ScriptDocValues.Doubles) doc.get("d");
-                return value.getValues();
+                return value;
             });
 
             scripts.put("doc['l']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Longs value = (ScriptDocValues.Longs) doc.get("l");
-                return value.getValues();
+                return value;
             });
 
             scripts.put("doc['s']", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Strings value = (ScriptDocValues.Strings) doc.get("s");
-                return value.getValues();
+                return value;
             });
 
             return scripts;
@@ -124,7 +123,7 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             double doubleTerm = longTerm * Math.PI;
 
             ZonedDateTime time = ZonedDateTime.of(2014, 1, ((int) longTerm % 20) + 1, 0, 0, 0, 0, ZoneOffset.UTC);
-            String dateTerm = DateFormatters.forPattern("yyyy-MM-dd").format(time);
+            String dateTerm = DateFormatter.forPattern("yyyy-MM-dd").format(time);
             final int frequency = randomBoolean() ? 1 : randomIntBetween(2, 20);
             for (int j = 0; j < frequency; ++j) {
                 indexRequests.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()

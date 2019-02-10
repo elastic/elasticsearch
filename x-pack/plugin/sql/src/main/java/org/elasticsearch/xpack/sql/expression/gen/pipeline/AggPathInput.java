@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 import org.elasticsearch.xpack.sql.execution.search.AggRef;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.Objects;
@@ -19,7 +19,7 @@ public class AggPathInput extends CommonNonExecutableInput<AggRef> {
     private final Processor action;
 
     public AggPathInput(Expression expression, AggRef context) {
-        this(Location.EMPTY, expression, context, null);
+        this(Source.EMPTY, expression, context, null);
     }
 
     /**
@@ -28,8 +28,8 @@ public class AggPathInput extends CommonNonExecutableInput<AggRef> {
      * The action is used for handling corner-case results such as date histogram which returns
      * a full date object for year which requires additional extraction.
      */
-    public AggPathInput(Location location, Expression expression, AggRef context, Processor action) {
-        super(location, expression, context);
+    public AggPathInput(Source source, Expression expression, AggRef context, Processor action) {
+        super(source, expression, context);
         this.action = action;
     }
 

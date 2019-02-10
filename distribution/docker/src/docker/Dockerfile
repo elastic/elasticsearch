@@ -16,7 +16,7 @@ FROM centos:7 AS builder
 ENV PATH /usr/share/elasticsearch/bin:$PATH
 ENV JAVA_HOME /opt/jdk-${jdkVersion}
 
-RUN curl -s ${jdkUrl} | tar -C /opt -zxf -
+RUN curl --retry 8 -s ${jdkUrl} | tar -C /opt -zxf -
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS
 # vendor. The latter is superior in several ways.
@@ -30,14 +30,12 @@ RUN groupadd -g 1000 elasticsearch && \
 
 WORKDIR /usr/share/elasticsearch
 
-COPY ${elasticsearch} ${ingest-geoip} ${ingest-user-agent} /opt/
+${source_elasticsearch}
+
 RUN tar zxf /opt/${elasticsearch} --strip-components=1
-RUN elasticsearch-plugin install --batch file:///opt/${ingest-geoip}
-RUN elasticsearch-plugin install --batch file:///opt/${ingest-user-agent}
 RUN mkdir -p config data logs
 RUN chmod 0775 config data logs
 COPY config/elasticsearch.yml config/log4j2.properties config/
-
 
 ################################################################################
 # Build stage 1 (the actual elasticsearch image):

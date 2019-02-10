@@ -10,7 +10,9 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
@@ -19,10 +21,14 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
+import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Database;
 import org.elasticsearch.xpack.sql.expression.function.scalar.User;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDate;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
@@ -94,10 +100,11 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -106,7 +113,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.TimeZone;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -141,6 +147,8 @@ public class FunctionRegistry {
         // Aggregate functions
         addToMap(def(Avg.class, Avg::new, "AVG"),
                 def(Count.class, Count::new, "COUNT"),
+                def(First.class, First::new, "FIRST", "FIRST_VALUE"),
+                def(Last.class, Last::new, "LAST", "LAST_VALUE"),
                 def(Max.class, Max::new, "MAX"),
                 def(Min.class, Min::new, "MIN"),
                 def(Sum.class, Sum::new, "SUM"));
@@ -152,15 +160,19 @@ public class FunctionRegistry {
                 def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
                 def(Skewness.class, Skewness::new, "SKEWNESS"),
                 def(Kurtosis.class, Kurtosis::new, "KURTOSIS"));
+        // histogram
+        addToMap(def(Histogram.class, Histogram::new, "HISTOGRAM"));
         // Scalar functions
         // Conditional
         addToMap(def(Coalesce.class, Coalesce::new, "COALESCE"),
-                 def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
-                 def(NullIf.class, NullIf::new, "NULLIF"),
-                 def(Greatest.class, Greatest::new, "GREATEST"),
-                 def(Least.class, Least::new, "LEAST"));
+                def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
+                def(NullIf.class, NullIf::new, "NULLIF"),
+                def(Greatest.class, Greatest::new, "GREATEST"),
+                def(Least.class, Least::new, "LEAST"));
         // Date
-        addToMap(def(DayName.class, DayName::new, "DAY_NAME", "DAYNAME"),
+        addToMap(def(CurrentDate.class, CurrentDate::new, "CURRENT_DATE", "CURDATE", "TODAY"),
+                def(CurrentDateTime.class, CurrentDateTime::new, "CURRENT_TIMESTAMP", "NOW"),
+                def(DayName.class, DayName::new, "DAY_NAME", "DAYNAME"),
                 def(DayOfMonth.class, DayOfMonth::new, "DAY_OF_MONTH", "DAYOFMONTH", "DAY", "DOM"),
                 def(DayOfWeek.class, DayOfWeek::new, "DAY_OF_WEEK", "DAYOFWEEK", "DOW"),
                 def(DayOfYear.class, DayOfYear::new, "DAY_OF_YEAR", "DAYOFYEAR", "DOY"),
@@ -281,7 +293,7 @@ public class FunctionRegistry {
         // It is worth double checking if we need this copy. These are immutable anyway.
         return defs.entrySet().stream()
                 .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
-                        e.getValue().clazz(), e.getValue().datetime(), e.getValue().builder()))
+                        e.getValue().clazz(), e.getValue().extractViable(), e.getValue().builder()))
                 .collect(toList());
     }
 
@@ -291,7 +303,7 @@ public class FunctionRegistry {
         return defs.entrySet().stream()
                 .filter(e -> p == null || p.matcher(e.getKey()).matches())
                 .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
-                        e.getValue().clazz(), e.getValue().datetime(), e.getValue().builder()))
+                        e.getValue().clazz(), e.getValue().extractViable(), e.getValue().builder()))
                 .collect(toList());
     }
 
@@ -300,15 +312,15 @@ public class FunctionRegistry {
      * is not aware of time zone and does not support {@code DISTINCT}.
      */
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            java.util.function.Function<Location, T> ctorRef, String... names) {
-        FunctionBuilder builder = (location, children, distinct, cfg) -> {
+            java.util.function.Function<Source, T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
                 throw new IllegalArgumentException("expects no arguments");
             }
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.apply(location);
+            return ctorRef.apply(source);
         };
         return def(function, builder, false, names);
     }
@@ -321,21 +333,47 @@ public class FunctionRegistry {
     @SuppressWarnings("overloads")
     static <T extends Function> FunctionDefinition def(Class<T> function,
             ConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (location, children, distinct, cfg) -> {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
                 throw new IllegalArgumentException("expects no arguments");
             }
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, cfg);
+            return ctorRef.build(source, cfg);
         };
         return def(function, builder, false, names);
     }
     
     interface ConfigurationAwareFunctionBuilder<T> {
-        T build(Location location, Configuration configuration);
+        T build(Source source, Configuration configuration);
     }
+
+    /**
+    * Build a {@linkplain FunctionDefinition} for a one-argument function that
+    * is not aware of time zone, does not support {@code DISTINCT} and needs
+    * the configuration object.
+    */
+    @SuppressWarnings("overloads")
+    static <T extends Function> FunctionDefinition def(Class<T> function,
+            UnaryConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            if (children.size() > 1) {
+                throw new IllegalArgumentException("expects exactly one argument");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            Expression ex = children.size() == 1 ? children.get(0) : null;
+            return ctorRef.build(source, ex, cfg);
+        };
+        return def(function, builder, false, names);
+    }
+
+    interface UnaryConfigurationAwareFunctionBuilder<T> {
+        T build(Source source, Expression exp, Configuration configuration);
+    }
+
 
     /**
      * Build a {@linkplain FunctionDefinition} for a unary function that is not
@@ -343,15 +381,15 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            BiFunction<Location, Expression, T> ctorRef, String... names) {
-        FunctionBuilder builder = (location, children, distinct, cfg) -> {
+            BiFunction<Source, Expression, T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
                 throw new IllegalArgumentException("expects exactly one argument");
             }
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.apply(location, children.get(0));
+            return ctorRef.apply(source, children.get(0));
         };
         return def(function, builder, false, names);
     }
@@ -363,17 +401,17 @@ public class FunctionRegistry {
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
             MultiFunctionBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (location, children, distinct, cfg) -> {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, children);
+            return ctorRef.build(source, children);
         };
         return def(function, builder, false, names);
     }
 
     interface MultiFunctionBuilder<T> {
-        T build(Location location, List<Expression> children);
+        T build(Source source, List<Expression> children);
     }
     
     /**
@@ -383,17 +421,17 @@ public class FunctionRegistry {
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
             DistinctAwareUnaryFunctionBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (location, children, distinct, cfg) -> {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
                 throw new IllegalArgumentException("expects exactly one argument");
             }
-            return ctorRef.build(location, children.get(0), distinct);
+            return ctorRef.build(source, children.get(0), distinct);
         };
         return def(function, builder, false, names);
     }
 
     interface DistinctAwareUnaryFunctionBuilder<T> {
-        T build(Location location, Expression target, boolean distinct);
+        T build(Source source, Expression target, boolean distinct);
     }
 
     /**
@@ -403,20 +441,42 @@ public class FunctionRegistry {
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
             DatetimeUnaryFunctionBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (location, children, distinct, cfg) -> {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
                 throw new IllegalArgumentException("expects exactly one argument");
             }
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, children.get(0), cfg.timeZone());
+            return ctorRef.build(source, children.get(0), cfg.zoneId());
         };
         return def(function, builder, true, names);
     }
 
     interface DatetimeUnaryFunctionBuilder<T> {
-        T build(Location location, Expression target, TimeZone tz);
+        T build(Source source, Expression target, ZoneId zi);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a binary function that
+     * requires a timezone.
+     */
+    @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
+    static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            if (children.size() != 2) {
+                throw new IllegalArgumentException("expects exactly two arguments");
+            }
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), cfg.zoneId());
+        };
+        return def(function, builder, false, names);
+    }
+
+    interface DatetimeBinaryFunctionBuilder<T> {
+        T build(Source source, Expression lhs, Expression rhs, ZoneId zi);
     }
 
     /**
@@ -426,8 +486,9 @@ public class FunctionRegistry {
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
             BinaryFunctionBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (location, children, distinct, cfg) -> {
-            boolean isBinaryOptionalParamFunction = function.isAssignableFrom(Round.class) || function.isAssignableFrom(Truncate.class);
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            boolean isBinaryOptionalParamFunction = function.isAssignableFrom(Round.class) || function.isAssignableFrom(Truncate.class)
+                    || TopHits.class.isAssignableFrom(function);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
                 throw new IllegalArgumentException("expects one or two arguments");
             } else if (!isBinaryOptionalParamFunction && children.size() != 2) {
@@ -437,13 +498,13 @@ public class FunctionRegistry {
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, children.get(0), children.size() == 2 ? children.get(1) : null);
+            return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null);
         };
         return def(function, builder, false, names);
     }
 
     interface BinaryFunctionBuilder<T> {
-        T build(Location location, Expression lhs, Expression rhs);
+        T build(Source source, Expression lhs, Expression rhs);
     }
 
     /**
@@ -459,23 +520,22 @@ public class FunctionRegistry {
         List<String> aliases = Arrays.asList(names).subList(1, names.length);
         FunctionDefinition.Builder realBuilder = (uf, distinct, cfg) -> {
             try {
-                return builder.build(uf.location(), uf.children(), distinct, cfg);
+                return builder.build(uf.source(), uf.children(), distinct, cfg);
             } catch (IllegalArgumentException e) {
-                throw new ParsingException("error building [" + primaryName + "]: " + e.getMessage(), e,
-                        uf.location().getLineNumber(), uf.location().getColumnNumber());
+                throw new ParsingException(uf.source(), "error building [" + primaryName + "]: " + e.getMessage(), e);
             }
         };
         return new FunctionDefinition(primaryName, unmodifiableList(aliases), function, datetime, realBuilder);
     }
 
     private interface FunctionBuilder {
-        Function build(Location location, List<Expression> children, boolean distinct, Configuration cfg);
+        Function build(Source source, List<Expression> children, boolean distinct, Configuration cfg);
     }
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
             ThreeParametersFunctionBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (location, children, distinct, cfg) -> {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
             boolean isLocateFunction = function.isAssignableFrom(Locate.class);
             if (isLocateFunction && (children.size() > 3 || children.size() < 2)) {
                 throw new IllegalArgumentException("expects two or three arguments");
@@ -485,32 +545,32 @@ public class FunctionRegistry {
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);
+            return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);
         };
         return def(function, builder, false, names);
     }
 
     interface ThreeParametersFunctionBuilder<T> {
-        T build(Location location, Expression source, Expression exp1, Expression exp2);
+        T build(Source source, Expression src, Expression exp1, Expression exp2);
     }
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
             FourParametersFunctionBuilder<T> ctorRef, String... names) {
-        FunctionBuilder builder = (location, children, distinct, cfg) -> {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 4) {
                 throw new IllegalArgumentException("expects exactly four arguments");
             }
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, children.get(0), children.get(1), children.get(2), children.get(3));
+            return ctorRef.build(source, children.get(0), children.get(1), children.get(2), children.get(3));
         };
         return def(function, builder, false, names);
     }
 
     interface FourParametersFunctionBuilder<T> {
-        T build(Location location, Expression source, Expression exp1, Expression exp2, Expression exp3);
+        T build(Source source, Expression src, Expression exp1, Expression exp2, Expression exp3);
     }
 
     /**
@@ -523,12 +583,12 @@ public class FunctionRegistry {
     private static <T extends Function> FunctionDefinition def(Class<T> function,
                                                                CastFunctionBuilder<T> ctorRef,
                                                                String... names) {
-        FunctionBuilder builder = (location, children, distinct, cfg) ->
-            ctorRef.build(location, children.get(0), children.get(0).dataType());
+        FunctionBuilder builder = (source, children, distinct, cfg) ->
+            ctorRef.build(source, children.get(0), children.get(0).dataType());
         return def(function, builder, false, names);
     }
 
     private interface CastFunctionBuilder<T> {
-        T build(Location location, Expression expression, DataType dataType);
+        T build(Source source, Expression expression, DataType dataType);
     }
 }

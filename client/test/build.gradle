@@ -18,8 +18,8 @@
  */
 apply plugin: 'elasticsearch.build'
 
-targetCompatibility = JavaVersion.VERSION_1_7
-sourceCompatibility = JavaVersion.VERSION_1_7
+targetCompatibility = JavaVersion.VERSION_1_8
+sourceCompatibility = JavaVersion.VERSION_1_8
 
 group = "${group}.client.test"
 
@@ -51,8 +51,6 @@ jarHell.enabled=false
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false
 
-namingConventions.enabled = false
-
 //we aren't releasing this jar
 thirdPartyAudit.enabled = false
-test.enabled = false
+unitTest.enabled = false

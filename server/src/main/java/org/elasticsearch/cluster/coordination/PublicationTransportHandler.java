@@ -93,31 +93,9 @@ public class PublicationTransportHandler {
         transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, BytesTransportRequest::new, ThreadPool.Names.GENERIC,
             false, false, (request, channel, task) -> channel.sendResponse(handleIncomingPublishRequest(request)));
 
-        transportService.registerRequestHandler(PublishClusterStateAction.SEND_ACTION_NAME, BytesTransportRequest::new,
-            ThreadPool.Names.GENERIC,
-            false, false, (request, channel, task) -> {
-                handleIncomingPublishRequest(request);
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            });
-
         transportService.registerRequestHandler(COMMIT_STATE_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
             ApplyCommitRequest::new,
             (request, channel, task) -> handleApplyCommit.accept(request, transportCommitCallback(channel)));
-
-        transportService.registerRequestHandler(PublishClusterStateAction.COMMIT_ACTION_NAME,
-            PublishClusterStateAction.CommitClusterStateRequest::new,
-            ThreadPool.Names.GENERIC, false, false,
-            (request, channel, task) -> {
-                final Optional<ClusterState> matchingClusterState = Optional.ofNullable(lastSeenClusterState.get()).filter(
-                    cs -> cs.stateUUID().equals(request.stateUUID));
-                if (matchingClusterState.isPresent() == false) {
-                    throw new IllegalStateException("can't resolve cluster state with uuid" +
-                        " [" + request.stateUUID + "] to commit");
-                }
-                final ApplyCommitRequest applyCommitRequest = new ApplyCommitRequest(matchingClusterState.get().getNodes().getMasterNode(),
-                    matchingClusterState.get().term(), matchingClusterState.get().version());
-                handleApplyCommit.accept(applyCommitRequest, transportCommitCallback(channel));
-            });
     }
 
     private ActionListener<Void> transportCommitCallback(TransportChannel channel) {
@@ -389,7 +367,13 @@ public class PublicationTransportHandler {
             in.setVersion(request.version());
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
-                final ClusterState incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                final ClusterState incomingState;
+                try {
+                    incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                } catch (Exception e){
+                    logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                    throw e;
+                }
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
                     request.bytes().length());
@@ -400,10 +384,20 @@ public class PublicationTransportHandler {
                 final ClusterState lastSeen = lastSeenClusterState.get();
                 if (lastSeen == null) {
                     logger.debug("received diff for but don't have any local cluster state - requesting full state");
+                    incompatibleClusterStateDiffReceivedCount.incrementAndGet();
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 } else {
-                    Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeen.nodes().getLocalNode());
-                    final ClusterState incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
+                    final ClusterState incomingState;
+                    try {
+                        Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeen.nodes().getLocalNode());
+                        incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
+                    } catch (IncompatibleClusterStateVersionException e) {
+                        incompatibleClusterStateDiffReceivedCount.incrementAndGet();
+                        throw e;
+                    } catch (Exception e){
+                        logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                        throw e;
+                    }
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
                         incomingState.version(), incomingState.stateUUID(), request.bytes().length());
@@ -412,12 +406,6 @@ public class PublicationTransportHandler {
                     return response;
                 }
             }
-        } catch (IncompatibleClusterStateVersionException e) {
-            incompatibleClusterStateDiffReceivedCount.incrementAndGet();
-            throw e;
-        } catch (Exception e) {
-            logger.warn("unexpected error while deserializing an incoming cluster state", e);
-            throw e;
         } finally {
             IOUtils.close(in);
         }

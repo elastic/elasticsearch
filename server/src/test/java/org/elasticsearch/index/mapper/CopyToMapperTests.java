@@ -97,7 +97,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .field("int_to_str_test", 42)
                 .endObject());
 
-        ParsedDocument parsedDoc = docMapper.parse(SourceToParse.source("test", "type1", "1", json, XContentType.JSON));
+        ParsedDocument parsedDoc = docMapper.parse(new SourceToParse("test", "type1", "1", json, XContentType.JSON));
         ParseContext.Document doc = parsedDoc.rootDoc();
         assertThat(doc.getFields("copy_test").length, equalTo(2));
         assertThat(doc.getFields("copy_test")[0].stringValue(), equalTo("foo"));
@@ -153,7 +153,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .startObject("foo").startObject("bar").field("baz", "zoo").endObject().endObject()
                 .endObject());
 
-        ParseContext.Document doc = docMapper.parse(SourceToParse.source("test", "type1", "1", json,
+        ParseContext.Document doc = docMapper.parse(new SourceToParse("test", "type1", "1", json,
                 XContentType.JSON)).rootDoc();
         assertThat(doc.getFields("copy_test").length, equalTo(1));
         assertThat(doc.getFields("copy_test")[0].stringValue(), equalTo("foo"));
@@ -181,7 +181,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                 .field("new_field", "bar")
                 .endObject());
 
-        ParseContext.Document doc = docMapper.parse(SourceToParse.source("test", "type1", "1", json,
+        ParseContext.Document doc = docMapper.parse(new SourceToParse("test", "type1", "1", json,
                 XContentType.JSON)).rootDoc();
         assertThat(doc.getFields("copy_test").length, equalTo(1));
         assertThat(doc.getFields("copy_test")[0].stringValue(), equalTo("foo"));
@@ -219,7 +219,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .field("new_field", "bar")
             .endObject());
 
-        ParseContext.Document doc = docMapper.parse(SourceToParse.source("test", "type1", "1", json,
+        ParseContext.Document doc = docMapper.parse(new SourceToParse("test", "type1", "1", json,
                 XContentType.JSON)).rootDoc();
         assertThat(doc.getFields("copy_test").length, equalTo(1));
         assertThat(doc.getFields("copy_test")[0].stringValue(), equalTo("foo"));
@@ -250,7 +250,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .endObject());
 
         try {
-            docMapper.parse(SourceToParse.source("test", "type1", "1", json, XContentType.JSON)).rootDoc();
+            docMapper.parse(new SourceToParse("test", "type1", "1", json, XContentType.JSON)).rootDoc();
             fail();
         } catch (MapperParsingException ex) {
             assertThat(ex.getMessage(), startsWith("mapping set to strict, dynamic introduction of [very] within [type1] is not allowed"));
@@ -285,7 +285,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .endObject());
 
         try {
-            docMapper.parse(SourceToParse.source("test", "type1", "1", json, XContentType.JSON)).rootDoc();
+            docMapper.parse(new SourceToParse("test", "type1", "1", json, XContentType.JSON)).rootDoc();
             fail();
         } catch (MapperParsingException ex) {
           assertThat(ex.getMessage(),
@@ -393,7 +393,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                         .endArray()
                     .endObject();
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1",
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1",
             BytesReference.bytes(jsonDoc), XContentType.JSON));
         assertEquals(6, doc.docs().size());
 
@@ -562,7 +562,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .endObject());
 
         try {
-          docMapper.parse(SourceToParse.source("test", "type1", "1", json, XContentType.JSON)).rootDoc();
+          docMapper.parse(new SourceToParse("test", "type1", "1", json, XContentType.JSON)).rootDoc();
           fail();
         } catch (MapperParsingException ex) {
             assertThat(ex.getMessage(), startsWith("It is forbidden to create dynamic nested objects ([very]) through `copy_to`"));

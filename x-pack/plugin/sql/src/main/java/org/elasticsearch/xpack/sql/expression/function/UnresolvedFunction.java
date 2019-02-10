@@ -10,10 +10,12 @@ import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.Nullability;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -40,8 +42,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
      */
     private final boolean analyzed;
 
-    public UnresolvedFunction(Location location, String name, ResolutionType resolutionType, List<Expression> children) {
-        this(location, name, resolutionType, children, false, null);
+    public UnresolvedFunction(Source source, String name, ResolutionType resolutionType, List<Expression> children) {
+        this(source, name, resolutionType, children, false, null);
     }
 
     /**
@@ -49,9 +51,9 @@ public class UnresolvedFunction extends Function implements Unresolvable {
      * 'did you mean') instead of the default one.
      * @see #withMessage(String)
      */
-    UnresolvedFunction(Location location, String name, ResolutionType resolutionType, List<Expression> children,
+    UnresolvedFunction(Source source, String name, ResolutionType resolutionType, List<Expression> children,
             boolean analyzed, String unresolvedMessage) {
-        super(location, children);
+        super(source, children);
         this.name = name;
         this.resolutionType = resolutionType;
         this.analyzed = analyzed;
@@ -66,11 +68,11 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new UnresolvedFunction(location(), name, resolutionType, newChildren, analyzed, unresolvedMsg);
+        return new UnresolvedFunction(source(), name, resolutionType, newChildren, analyzed, unresolvedMsg);
     }
 
     public UnresolvedFunction withMessage(String message) {
-        return new UnresolvedFunction(location(), name(), resolutionType, children(), true, message);
+        return new UnresolvedFunction(source(), name(), resolutionType, children(), true, message);
     }
 
     public UnresolvedFunction preprocessStar() {
@@ -128,6 +130,14 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     public boolean analyzed() {
         return analyzed;
     }
+    
+    public boolean sameAs(Count count) {
+        if (this.resolutionType == ResolutionType.DISTINCT && count.distinct()
+                || this.resolutionType == ResolutionType.STANDARD && count.distinct() == false) {
+            return true;
+        }
+        return false;
+    }
 
     @Override
     public DataType dataType() {
@@ -135,7 +145,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         throw new UnresolvedException("nullable", this);
     }
 
@@ -156,7 +166,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + functionName() + functionArgs();
+        return UNRESOLVED_PREFIX + name + children();
     }
 
     @Override
@@ -191,8 +201,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 // TODO: might be removed
                 // dedicated count optimization
                 if (uf.name.toUpperCase(Locale.ROOT).equals("COUNT")) {
-                    return new UnresolvedFunction(uf.location(), uf.name(), uf.resolutionType,
-                        singletonList(Literal.of(uf.arguments().get(0).location(), Integer.valueOf(1))));
+                    return new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionType,
+                        singletonList(Literal.of(uf.arguments().get(0).source(), Integer.valueOf(1))));
                 }
                 return uf;
             }
@@ -240,14 +250,14 @@ public class UnresolvedFunction extends Function implements Unresolvable {
             }
             @Override
             public Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
-                if (def.datetime()) {
+                if (def.extractViable()) {
                     return def.builder().build(uf, false, cfg);
                 }
                 return uf.withMessage("Invalid datetime field [" + uf.name() + "]. Use any datetime function.");
             }
             @Override
             protected boolean isValidAlternative(FunctionDefinition def) {
-                return def.datetime();
+                return def.extractViable();
             }
             @Override
             protected String type() {

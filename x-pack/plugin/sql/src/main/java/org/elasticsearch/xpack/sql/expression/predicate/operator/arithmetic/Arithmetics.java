@@ -124,17 +124,17 @@ public abstract class Arithmetics {
             return null;
         }
 
-        if (l instanceof Long || r instanceof Long) {
-            return Long.valueOf(Math.floorMod(l.longValue(), r.longValue()));
-        }
         if (l instanceof Double || r instanceof Double) {
             return Double.valueOf(l.doubleValue() % r.doubleValue());
         }
         if (l instanceof Float || r instanceof Float) {
             return Float.valueOf(l.floatValue() % r.floatValue());
         }
+        if (l instanceof Long || r instanceof Long) {
+            return Long.valueOf(l.longValue() % r.longValue());
+        }
 
-        return Math.floorMod(l.intValue(), r.intValue());
+        return l.intValue() % r.intValue();
     }
 
     static Number negate(Number n) {

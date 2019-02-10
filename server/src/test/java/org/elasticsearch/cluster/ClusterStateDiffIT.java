@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfigExclusion;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
@@ -50,7 +51,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -347,9 +347,9 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     private ClusterBlock randomGlobalBlock() {
         switch (randomInt(2)) {
             case 0:
-                return DiscoverySettings.NO_MASTER_BLOCK_ALL;
+                return NoMasterBlockService.NO_MASTER_BLOCK_ALL;
             case 1:
-                return DiscoverySettings.NO_MASTER_BLOCK_WRITES;
+                return NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
             default:
                 return GatewayService.STATE_NOT_RECOVERED_BLOCK;
         }
@@ -721,11 +721,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 (long) randomIntBetween(0, 1000),
                                 ImmutableOpenMap.of()));
                     case 1:
-                        return new RestoreInProgress(new RestoreInProgress.Entry(
+                        return new RestoreInProgress.Builder().add(
+                            new RestoreInProgress.Entry(
+                                UUIDs.randomBase64UUID(),
                                 new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                                 RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
                                 emptyList(),
-                                ImmutableOpenMap.of()));
+                                ImmutableOpenMap.of())).build();
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
                 }

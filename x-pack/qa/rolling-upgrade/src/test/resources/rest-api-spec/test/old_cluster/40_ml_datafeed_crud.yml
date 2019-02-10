@@ -28,7 +28,6 @@
           {
             "job_id":"old-cluster-datafeed-job",
             "indices":["airline-data"],
-            "types":["response"],
             "scroll_size": 2000
           }
 

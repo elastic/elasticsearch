@@ -48,6 +48,7 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -784,7 +785,17 @@ public abstract class ESTestCase extends LuceneTestCase {
      * generate a random TimeZone from the ones available in java.time
      */
     public static ZoneId randomZone() {
-        return ZoneId.of(randomFrom(JAVA_ZONE_IDS));
+        // work around a JDK bug, where java 8 cannot parse the timezone GMT0 back into a temporal accessor
+        // see https://bugs.openjdk.java.net/browse/JDK-8138664
+        if (JavaVersion.current().getVersion().get(0) == 8) {
+            ZoneId timeZone;
+            do {
+                timeZone = ZoneId.of(randomFrom(JAVA_ZONE_IDS));
+            } while (timeZone.equals(ZoneId.of("GMT0")));
+            return timeZone;
+        } else {
+            return ZoneId.of(randomFrom(JAVA_ZONE_IDS));
+        }
     }
 
     /**
@@ -928,11 +939,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return newNodeEnvironment(Settings.EMPTY);
     }
 
-    public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
-        Settings build = Settings.builder()
+    public Settings buildEnvSettings(Settings settings) {
+        return Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
+    }
+
+    public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
+        Settings build = buildEnvSettings(settings);
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
@@ -989,17 +1004,6 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomGeohash(int minPrecision, int maxPrecision) {
         return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
-    }
-
-    private static boolean useZen2;
-
-    @BeforeClass
-    public static void setUseZen2() {
-        useZen2 = true;
-    }
-
-    protected static boolean getUseZen2() {
-        return useZen2;
     }
 
     public static String getTestTransportType() {
@@ -1151,7 +1155,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 Streamable.newWriteableReader(supplier), version);
     }
 
-    private static <T> T copyInstance(T original, NamedWriteableRegistry namedWriteableRegistry, Writeable.Writer<T> writer,
+    protected static <T> T copyInstance(T original, NamedWriteableRegistry namedWriteableRegistry, Writeable.Writer<T> writer,
                                       Writeable.Reader<T> reader, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(version);

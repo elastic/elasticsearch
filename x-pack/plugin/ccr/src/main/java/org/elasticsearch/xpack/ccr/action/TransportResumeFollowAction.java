@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -47,6 +47,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
@@ -177,8 +178,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
 
         for (int shardId = 0; shardId < numShards; shardId++) {
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
-
-            final ShardFollowTask shardFollowTask = createShardFollowTask(shardId, clusterNameAlias, request,
+            final ShardFollowTask shardFollowTask = createShardFollowTask(shardId, clusterNameAlias, request.getParameters(),
                 leaderIndexMetadata, followIndexMetadata, filteredHeaders);
             persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask, handler.getActionListener(shardId));
         }
@@ -190,6 +190,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             final IndexMetaData followIndex,
             final String[] leaderIndexHistoryUUID,
             final MapperService followerMapperService) {
+        FollowParameters parameters = request.getParameters();
+
         Map<String, String> ccrIndexMetadata = followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         if (ccrIndexMetadata == null) {
             throw new IllegalArgumentException("follow index ["+ followIndex.getIndex().getName() + "] does not have ccr metadata");
@@ -197,8 +199,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         String leaderIndexUUID = leaderIndex.getIndex().getUUID();
         String recordedLeaderIndexUUID = ccrIndexMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
         if (leaderIndexUUID.equals(recordedLeaderIndexUUID) == false) {
-            throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] should reference [" + leaderIndexUUID +
-                    "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");
+            throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] should reference [" +
+                leaderIndexUUID + "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");
         }
 
         String[] recordedHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
@@ -219,7 +221,8 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
                 "] does not have soft deletes enabled");
         }
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(followIndex.getSettings()) == false) {
-            throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() + "] does not have soft deletes enabled");
+            throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() +
+                "] does not have soft deletes enabled");
         }
         if (leaderIndex.getNumberOfShards() != followIndex.getNumberOfShards()) {
             throw new IllegalArgumentException("leader index primary shards [" + leaderIndex.getNumberOfShards() +
@@ -251,69 +254,69 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
     private static ShardFollowTask createShardFollowTask(
         int shardId,
         String clusterAliasName,
-        ResumeFollowAction.Request request,
+        FollowParameters parameters,
         IndexMetaData leaderIndexMetadata,
         IndexMetaData followIndexMetadata,
         Map<String, String> filteredHeaders
     ) {
         int maxReadRequestOperationCount;
-        if (request.getMaxReadRequestOperationCount() != null) {
-            maxReadRequestOperationCount = request.getMaxReadRequestOperationCount();
+        if (parameters.getMaxReadRequestOperationCount() != null) {
+            maxReadRequestOperationCount = parameters.getMaxReadRequestOperationCount();
         } else {
             maxReadRequestOperationCount = DEFAULT_MAX_READ_REQUEST_OPERATION_COUNT;
         }
 
         ByteSizeValue maxReadRequestSize;
-        if (request.getMaxReadRequestSize() != null) {
-            maxReadRequestSize = request.getMaxReadRequestSize();
+        if (parameters.getMaxReadRequestSize() != null) {
+            maxReadRequestSize = parameters.getMaxReadRequestSize();
         } else {
             maxReadRequestSize = DEFAULT_MAX_READ_REQUEST_SIZE;
         }
 
         int maxOutstandingReadRequests;
-        if (request.getMaxOutstandingReadRequests() != null){
-            maxOutstandingReadRequests = request.getMaxOutstandingReadRequests();
+        if (parameters.getMaxOutstandingReadRequests() != null){
+            maxOutstandingReadRequests = parameters.getMaxOutstandingReadRequests();
         } else {
             maxOutstandingReadRequests = DEFAULT_MAX_OUTSTANDING_READ_REQUESTS;
         }
 
         final int maxWriteRequestOperationCount;
-        if (request.getMaxWriteRequestOperationCount() != null) {
-            maxWriteRequestOperationCount = request.getMaxWriteRequestOperationCount();
+        if (parameters.getMaxWriteRequestOperationCount() != null) {
+            maxWriteRequestOperationCount = parameters.getMaxWriteRequestOperationCount();
         } else {
             maxWriteRequestOperationCount = DEFAULT_MAX_WRITE_REQUEST_OPERATION_COUNT;
         }
 
         final ByteSizeValue maxWriteRequestSize;
-        if (request.getMaxWriteRequestSize() != null) {
-            maxWriteRequestSize = request.getMaxWriteRequestSize();
+        if (parameters.getMaxWriteRequestSize() != null) {
+            maxWriteRequestSize = parameters.getMaxWriteRequestSize();
         } else {
             maxWriteRequestSize = DEFAULT_MAX_WRITE_REQUEST_SIZE;
         }
 
         int maxOutstandingWriteRequests;
-        if (request.getMaxOutstandingWriteRequests() != null) {
-            maxOutstandingWriteRequests = request.getMaxOutstandingWriteRequests();
+        if (parameters.getMaxOutstandingWriteRequests() != null) {
+            maxOutstandingWriteRequests = parameters.getMaxOutstandingWriteRequests();
         } else {
             maxOutstandingWriteRequests = DEFAULT_MAX_OUTSTANDING_WRITE_REQUESTS;
         }
 
         int maxWriteBufferCount;
-        if (request.getMaxWriteBufferCount() != null) {
-            maxWriteBufferCount = request.getMaxWriteBufferCount();
+        if (parameters.getMaxWriteBufferCount() != null) {
+            maxWriteBufferCount = parameters.getMaxWriteBufferCount();
         } else {
             maxWriteBufferCount = DEFAULT_MAX_WRITE_BUFFER_COUNT;
         }
 
         ByteSizeValue maxWriteBufferSize;
-        if (request.getMaxWriteBufferSize() != null) {
-            maxWriteBufferSize = request.getMaxWriteBufferSize();
+        if (parameters.getMaxWriteBufferSize() != null) {
+            maxWriteBufferSize = parameters.getMaxWriteBufferSize();
         } else {
             maxWriteBufferSize = DEFAULT_MAX_WRITE_BUFFER_SIZE;
         }
 
-        TimeValue maxRetryDelay = request.getMaxRetryDelay() == null ? DEFAULT_MAX_RETRY_DELAY : request.getMaxRetryDelay();
-        TimeValue readPollTimeout = request.getReadPollTimeout() == null ? DEFAULT_READ_POLL_TIMEOUT : request.getReadPollTimeout();
+        TimeValue maxRetryDelay = parameters.getMaxRetryDelay() == null ? DEFAULT_MAX_RETRY_DELAY : parameters.getMaxRetryDelay();
+        TimeValue readPollTimeout = parameters.getReadPollTimeout() == null ? DEFAULT_READ_POLL_TIMEOUT : parameters.getReadPollTimeout();
 
         return new ShardFollowTask(
             clusterAliasName,
@@ -350,95 +353,96 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
      * These dynamic settings don't affect how documents are indexed (affect index time text analysis) and / or
      * are inconvenient if they were replicated (e.g. changing number of replicas).
      */
-    static final Set<Setting<?>> WHITE_LISTED_SETTINGS;
+    static final Set<Setting<?>> NON_REPLICATED_SETTINGS;
 
     static {
-        final Set<Setting<?>> whiteListedSettings = new HashSet<>();
-        whiteListedSettings.add(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING);
-        whiteListedSettings.add(IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING);
-        whiteListedSettings.add(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
-        whiteListedSettings.add(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING);
-        whiteListedSettings.add(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING);
-        whiteListedSettings.add(IndexMetaData.INDEX_READ_ONLY_SETTING);
-        whiteListedSettings.add(IndexMetaData.INDEX_BLOCKS_READ_SETTING);
-        whiteListedSettings.add(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING);
-        whiteListedSettings.add(IndexMetaData.INDEX_BLOCKS_METADATA_SETTING);
-        whiteListedSettings.add(IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING);
-        whiteListedSettings.add(IndexMetaData.INDEX_PRIORITY_SETTING);
-        whiteListedSettings.add(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS);
+        final Set<Setting<?>> nonReplicatedSettings = new HashSet<>();
+        nonReplicatedSettings.add(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING);
+        nonReplicatedSettings.add(IndexMetaData.INDEX_AUTO_EXPAND_REPLICAS_SETTING);
+        nonReplicatedSettings.add(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
+        nonReplicatedSettings.add(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING);
+        nonReplicatedSettings.add(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING);
+        nonReplicatedSettings.add(IndexMetaData.INDEX_READ_ONLY_SETTING);
+        nonReplicatedSettings.add(IndexMetaData.INDEX_BLOCKS_READ_SETTING);
+        nonReplicatedSettings.add(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING);
+        nonReplicatedSettings.add(IndexMetaData.INDEX_BLOCKS_METADATA_SETTING);
+        nonReplicatedSettings.add(IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING);
+        nonReplicatedSettings.add(IndexMetaData.INDEX_PRIORITY_SETTING);
+        nonReplicatedSettings.add(IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS);
 
-        whiteListedSettings.add(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING);
-        whiteListedSettings.add(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING);
-        whiteListedSettings.add(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING);
-        whiteListedSettings.add(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY);
-        whiteListedSettings.add(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING);
+        nonReplicatedSettings.add(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING);
+        nonReplicatedSettings.add(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING);
+        nonReplicatedSettings.add(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING);
+        nonReplicatedSettings.add(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY);
+        nonReplicatedSettings.add(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING);
 
-        whiteListedSettings.add(IndexSettings.MAX_RESULT_WINDOW_SETTING);
-        whiteListedSettings.add(IndexSettings.INDEX_WARMER_ENABLED_SETTING);
-        whiteListedSettings.add(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING);
-        whiteListedSettings.add(IndexSettings.MAX_RESCORE_WINDOW_SETTING);
-        whiteListedSettings.add(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING);
-        whiteListedSettings.add(IndexSettings.DEFAULT_FIELD_SETTING);
-        whiteListedSettings.add(IndexSettings.QUERY_STRING_LENIENT_SETTING);
-        whiteListedSettings.add(IndexSettings.QUERY_STRING_ANALYZE_WILDCARD);
-        whiteListedSettings.add(IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD);
-        whiteListedSettings.add(IndexSettings.ALLOW_UNMAPPED);
-        whiteListedSettings.add(IndexSettings.INDEX_SEARCH_IDLE_AFTER);
-        whiteListedSettings.add(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
-        whiteListedSettings.add(IndexSettings.MAX_SCRIPT_FIELDS_SETTING);
-        whiteListedSettings.add(IndexSettings.MAX_REGEX_LENGTH_SETTING);
-        whiteListedSettings.add(IndexSettings.MAX_TERMS_COUNT_SETTING);
-        whiteListedSettings.add(IndexSettings.MAX_ANALYZED_OFFSET_SETTING);
-        whiteListedSettings.add(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
-        whiteListedSettings.add(IndexSettings.MAX_TOKEN_COUNT_SETTING);
-        whiteListedSettings.add(IndexSettings.MAX_SLICES_PER_SCROLL);
-        whiteListedSettings.add(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
-        whiteListedSettings.add(IndexSettings.DEFAULT_PIPELINE);
-        whiteListedSettings.add(IndexSettings.INDEX_SEARCH_THROTTLED);
-        whiteListedSettings.add(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING);
-        whiteListedSettings.add(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING);
-        whiteListedSettings.add(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
-        whiteListedSettings.add(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
-        whiteListedSettings.add(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING);
-        whiteListedSettings.add(IndexSettings.INDEX_GC_DELETES_SETTING);
-        whiteListedSettings.add(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD);
+        nonReplicatedSettings.add(IndexSettings.MAX_RESULT_WINDOW_SETTING);
+        nonReplicatedSettings.add(IndexSettings.INDEX_WARMER_ENABLED_SETTING);
+        nonReplicatedSettings.add(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING);
+        nonReplicatedSettings.add(IndexSettings.MAX_RESCORE_WINDOW_SETTING);
+        nonReplicatedSettings.add(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING);
+        nonReplicatedSettings.add(IndexSettings.DEFAULT_FIELD_SETTING);
+        nonReplicatedSettings.add(IndexSettings.QUERY_STRING_LENIENT_SETTING);
+        nonReplicatedSettings.add(IndexSettings.QUERY_STRING_ANALYZE_WILDCARD);
+        nonReplicatedSettings.add(IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD);
+        nonReplicatedSettings.add(IndexSettings.ALLOW_UNMAPPED);
+        nonReplicatedSettings.add(IndexSettings.INDEX_SEARCH_IDLE_AFTER);
+        nonReplicatedSettings.add(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
+        nonReplicatedSettings.add(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING);
+        nonReplicatedSettings.add(IndexSettings.MAX_SCRIPT_FIELDS_SETTING);
+        nonReplicatedSettings.add(IndexSettings.MAX_REGEX_LENGTH_SETTING);
+        nonReplicatedSettings.add(IndexSettings.MAX_TERMS_COUNT_SETTING);
+        nonReplicatedSettings.add(IndexSettings.MAX_ANALYZED_OFFSET_SETTING);
+        nonReplicatedSettings.add(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
+        nonReplicatedSettings.add(IndexSettings.MAX_TOKEN_COUNT_SETTING);
+        nonReplicatedSettings.add(IndexSettings.MAX_SLICES_PER_SCROLL);
+        nonReplicatedSettings.add(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
+        nonReplicatedSettings.add(IndexSettings.DEFAULT_PIPELINE);
+        nonReplicatedSettings.add(IndexSettings.INDEX_SEARCH_THROTTLED);
+        nonReplicatedSettings.add(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING);
+        nonReplicatedSettings.add(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING);
+        nonReplicatedSettings.add(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
+        nonReplicatedSettings.add(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
+        nonReplicatedSettings.add(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING);
+        nonReplicatedSettings.add(IndexSettings.INDEX_GC_DELETES_SETTING);
+        nonReplicatedSettings.add(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD);
 
-        whiteListedSettings.add(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
-        whiteListedSettings.add(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
+        nonReplicatedSettings.add(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
+        nonReplicatedSettings.add(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
 
-        whiteListedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING);
-        whiteListedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING);
-        whiteListedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING);
-        whiteListedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING);
-        whiteListedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING);
-        whiteListedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING);
-        whiteListedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING);
-        whiteListedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING);
-        whiteListedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL);
-        whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING);
-        whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING);
-        whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING);
-        whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING);
-        whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING);
-        whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING);
-        whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING);
+        nonReplicatedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING);
+        nonReplicatedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING);
+        nonReplicatedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING);
+        nonReplicatedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING);
+        nonReplicatedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING);
+        nonReplicatedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING);
+        nonReplicatedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING);
+        nonReplicatedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING);
+        nonReplicatedSettings.add(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL);
+        nonReplicatedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING);
+        nonReplicatedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING);
+        nonReplicatedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING);
+        nonReplicatedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING);
+        nonReplicatedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING);
+        nonReplicatedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING);
+        nonReplicatedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING);
 
-        whiteListedSettings.add(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING);
-        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
-        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING);
-        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING);
-        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING);
-        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
-        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING);
-        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING);
-        whiteListedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING);
+        nonReplicatedSettings.add(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING);
+        nonReplicatedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
+        nonReplicatedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING);
+        nonReplicatedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING);
+        nonReplicatedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING);
+        nonReplicatedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
+        nonReplicatedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING);
+        nonReplicatedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING);
+        nonReplicatedSettings.add(MergePolicyConfig.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT_SETTING);
 
-        whiteListedSettings.add(MergeSchedulerConfig.AUTO_THROTTLE_SETTING);
-        whiteListedSettings.add(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING);
-        whiteListedSettings.add(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING);
-        whiteListedSettings.add(EngineConfig.INDEX_CODEC_SETTING);
+        nonReplicatedSettings.add(MergeSchedulerConfig.AUTO_THROTTLE_SETTING);
+        nonReplicatedSettings.add(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING);
+        nonReplicatedSettings.add(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING);
+        nonReplicatedSettings.add(EngineConfig.INDEX_CODEC_SETTING);
 
-        WHITE_LISTED_SETTINGS = Collections.unmodifiableSet(whiteListedSettings);
+        NON_REPLICATED_SETTINGS = Collections.unmodifiableSet(nonReplicatedSettings);
     }
 
     static Settings filter(Settings originalSettings) {
@@ -455,7 +459,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
         Iterator<String> iterator = settings.keys().iterator();
         while (iterator.hasNext()) {
             String key = iterator.next();
-            for (Setting<?> whitelistedSetting : WHITE_LISTED_SETTINGS) {
+            for (Setting<?> whitelistedSetting : NON_REPLICATED_SETTINGS) {
                 if (whitelistedSetting.match(key)) {
                     iterator.remove();
                     break;

@@ -27,7 +27,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -78,12 +78,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
+import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
@@ -92,16 +94,20 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * <p>
  * A typical snapshot creating process looks like this:
  * <ul>
- * <li>On the master node the {@link #createSnapshot(SnapshotRequest, CreateSnapshotListener)} is called and makes sure that no snapshots is currently running
- * and registers the new snapshot in cluster state</li>
- * <li>When cluster state is updated the {@link #beginSnapshot(ClusterState, SnapshotsInProgress.Entry, boolean, CreateSnapshotListener)} method
- * kicks in and initializes the snapshot in the repository and then populates list of shards that needs to be snapshotted in cluster state</li>
+ * <li>On the master node the {@link #createSnapshot(CreateSnapshotRequest, ActionListener)} is called and makes sure that
+ * no snapshot is currently running and registers the new snapshot in cluster state</li>
+ * <li>When cluster state is updated
+ * the {@link #beginSnapshot(ClusterState, SnapshotsInProgress.Entry, boolean, ActionListener)} method kicks in and initializes
+ * the snapshot in the repository and then populates list of shards that needs to be snapshotted in cluster state</li>
  * <li>Each data node is watching for these shards and when new shards scheduled for snapshotting appear in the cluster state, data nodes
- * start processing them through {@link SnapshotShardsService#processIndexShardSnapshots(ClusterChangedEvent)} method</li>
- * <li>Once shard snapshot is created data node updates state of the shard in the cluster state using the {@link SnapshotShardsService#sendSnapshotShardUpdate(Snapshot, ShardId, ShardSnapshotStatus)} method</li>
- * <li>When last shard is completed master node in {@link SnapshotShardsService#innerUpdateSnapshotState} method marks the snapshot as completed</li>
+ * start processing them through {@link SnapshotShardsService#processIndexShardSnapshots(SnapshotsInProgress)} method</li>
+ * <li>Once shard snapshot is created data node updates state of the shard in the cluster state using
+ * the {@link SnapshotShardsService#sendSnapshotShardUpdate(Snapshot, ShardId, ShardSnapshotStatus)} method</li>
+ * <li>When last shard is completed master node in {@link SnapshotShardsService#innerUpdateSnapshotState} method marks the snapshot
+ * as completed</li>
  * <li>After cluster state is updated, the {@link #endSnapshot(SnapshotsInProgress.Entry)} finalizes snapshot in the repository,
- * notifies all {@link #snapshotCompletionListeners} that snapshot is completed, and finally calls {@link #removeSnapshotFromClusterState(Snapshot, SnapshotInfo, Exception)} to remove snapshot from cluster state</li>
+ * notifies all {@link #snapshotCompletionListeners} that snapshot is completed, and finally calls
+ * {@link #removeSnapshotFromClusterState(Snapshot, SnapshotInfo, Exception)} to remove snapshot from cluster state</li>
  * </ul>
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
@@ -115,11 +121,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final ThreadPool threadPool;
 
-    private final CopyOnWriteArrayList<SnapshotCompletionListener> snapshotCompletionListeners = new CopyOnWriteArrayList<>();
+    private final Map<Snapshot, List<ActionListener<SnapshotInfo>>> snapshotCompletionListeners = new ConcurrentHashMap<>();
+
+    // Set of snapshots that are currently being initialized by this node
+    private final Set<Snapshot> initializingSnapshots = Collections.synchronizedSet(new HashSet<>());
+
+    // Set of snapshots that are currently being ended by this node
+    private final Set<Snapshot> endingSnapshots = Collections.synchronizedSet(new HashSet<>());
 
     @Inject
-    public SnapshotsService(Settings settings, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver, RepositoriesService repositoriesService, ThreadPool threadPool) {
-        super(settings);
+    public SnapshotsService(Settings settings, ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
+                            RepositoriesService repositoriesService, ThreadPool threadPool) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.repositoriesService = repositoriesService;
@@ -203,7 +215,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotSet);
         CollectionUtil.timSort(snapshotList);
-        return Collections.unmodifiableList(snapshotList);
+        return unmodifiableList(snapshotList);
     }
 
     /**
@@ -219,7 +231,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             snapshotList.add(inProgressSnapshot(entry));
         }
         CollectionUtil.timSort(snapshotList);
-        return Collections.unmodifiableList(snapshotList);
+        return unmodifiableList(snapshotList);
+    }
+
+    /**
+     * Same as {@link #createSnapshot(CreateSnapshotRequest, ActionListener)} but invokes its callback on completion of
+     * the snapshot.
+     *
+     * @param request snapshot request
+     * @param listener snapshot completion listener
+     */
+    public void executeSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
+        createSnapshot(request, ActionListener.wrap(snapshot -> addListener(snapshot, listener), listener::onFailure));
     }
 
     /**
@@ -231,20 +254,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param request  snapshot request
      * @param listener snapshot creation listener
      */
-    public void createSnapshot(final SnapshotRequest request, final CreateSnapshotListener listener) {
-        final String repositoryName = request.repositoryName;
-        final String snapshotName = request.snapshotName;
+    public void createSnapshot(final CreateSnapshotRequest request, final ActionListener<Snapshot> listener) {
+        final String repositoryName = request.repository();
+        final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         validate(repositoryName, snapshotName);
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
         final RepositoryData repositoryData = repositoriesService.repository(repositoryName).getRepositoryData();
 
-        clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create_snapshot [" + snapshotName + ']', new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newSnapshot = null;
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                validate(request, currentState);
+                validate(repositoryName, snapshotName, currentState);
                 SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
                 if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName,
@@ -253,7 +276,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 if (snapshots == null || snapshots.entries().isEmpty()) {
                     // Store newSnapshot here to be processed in clusterStateProcessed
-                    List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request.indicesOptions(), request.indices()));
+                    List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState,
+                                                        request.indicesOptions(), request.indices()));
                     logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
                     List<IndexId> snapshotIndices = repositoryData.resolveNewIndices(indices);
                     newSnapshot = new SnapshotsInProgress.Entry(new Snapshot(repositoryName, snapshotId),
@@ -264,6 +288,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                                 System.currentTimeMillis(),
                                                                 repositoryData.getGenId(),
                                                                 null);
+                    initializingSnapshots.add(newSnapshot.snapshot());
                     snapshots = new SnapshotsInProgress(newSnapshot);
                 } else {
                     throw new ConcurrentSnapshotExecutionException(repositoryName, snapshotName, " a snapshot is already running");
@@ -274,6 +299,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to create snapshot", repositoryName, snapshotName), e);
+                if (newSnapshot != null) {
+                    initializingSnapshots.remove(newSnapshot.snapshot());
+                }
                 newSnapshot = null;
                 listener.onFailure(e);
             }
@@ -281,7 +309,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
                 if (newSnapshot != null) {
-                    beginSnapshot(newState, newSnapshot, request.partial(), listener);
+                    final Snapshot current = newSnapshot.snapshot();
+                    assert initializingSnapshots.contains(current);
+                    beginSnapshot(newState, newSnapshot, request.partial(), new ActionListener<Snapshot>() {
+                        @Override
+                        public void onResponse(final Snapshot snapshot) {
+                            initializingSnapshots.remove(snapshot);
+                            listener.onResponse(snapshot);
+                        }
+
+                        @Override
+                        public void onFailure(final Exception e) {
+                            initializingSnapshots.remove(current);
+                            listener.onFailure(e);
+                        }
+                    });
                 }
             }
 
@@ -289,23 +331,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public TimeValue timeout() {
                 return request.masterNodeTimeout();
             }
-
         });
     }
 
     /**
      * Validates snapshot request
      *
-     * @param request snapshot request
+     * @param repositoryName repository name
+     * @param snapshotName snapshot name
      * @param state   current cluster state
      */
-    private void validate(SnapshotRequest request, ClusterState state) {
+    private void validate(String repositoryName, String snapshotName, ClusterState state) {
         RepositoriesMetaData repositoriesMetaData = state.getMetaData().custom(RepositoriesMetaData.TYPE);
-        final String repository = request.repositoryName;
-        if (repositoriesMetaData == null || repositoriesMetaData.repository(repository) == null) {
-            throw new RepositoryMissingException(repository);
+        if (repositoriesMetaData == null || repositoriesMetaData.repository(repositoryName) == null) {
+            throw new RepositoryMissingException(repositoryName);
         }
-        validate(repository, request.snapshotName);
+        validate(repositoryName, snapshotName);
     }
 
     private static void validate(final String repositoryName, final String snapshotName) {
@@ -347,13 +388,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void beginSnapshot(final ClusterState clusterState,
                                final SnapshotsInProgress.Entry snapshot,
                                final boolean partial,
-                               final CreateSnapshotListener userCreateSnapshotListener) {
+                               final ActionListener<Snapshot> userCreateSnapshotListener) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
 
             boolean snapshotCreated;
 
+            boolean hadAbortedInitializations;
+
             @Override
             protected void doRun() {
+                assert initializingSnapshots.contains(snapshot.snapshot());
                 Repository repository = repositoriesService.repository(snapshot.snapshot().getRepository());
 
                 MetaData metaData = clusterState.metaData();
@@ -372,14 +416,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 logger.info("snapshot [{}] started", snapshot.snapshot());
                 if (snapshot.indices().isEmpty()) {
                     // No indices in this snapshot - we are done
-                    userCreateSnapshotListener.onResponse();
+                    userCreateSnapshotListener.onResponse(snapshot.snapshot());
                     endSnapshot(snapshot);
                     return;
                 }
                 clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshot() + "]", new ClusterStateUpdateTask() {
-
-                    SnapshotsInProgress.Entry endSnapshot;
-                    String failure;
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
@@ -391,17 +432,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 continue;
                             }
 
-                            if (entry.state() != State.ABORTED) {
-                                // Replace the snapshot that was just intialized
-                                ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = shards(currentState, entry.indices());
+                            if (entry.state() == State.ABORTED) {
+                                entries.add(entry);
+                                assert entry.shards().isEmpty();
+                                hadAbortedInitializations = true;
+                            } else {
+                                // Replace the snapshot that was just initialized
+                                ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards =
+                                    shards(currentState, entry.indices());
                                 if (!partial) {
-                                    Tuple<Set<String>, Set<String>> indicesWithMissingShards = indicesWithMissingShards(shards, currentState.metaData());
+                                    Tuple<Set<String>, Set<String>> indicesWithMissingShards = indicesWithMissingShards(shards,
+                                        currentState.metaData());
                                     Set<String> missing = indicesWithMissingShards.v1();
                                     Set<String> closed = indicesWithMissingShards.v2();
                                     if (missing.isEmpty() == false || closed.isEmpty() == false) {
-                                        endSnapshot = new SnapshotsInProgress.Entry(entry, State.FAILED, shards);
-                                        entries.add(endSnapshot);
-
                                         final StringBuilder failureMessage = new StringBuilder();
                                         if (missing.isEmpty() == false) {
                                             failureMessage.append("Indices don't have primary shards ");
@@ -414,31 +458,24 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                             failureMessage.append("Indices are closed ");
                                             failureMessage.append(closed);
                                         }
-                                        failure = failureMessage.toString();
+                                        entries.add(new SnapshotsInProgress.Entry(entry, State.FAILED, shards, failureMessage.toString()));
                                         continue;
                                     }
                                 }
-                                SnapshotsInProgress.Entry updatedSnapshot = new SnapshotsInProgress.Entry(entry, State.STARTED, shards);
-                                entries.add(updatedSnapshot);
-                                if (completed(shards.values())) {
-                                    endSnapshot = updatedSnapshot;
-                                }
-                            } else {
-                                assert entry.state() == State.ABORTED : "expecting snapshot to be aborted during initialization";
-                                failure = "snapshot was aborted during initialization";
-                                endSnapshot = entry;
-                                entries.add(endSnapshot);
+                                entries.add(new SnapshotsInProgress.Entry(entry, State.STARTED, shards));
                             }
                         }
                         return ClusterState.builder(currentState)
-                            .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(Collections.unmodifiableList(entries)))
+                            .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries)))
                             .build();
                     }
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("[{}] failed to create snapshot", snapshot.snapshot().getSnapshotId()), e);
-                        removeSnapshotFromClusterState(snapshot.snapshot(), null, e, new CleanupAfterErrorListener(snapshot, true, userCreateSnapshotListener, e));
+                        logger.warn(() -> new ParameterizedMessage("[{}] failed to create snapshot",
+                            snapshot.snapshot().getSnapshotId()), e);
+                        removeSnapshotFromClusterState(snapshot.snapshot(), null, e,
+                            new CleanupAfterErrorListener(snapshot, true, userCreateSnapshotListener, e));
                     }
 
                     @Override
@@ -456,14 +493,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // for processing. If client wants to wait for the snapshot completion, it can register snapshot
                         // completion listener in this method. For the snapshot completion to work properly, the snapshot
                         // should still exist when listener is registered.
-                        userCreateSnapshotListener.onResponse();
+                        userCreateSnapshotListener.onResponse(snapshot.snapshot());
 
-                        // Now that snapshot completion listener is registered we can end the snapshot if needed
-                        // We should end snapshot only if 1) we didn't accept it for processing (which happens when there
-                        // is nothing to do) and 2) there was a snapshot in metadata that we should end. Otherwise we should
-                        // go ahead and continue working on this snapshot rather then end here.
-                        if (endSnapshot != null) {
-                            endSnapshot(endSnapshot, failure);
+                        if (hadAbortedInitializations) {
+                            final SnapshotsInProgress snapshotsInProgress = newState.custom(SnapshotsInProgress.TYPE);
+                            assert snapshotsInProgress != null;
+                            final SnapshotsInProgress.Entry entry = snapshotsInProgress.snapshot(snapshot.snapshot());
+                            assert entry != null;
+                            endSnapshot(entry);
                         }
                     }
                 });
@@ -471,8 +508,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to create snapshot [{}]", snapshot.snapshot().getSnapshotId()), e);
-                removeSnapshotFromClusterState(snapshot.snapshot(), null, e, new CleanupAfterErrorListener(snapshot, snapshotCreated, userCreateSnapshotListener, e));
+                logger.warn(() -> new ParameterizedMessage("failed to create snapshot [{}]",
+                    snapshot.snapshot().getSnapshotId()), e);
+                removeSnapshotFromClusterState(snapshot.snapshot(), null, e,
+                    new CleanupAfterErrorListener(snapshot, snapshotCreated, userCreateSnapshotListener, e));
             }
         });
     }
@@ -481,10 +520,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         private final SnapshotsInProgress.Entry snapshot;
         private final boolean snapshotCreated;
-        private final CreateSnapshotListener userCreateSnapshotListener;
+        private final ActionListener<Snapshot> userCreateSnapshotListener;
         private final Exception e;
 
-        CleanupAfterErrorListener(SnapshotsInProgress.Entry snapshot, boolean snapshotCreated, CreateSnapshotListener userCreateSnapshotListener, Exception e) {
+        CleanupAfterErrorListener(SnapshotsInProgress.Entry snapshot, boolean snapshotCreated,
+                                  ActionListener<Snapshot> userCreateSnapshotListener, Exception e) {
             this.snapshot = snapshot;
             this.snapshotCreated = snapshotCreated;
             this.userCreateSnapshotListener = userCreateSnapshotListener;
@@ -502,7 +542,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             cleanupAfterError(e);
         }
 
-        public void onNoLongerMaster(String source) {
+        public void onNoLongerMaster() {
             userCreateSnapshotListener.onFailure(e);
         }
 
@@ -520,7 +560,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                          snapshot.includeGlobalState());
                 } catch (Exception inner) {
                     inner.addSuppressed(exception);
-                    logger.warn(() -> new ParameterizedMessage("[{}] failed to close snapshot in repository", snapshot.snapshot()), inner);
+                    logger.warn(() -> new ParameterizedMessage("[{}] failed to close snapshot in repository",
+                        snapshot.snapshot()), inner);
                 }
             }
             userCreateSnapshotListener.onFailure(e);
@@ -528,7 +569,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     }
 
-    private SnapshotInfo inProgressSnapshot(SnapshotsInProgress.Entry entry) {
+    private static SnapshotInfo inProgressSnapshot(SnapshotsInProgress.Entry entry) {
         return new SnapshotInfo(entry.snapshot().getSnapshotId(),
                                    entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
                                    entry.startTime(), entry.includeGlobalState());
@@ -586,7 +627,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 builder.add(entry);
             }
         }
-        return Collections.unmodifiableList(builder);
+        return unmodifiableList(builder);
     }
 
     /**
@@ -642,7 +683,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return unmodifiableMap(shardStatus);
     }
 
-    private SnapshotShardFailure findShardFailure(List<SnapshotShardFailure> shardFailures, ShardId shardId) {
+    private static SnapshotShardFailure findShardFailure(List<SnapshotShardFailure> shardFailures, ShardId shardId) {
         for (SnapshotShardFailure shardFailure : shardFailures) {
             if (shardId.getIndexName().equals(shardFailure.index()) && shardId.getId() == shardFailure.shardId()) {
                 return shardFailure;
@@ -656,14 +697,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         try {
             if (event.localNodeMaster()) {
                 // We don't remove old master when master flips anymore. So, we need to check for change in master
-                if (event.nodesRemoved() || event.previousState().nodes().isLocalNodeElectedMaster() == false) {
-                    processSnapshotsOnRemovedNodes(event);
+                final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
+                final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+                if (snapshotsInProgress != null) {
+                    if (newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes())) {
+                        processSnapshotsOnRemovedNodes();
+                    }
+                    if (event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event)) {
+                        processStartedShards();
+                    }
+                    // Cleanup all snapshots that have no more work left:
+                    // 1. Completed snapshots
+                    // 2. Snapshots in state INIT that the previous master failed to start
+                    // 3. Snapshots in any other state that have all their shard tasks completed
+                    snapshotsInProgress.entries().stream().filter(
+                        entry -> entry.state().completed()
+                            || initializingSnapshots.contains(entry.snapshot()) == false
+                               && (entry.state() == State.INIT || completed(entry.shards().values()))
+                    ).forEach(this::endSnapshot);
                 }
-                if (event.routingTableChanged()) {
-                    processStartedShards(event);
+                if (newMaster) {
+                    finalizeSnapshotDeletionFromPreviousMaster(event);
                 }
-                removeFinishedSnapshotFromClusterState(event);
-                finalizeSnapshotDeletionFromPreviousMaster(event);
             }
         } catch (Exception e) {
             logger.warn("Failed to update snapshot state ", e);
@@ -682,162 +737,134 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * snapshot was deleted and a call to GET snapshots would reveal that the snapshot no longer exists.
      */
     private void finalizeSnapshotDeletionFromPreviousMaster(ClusterChangedEvent event) {
-        if (event.localNodeMaster() && event.previousState().nodes().isLocalNodeElectedMaster() == false) {
-            SnapshotDeletionsInProgress deletionsInProgress = event.state().custom(SnapshotDeletionsInProgress.TYPE);
-            if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
-                assert deletionsInProgress.getEntries().size() == 1 : "only one in-progress deletion allowed per cluster";
-                SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().get(0);
-                deleteSnapshotFromRepository(entry.getSnapshot(), null, entry.getRepositoryStateId());
-            }
-        }
-    }
-
-    /**
-     * Removes a finished snapshot from the cluster state.  This can happen if the previous
-     * master node processed a cluster state update that marked the snapshot as finished,
-     * but the previous master node died before removing the snapshot in progress from the
-     * cluster state.  It is then the responsibility of the new master node to end the
-     * snapshot and remove it from the cluster state.
-     */
-    private void removeFinishedSnapshotFromClusterState(ClusterChangedEvent event) {
-        if (event.localNodeMaster() && !event.previousState().nodes().isLocalNodeElectedMaster()) {
-            SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
-            if (snapshotsInProgress != null && !snapshotsInProgress.entries().isEmpty()) {
-                for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
-                    if (entry.state().completed()) {
-                        endSnapshot(entry);
-                    }
-                }
-            }
+        SnapshotDeletionsInProgress deletionsInProgress = event.state().custom(SnapshotDeletionsInProgress.TYPE);
+        if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
+            assert deletionsInProgress.getEntries().size() == 1 : "only one in-progress deletion allowed per cluster";
+            SnapshotDeletionsInProgress.Entry entry = deletionsInProgress.getEntries().get(0);
+            deleteSnapshotFromRepository(entry.getSnapshot(), null, entry.getRepositoryStateId());
         }
     }
 
     /**
      * Cleans up shard snapshots that were running on removed nodes
-     *
-     * @param event cluster changed event
      */
-    private void processSnapshotsOnRemovedNodes(ClusterChangedEvent event) {
-        if (removedNodesCleanupNeeded(event)) {
-            // Check if we just became the master
-            final boolean newMaster = !event.previousState().nodes().isLocalNodeElectedMaster();
-            clusterService.submitStateUpdateTask("update snapshot state after node removal", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    DiscoveryNodes nodes = currentState.nodes();
-                    SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-                    if (snapshots == null) {
-                        return currentState;
+    private void processSnapshotsOnRemovedNodes() {
+        clusterService.submitStateUpdateTask("update snapshot state after node removal", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                DiscoveryNodes nodes = currentState.nodes();
+                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
+                if (snapshots == null) {
+                    return currentState;
+                }
+                boolean changed = false;
+                ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
+                for (final SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
+                    SnapshotsInProgress.Entry updatedSnapshot = snapshot;
+                    if (snapshot.state() == State.STARTED || snapshot.state() == State.ABORTED) {
+                        ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
+                        boolean snapshotChanged = false;
+                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : snapshot.shards()) {
+                            ShardSnapshotStatus shardStatus = shardEntry.value;
+                            if (!shardStatus.state().completed() && shardStatus.nodeId() != null) {
+                                if (nodes.nodeExists(shardStatus.nodeId())) {
+                                    shards.put(shardEntry.key, shardEntry.value);
+                                } else {
+                                    // TODO: Restart snapshot on another node?
+                                    snapshotChanged = true;
+                                    logger.warn("failing snapshot of shard [{}] on closed node [{}]",
+                                        shardEntry.key, shardStatus.nodeId());
+                                    shards.put(shardEntry.key,
+                                        new ShardSnapshotStatus(shardStatus.nodeId(), State.FAILED, "node shutdown"));
+                                }
+                            }
+                        }
+                        if (snapshotChanged) {
+                            changed = true;
+                            ImmutableOpenMap<ShardId, ShardSnapshotStatus> shardsMap = shards.build();
+                            if (!snapshot.state().completed() && completed(shardsMap.values())) {
+                                updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, State.SUCCESS, shardsMap);
+                            } else {
+                                updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, snapshot.state(), shardsMap);
+                            }
+                        }
+                        entries.add(updatedSnapshot);
+                    } else if (snapshot.state() == State.INIT && initializingSnapshots.contains(snapshot.snapshot()) == false) {
+                        changed = true;
+                        // Mark the snapshot as aborted as it failed to start from the previous master
+                        updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, State.ABORTED, snapshot.shards());
+                        entries.add(updatedSnapshot);
+
+                        // Clean up the snapshot that failed to start from the old master
+                        deleteSnapshot(snapshot.snapshot(), new ActionListener<Void>() {
+                            @Override
+                            public void onResponse(Void aVoid) {
+                                logger.debug("cleaned up abandoned snapshot {} in INIT state", snapshot.snapshot());
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn("failed to clean up abandoned snapshot {} in INIT state", snapshot.snapshot());
+                            }
+                        }, updatedSnapshot.getRepositoryStateId(), false);
                     }
+                }
+                if (changed) {
+                    return ClusterState.builder(currentState)
+                        .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
+                }
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.warn("failed to update snapshot state after node removal");
+            }
+        });
+    }
+
+    private void processStartedShards() {
+        clusterService.submitStateUpdateTask("update snapshot state after shards started", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                RoutingTable routingTable = currentState.routingTable();
+                SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
+                if (snapshots != null) {
                     boolean changed = false;
                     ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
                     for (final SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
                         SnapshotsInProgress.Entry updatedSnapshot = snapshot;
-                        boolean snapshotChanged = false;
-                        if (snapshot.state() == State.STARTED || snapshot.state() == State.ABORTED) {
-                            ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
-                            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : snapshot.shards()) {
-                                ShardSnapshotStatus shardStatus = shardEntry.value;
-                                if (!shardStatus.state().completed() && shardStatus.nodeId() != null) {
-                                    if (nodes.nodeExists(shardStatus.nodeId())) {
-                                        shards.put(shardEntry.key, shardEntry.value);
-                                    } else {
-                                        // TODO: Restart snapshot on another node?
-                                        snapshotChanged = true;
-                                        logger.warn("failing snapshot of shard [{}] on closed node [{}]", shardEntry.key, shardStatus.nodeId());
-                                        shards.put(shardEntry.key, new ShardSnapshotStatus(shardStatus.nodeId(), State.FAILED, "node shutdown"));
-                                    }
-                                }
-                            }
-                            if (snapshotChanged) {
+                        if (snapshot.state() == State.STARTED) {
+                            ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = processWaitingShards(snapshot.shards(),
+                                routingTable);
+                            if (shards != null) {
                                 changed = true;
-                                ImmutableOpenMap<ShardId, ShardSnapshotStatus> shardsMap = shards.build();
-                                if (!snapshot.state().completed() && completed(shardsMap.values())) {
-                                    updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, State.SUCCESS, shardsMap);
-                                    endSnapshot(updatedSnapshot);
+                                if (!snapshot.state().completed() && completed(shards.values())) {
+                                    updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, State.SUCCESS, shards);
                                 } else {
-                                    updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, snapshot.state(), shardsMap);
+                                    updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, shards);
                                 }
                             }
                             entries.add(updatedSnapshot);
-                        } else if (snapshot.state() == State.INIT && newMaster) {
-                            changed = true;
-                            // Mark the snapshot as aborted as it failed to start from the previous master
-                            updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, State.ABORTED, snapshot.shards());
-                            entries.add(updatedSnapshot);
-
-                            // Clean up the snapshot that failed to start from the old master
-                            deleteSnapshot(snapshot.snapshot(), new DeleteSnapshotListener() {
-                                @Override
-                                public void onResponse() {
-                                    logger.debug("cleaned up abandoned snapshot {} in INIT state", snapshot.snapshot());
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    logger.warn("failed to clean up abandoned snapshot {} in INIT state", snapshot.snapshot());
-                                }
-                            }, updatedSnapshot.getRepositoryStateId(), false);
                         }
                     }
                     if (changed) {
-                        snapshots = new SnapshotsInProgress(entries.toArray(new SnapshotsInProgress.Entry[entries.size()]));
-                        return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, snapshots).build();
+                        return ClusterState.builder(currentState)
+                            .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
                     }
-                    return currentState;
                 }
+                return currentState;
+            }
 
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.warn("failed to update snapshot state after node removal");
-                }
-            });
-        }
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.warn(() ->
+                    new ParameterizedMessage("failed to update snapshot state after shards started from [{}] ", source), e);
+            }
+        });
     }
 
-    private void processStartedShards(ClusterChangedEvent event) {
-        if (waitingShardsStartedOrUnassigned(event)) {
-            clusterService.submitStateUpdateTask("update snapshot state after shards started", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    RoutingTable routingTable = currentState.routingTable();
-                    SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
-                    if (snapshots != null) {
-                        boolean changed = false;
-                        ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
-                        for (final SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
-                            SnapshotsInProgress.Entry updatedSnapshot = snapshot;
-                            if (snapshot.state() == State.STARTED) {
-                                ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = processWaitingShards(snapshot.shards(), routingTable);
-                                if (shards != null) {
-                                    changed = true;
-                                    if (!snapshot.state().completed() && completed(shards.values())) {
-                                        updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, State.SUCCESS, shards);
-                                        endSnapshot(updatedSnapshot);
-                                    } else {
-                                        updatedSnapshot = new SnapshotsInProgress.Entry(snapshot, shards);
-                                    }
-                                }
-                                entries.add(updatedSnapshot);
-                            }
-                        }
-                        if (changed) {
-                            snapshots = new SnapshotsInProgress(entries.toArray(new SnapshotsInProgress.Entry[entries.size()]));
-                            return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, snapshots).build();
-                        }
-                    }
-                    return currentState;
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("failed to update snapshot state after shards started from [{}] ", source), e);
-                }
-            });
-        }
-    }
-
-    private ImmutableOpenMap<ShardId, ShardSnapshotStatus> processWaitingShards(
+    private static ImmutableOpenMap<ShardId, ShardSnapshotStatus> processWaitingShards(
             ImmutableOpenMap<ShardId, ShardSnapshotStatus> snapshotShards, RoutingTable routingTable) {
         boolean snapshotChanged = false;
         ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
@@ -877,19 +904,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private boolean waitingShardsStartedOrUnassigned(ClusterChangedEvent event) {
-        SnapshotsInProgress curr = event.state().custom(SnapshotsInProgress.TYPE);
-        if (curr != null) {
-            for (SnapshotsInProgress.Entry entry : curr.entries()) {
-                if (entry.state() == State.STARTED && !entry.waitingIndices().isEmpty()) {
-                    for (ObjectCursor<String> index : entry.waitingIndices().keys()) {
-                        if (event.indexRoutingTableChanged(index.value)) {
-                            IndexRoutingTable indexShardRoutingTable = event.state().getRoutingTable().index(index.value);
-                            for (ShardId shardId : entry.waitingIndices().get(index.value)) {
-                                ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.id()).primaryShard();
-                                if (shardRouting != null && (shardRouting.started() || shardRouting.unassigned())) {
-                                    return true;
-                                }
+    private static boolean waitingShardsStartedOrUnassigned(SnapshotsInProgress snapshotsInProgress, ClusterChangedEvent event) {
+        for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+            if (entry.state() == State.STARTED) {
+                for (ObjectCursor<String> index : entry.waitingIndices().keys()) {
+                    if (event.indexRoutingTableChanged(index.value)) {
+                        IndexRoutingTable indexShardRoutingTable = event.state().getRoutingTable().index(index.value);
+                        for (ShardId shardId : entry.waitingIndices().get(index.value)) {
+                            ShardRouting shardRouting = indexShardRoutingTable.shard(shardId.id()).primaryShard();
+                            if (shardRouting != null && (shardRouting.started() || shardRouting.unassigned())) {
+                                return true;
                             }
                         }
                     }
@@ -899,28 +923,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return false;
     }
 
-    private boolean removedNodesCleanupNeeded(ClusterChangedEvent event) {
-        SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
-        if (snapshotsInProgress == null) {
-            return false;
-        }
-        // Check if we just became the master
-        boolean newMaster = !event.previousState().nodes().isLocalNodeElectedMaster();
-        for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.entries()) {
-            if (newMaster && (snapshot.state() == State.SUCCESS || snapshot.state() == State.INIT)) {
-                // We just replaced old master and snapshots in intermediate states needs to be cleaned
-                return true;
-            }
-            for (DiscoveryNode node : event.nodesDelta().removedNodes()) {
-                for (ObjectCursor<ShardSnapshotStatus> shardStatus : snapshot.shards().values()) {
-                    if (!shardStatus.value.state().completed() && node.getId().equals(shardStatus.value.nodeId())) {
-                        // At least one shard was running on the removed node - we need to fail it
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+    private static boolean removedNodesCleanupNeeded(SnapshotsInProgress snapshotsInProgress, List<DiscoveryNode> removedNodes) {
+        // If at least one shard was running on a removed node - we need to fail it
+        return removedNodes.isEmpty() == false && snapshotsInProgress.entries().stream().flatMap(snapshot ->
+                StreamSupport.stream(((Iterable<ShardSnapshotStatus>) () -> snapshot.shards().valuesIt()).spliterator(), false)
+                    .filter(s -> s.state().completed() == false).map(ShardSnapshotStatus::nodeId))
+                .anyMatch(removedNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet())::contains);
     }
 
     /**
@@ -929,12 +937,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param shards list of shard statuses
      * @return list of failed and closed indices
      */
-    private Tuple<Set<String>, Set<String>> indicesWithMissingShards(ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards, MetaData metaData) {
+    private Tuple<Set<String>, Set<String>> indicesWithMissingShards(
+        ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards, MetaData metaData) {
         Set<String> missing = new HashSet<>();
         Set<String> closed = new HashSet<>();
         for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> entry : shards) {
             if (entry.value.state() == State.MISSING) {
-                if (metaData.hasIndex(entry.key.getIndex().getName()) && metaData.getIndexSafe(entry.key.getIndex()).getState() == IndexMetaData.State.CLOSE) {
+                if (metaData.hasIndex(entry.key.getIndex().getName()) &&
+                    metaData.getIndexSafe(entry.key.getIndex()).getState() == IndexMetaData.State.CLOSE) {
                     closed.add(entry.key.getIndex().getName());
                 } else {
                     missing.add(entry.key.getIndex().getName());
@@ -951,25 +961,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * @param entry snapshot
      */
-    void endSnapshot(final SnapshotsInProgress.Entry entry) {
-        endSnapshot(entry, null);
-    }
-
-
-    /**
-     * Finalizes the shard in repository and then removes it from cluster state
-     * <p>
-     * This is non-blocking method that runs on a thread from SNAPSHOT thread pool
-     *
-     * @param entry   snapshot
-     * @param failure failure reason or null if snapshot was successful
-     */
-    private void endSnapshot(final SnapshotsInProgress.Entry entry, final String failure) {
+    private void endSnapshot(final SnapshotsInProgress.Entry entry) {
+        if (endingSnapshots.add(entry.snapshot()) == false) {
+            return;
+        }
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
                 final Snapshot snapshot = entry.snapshot();
                 final Repository repository = repositoriesService.repository(snapshot.getRepository());
+                final String failure = entry.failure();
                 logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
                 ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
                 for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
@@ -985,7 +986,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.startTime(),
                     failure,
                     entry.shards().size(),
-                    Collections.unmodifiableList(shardFailures),
+                    unmodifiableList(shardFailures),
                     entry.getRepositoryStateId(),
                     entry.includeGlobalState());
                 removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
@@ -1003,7 +1004,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * Removes record of running snapshot from cluster state
-     *  @param snapshot       snapshot
+     * @param snapshot       snapshot
      * @param snapshotInfo   snapshot info if snapshot was successful
      * @param e              exception if snapshot failed
      */
@@ -1013,11 +1014,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     /**
      * Removes record of running snapshot from cluster state and notifies the listener when this action is complete
-     *  @param snapshot   snapshot
+     * @param snapshot   snapshot
      * @param failure          exception if snapshot failed
      * @param listener   listener to notify when snapshot information is removed from the cluster state
      */
-    private void removeSnapshotFromClusterState(final Snapshot snapshot, final SnapshotInfo snapshotInfo, final Exception failure,
+    private void removeSnapshotFromClusterState(final Snapshot snapshot, @Nullable SnapshotInfo snapshotInfo, final Exception failure,
                                                 @Nullable CleanupAfterErrorListener listener) {
         clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
 
@@ -1035,8 +1036,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     }
                     if (changed) {
-                        snapshots = new SnapshotsInProgress(entries.toArray(new SnapshotsInProgress.Entry[entries.size()]));
-                        return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, snapshots).build();
+                        return ClusterState.builder(currentState)
+                            .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(unmodifiableList(entries))).build();
                     }
                 }
                 return currentState;
@@ -1045,6 +1046,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to remove snapshot metadata", snapshot), e);
+                endingSnapshots.remove(snapshot);
                 if (listener != null) {
                     listener.onFailure(e);
                 }
@@ -1052,24 +1054,27 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onNoLongerMaster(String source) {
+                endingSnapshots.remove(snapshot);
                 if (listener != null) {
-                    listener.onNoLongerMaster(source);
+                    listener.onNoLongerMaster();
                 }
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                for (SnapshotCompletionListener listener : snapshotCompletionListeners) {
+                final List<ActionListener<SnapshotInfo>> completionListeners = snapshotCompletionListeners.remove(snapshot);
+                if (completionListeners != null) {
                     try {
-                        if (snapshotInfo != null) {
-                            listener.onSnapshotCompletion(snapshot, snapshotInfo);
+                        if (snapshotInfo == null) {
+                            ActionListener.onFailure(completionListeners, failure);
                         } else {
-                            listener.onSnapshotFailure(snapshot, failure);
+                            ActionListener.onResponse(completionListeners, snapshotInfo);
                         }
-                    } catch (Exception t) {
-                        logger.warn(() -> new ParameterizedMessage("failed to notify listener [{}]", listener), t);
+                    } catch (Exception e) {
+                        logger.warn("Failed to notify listeners", e);
                     }
                 }
+                endingSnapshots.remove(snapshot);
                 if (listener != null) {
                     listener.onResponse(snapshotInfo);
                 }
@@ -1085,7 +1090,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param snapshotName    snapshotName
      * @param listener        listener
      */
-    public void deleteSnapshot(final String repositoryName, final String snapshotName, final DeleteSnapshotListener listener,
+    public void deleteSnapshot(final String repositoryName, final String snapshotName, final ActionListener<Void> listener,
                                final boolean immediatePriority) {
         // First, look for the snapshot in the repository
         final Repository repository = repositoriesService.repository(repositoryName);
@@ -1100,14 +1105,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                 .filter(s -> s.getName().equals(snapshotName))
                                                 .findFirst();
         // if nothing found by the same name, then look in the cluster state for current in progress snapshots
+        long repoGenId = repositoryData.getGenId();
         if (matchedEntry.isPresent() == false) {
-            matchedEntry = currentSnapshots(repositoryName, Collections.emptyList()).stream()
-                               .map(e -> e.snapshot().getSnapshotId()).filter(s -> s.getName().equals(snapshotName)).findFirst();
+            Optional<SnapshotsInProgress.Entry> matchedInProgress = currentSnapshots(repositoryName, Collections.emptyList()).stream()
+                               .filter(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName)).findFirst();
+            if (matchedInProgress.isPresent()) {
+                matchedEntry = matchedInProgress.map(s -> s.snapshot().getSnapshotId());
+                // Derive repository generation if a snapshot is in progress because it will increment the generation when it finishes
+                repoGenId = matchedInProgress.get().getRepositoryStateId() + 1L;
+            }
         }
         if (matchedEntry.isPresent() == false) {
             throw new SnapshotMissingException(repositoryName, snapshotName);
         }
-        deleteSnapshot(new Snapshot(repositoryName, matchedEntry.get()), listener, repositoryData.getGenId(), immediatePriority);
+        deleteSnapshot(new Snapshot(repositoryName, matchedEntry.get()), listener, repoGenId, immediatePriority);
     }
 
     /**
@@ -1119,7 +1130,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener listener
      * @param repositoryStateId the unique id for the state of the repository
      */
-    private void deleteSnapshot(final Snapshot snapshot, final DeleteSnapshotListener listener, final long repositoryStateId,
+    private void deleteSnapshot(final Snapshot snapshot, final ActionListener<Void> listener, final long repositoryStateId,
                                 final boolean immediatePriority) {
         Priority priority = immediatePriority ? Priority.IMMEDIATE : Priority.NORMAL;
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(priority) {
@@ -1130,14 +1141,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public ClusterState execute(ClusterState currentState) throws Exception {
                 SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
                 if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
-                    throw new ConcurrentSnapshotExecutionException(snapshot, "cannot delete - another snapshot is currently being deleted");
+                    throw new ConcurrentSnapshotExecutionException(snapshot,
+                        "cannot delete - another snapshot is currently being deleted");
                 }
                 RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
                 if (restoreInProgress != null) {
                     // don't allow snapshot deletions while a restore is taking place,
                     // otherwise we could end up deleting a snapshot that is being restored
                     // and the files the restore depends on would all be gone
-                    if (restoreInProgress.entries().isEmpty() == false) {
+                    if (restoreInProgress.isEmpty() == false) {
                         throw new ConcurrentSnapshotExecutionException(snapshot, "cannot delete snapshot during a restore");
                     }
                 }
@@ -1169,10 +1181,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards;
 
                     final State state = snapshotEntry.state();
+                    final String failure;
                     if (state == State.INIT) {
                         // snapshot is still initializing, mark it as aborted
                         shards = snapshotEntry.shards();
-
+                        assert shards.isEmpty();
+                        failure = "Snapshot was aborted during initialization";
                     } else if (state == State.STARTED) {
                         // snapshot is started - mark every non completed shard as aborted
                         final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shardsBuilder = ImmutableOpenMap.builder();
@@ -1184,7 +1198,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             shardsBuilder.put(shardEntry.key, status);
                         }
                         shards = shardsBuilder.build();
-
+                        failure = "Snapshot was aborted by deletion";
                     } else {
                         boolean hasUncompletedShards = false;
                         // Cleanup in case a node gone missing and snapshot wasn't updated for some reason
@@ -1205,12 +1219,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             // where we force to finish the snapshot
                             logger.debug("trying to delete completed snapshot with no finalizing shards - can delete immediately");
                             shards = snapshotEntry.shards();
-                            endSnapshot(snapshotEntry);
                         }
+                        failure = snapshotEntry.failure();
                     }
-                    SnapshotsInProgress.Entry newSnapshot = new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards);
-                    snapshots = new SnapshotsInProgress(newSnapshot);
-                    clusterStateBuilder.putCustom(SnapshotsInProgress.TYPE, snapshots);
+                    SnapshotsInProgress.Entry newSnapshot = new SnapshotsInProgress.Entry(snapshotEntry, State.ABORTED, shards, failure);
+                    clusterStateBuilder.putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(newSnapshot));
                 }
                 return clusterStateBuilder.build();
             }
@@ -1224,49 +1237,34 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (waitForSnapshot) {
                     logger.trace("adding snapshot completion listener to wait for deleted snapshot to finish");
-                    addListener(new SnapshotCompletionListener() {
-                        @Override
-                        public void onSnapshotCompletion(Snapshot completedSnapshot, SnapshotInfo snapshotInfo) {
-                            if (completedSnapshot.equals(snapshot)) {
-                                logger.debug("deleted snapshot completed - deleting files");
-                                removeListener(this);
-                                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-                                        try {
-                                            deleteSnapshot(completedSnapshot.getRepository(), completedSnapshot.getSnapshotId().getName(),
-                                                listener, true);
-
-                                        } catch (Exception ex) {
-                                            logger.warn(() -> new ParameterizedMessage("[{}] failed to delete snapshot", snapshot), ex);
-                                        }
-                                    }
-                                );
-                            }
-                        }
-
-                        @Override
-                        public void onSnapshotFailure(Snapshot failedSnapshot, Exception e) {
-                            if (failedSnapshot.equals(snapshot)) {
-                                logger.warn("deleted snapshot failed - deleting files", e);
-                                removeListener(this);
-                                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                    addListener(snapshot, ActionListener.wrap(
+                        snapshotInfo -> {
+                            logger.debug("deleted snapshot completed - deleting files");
+                            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                                     try {
-                                        deleteSnapshot(failedSnapshot.getRepository(),
-                                                       failedSnapshot.getSnapshotId().getName(),
-                                                       listener,
-                                                       true);
-                                    } catch (SnapshotMissingException smex) {
-                                        logger.info(() -> new ParameterizedMessage(
-                                            "Tried deleting in-progress snapshot [{}], but it " +
-                                            "could not be found after failing to abort.",
-                                            smex.getSnapshotName()), e);
-                                        listener.onFailure(new SnapshotException(snapshot,
-                                            "Tried deleting in-progress snapshot [" + smex.getSnapshotName() + "], but it " +
-                                            "could not be found after failing to abort.", smex));
+                                        deleteSnapshot(snapshot.getRepository(), snapshot.getSnapshotId().getName(), listener, true);
+                                    } catch (Exception ex) {
+                                        logger.warn(() -> new ParameterizedMessage("[{}] failed to delete snapshot", snapshot), ex);
                                     }
-                                });
-                            }
+                                }
+                            );
+                        },
+                        e -> {
+                            logger.warn("deleted snapshot failed - deleting files", e);
+                            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                                try {
+                                    deleteSnapshot(snapshot.getRepository(), snapshot.getSnapshotId().getName(), listener, true);
+                                } catch (SnapshotMissingException smex) {
+                                    logger.info(() -> new ParameterizedMessage(
+                                        "Tried deleting in-progress snapshot [{}], but it could not be found after failing to abort.",
+                                        smex.getSnapshotName()), e);
+                                    listener.onFailure(new SnapshotException(snapshot,
+                                        "Tried deleting in-progress snapshot [" + smex.getSnapshotName() + "], but it " +
+                                            "could not be found after failing to abort.", smex));
+                                }
+                            });
                         }
-                    });
+                    ));
                 } else {
                     logger.debug("deleted snapshot is not running - deleting files");
                     deleteSnapshotFromRepository(snapshot, listener, repositoryStateId);
@@ -1309,8 +1307,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener   listener
      * @param repositoryStateId the unique id representing the state of the repository at the time the deletion began
      */
-    private void deleteSnapshotFromRepository(final Snapshot snapshot, @Nullable final DeleteSnapshotListener listener,
-                                              long repositoryStateId) {
+    private void deleteSnapshotFromRepository(Snapshot snapshot, @Nullable ActionListener<Void> listener, long repositoryStateId) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
             try {
                 Repository repository = repositoriesService.repository(snapshot.getRepository());
@@ -1328,7 +1325,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Removes the snapshot deletion from {@link SnapshotDeletionsInProgress} in the cluster state.
      */
     private void removeSnapshotDeletionFromClusterState(final Snapshot snapshot, @Nullable final Exception failure,
-                                                        @Nullable final DeleteSnapshotListener listener) {
+                                                        @Nullable final ActionListener<Void> listener) {
         clusterService.submitStateUpdateTask("remove snapshot deletion metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -1362,7 +1359,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (failure != null) {
                         listener.onFailure(failure);
                     } else {
-                        listener.onResponse();
+                        listener.onResponse(null);
                     }
                 }
             }
@@ -1376,7 +1373,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param indices      list of indices to be snapshotted
      * @return list of shard to be included into current snapshot
      */
-    private ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards(ClusterState clusterState, List<IndexId> indices) {
+    private static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards(ClusterState clusterState,
+                                                                                             List<IndexId> indices) {
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         MetaData metaData = clusterState.metaData();
         for (IndexId index : indices) {
@@ -1384,7 +1382,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             IndexMetaData indexMetaData = metaData.index(indexName);
             if (indexMetaData == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
-                builder.put(new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, 0), new SnapshotsInProgress.ShardSnapshotStatus(null, State.MISSING, "missing index"));
+                builder.put(new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, 0),
+                    new SnapshotsInProgress.ShardSnapshotStatus(null, State.MISSING, "missing index"));
             } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                 for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
                     ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
@@ -1397,17 +1396,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (indexRoutingTable != null) {
                         ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
                         if (primary == null || !primary.assignedToNode()) {
-                            builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(null, State.MISSING, "primary shard is not allocated"));
+                            builder.put(shardId,
+                                new SnapshotsInProgress.ShardSnapshotStatus(null, State.MISSING, "primary shard is not allocated"));
                         } else if (primary.relocating() || primary.initializing()) {
-                            // The WAITING state was introduced in V1.2.0 - don't use it if there are nodes with older version in the cluster
                             builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), State.WAITING));
                         } else if (!primary.started()) {
-                            builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), State.MISSING, "primary shard hasn't been started yet"));
+                            builder.put(shardId,
+                                new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), State.MISSING,
+                                    "primary shard hasn't been started yet"));
                         } else {
                             builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId()));
                         }
                     } else {
-                        builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(null, State.MISSING, "missing routing table"));
+                        builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(null, State.MISSING,
+                            "missing routing table"));
                     }
                 }
             }
@@ -1423,7 +1425,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static void checkIndexDeletion(ClusterState currentState, Set<IndexMetaData> indices) {
         Set<Index> indicesToFail = indicesToFailForCloseOrDeletion(currentState, indices);
         if (indicesToFail != null) {
-            throw new IllegalArgumentException("Cannot delete indices that are being snapshotted: " + indicesToFail +
+            throw new SnapshotInProgressException("Cannot delete indices that are being snapshotted: " + indicesToFail +
                 ". Try again after snapshot finishes or cancel the currently running snapshot.");
         }
     }
@@ -1435,7 +1437,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static void checkIndexClosing(ClusterState currentState, Set<IndexMetaData> indices) {
         Set<Index> indicesToFail = indicesToFailForCloseOrDeletion(currentState, indices);
         if (indicesToFail != null) {
-            throw new IllegalArgumentException("Cannot close indices that are being snapshotted: " + indicesToFail +
+            throw new SnapshotInProgressException("Cannot close indices that are being snapshotted: " + indicesToFail +
                 ". Try again after snapshot finishes or cancel the currently running snapshot.");
         }
     }
@@ -1478,19 +1480,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Adds snapshot completion listener
      *
+     * @param snapshot Snapshot to listen for
      * @param listener listener
      */
-    public void addListener(SnapshotCompletionListener listener) {
-        this.snapshotCompletionListeners.add(listener);
-    }
-
-    /**
-     * Removes snapshot completion listener
-     *
-     * @param listener listener
-     */
-    public void removeListener(SnapshotCompletionListener listener) {
-        this.snapshotCompletionListeners.remove(listener);
+    private void addListener(Snapshot snapshot, ActionListener<SnapshotInfo> listener) {
+        snapshotCompletionListeners.computeIfAbsent(snapshot, k -> new CopyOnWriteArrayList<>()).add(listener);
     }
 
     @Override
@@ -1511,225 +1505,4 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public RepositoriesService getRepositoriesService() {
         return repositoriesService;
     }
-
-    /**
-     * Listener for create snapshot operation
-     */
-    public interface CreateSnapshotListener {
-
-        /**
-         * Called when snapshot has successfully started
-         */
-        void onResponse();
-
-        /**
-         * Called if a snapshot operation couldn't start
-         */
-        void onFailure(Exception e);
-    }
-
-    /**
-     * Listener for delete snapshot operation
-     */
-    public interface DeleteSnapshotListener {
-
-        /**
-         * Called if delete operation was successful
-         */
-        void onResponse();
-
-        /**
-         * Called if delete operation failed
-         */
-        void onFailure(Exception e);
-    }
-
-    public interface SnapshotCompletionListener {
-
-        void onSnapshotCompletion(Snapshot snapshot, SnapshotInfo snapshotInfo);
-
-        void onSnapshotFailure(Snapshot snapshot, Exception e);
-    }
-
-    /**
-     * Snapshot creation request
-     */
-    public static class SnapshotRequest {
-
-        private final String cause;
-
-        private final String repositoryName;
-
-        private final String snapshotName;
-
-        private String[] indices;
-
-        private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-
-        private boolean partial;
-
-        private Settings settings;
-
-        private boolean includeGlobalState;
-
-        private TimeValue masterNodeTimeout;
-
-        /**
-         * Constructs new snapshot creation request
-         *
-         * @param repositoryName  repository name
-         * @param snapshotName    snapshot name
-         * @param cause           cause for snapshot operation
-         */
-        public SnapshotRequest(final String repositoryName, final String snapshotName, final String cause) {
-            this.repositoryName = Objects.requireNonNull(repositoryName);
-            this.snapshotName = Objects.requireNonNull(snapshotName);
-            this.cause = Objects.requireNonNull(cause);
-        }
-
-        /**
-         * Sets the list of indices to be snapshotted
-         *
-         * @param indices list of indices
-         * @return this request
-         */
-        public SnapshotRequest indices(String[] indices) {
-            this.indices = indices;
-            return this;
-        }
-
-        /**
-         * Sets repository-specific snapshot settings
-         *
-         * @param settings snapshot settings
-         * @return this request
-         */
-        public SnapshotRequest settings(Settings settings) {
-            this.settings = settings;
-            return this;
-        }
-
-        /**
-         * Set to true if global state should be stored as part of the snapshot
-         *
-         * @param includeGlobalState true if global state should be stored as part of the snapshot
-         * @return this request
-         */
-        public SnapshotRequest includeGlobalState(boolean includeGlobalState) {
-            this.includeGlobalState = includeGlobalState;
-            return this;
-        }
-
-        /**
-         * Sets master node timeout
-         *
-         * @param masterNodeTimeout master node timeout
-         * @return this request
-         */
-        public SnapshotRequest masterNodeTimeout(TimeValue masterNodeTimeout) {
-            this.masterNodeTimeout = masterNodeTimeout;
-            return this;
-        }
-
-        /**
-         * Sets the indices options
-         *
-         * @param indicesOptions indices options
-         * @return this request
-         */
-        public SnapshotRequest indicesOptions(IndicesOptions indicesOptions) {
-            this.indicesOptions = indicesOptions;
-            return this;
-        }
-
-        /**
-         * Set to true if partial snapshot should be allowed
-         *
-         * @param partial true if partial snapshots should be allowed
-         * @return this request
-         */
-        public SnapshotRequest partial(boolean partial) {
-            this.partial = partial;
-            return this;
-        }
-
-        /**
-         * Returns cause for snapshot operation
-         *
-         * @return cause for snapshot operation
-         */
-        public String cause() {
-            return cause;
-        }
-
-        /**
-         * Returns the repository name
-         */
-        public String repositoryName() {
-            return repositoryName;
-        }
-
-        /**
-         * Returns the snapshot name
-         */
-        public String snapshotName() {
-            return snapshotName;
-        }
-
-        /**
-         * Returns the list of indices to be snapshotted
-         *
-         * @return the list of indices
-         */
-        public String[] indices() {
-            return indices;
-        }
-
-        /**
-         * Returns indices options
-         *
-         * @return indices options
-         */
-        public IndicesOptions indicesOptions() {
-            return indicesOptions;
-        }
-
-        /**
-         * Returns repository-specific settings for the snapshot operation
-         *
-         * @return repository-specific settings
-         */
-        public Settings settings() {
-            return settings;
-        }
-
-        /**
-         * Returns true if global state should be stored as part of the snapshot
-         *
-         * @return true if global state should be stored as part of the snapshot
-         */
-        public boolean includeGlobalState() {
-            return includeGlobalState;
-        }
-
-        /**
-         * Returns true if partial snapshot should be allowed
-         *
-         * @return true if partial snapshot should be allowed
-         */
-        public boolean partial() {
-            return partial;
-        }
-
-        /**
-         * Returns master node timeout
-         *
-         * @return master node timeout
-         */
-        public TimeValue masterNodeTimeout() {
-            return masterNodeTimeout;
-        }
-
-    }
 }
-

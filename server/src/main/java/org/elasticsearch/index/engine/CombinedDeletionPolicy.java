@@ -202,6 +202,13 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     /**
+     * Checks whether the deletion policy is holding on to snapshotted commits
+     */
+    synchronized boolean hasSnapshottedCommits() {
+        return snapshottedCommits.isEmpty() == false;
+    }
+
+    /**
      * Checks if the deletion policy can release some index commits with the latest global checkpoint.
      */
     boolean hasUnreferencedCommits() throws IOException {

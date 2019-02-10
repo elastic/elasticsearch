@@ -1101,6 +1101,12 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine.getTranslog();
     }
 
+    public static boolean hasSnapshottedCommits(Engine engine) {
+        assert engine instanceof InternalEngine : "only InternalEngines have snapshotted commits, got: " + engine.getClass();
+        InternalEngine internalEngine = (InternalEngine) engine;
+        return internalEngine.hasSnapshottedCommits();
+    }
+
     public static final class PrimaryTermSupplier implements LongSupplier {
         private final AtomicLong term;
 

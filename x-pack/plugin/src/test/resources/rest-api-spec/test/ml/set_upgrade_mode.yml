@@ -6,6 +6,10 @@ setup:
       indices.create:
         index: airline-data
         body:
+          settings:
+            index:
+              number_of_replicas: 0
+              number_of_shards: 1
           mappings:
             properties:
               time:
@@ -53,10 +57,9 @@ setup:
         job_id: set-upgrade-mode-job
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      ml.start_datafeed:
-        datafeed_id: set-upgrade-mode-job-datafeed
+      cluster.health:
+        index: airline-data
+        wait_for_status: green
 
 ---
 teardown:
@@ -70,6 +73,10 @@ teardown:
 
 ---
 "Test setting upgrade_mode to false when it is already false":
+  - do:
+      ml.start_datafeed:
+        datafeed_id: set-upgrade-mode-job-datafeed
+
   - do:
       ml.set_upgrade_mode:
         enabled: false
@@ -92,6 +99,22 @@ teardown:
 
 ---
 "Setting upgrade_mode to enabled":
+  - do:
+      ml.start_datafeed:
+        datafeed_id: set-upgrade-mode-job-datafeed
+
+  - do:
+      cat.tasks: {}
+  - match:
+      $body: |
+        /.+job.+/
+
+  - do:
+      cat.tasks: {}
+  - match:
+      $body: |
+        /.+datafeed.+/
+
   - do:
       ml.info: {}
   - match: { upgrade_mode: false }
@@ -125,6 +148,22 @@ teardown:
 
 ---
 "Setting upgrade mode to disabled from enabled":
+  - do:
+      ml.start_datafeed:
+        datafeed_id: set-upgrade-mode-job-datafeed
+
+  - do:
+      cat.tasks: {}
+  - match:
+      $body: |
+        /.+job.+/
+
+  - do:
+      cat.tasks: {}
+  - match:
+      $body: |
+        /.+datafeed.+/
+
   - do:
       ml.set_upgrade_mode:
         enabled: true

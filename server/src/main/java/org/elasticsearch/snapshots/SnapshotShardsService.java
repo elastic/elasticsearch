@@ -67,10 +67,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestDeduplicator;
-import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -285,12 +284,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             notifyFailedSnapshotShard(snapshot, shard.key, lastSnapshotStatus.getFailure());
                         }
                     } else {
-                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> curr : entry.shards()) {
-                            // due to CS batching we might have missed the INIT state and straight went into ABORTED
-                            // notify master that abort has completed by moving to FAILED
-                            if (curr.value.state() == State.ABORTED) {
-                                notifyFailedSnapshotShard(snapshot, curr.key, curr.value.reason());
-                            }
+                        // due to CS batching we might have missed the INIT state and straight went into ABORTED
+                        // notify master that abort has completed by moving to FAILED
+                        if (shard.value.state() == State.ABORTED) {
+                            notifyFailedSnapshotShard(snapshot, shard.key, shard.value.reason());
                         }
                     }
                 }
@@ -508,15 +505,27 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 }
             },
             (req, reqListener) -> transportService.sendRequest(transportService.getLocalNode(), UPDATE_SNAPSHOT_STATUS_ACTION_NAME, req,
-                new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                new TransportResponseHandler<UpdateIndexShardSnapshotStatusResponse>() {
                     @Override
-                    public void handleResponse(TransportResponse.Empty response) {
+                    public UpdateIndexShardSnapshotStatusResponse read(StreamInput in) throws IOException {
+                        final UpdateIndexShardSnapshotStatusResponse response = new UpdateIndexShardSnapshotStatusResponse();
+                        response.readFrom(in);
+                        return response;
+                    }
+
+                    @Override
+                    public void handleResponse(UpdateIndexShardSnapshotStatusResponse response) {
                         reqListener.onResponse(null);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         reqListener.onFailure(exp);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
                     }
                 })
         );
@@ -582,8 +591,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             // TODO: Add PARTIAL_SUCCESS status?
                             SnapshotsInProgress.Entry updatedEntry = new SnapshotsInProgress.Entry(entry, State.SUCCESS, shards.build());
                             entries.add(updatedEntry);
-                            // Finalize snapshot in the repository
-                            snapshotsService.endSnapshot(updatedEntry);
                         }
                     } else {
                         entries.add(entry);

@@ -12,8 +12,6 @@
 [partintro]
 --
 
-beta[]
-
 X-Pack includes a SQL feature to execute SQL against Elasticsearch
 indices and return results in tabular format.
 

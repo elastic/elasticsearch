@@ -26,14 +26,14 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRespon
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequest, GetWatchResponse> {
 
@@ -62,7 +62,7 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
                             // When we return the watch via the Get Watch REST API, we want to return the watch as was specified in
                             // the put api, we don't include the status in the watch source itself, but as a separate top level field,
                             // so that it indicates the the status is managed by watcher itself.
-                            DateTime now = new DateTime(clock.millis(), UTC);
+                            ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
                             Watch watch = parser.parseWithSecrets(request.getId(), true, getResponse.getSourceAsBytesRef(), now,
                                     XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());
                             watch.toXContent(builder, WatcherParams.builder()

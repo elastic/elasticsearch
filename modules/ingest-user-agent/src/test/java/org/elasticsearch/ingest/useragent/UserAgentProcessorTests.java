@@ -110,9 +110,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         os.put("version", "10.9.2");
         os.put("full", "Mac OS X 10.9.2");
         assertThat(target.get("os"), is(os));
-        Map<String, String> device = new HashMap<>();
-        device.put("name", "Other");
-        assertThat(target.get("device"), is(device));
+        assertThat(target.get("device"), is("Other"));
     }
 
     @SuppressWarnings("unchecked")
@@ -138,9 +136,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         os.put("full", "Android 3.0");
         assertThat(target.get("os"), is(os));
 
-        Map<String, String> device = new HashMap<>();
-        device.put("name", "Motorola Xoom");
-        assertThat(target.get("device"), is(device));
+        assertThat(target.get("device"), is("Motorola Xoom"));
     }
 
     @SuppressWarnings("unchecked")
@@ -161,9 +157,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         assertNull(target.get("version"));
         assertNull(target.get("os"));
 
-        Map<String, String> device = new HashMap<>();
-        device.put("name", "Spider");
-        assertThat(target.get("device"), is(device));
+        assertThat(target.get("device"), is("Spider"));
     }
 
     @SuppressWarnings("unchecked")
@@ -186,8 +180,7 @@ public class UserAgentProcessorTests extends ESTestCase {
         assertNull(target.get("build"));
 
         assertNull(target.get("os"));
-        Map<String, String> device = new HashMap<>();
-        device.put("name", "Other");
-        assertThat(target.get("device"), is(device));
+
+        assertThat(target.get("device"), is("Other"));
     }
 }

@@ -489,7 +489,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 .indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
             try {
                 docs.put(shardRouting.shardId().id(), IndexShardTestCase.getDocIdAndSeqNos(indexShard).stream()
-                    .map(d -> new DocIdSeqNoAndTerm(d.getId(), d.getSeqNo(), 1L))  // normalize primary term as the follower use its own term
+                    // normalize primary term as the follower use its own term
+                    .map(d -> new DocIdSeqNoAndTerm(d.getId(), d.getSeqNo(), 1L))
                     .collect(Collectors.toList()));
             } catch (AlreadyClosedException e) {
                 // Ignore this exception and try getting List<DocIdSeqNoAndTerm> from other IndexShard instance.

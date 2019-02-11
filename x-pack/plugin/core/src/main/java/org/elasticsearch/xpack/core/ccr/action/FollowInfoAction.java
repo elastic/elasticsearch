@@ -191,7 +191,7 @@ public class FollowInfoAction extends Action<FollowInfoAction.Request, FollowInf
                 remoteCluster = in.readString();
                 leaderIndex = in.readString();
                 status = Status.fromString(in.readString());
-                parameters = in.readOptionalWriteable(innerIn -> new FollowParameters(in));
+                parameters = in.readOptionalWriteable(FollowParameters::new);
             }
 
             @Override

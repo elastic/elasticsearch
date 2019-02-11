@@ -262,7 +262,7 @@ subprojects {
   unitTest.enabled = false // no unit tests for full cluster restarts, only the rest integration test
 
   // basic integ tests includes testing bwc against the most recent version
-  task integTest {
+  task bwcTestSnapshots {
     if (project.bwc_tests_enabled) {
       for (final def version : bwcVersions.unreleasedIndexCompatible) {
         dependsOn "v${version}#bwcTest"
@@ -270,7 +270,7 @@ subprojects {
     }
   }
 
-  check.dependsOn(integTest)
+  check.dependsOn(bwcTestSnapshots)
 
   dependencies {
       // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here

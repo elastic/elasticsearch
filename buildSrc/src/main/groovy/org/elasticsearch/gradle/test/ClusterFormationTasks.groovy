@@ -350,14 +350,15 @@ class ClusterFormationTasks {
           the elasticsearch source tree then this should be the version of elasticsearch built by the source tree.
           If it isn't then Bad Things(TM) will happen. */
         Task extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
-            if (getOs().equals("windows")) {
-                from {
+            from {
+                File archiveFile = configuration.singleFile
+                if (archiveFile.getName().endsWith("zip")) {
                     project.zipTree(configuration.singleFile)
-                }
-            } else {
-                // macos and linux use tar
-                from {
+                } else if (archiveFile.getName().endsWith("tar.gz")) {
+                    // macos and linux use tar
                     project.tarTree(project.resources.gzip(configuration.singleFile))
+                } else {
+                    throw new GradleException("Archive file ")
                 }
             }
             into node.baseDir

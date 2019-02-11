@@ -14,26 +14,22 @@ setup:
                 settings:
                     number_of_shards: 2
                 mappings:
-                    _doc:
-                        properties:
-                            dval:
-                                type: double
+                    properties:
+                        dval:
+                            type: double
     - do:
         index:
             index: test
-            type: _doc
             id: d1
             body: {"dval": 10}
     - do:
         index:
             index: test
-            type: _doc
             id: d2
             body: {"dval": 100}
     - do:
         index:
             index: test
-            type: _doc
             id: d3
             body: {"dval": 1000}
 
@@ -225,10 +221,9 @@ setup:
                 settings:
                     number_of_shards: 1
                 mappings:
-                    _doc:
-                        properties:
-                            date:
-                                type: date
+                    properties:
+                        date:
+                            type: date
     - do:
         index:
             index: test
@@ -309,16 +304,15 @@ setup:
                 settings:
                     number_of_shards: 1
                 mappings:
-                    _doc:
-                        properties:
-                            ival:
-                                type: integer
-                            lval:
-                                type: long
-                            fval:
-                                type: float
-                            dval:
-                                type: double
+                    properties:
+                        ival:
+                            type: integer
+                        lval:
+                            type: long
+                        fval:
+                            type: float
+                        dval:
+                            type: double
 
     - do:
         index:

@@ -17,12 +17,15 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
+import org.hamcrest.Matcher;
 
+import java.time.ZonedDateTime;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -149,6 +152,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38693")
     public void testThatHistoryContainsStatus() throws Exception {
         watcherClient().preparePutWatch("test_watch")
                 .setSource(watchBuilder()
@@ -172,10 +176,10 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertThat(active, is(status.state().isActive()));
 
         String timestamp = source.getValue("status.state.timestamp");
-        assertThat(timestamp, is(status.state().getTimestamp().toString()));
+        assertThat(timestamp, isSameDate(status.state().getTimestamp()));
 
         String lastChecked = source.getValue("status.last_checked");
-        assertThat(lastChecked, is(status.lastChecked().toString()));
+        assertThat(lastChecked, isSameDate(status.lastChecked()));
 
         Integer version = source.getValue("status.version");
         int expectedVersion = (int) (status.version() - 1);
@@ -195,5 +199,15 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertThat(mappingSource.getValue("doc.properties.status.enabled"), is(false));
         assertThat(mappingSource.getValue("doc.properties.status.properties.status"), is(nullValue()));
         assertThat(mappingSource.getValue("doc.properties.status.properties.status.properties.active"), is(nullValue()));
+    }
+
+
+    private Matcher<String> isSameDate(ZonedDateTime zonedDateTime) {
+        /*
+        When comparing timestamps returned from _search/.watcher-history* the same format of date has to be used
+        during serialisation to json on index time.
+        The toString of ZonedDateTime is omitting the millisecond part when is 0. This was not the case in joda.
+         */
+        return is(WatcherDateTimeUtils.formatDate(zonedDateTime));
     }
 }

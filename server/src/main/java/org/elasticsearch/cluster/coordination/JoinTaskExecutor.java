@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 
@@ -191,7 +190,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // or removed by us above
         ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(ClusterBlocks.builder()
             .blocks(currentState.blocks())
-            .removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID))
+            .removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
             .minimumMasterNodesOnPublishingMaster(minimumMasterNodesOnLocalNode)
             .build();
         logger.trace("becomeMasterAndTrimConflictingNodes: {}", tmpState.nodes());

@@ -1,0 +1,51 @@
+--
+:api: get-mappings
+:request: GetMappingsRequest
+:response: GetMappingsResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Mappings API
+
+[id="{upid}-{api}-request"]
+==== Get Mappings Request
+
+A +{request}+ can have an optional list of indices:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> An empty request that will return all indices
+<2> Setting the indices to fetch mapping for
+
+==== Optional arguments
+The following arguments can also optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
+--------------------------------------------------
+<1> Options for expanding indices names
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Mappings Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Returning all indices' mappings
+<2> Retrieving the mappings for a particular index
+<3> Getting the mappings as a Java Map

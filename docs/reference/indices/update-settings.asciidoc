@@ -1,0 +1,119 @@
+[[indices-update-settings]]
+== Update Indices Settings
+
+Change specific index level settings in real time.
+
+The REST endpoint is `/_settings` (to update all indices) or
+`{index}/_settings` to update one (or more) indices settings.
+The body of the request includes the updated settings, for example:
+
+[source,js]
+--------------------------------------------------
+PUT /twitter/_settings
+{
+    "index" : {
+        "number_of_replicas" : 2
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+To reset a setting back to the default value, use `null`. For example:
+
+[source,js]
+--------------------------------------------------
+PUT /twitter/_settings
+{
+    "index" : {
+        "refresh_interval" : null
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+The list of per-index settings which can be updated dynamically on live
+indices can be found in <<index-modules>>.
+To preserve existing settings from being updated, the `preserve_existing`
+request parameter can be set to `true`.
+
+[float]
+[[bulk]]
+=== Bulk Indexing Usage
+
+For example, the update settings API can be used to dynamically change
+the index from being more performant for bulk indexing, and then move it
+to more real time indexing state. Before the bulk indexing is started,
+use:
+
+[source,js]
+--------------------------------------------------
+PUT /twitter/_settings
+{
+    "index" : {
+        "refresh_interval" : "-1"
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+(Another optimization option is to start the index without any replicas,
+and only later adding them, but that really depends on the use case).
+
+Then, once bulk indexing is done, the settings can be updated (back to
+the defaults for example):
+
+[source,js]
+--------------------------------------------------
+PUT /twitter/_settings
+{
+    "index" : {
+        "refresh_interval" : "1s"
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+And, a force merge should be called:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_forcemerge?max_num_segments=5
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[float]
+[[update-settings-analysis]]
+=== Updating Index Analysis
+
+It is also possible to define new <<analysis,analyzers>> for the index.
+But it is required to <<indices-open-close,close>> the index
+first and <<indices-open-close,open>> it after the changes are made.
+
+For example if `content` analyzer hasn't been defined on `myindex` yet
+you can use the following commands to add it:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_close
+
+PUT /twitter/_settings
+{
+  "analysis" : {
+    "analyzer":{
+      "content":{
+        "type":"custom",
+        "tokenizer":"whitespace"
+      }
+    }
+  }
+}
+
+POST /twitter/_open
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]

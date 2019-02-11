@@ -1,0 +1,17 @@
+[[indices-exists]]
+== Indices Exists
+
+Used to check if the index (indices) exists or not. For example:
+
+[source,js]
+--------------------------------------------------
+HEAD twitter
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+The HTTP status code indicates if the index exists or not. A `404` means
+it does not exist, and `200` means it does.
+
+IMPORTANT: This request does not distinguish between an index and an alias,
+i.e. status code `200` is also returned if an alias exists with that name.

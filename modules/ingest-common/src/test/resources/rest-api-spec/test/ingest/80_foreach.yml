@@ -1,0 +1,47 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test foreach Processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "foreach" : {
+                  "field" : "values",
+                  "processor" : {
+                      "uppercase" : {
+                        "field" : "_ingest._value"
+                      }
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: >
+          {
+            "values": ["foo", "bar", "baz"]
+          }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.values: ["FOO", "BAR", "BAZ"] }

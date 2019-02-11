@@ -1,0 +1,78 @@
+[[mapping-fields]]
+== Meta-Fields
+
+Each document has metadata associated with it, such as the `_index`, mapping
+<<mapping-type-field,`_type`>>, and `_id` meta-fields.  The behaviour of some of these meta-fields
+can be customised when a mapping type is created.
+
+[float]
+=== Identity meta-fields
+
+[horizontal]
+<<mapping-index-field,`_index`>>::
+
+    The index to which the document belongs.
+
+<<mapping-type-field,`_type`>>::
+
+    The document's <<mapping-type,mapping type>>.
+
+<<mapping-id-field,`_id`>>::
+
+    The document's ID.
+
+[float]
+=== Document source meta-fields
+
+<<mapping-source-field,`_source`>>::
+
+    The original JSON representing the body of the document.
+
+{plugins}/mapper-size.html[`_size`]::
+
+    The size of the `_source` field in bytes, provided by the
+    {plugins}/mapper-size.html[`mapper-size` plugin].
+
+[float]
+=== Indexing meta-fields
+
+<<mapping-field-names-field,`_field_names`>>::
+
+    All fields in the document which contain non-null values.
+
+<<mapping-ignored-field,`_ignored`>>::
+
+    All fields in the document that have been ignored at index time because of
+    <<ignore-malformed,`ignore_malformed`>>.
+
+[float]
+=== Routing meta-field
+
+<<mapping-routing-field,`_routing`>>::
+
+    A custom routing value which routes a document to a particular shard.
+
+[float]
+=== Other meta-field
+
+<<mapping-meta-field,`_meta`>>::
+
+    Application specific metadata.
+
+
+include::fields/field-names-field.asciidoc[]
+
+include::fields/ignored-field.asciidoc[]
+
+include::fields/id-field.asciidoc[]
+
+include::fields/index-field.asciidoc[]
+
+include::fields/meta-field.asciidoc[]
+
+include::fields/routing-field.asciidoc[]
+
+include::fields/source-field.asciidoc[]
+
+include::fields/type-field.asciidoc[]
+

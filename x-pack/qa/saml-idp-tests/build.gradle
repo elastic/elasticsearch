@@ -1,0 +1,101 @@
+Project idpFixtureProject = xpackProject("test:idp-fixture")
+evaluationDependsOn(idpFixtureProject.path)
+
+apply plugin: 'elasticsearch.vagrantsupport'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    testCompile project(path: xpackModule('core'), configuration: 'default')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+    testCompile 'com.google.jimfs:jimfs:1.1'
+}
+
+task idpFixture {
+    dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", idpFixtureProject.up
+}
+
+String outputDir = "${project.buildDir}/generated-resources/${project.name}"
+task copyIdpCertificate(type: Copy) {
+    from idpFixtureProject.file('src/main/resources/certs/ca.crt');
+    into outputDir
+}
+if (project.rootProject.vagrantSupported) {
+  project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpCertificate)
+  integTestCluster.dependsOn idpFixture, copyIdpCertificate
+  integTest.finalizedBy idpFixtureProject.halt
+} else {
+  integTest.enabled = false
+  testingConventions.enabled = false
+}
+
+integTestCluster {
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.http.ssl.enabled', 'false'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.realms.file.file.order', '0'
+  // SAML realm 1 (no authorization_realms)
+  setting 'xpack.security.authc.realms.saml.shibboleth.order', '1'
+  setting 'xpack.security.authc.realms.saml.shibboleth.idp.entity_id', 'https://test.shibboleth.elastic.local/'
+  setting 'xpack.security.authc.realms.saml.shibboleth.idp.metadata.path', 'idp-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.shibboleth.sp.entity_id', 'http://mock1.http.elastic.local/'
+  // The port in the ACS URL is fake - the test will bind the mock webserver
+  // to a random port and then whenever it needs to connect to a URL on the
+  // mock webserver it will replace 54321 with the real port
+  setting 'xpack.security.authc.realms.saml.shibboleth.sp.acs', 'http://localhost:54321/saml/acs1'
+  setting 'xpack.security.authc.realms.saml.shibboleth.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.saml.shibboleth.attributes.name', 'urn:oid:2.5.4.3'
+  // SAML realm 2 (uses authorization_realms)
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.order', '2'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.entity_id', 'https://test.shibboleth.elastic.local/'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.metadata.path', 'idp-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.entity_id', 'http://mock2.http.elastic.local/'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.acs', 'http://localhost:54321/saml/acs2'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.authorization_realms', 'native'
+  setting 'xpack.security.authc.realms.native.native.order', '3'
+
+  setting 'xpack.ml.enabled', 'false'
+
+  extraConfigFile 'idp-metadata.xml', idpFixtureProject.file("src/main/resources/provision/generated/idp-metadata.xml")
+
+  setupCommand 'setupTestAdmin',
+            'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
+
+  waitCondition = { node, ant ->
+        File tmpFile = new File(node.cwd, 'wait.success')
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+                dest: tmpFile.toString(),
+                username: 'test_admin',
+                password: 'x-pack-test-password',
+                ignoreerrors: true,
+                retries: 10)
+        return tmpFile.exists()
+    }
+}
+
+forbiddenPatterns {
+  exclude '**/*.der'
+  exclude '**/*.p12'
+  exclude '**/*.key'
+}
+
+thirdPartyAudit {
+    ignoreViolations (
+      // uses internal java api: sun.misc.Unsafe
+      'com.google.common.cache.Striped64',
+      'com.google.common.cache.Striped64$1',
+      'com.google.common.cache.Striped64$Cell',
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+   )
+
+   ignoreMissingClasses ( 
+       'com.ibm.icu.lang.UCharacter'
+   )
+}

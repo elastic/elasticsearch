@@ -1,0 +1,96 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+esplugin {
+  description 'Ingest processor that uses Apache Tika to extract contents'
+  classname 'org.elasticsearch.ingest.attachment.IngestAttachmentPlugin'
+}
+
+versions << [
+  'tika': '1.19.1',
+  'pdfbox': '2.0.12',
+  'bouncycastle': '1.59',
+  'poi': '4.0.0',
+  'mime4j': '0.8.2'
+]
+
+dependencies {
+  // mandatory for tika
+  compile "org.apache.tika:tika-core:${versions.tika}"
+  // build against Jackson 2.9.5, but still works on our current version
+  compile "org.apache.tika:tika-parsers:${versions.tika}"
+  compile 'org.tukaani:xz:1.8'
+  compile 'commons-io:commons-io:2.6'
+  compile "org.slf4j:slf4j-api:${versions.slf4j}"
+
+  // character set detection
+  compile 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
+
+  // external parser libraries
+  // HTML
+  compile 'org.ccil.cowan.tagsoup:tagsoup:1.2.1'
+  // Adobe PDF
+  compile "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
+  compile "org.apache.pdfbox:fontbox:${versions.pdfbox}"
+  compile "org.apache.pdfbox:jempbox:1.8.16"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "org.bouncycastle:bcmail-jdk15on:${versions.bouncycastle}"
+  compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  compile "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
+  // OpenOffice
+  compile "org.apache.poi:poi-ooxml:${versions.poi}"
+  compile "org.apache.poi:poi:${versions.poi}"
+  compile "org.apache.poi:poi-ooxml-schemas:${versions.poi}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile 'org.apache.xmlbeans:xmlbeans:3.0.1'
+  compile 'org.apache.commons:commons-collections4:4.1'
+  // MS Office
+  compile "org.apache.poi:poi-scratchpad:${versions.poi}"
+  // Apple iWork
+  compile 'org.apache.commons:commons-compress:1.18'
+  // Outlook documents
+  compile "org.apache.james:apache-mime4j-core:${versions.mime4j}"
+  compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
+}
+
+// TODO: stop using LanguageIdentifier...
+compileJava.options.compilerArgs << "-Xlint:-deprecation"
+
+
+dependencyLicenses {
+  mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
+}
+
+forbiddenPatterns {
+  exclude '**/*.doc'
+  exclude '**/*.docx'
+  exclude '**/*.pdf'
+  exclude '**/*.epub'
+  exclude '**/*.vsdx'
+}
+
+thirdPartyAudit{ 
+    ignoreMissingClasses()
+}
+
+if (project.inFipsJvm) {
+    // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
+    // rather than provide a long list of exclusions, disable the check on FIPS.
+    thirdPartyAudit.enabled = false
+}

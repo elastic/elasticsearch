@@ -1,0 +1,11 @@
+[[java-query-dsl-regexp-query]]
+==== Regexp Query
+
+See {ref}/query-dsl-regexp-query.html[Regexp Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[regexp]
+--------------------------------------------------
+<1> field
+<2> regexp

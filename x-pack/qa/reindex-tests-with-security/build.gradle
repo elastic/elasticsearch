@@ -1,0 +1,104 @@
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.KeyManager
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
+import java.nio.charset.StandardCharsets
+import java.security.KeyStore
+import java.security.SecureRandom
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+  testCompile project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: ':modules:reindex')
+}
+
+forbiddenPatterns {
+    exclude '**/*.key'
+    exclude '**/*.pem'
+    exclude '**/*.p12'
+    exclude '**/*.jks'
+}
+
+File caFile = project.file('src/test/resources/ssl/ca.p12')
+
+integTestCluster {
+  // Whitelist reindexing from the local node so we can test it.
+  extraConfigFile 'http.key', project.projectDir.toPath().resolve('src/test/resources/ssl/http.key')
+  extraConfigFile 'http.crt', project.projectDir.toPath().resolve('src/test/resources/ssl/http.crt')
+  extraConfigFile 'ca.p12', caFile
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
+  setting 'xpack.ilm.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.http.ssl.enabled', 'true'
+  setting 'xpack.security.http.ssl.certificate', 'http.crt'
+  setting 'xpack.security.http.ssl.key', 'http.key'
+  setting 'xpack.security.http.ssl.key_passphrase', 'http-password'
+  setting 'reindex.ssl.truststore.path', 'ca.p12'
+  setting 'reindex.ssl.truststore.password', 'password'
+  extraConfigFile 'roles.yml', 'roles.yml'
+  [
+    test_admin: 'superuser',
+    powerful_user: 'superuser',
+    minimal_user: 'minimal',
+    minimal_with_task_user: 'minimal_with_task',
+    readonly_user: 'readonly',
+    dest_only_user: 'dest_only',
+    can_not_see_hidden_docs_user: 'can_not_see_hidden_docs',
+    can_not_see_hidden_fields_user: 'can_not_see_hidden_fields',
+  ].each { String user, String role ->
+    setupCommand 'setupUser#' + user,
+                 'bin/elasticsearch-users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
+  }
+  waitCondition = { node, ant ->
+    // Load the CA PKCS#12 file as a truststore
+    KeyStore ks = KeyStore.getInstance("PKCS12");
+    ks.load(caFile.newInputStream(), 'password'.toCharArray());
+    TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+    tmf.init(ks);
+
+    // Configre a SSL context for TLS1.2 using our CA trust manager
+    SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+    sslContext.init(new KeyManager[0], tmf.getTrustManagers(), new SecureRandom());
+
+    // Check whether the cluster has started
+    URL url = new URL("https://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}&wait_for_status=yellow");
+    for (int i = 20; i >= 0; i--) {
+      // we use custom wait logic here for HTTPS
+      HttpsURLConnection httpURLConnection = null;
+      try {
+        logger.info("Trying ${url}");
+        httpURLConnection = (HttpsURLConnection) url.openConnection();
+        httpURLConnection.setSSLSocketFactory(sslContext.getSocketFactory());
+        httpURLConnection.setRequestProperty("Authorization",
+          "Basic " + Base64.getEncoder().encodeToString("test_admin:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
+        httpURLConnection.setRequestMethod("GET");
+        httpURLConnection.connect();
+        if (httpURLConnection.getResponseCode() == 200) {
+          logger.info("Cluster has started");
+          return true;
+        } else {
+          logger.debug("HTTP response was [{}]", httpURLConnection.getResponseCode());
+        }
+      } catch (IOException e) {
+          if (i == 0) {
+              logger.error("Failed to call cluster health - " + e)
+          }
+          logger.debug("Call to [{}] threw an exception", url, e)
+      } finally {
+        if (httpURLConnection != null) {
+          httpURLConnection.disconnect();
+        }
+      }
+      // did not start, so wait a bit before trying again
+      Thread.sleep(750L);
+    }
+    return false;
+  }
+}

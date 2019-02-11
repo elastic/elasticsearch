@@ -1,0 +1,11 @@
+[[java-query-dsl-span-containing-query]]
+==== Span Containing Query
+
+See {ref}/query-dsl-span-containing-query.html[Span Containing Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[span_containing]
+--------------------------------------------------
+<1> `big` part
+<2> `little` part

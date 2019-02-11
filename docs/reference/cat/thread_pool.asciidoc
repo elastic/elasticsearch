@@ -1,0 +1,154 @@
+[[cat-thread-pool]]
+== cat thread pool
+
+The `thread_pool` command shows cluster wide thread pool statistics per node. By default the active, queue and rejected
+statistics are returned for all thread pools.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/thread_pool
+--------------------------------------------------
+// CONSOLE
+
+Which looks like:
+
+[source,txt]
+--------------------------------------------------
+node-0 analyze             0 0 0
+...
+node-0 fetch_shard_started 0 0 0
+node-0 fetch_shard_store   0 0 0
+node-0 flush               0 0 0
+...
+node-0 write               0 0 0
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./(node-0 \\S+ 0 0 0\n)*/]
+// TESTRESPONSE[s/\d+/\\d+/ _cat]
+// The substitutions do two things:
+// 1. Expect any number of extra thread pools. This allows us to only list a
+//    few thread pools. The list would be super long otherwise. In addition,
+//    if xpack is installed then the list will contain more thread pools and
+//    this way we don't have to assert about them.
+// 2. Expect any number of active, queued, or rejected items. We really don't
+//    know how many there will be and we just want to assert that there are
+//    numbers in the response, not *which* numbers are there.
+
+The first column is the node name
+
+[source,txt]
+--------------------------------------------------
+node_name
+node-0
+--------------------------------------------------
+
+The second column is the thread pool name
+[source,txt]
+--------------------------------------------------
+name
+analyze
+ccr (default distro only)
+fetch_shard_started
+fetch_shard_store
+flush
+force_merge
+generic
+get
+listener
+management
+ml_autodetect (default distro only)
+ml_datafeed (default distro only)
+ml_utility (default distro only)
+refresh
+rollup_indexing (default distro only)`
+search
+security-token-key (default distro only)
+snapshot
+warmer
+watcher (default distro only)
+write
+--------------------------------------------------
+
+
+The next three columns show the active, queue, and rejected statistics for each thread pool
+
+[source,txt]
+--------------------------------------------------
+active queue rejected
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     1     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+--------------------------------------------------
+
+The cat thread pool API accepts a `thread_pool_patterns` URL parameter for specifying a
+comma-separated list of regular expressions to match thread pool names.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/thread_pool/generic?v&h=id,name,active,rejected,completed
+--------------------------------------------------
+// CONSOLE
+
+which looks like:
+
+[source,txt]
+--------------------------------------------------
+id                     name    active rejected completed
+0EWUhXeBQtaVGlexUeVwMg generic      0        0        70
+--------------------------------------------------
+// TESTRESPONSE[s/0EWUhXeBQtaVGlexUeVwMg/[\\w-]+/ s/\d+/\\d+/ _cat]
+
+Here the host columns and the active, rejected and completed suggest thread pool statistics are displayed.
+
+All <<modules-threadpool,built-in thread pools>> and custom thread pools are available.
+[float]
+==== Thread Pool Fields
+
+For each thread pool, you can load details about it by using the field names
+in the table below.
+
+[cols="<,<,<",options="header"]
+|=======================================================================
+|Field Name |Alias |Description
+|`type` |`t` |The current (*) type of thread pool (`fixed` or `scaling`)
+|`active` |`a` |The number of active threads in the current thread pool
+|`pool_size` |`psz` |The number of threads in the current thread pool
+|`queue` |`q` |The number of tasks in the queue for the current thread pool
+|`queue_size` |`qs` |The maximum number of tasks permitted in the queue for the current thread pool
+|`rejected` |`r` |The number of tasks rejected by the thread pool executor
+|`largest` |`l` |The highest number of active threads in the current thread pool
+|`completed` |`c` |The number of tasks completed by the thread pool executor
+|`core` |`cr` |The configured core number of active threads allowed in the current thread pool
+|`max` |`mx` |The configured maximum number of active threads allowed in the current thread pool
+|`size` |`sz` |The configured fixed number of active threads allowed in the current thread pool
+|`keep_alive` |`k` |The configured keep alive time for threads
+|=======================================================================
+
+[float]
+=== Other Fields
+
+In addition to details about each thread pool, it is also convenient to get an
+understanding of where those thread pools reside. As such, you can request
+other details like the `ip` of the responding node(s).
+
+[cols="<,<,<",options="header"]
+|=======================================================================
+|Field Name |Alias |Description
+|`node_id` |`id` |The unique node ID
+|`ephemeral_id`|`eid` |The ephemeral node ID
+|`pid` |`p` |The process ID of the running node
+|`host` |`h` |The hostname for the current node
+|`ip` |`i` |The IP address for the current node
+|`port` |`po` |The bound transport port for the current node
+|=======================================================================

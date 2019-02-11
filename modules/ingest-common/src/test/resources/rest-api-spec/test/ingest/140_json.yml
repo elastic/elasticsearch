@@ -1,0 +1,73 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test JSON Processor":
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "json" : {
+                  "field" : "foo_object"
+                }
+              },
+              {
+                "json" : {
+                  "field" : "foo_array"
+                }
+              },
+              {
+                "json" : {
+                  "field" : "foo_null"
+                }
+              },
+              {
+                "json" : {
+                  "field" : "foo_string"
+                }
+              },
+              {
+                "json" : {
+                  "field" : "foo_number"
+                }
+              },
+              {
+                "json" : {
+                  "field" : "foo_boolean"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "1"
+        body: {
+          foo_object: "{\"hello\": \"world\"}",
+          foo_array: "[1, 2, 3]",
+          foo_null: null,
+          foo_string: "\"bla bla\"",
+          foo_number: 3,
+          foo_boolean: "true"
+        }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.foo_object.hello: "world" }
+  - match: { _source.foo_array.0: 1 }
+  - match: { _source.foo_string: "bla bla" }
+  - match: { _source.foo_number: 3 }
+  - is_true:  _source.foo_boolean
+  - is_false: _source.foo_null

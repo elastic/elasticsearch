@@ -1,0 +1,37 @@
+[[important-settings]]
+== Important Elasticsearch configuration
+
+While Elasticsearch requires very little configuration, there are a number of
+settings which need to be considered before going into production.
+
+The following settings *must* be considered before going to production:
+
+* <<path-settings,Path settings>>
+* <<cluster.name,Cluster name>>
+* <<node.name,Node name>>
+* <<network.host,Network host>>
+* <<discovery-settings,Discovery settings>>
+* <<heap-size,Heap size>>
+* <<heap-dump-path,Heap dump path>>
+* <<gc-logging,GC logging>>
+* <<es-tmpdir,Temp directory>>
+
+include::important-settings/path-settings.asciidoc[]
+
+include::important-settings/cluster-name.asciidoc[]
+
+include::important-settings/node-name.asciidoc[]
+
+include::important-settings/network-host.asciidoc[]
+
+include::important-settings/discovery-settings.asciidoc[]
+
+include::important-settings/heap-size.asciidoc[]
+
+include::important-settings/heap-dump-path.asciidoc[]
+
+include::important-settings/gc-logging.asciidoc[]
+
+include::important-settings/es-tmpdir.asciidoc[]
+
+include::important-settings/error-file.asciidoc[]

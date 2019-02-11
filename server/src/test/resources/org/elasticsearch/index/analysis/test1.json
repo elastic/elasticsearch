@@ -1,0 +1,42 @@
+{
+    "index":{
+        "analysis":{
+            "tokenizer":{
+                "standard":{
+                    "type":"standard"
+                }
+            },
+            "filter":{
+                "stop":{
+                    "type":"stop",
+                    "stopwords":["test-stop"]
+                },
+                "stop2":{
+                    "type":"stop",
+                    "stopwords":["stop2-1", "stop2-2"]
+                },
+                "my":{
+                    "type":"myfilter"
+                }
+            },
+            "analyzer":{
+                "standard":{
+                    "type":"standard",
+                    "stopwords":["test1", "test2", "test3"]
+                },
+                "custom1":{
+                    "tokenizer":"standard",
+                    "filter":["stop", "stop2"]
+                },
+                "custom4":{
+                    "tokenizer":"standard",
+                    "filter":["my"]
+                },
+                "custom6":{
+                    "tokenizer":"standard",
+                    "position_increment_gap": 256
+                }
+            }
+        }
+    }
+}

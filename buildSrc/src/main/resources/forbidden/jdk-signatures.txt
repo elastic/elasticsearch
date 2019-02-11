@@ -1,0 +1,113 @@
+# Licensed to Elasticsearch under one or more contributor
+# license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright
+# ownership. Elasticsearch licenses this file to you under
+# the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance  with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on
+# an 'AS IS' BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+# either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+@defaultMessage Convert to URI
+java.net.URL#getPath()
+java.net.URL#getFile()
+
+@defaultMessage Usage of getLocalHost is discouraged
+java.net.InetAddress#getLocalHost()
+
+@defaultMessage Use java.nio.file instead of java.io.File API
+java.util.jar.JarFile
+java.util.zip.ZipFile
+java.io.File
+java.io.FileInputStream
+java.io.FileOutputStream
+java.io.PrintStream#<init>(java.lang.String,java.lang.String)
+java.io.PrintWriter#<init>(java.lang.String,java.lang.String)
+java.util.Formatter#<init>(java.lang.String,java.lang.String,java.util.Locale)
+java.io.RandomAccessFile
+java.nio.file.Path#toFile()
+
+@defaultMessage Specify a location for the temp file/directory instead.
+java.nio.file.Files#createTempDirectory(java.lang.String,java.nio.file.attribute.FileAttribute[])
+java.nio.file.Files#createTempFile(java.lang.String,java.lang.String,java.nio.file.attribute.FileAttribute[])
+
+@defaultMessage Don't use java serialization - this can break BWC without noticing it
+java.io.ObjectOutputStream
+java.io.ObjectOutput
+java.io.ObjectInputStream
+java.io.ObjectInput
+
+java.nio.file.Files#isHidden(java.nio.file.Path) @ Dependent on the operating system, use FileSystemUtils.isHidden instead
+
+@defaultMessage Resolve hosts explicitly to the address(es) you want with InetAddress.
+java.net.InetSocketAddress#<init>(java.lang.String,int)
+java.net.Socket#<init>(java.lang.String,int)
+java.net.Socket#<init>(java.lang.String,int,java.net.InetAddress,int)
+
+@defaultMessage Don't bind to wildcard addresses. Be specific.
+java.net.DatagramSocket#<init>()
+java.net.DatagramSocket#<init>(int)
+java.net.InetSocketAddress#<init>(int)
+java.net.MulticastSocket#<init>()
+java.net.MulticastSocket#<init>(int)
+java.net.ServerSocket#<init>(int)
+java.net.ServerSocket#<init>(int,int)
+
+@defaultMessage use NetworkAddress format/formatAddress to print IP or IP+ports
+java.net.InetAddress#toString()
+java.net.InetAddress#getHostAddress()
+java.net.Inet4Address#getHostAddress()
+java.net.Inet6Address#getHostAddress()
+java.net.InetSocketAddress#toString()
+
+@defaultMessage avoid DNS lookups by accident: if you have a valid reason, then @SuppressWarnings with that reason so its completely clear
+java.net.InetAddress#getHostName()
+java.net.InetAddress#getCanonicalHostName()
+
+java.net.InetSocketAddress#getHostName() @ Use getHostString() instead, which avoids a DNS lookup
+
+@defaultMessage Do not violate java's access system
+java.lang.Class#getDeclaredClasses() @ Do not violate java's access system: Use getClasses() instead
+java.lang.Class#getDeclaredConstructor(java.lang.Class[]) @ Do not violate java's access system: Use getConstructor() instead
+java.lang.Class#getDeclaredConstructors() @ Do not violate java's access system: Use getConstructors() instead
+java.lang.Class#getDeclaredField(java.lang.String) @ Do not violate java's access system: Use getField() instead
+java.lang.Class#getDeclaredFields() @ Do not violate java's access system: Use getFields() instead
+java.lang.Class#getDeclaredMethod(java.lang.String, java.lang.Class[]) @ Do not violate java's access system: Use getMethod() instead
+java.lang.Class#getDeclaredMethods() @ Do not violate java's access system: Use getMethods() instead
+java.lang.reflect.AccessibleObject#setAccessible(boolean)
+java.lang.reflect.AccessibleObject#setAccessible(java.lang.reflect.AccessibleObject[], boolean)
+
+@defaultMessage this method needs special permission
+java.lang.Thread#getAllStackTraces()
+
+@defaultMessage Stopping threads explicitly leads to inconsistent states. Use interrupt() instead.
+java.lang.Thread#stop()
+# uncomment when https://github.com/elastic/elasticsearch/issues/31715 is fixed
+# java.lang.Thread#stop(java.lang.Throwable)
+
+@defaultMessage Please do not terminate the application
+java.lang.System#exit(int)
+java.lang.Runtime#exit(int)
+java.lang.Runtime#halt(int)
+
+@defaultMessage Treat system properties as immutable
+java.lang.System#setProperties(java.util.Properties)
+java.lang.System#setProperty(java.lang.String,java.lang.String)
+java.lang.System#clearProperty(java.lang.String)
+java.lang.System#getProperties() @ Use BootstrapInfo.getSystemProperties for a read-only view
+
+@defaultMessage Avoid unchecked warnings by using Collections#empty(List|Map|Set) methods
+java.util.Collections#EMPTY_LIST
+java.util.Collections#EMPTY_MAP
+java.util.Collections#EMPTY_SET
+
+java.util.Collections#shuffle(java.util.List) @ Use java.util.Collections#shuffle(java.util.List, java.util.Random) with a reproducible source of randomness
+
+@defaultMessage Avoid creating FilePermission objects directly, but use FilePermissionUtils instead
+java.io.FilePermission#<init>(java.lang.String,java.lang.String)

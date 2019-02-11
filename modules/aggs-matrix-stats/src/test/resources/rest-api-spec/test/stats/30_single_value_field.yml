@@ -1,0 +1,182 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 3
+            number_of_routing_shards: 3
+          mappings:
+            "properties":
+              "val1":
+                "type": "double"
+              "val2":
+                "type": "double"
+              "val3":
+                "type": "double"
+
+  - do:
+      indices.create:
+        index: unmapped
+        body:
+          settings:
+            number_of_shards: 3
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { "val1": 1.9, "val2": 3.1, "val3": 2.3 }
+  - do:
+      index:
+        index:  test
+        id:     2
+        body:   { "val1": -5.2, "val2": -3.4, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     3
+        body:   { "val1": -5.2, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     4
+        body:   { "val1": 18.3, "val2": 104.4, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     5
+        body:   { "val1": -53.2, "val2": -322.4, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     6
+        body:   { "val1": -578.9, "val2": 69.9, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     7
+        body:   { "val1": 16.2, "val2": 17.2, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     8
+        body:   { "val1": -4222.63, "val2": 316.44, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     9
+        body:   { "val1": -59999.55, "val2": -3163.4, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     10
+        body:   { "val1": 782.7, "val2": 789.7, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     11
+        body:   { "val1": -1.2, "val2": 6.3, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     12
+        body:   { "val1": 0, "val2": 1.11, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     13
+        body:   { "val1": 0.1, "val2": 0.92, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     14
+        body:   { "val1": 0.12, "val2": -82.4, "val3": 2.3}
+  - do:
+      index:
+        index:  test
+        id:     15
+        body:   { "val1": 98.2, "val2": 32.4, "val3": 2.3}
+
+  - do:
+      indices.refresh:
+        index: [test, unmapped]
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Unmapped":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: unmapped
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"]} } } }
+
+  - match: {hits.total: 0}
+  - match: {aggregations.mfs.doc_count: 0}
+
+---
+"Single value field":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val3"]} } } }
+
+  - match: {hits.total: 15}
+  - match: {aggregations.mfs.doc_count: 15}
+  - match: {aggregations.mfs.fields.0.count: 15}
+
+---
+"Partially unmapped":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: [test, unmapped]
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"]} } } }
+
+  - match: {hits.total: 15}
+  - match: {aggregations.mfs.doc_count: 14}
+  - match: {aggregations.mfs.fields.0.count: 14}
+  - match: {aggregations.mfs.fields.2.correlation.val2: 0.9569513137793205}
+
+---
+"Partially unmapped with missing default":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: [test, unmapped]
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"], "missing" : {"val2" : 10} } } } }
+
+  - match: {hits.total: 15}
+  - match: {aggregations.mfs.doc_count: 15}
+  - match: {aggregations.mfs.fields.0.count: 15}
+  - match: {aggregations.mfs.fields.2.correlation.val2: 0.9567970467908384}
+
+---
+"With script":
+
+  - do:
+      catch: /parsing_exception/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2"], "script" : { "my_script" : {"source" : "1 + doc['val1'].value", "lang" : "js"} } } } } }
+
+---
+"With script params":
+
+  - do:
+      catch: /parsing_exception/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"], "script" : { "my_script" : {"source" : "my_var + doc['val1'].value", "params" : { "my_var" : 1 }, "lang" : "js" } } } } } }

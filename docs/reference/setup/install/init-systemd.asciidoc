@@ -1,0 +1,10 @@
+Elasticsearch is not started automatically after installation. How to start
+and stop Elasticsearch depends on whether your system uses SysV `init` or
+`systemd` (used by newer distributions).  You can tell which is being used by
+running this command:
+
+[source,sh]
+--------------------------------------------
+ps -p 1
+--------------------------------------------
+

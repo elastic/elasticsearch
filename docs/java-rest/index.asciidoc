@@ -1,0 +1,10 @@
+[[java-rest]]
+= Java REST Client
+
+include::../Versions.asciidoc[]
+
+include::overview.asciidoc[]
+
+include::low-level/index.asciidoc[]
+
+include::high-level/index.asciidoc[]

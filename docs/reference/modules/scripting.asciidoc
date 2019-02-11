@@ -1,0 +1,82 @@
+[[modules-scripting]]
+== Scripting
+
+The scripting module enables you to use scripts to evaluate custom
+expressions. For example, you could use a script to return "script fields"
+as part of a search request or evaluate a custom score for a query.
+
+The default scripting language is <<modules-scripting-painless, `Painless`>>.
+Additional `lang` plugins enable you to run scripts written in other languages.
+Everywhere a script can be used, you can include a `lang` parameter
+to specify the language of the script.
+
+[float]
+=== General-purpose languages:
+
+These languages can be used for any purpose in the scripting APIs,
+and give the most flexibility.
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Language
+    |Sandboxed
+    |Required plugin
+
+|<<modules-scripting-painless, `painless`>>
+    |yes
+    |built-in
+
+|=======================================================================
+
+[float]
+=== Special-purpose languages:
+
+These languages are less flexible, but typically have higher performance for
+certain tasks.
+
+[cols="<,<,<,<",options="header",]
+|=======================================================================
+|Language
+    |Sandboxed
+    |Required plugin
+    |Purpose
+
+|<<modules-scripting-expression, `expression`>>
+    |yes
+    |built-in
+    |fast custom ranking and sorting
+
+|<<search-template, `mustache`>>
+    |yes
+    |built-in
+    |templates
+
+|<<modules-scripting-engine, `java`>>
+    |n/a
+    |you write it!
+    |expert API
+
+|=======================================================================
+
+[WARNING]
+.Scripts and security
+=================================================
+
+Languages that are sandboxed are designed with security in mind. However, non-
+sandboxed languages can be a security issue, please read
+<<modules-scripting-security, Scripting and security>> for more details.
+
+=================================================
+
+
+include::scripting/using.asciidoc[]
+
+include::scripting/fields.asciidoc[]
+
+include::scripting/security.asciidoc[]
+
+include::scripting/painless.asciidoc[]
+
+include::scripting/expression.asciidoc[]
+
+include::scripting/engine.asciidoc[]

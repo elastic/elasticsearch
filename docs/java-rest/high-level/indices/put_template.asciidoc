@@ -1,0 +1,132 @@
+--
+:api: put-template
+:request: PutIndexTemplateRequest
+:response: PutIndexTemplateResponse
+--
+
+[id="{upid}-{api}"]
+=== Put Template API
+
+[id="{upid}-{api}-request"]
+==== Put Index Template Request
+
+A +{request}+ specifies the `name` of a template and `patterns`
+which controls whether the template should be applied to the new index.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of the template
+<2> The patterns of the template
+
+==== Settings
+The settings of the template will be applied to the new index whose name matches the
+template's patterns.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-settings]
+--------------------------------------------------
+<1> Settings for this template
+
+[[java-rest-high-put-template-request-mappings]]
+==== Mappings
+The mapping of the template will be applied to the new index whose name matches the
+template's patterns.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-mappings-json]
+--------------------------------------------------
+<1> The mapping, provided as a JSON string
+
+The mapping source can be provided in different ways in addition to the
+`String` example shown above:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-mappings-map]
+--------------------------------------------------
+<1> Mapping source provided as a `Map` which gets automatically converted
+to JSON format
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-mappings-xcontent]
+--------------------------------------------------
+<1> Mapping source provided as an `XContentBuilder` object, the Elasticsearch
+built-in helpers to generate JSON content
+
+==== Aliases
+The aliases of the template will define aliasing to the index whose name matches the
+template's patterns. A placeholder `{index}` can be used in an alias of a template.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-aliases]
+--------------------------------------------------
+<1> The alias to define
+<2> The alias to define with placeholder
+
+==== Order
+In case multiple templates match an index, the orders of matching templates determine
+the sequence that settings, mappings, and alias of each matching template is applied.
+Templates with lower orders are applied first, and higher orders override them.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-order]
+--------------------------------------------------
+<1> The order of the template
+
+==== Version
+A template can optionally specify a version number which can be used to simplify template
+management by external systems.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-version]
+--------------------------------------------------
+<1> The version number of the template
+
+==== Providing the whole source
+The whole source including all of its sections (mappings, settings and aliases)
+can also be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-whole-source]
+--------------------------------------------------
+<1> The source provided as a JSON string. It can also be provided as a `Map`
+or an `XContentBuilder`.
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-create]
+--------------------------------------------------
+<1> To force to only create a new template; do not overwrite the existing template
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Put Index Template Response
+
+The returned +{response}+ allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request

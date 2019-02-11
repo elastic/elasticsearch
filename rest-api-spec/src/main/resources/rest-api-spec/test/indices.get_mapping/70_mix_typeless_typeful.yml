@@ -1,0 +1,23 @@
+---
+"GET mapping with typeless API on an index that has types":
+
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
+ - do:
+      indices.create: # not using include_type_name: false on purpose
+          include_type_name: true
+          index: index
+          body:
+              mappings:
+                  not_doc:
+                      properties:
+                          foo:
+                              type: "keyword"
+
+ - do:
+      indices.get_mapping:
+          index: index
+
+ - match: { index.mappings.properties.foo.type: "keyword" }

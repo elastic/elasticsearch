@@ -1,0 +1,181 @@
+[[indices-create-index]]
+== Create Index
+
+The Create Index API is used to manually create an index in Elasticsearch.  All documents in Elasticsearch
+are stored inside of one index or another.
+
+The most basic command is the following:
+
+[source,js]
+--------------------------------------------------
+PUT twitter
+--------------------------------------------------
+// CONSOLE
+
+This create an index named `twitter` with all default setting.
+
+[NOTE]
+.Index name limitations
+======================================================
+There are several limitations to what you can name your index.  The complete list of limitations are:
+
+- Lowercase only
+- Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` ` (space character), `,`, `#`
+- Indices prior to 7.0 could contain a colon (`:`), but that's been deprecated and won't be supported in 7.0+
+- Cannot start with `-`, `_`, `+`
+- Cannot be `.` or `..`
+- Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters will count towards the 255 limit faster)
+
+======================================================
+
+[float]
+[[create-index-settings]]
+=== Index Settings
+
+Each index created can have specific settings
+associated with it, defined in the body:
+
+[source,js]
+--------------------------------------------------
+PUT twitter
+{
+    "settings" : {
+        "index" : {
+            "number_of_shards" : 3, <1>
+            "number_of_replicas" : 2 <2>
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+<1> Default for `number_of_shards` is 1
+<2> Default for `number_of_replicas` is 1 (ie one replica for each primary shard)
+
+or more simplified
+
+[source,js]
+--------------------------------------------------
+PUT twitter
+{
+    "settings" : {
+        "number_of_shards" : 3,
+        "number_of_replicas" : 2
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[NOTE]
+You do not have to explicitly specify `index` section inside the
+`settings` section.
+
+For more information regarding all the different index level settings
+that can be set when creating an index, please check the
+<<index-modules,index modules>> section.
+
+
+[float]
+[[mappings]]
+=== Mappings
+
+The create index API allows for providing a mapping definition:
+
+[source,js]
+--------------------------------------------------
+PUT test
+{
+    "settings" : {
+        "number_of_shards" : 1
+    },
+    "mappings" : {
+        "properties" : {
+            "field1" : { "type" : "text" }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although specifying
+types in requests is now deprecated, a type can still be provided if the request parameter
+include_type_name is set. For more details, please see <<removal-of-types>>.
+
+[float]
+[[create-index-aliases]]
+=== Aliases
+
+The create index API allows also to provide a set of <<indices-aliases,aliases>>:
+
+[source,js]
+--------------------------------------------------
+PUT test
+{
+    "aliases" : {
+        "alias_1" : {},
+        "alias_2" : {
+            "filter" : {
+                "term" : {"user" : "kimchy" }
+            },
+            "routing" : "kimchy"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
+[[create-index-wait-for-active-shards]]
+=== Wait For Active Shards
+
+By default, index creation will only return a response to the client when the primary copies of
+each shard have been started, or the request times out. The index creation response will indicate
+what happened:
+
+[source,js]
+--------------------------------------------------
+{
+    "acknowledged": true,
+    "shards_acknowledged": true,
+    "index": "test"
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+`acknowledged` indicates whether the index was successfully created in the cluster, while
+`shards_acknowledged` indicates whether the requisite number of shard copies were started for
+each shard in the index before timing out. Note that it is still possible for either
+`acknowledged` or `shards_acknowledged` to be `false`, but the index creation was successful.
+These values simply indicate whether the operation completed before the timeout. If
+`acknowledged` is `false`, then we timed out before the cluster state was updated with the
+newly created index, but it probably will be created sometime soon. If `shards_acknowledged`
+is `false`, then we timed out before the requisite number of shards were started (by default
+just the primaries), even if the cluster state was successfully updated to reflect the newly
+created index (i.e. `acknowledged=true`).
+
+We can change the default of only waiting for the primary shards to start through the index
+setting `index.write.wait_for_active_shards` (note that changing this setting will also affect
+the `wait_for_active_shards` value on all subsequent write operations):
+
+[source,js]
+--------------------------------------------------
+PUT test
+{
+    "settings": {
+        "index.write.wait_for_active_shards": "2"
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:requires two nodes]
+
+or through the request parameter `wait_for_active_shards`:
+
+[source,js]
+--------------------------------------------------
+PUT test?wait_for_active_shards=2
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:requires two nodes]
+
+A detailed explanation of `wait_for_active_shards` and its possible values can be found
+<<index-wait-for-active-shards,here>>.

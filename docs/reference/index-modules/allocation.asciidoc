@@ -1,0 +1,20 @@
+[[index-modules-allocation]]
+== Index Shard Allocation
+
+This module provides per-index settings to control the allocation of shards to
+nodes:
+
+* <<shard-allocation-filtering,Shard allocation filtering>>: Controlling which shards are allocated to which nodes.
+* <<delayed-allocation,Delayed allocation>>: Delaying allocation of unassigned shards caused by a node leaving.
+* <<allocation-total-shards,Total shards per node>>: A hard limit on the number of shards from the same index per node.
+
+include::allocation/filtering.asciidoc[]
+
+include::allocation/delayed.asciidoc[]
+
+include::allocation/prioritization.asciidoc[]
+
+include::allocation/total_shards.asciidoc[]
+
+
+

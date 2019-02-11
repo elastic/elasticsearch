@@ -1,0 +1,18 @@
+[[query-dsl-ids-query]]
+=== Ids Query
+
+Filters documents that only have the provided ids. Note, this query
+uses the <<mapping-id-field,_id>> field.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "ids" : {
+            "values" : ["1", "4", "100"]
+        }
+    }
+}    
+--------------------------------------------------
+// CONSOLE

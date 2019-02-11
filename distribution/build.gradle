@@ -1,0 +1,518 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.ConcatFilesTask
+import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.NoticeTask
+import org.elasticsearch.gradle.test.RunTask
+import org.apache.tools.ant.filters.FixCrLfFilter
+
+import java.nio.file.Files
+import java.nio.file.Path
+
+/*****************************************************************************
+ *                  Third party dependencies report                          *
+ *****************************************************************************/
+
+// Concatenates the dependencies CSV files into a single file
+task generateDependenciesReport(type: ConcatFilesTask) {
+  files = fileTree(dir: project.rootDir,  include: '**/dependencies.csv' )
+  headerLine = "name,version,url,license"
+  target = new File(System.getProperty('csv')?: "${project.buildDir}/reports/dependencies/es-dependencies.csv")
+}
+
+/*****************************************************************************
+ *                                Notice file                                *
+ *****************************************************************************/
+
+// integ test zip only uses server, so a different notice file is needed there
+task buildServerNotice(type: NoticeTask) {
+  licensesDir new File(project(':server').projectDir, 'licenses')
+}
+
+// other distributions include notices from modules as well, which are added below later
+task buildDefaultNotice(type: NoticeTask) {
+  licensesDir new File(project(':server').projectDir, 'licenses')
+}
+
+// other distributions include notices from modules as well, which are added below later
+task buildOssNotice(type: NoticeTask) {
+  licensesDir new File(project(':server').projectDir, 'licenses')
+}
+
+/*****************************************************************************
+ *                                  Modules                                  *
+ *****************************************************************************/
+String ossOutputs = 'build/outputs/oss'
+String defaultOutputs = 'build/outputs/default'
+String transportOutputs = 'build/outputs/transport-only'
+
+task processOssOutputs(type: Sync) {
+  into ossOutputs
+}
+
+task processDefaultOutputs(type: Sync) {
+  into defaultOutputs
+  from processOssOutputs
+}
+
+// Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
+// All transport modules are included so that they may be randomized for testing
+task processTransportOutputs(type: Sync) {
+  into transportOutputs
+}
+
+// these are dummy tasks that can be used to depend on the relevant sub output dir
+task buildOssModules {
+  dependsOn processOssOutputs
+  outputs.dir "${ossOutputs}/modules"
+}
+task buildOssBin {
+  dependsOn processOssOutputs
+  outputs.dir "${ossOutputs}/bin"
+}
+task buildOssConfig {
+  dependsOn processOssOutputs
+  outputs.dir "${ossOutputs}/config"
+}
+task buildDefaultModules {
+  dependsOn processDefaultOutputs
+  outputs.dir "${defaultOutputs}/modules"
+}
+task buildDefaultBin {
+  dependsOn processDefaultOutputs
+  outputs.dir "${defaultOutputs}/bin"
+}
+task buildDefaultConfig {
+  dependsOn processDefaultOutputs
+  outputs.dir "${defaultOutputs}/config"
+}
+task buildTransportModules {
+  dependsOn processTransportOutputs
+  outputs.dir "${transportOutputs}/modules"
+}
+
+void copyModule(Sync copyTask, Project module) {
+  copyTask.configure {
+    dependsOn { module.bundlePlugin }
+    from({ zipTree(module.bundlePlugin.outputs.files.singleFile) }) {
+      includeEmptyDirs false
+
+      // these are handled separately in the log4j config tasks below
+      exclude '*/config/log4j2.properties'
+      exclude 'config/log4j2.properties'
+
+      eachFile { details ->
+        String name = module.plugins.hasPlugin('elasticsearch.esplugin') ? module.esplugin.name : module.es_meta_plugin.name 
+        // Copy all non config/bin files
+        // Note these might be unde a subdirectory in the case of a meta plugin
+        if ((details.relativePath.pathString ==~ /([^\/]+\/)?(config|bin)\/.*/) == false) {
+          details.relativePath = details.relativePath.prepend('modules', name)
+        } else if ((details.relativePath.pathString ==~ /([^\/]+\/)(config|bin)\/.*/)) {
+          // this is the meta plugin case, in which we need to remove the intermediate dir
+          String[] segments = details.relativePath.segments
+          details.relativePath = new RelativePath(true, segments.takeRight(segments.length - 1))
+        }
+      }
+    }
+  }
+}
+
+// log4j config could be contained in modules, so we must join it together using these tasks
+task buildOssLog4jConfig {
+  dependsOn processOssOutputs
+  ext.contents = []
+  ext.log4jFile = file("${ossOutputs}/log4j2.properties")
+  outputs.file log4jFile
+}
+task buildDefaultLog4jConfig {
+  dependsOn processDefaultOutputs
+  ext.contents = []
+  ext.log4jFile = file("${defaultOutputs}/log4j2.properties")
+  outputs.file log4jFile
+}
+
+Closure writeLog4jProperties = {
+  String mainLog4jProperties = file('src/config/log4j2.properties').getText('UTF-8')
+  it.log4jFile.setText(mainLog4jProperties, 'UTF-8')
+  for (String moduleLog4jProperties : it.contents.reverse()) {
+    it.log4jFile.append(moduleLog4jProperties, 'UTF-8')
+  }
+}
+buildOssLog4jConfig.doLast(writeLog4jProperties)
+buildDefaultLog4jConfig.doLast(writeLog4jProperties)
+
+// copy log4j2.properties from modules that have it
+void copyLog4jProperties(Task buildTask, Project module) {
+  buildTask.doFirst {
+    FileTree tree = zipTree(module.bundlePlugin.outputs.files.singleFile)
+    FileTree filtered = tree.matching {
+      include 'config/log4j2.properties'
+      include '*/config/log4j2.properties' // could be in a bundled plugin
+    }
+    if (filtered.isEmpty() == false) {
+      buildTask.contents.add('\n\n' + filtered.singleFile.getText('UTF-8'))
+    }
+  }
+}
+
+ext.restTestExpansions = [
+  'expected.modules.count': 0,
+]
+// we create the buildOssModules task above but fill it here so we can do a single
+// loop over modules to also setup cross task dependencies and increment our modules counter
+project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { Project module ->
+  File licenses = new File(module.projectDir, 'licenses')
+  if (licenses.exists()) {
+    buildDefaultNotice.licensesDir licenses
+    buildOssNotice.licensesDir licenses
+  }
+
+  copyModule(processOssOutputs, module)
+  if (module.name.startsWith('transport-')) {
+    copyModule(processTransportOutputs, module)
+  }
+
+  copyLog4jProperties(buildOssLog4jConfig, module)
+  copyLog4jProperties(buildDefaultLog4jConfig, module)
+
+  // make sure the module's integration tests run after the integ-test-zip (ie rest tests)
+  module.afterEvaluate({
+    module.integTest.mustRunAfter(':distribution:archives:integ-test-zip:integTest')
+  })
+  restTestExpansions['expected.modules.count'] += 1
+}
+
+// use licenses from each of the bundled xpack plugins
+Project xpack = project(':x-pack:plugin')
+xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
+  File licenses = new File(xpackModule.projectDir, 'licenses')
+  if (licenses.exists()) {
+    buildDefaultNotice.licensesDir licenses 
+  }
+  copyModule(processDefaultOutputs, xpackModule)
+  copyLog4jProperties(buildDefaultLog4jConfig, xpackModule)
+}
+
+// make sure we have a clean task since we aren't a java project, but we have tasks that
+// put stuff in the build dir
+task clean(type: Delete) {
+  delete 'build'
+}
+
+configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
+  // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
+  /*****************************************************************************
+   *             Properties to expand when copying packaging files             *
+   *****************************************************************************/
+  project.ext {
+
+    /*****************************************************************************
+     *                   Common files in all distributions                       *
+     *****************************************************************************/
+    libFiles = { oss ->
+      copySpec {
+        // delay by using closures, since they have not yet been configured, so no jar task exists yet
+        from { project(':server').jar }
+        from { project(':server').configurations.runtime }
+        from { project(':libs:plugin-classloader').jar }
+        from { project(':distribution:tools:java-version-checker').jar }
+        from { project(':distribution:tools:launchers').jar }
+        into('tools/plugin-cli') {
+          from { project(':distribution:tools:plugin-cli').jar }
+          from { project(':distribution:tools:plugin-cli').configurations.runtime }
+        }
+        if (oss == false) {
+          into('tools/security-cli') {
+            from { project(':x-pack:plugin:security:cli').jar }
+            from { project(':x-pack:plugin:security:cli').configurations.compile }
+          }
+        }
+      }
+    }
+
+    modulesFiles = { oss ->
+      copySpec {
+        eachFile {
+          if (it.relativePath.segments[-2] == 'bin') {
+            // bin files, wherever they are within modules (eg platform specific) should be executable
+            it.mode = 0755
+          } else {
+            it.mode = 0644
+          }
+        }
+        if (oss) {
+          from project(':distribution').buildOssModules
+        } else {
+          from project(':distribution').buildDefaultModules
+        }
+      }
+    }
+
+    transportModulesFiles = copySpec {
+      from project(':distribution').buildTransportModules
+    }
+
+    configFiles = { distributionType, oss ->
+      copySpec {
+        with copySpec {
+          // main config files, processed with distribution specific substitutions
+          from '../src/config'
+          exclude 'log4j2.properties' // this is handled separately below
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+        }
+        if (oss) {
+          from project(':distribution').buildOssLog4jConfig
+          from project(':distribution').buildOssConfig
+        } else {
+          from project(':distribution').buildDefaultLog4jConfig
+          from project(':distribution').buildDefaultConfig
+        }
+      }
+    }
+
+    binFiles = { distributionType, oss ->
+      copySpec {
+        // non-windows files, for all distributions 
+        with copySpec {
+          from '../src/bin'
+          exclude '*.exe'
+          exclude '*.bat'
+          eachFile { it.setMode(0755) }
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+        }
+        // windows files, only for zip
+        if (distributionType == 'zip') {
+          with copySpec {
+            from '../src/bin'
+            include '*.bat'
+            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+          }
+          with copySpec {
+            from '../src/bin'
+            include '*.exe'
+          }
+        }
+        // module provided bin files
+        with copySpec {
+          eachFile { it.setMode(0755) }
+          if (oss) {
+            from project(':distribution').buildOssBin
+          } else {
+            from project(':distribution').buildDefaultBin
+          }
+          if (distributionType != 'zip') {
+            exclude '*.bat'
+          }
+        }
+      }
+    }
+
+    noticeFile = copySpec {
+      if (project.name == 'integ-test-zip') {
+        from buildServerNotice
+      } else {
+        from buildDefaultNotice
+      }
+    }
+  }
+
+}
+
+task run(type: RunTask) {
+  distribution = System.getProperty('run.distribution', 'default')
+  if (distribution == 'default') {
+    String licenseType = System.getProperty("run.license_type", "basic")
+    if (licenseType == 'trial') {
+      setting 'xpack.ml.enabled', 'true'
+      setting 'xpack.graph.enabled', 'true'
+      setting 'xpack.watcher.enabled', 'true'
+      setting 'xpack.license.self_generated.type', 'trial'
+      setupCommand 'setupTestAdmin',
+        'bin/elasticsearch-users', 'useradd', 'elastic-admin', '-p', 'elastic-password', '-r', 'superuser'
+    } else if (licenseType != 'basic') {
+      throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
+    }
+    setting 'xpack.security.enabled', 'true'
+    setting 'xpack.monitoring.enabled', 'true'
+    setting 'xpack.sql.enabled', 'true'
+    setting 'xpack.rollup.enabled', 'true'
+    keystoreSetting 'bootstrap.password', 'password'
+  }
+}
+
+/**
+ * Build some variables that are replaced in the packages. This includes both
+ * scripts like bin/elasticsearch and bin/elasticsearch-plugin that a user might run and also
+ * scripts like postinst which are run as part of the installation.
+ *
+ * <dl>
+ *  <dt>package.name</dt>
+ *  <dd>The name of the project. Its sprinkled throughout the scripts.</dd>
+ *  <dt>package.version</dt>
+ *  <dd>The version of the project. Its mostly used to find the exact jar name.
+ *    </dt>
+ *  <dt>path.conf</dt>
+ *  <dd>The default directory from which to load configuration. This is used in
+ *    the packaging scripts, but in that context it is always
+ *    /etc/elasticsearch. Its also used in bin/elasticsearch-plugin, where it is
+ *    /etc/elasticsearch for the os packages but $ESHOME/config otherwise.</dd>
+ *  <dt>path.env</dt>
+ *  <dd>The env file sourced before bin/elasticsearch to set environment
+ *    variables. Think /etc/defaults/elasticsearch.</dd>
+ *  <dt>heap.min and heap.max</dt>
+ *  <dd>Default min and max heap</dd>
+ *  <dt>scripts.footer</dt>
+ *  <dd>Footer appended to control scripts embedded in the distribution that is
+ *    (almost) entirely there for cosmetic reasons.</dd>
+ *  <dt>stopping.timeout</dt>
+ *  <dd>RPM's init script needs to wait for elasticsearch to stop before
+ *    returning from stop and it needs a maximum time to wait. This is it. One
+ *    day. DEB retries forever.</dd>
+ * </dl>
+ */
+subprojects {
+  ext.expansionsForDistribution = { distributionType, oss ->
+    final String defaultHeapSize = "1g"
+    final String packagingPathData = "path.data: /var/lib/elasticsearch"
+    final String pathLogs = "/var/log/elasticsearch"
+    final String packagingPathLogs = "path.logs: ${pathLogs}"
+    final String packagingLoggc = "${pathLogs}/gc.log"
+
+    String licenseText
+    if (oss) {
+      licenseText = rootProject.file('licenses/APACHE-LICENSE-2.0.txt').getText('UTF-8')
+    } else {
+      licenseText = rootProject.file('licenses/ELASTIC-LICENSE.txt').getText('UTF-8')
+    }
+    // license text needs to be indented with a single space
+    licenseText = ' ' + licenseText.replace('\n', '\n ') 
+
+    String footer = "# Built for ${project.name}-${project.version} " +
+        "(${distributionType})"
+    Map<String, Object> expansions = [
+      'project.name': project.name,
+      'project.version': version,
+
+      'path.conf': [
+        'deb': '/etc/elasticsearch',
+        'rpm': '/etc/elasticsearch',
+        'def': '"$ES_HOME"/config'
+      ],
+      'path.data': [
+        'deb': packagingPathData,
+        'rpm': packagingPathData,
+        'def': '#path.data: /path/to/data'
+      ],
+      'path.env': [
+        'deb': '/etc/default/elasticsearch',
+        'rpm': '/etc/sysconfig/elasticsearch',
+        /* There isn't one of these files for tar or zip but its important to
+          make an empty string here so the script can properly skip it. */
+        'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
+      ],
+      'source.path.env': [
+         'deb': 'source /etc/default/elasticsearch',
+         'rpm': 'source /etc/sysconfig/elasticsearch',
+         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
+      ],
+      'path.logs': [
+        'deb': packagingPathLogs,
+        'rpm': packagingPathLogs,
+        'def': '#path.logs: /path/to/logs'
+      ],
+      'loggc': [
+        'deb': packagingLoggc,
+        'rpm': packagingLoggc,
+        'def': 'logs/gc.log'
+      ],
+
+      'heap.min': defaultHeapSize,
+      'heap.max': defaultHeapSize,
+
+      'heap.dump.path': [
+        'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
+        'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
+        'def': "-XX:HeapDumpPath=data"
+      ],
+
+      'error.file': [
+        'deb': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
+        'rpm': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
+        'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
+      ],
+
+      'stopping.timeout': [
+        'rpm': 86400,
+      ],
+
+      'scripts.footer': [
+        /* Debian needs exit 0 on these scripts so we add it here and preserve
+          the pretty footer. */
+        'deb': "exit 0\n${footer}",
+        'def': footer
+      ],
+
+      'es.distribution.flavor': [
+        'def': oss ? 'oss' : 'default'
+      ],
+
+
+      'es.distribution.type': [
+        'deb': 'deb',
+        'rpm': 'rpm',
+        'tar': 'tar',
+        'zip': 'zip'
+      ],
+
+      'license.name': [
+        'deb': oss ? 'ASL-2.0' : 'Elastic-License'
+      ],
+
+      'license.text': [
+        'deb': licenseText,
+      ],
+    ]
+    Map<String, String> result = [:]
+    expansions = expansions.each { key, value ->
+      if (value instanceof Map) {
+        // 'def' is for default but its three characters like 'rpm' and 'deb'
+        value = value[distributionType] ?: value['def']
+        if (value == null) {
+          return
+        }
+      }
+      result[key] = value
+    }
+    return result
+  }
+
+  ext.assertLinesInFile =  { Path path, List<String> expectedLines ->
+    final List<String> actualLines = Files.readAllLines(path)
+    int line = 0
+    for (final String expectedLine : expectedLines) {
+      final String actualLine = actualLines.get(line)
+      if (expectedLine != actualLine) {
+        throw new GradleException("expected line [${line + 1}] in [${path}] to be [${expectedLine}] but was [${actualLine}]")
+      }
+      line++
+    }
+  }
+}

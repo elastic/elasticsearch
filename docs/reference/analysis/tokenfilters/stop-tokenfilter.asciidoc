@@ -1,0 +1,81 @@
+[[analysis-stop-tokenfilter]]
+=== Stop Token Filter
+
+A token filter of type `stop` that removes stop words from token
+streams.
+
+The following are settings that can be set for a `stop` token filter
+type:
+
+[horizontal]
+`stopwords`::
+
+    A list of stop words to use. Defaults to `_english_` stop words.
+
+`stopwords_path`::
+
+    A path (either relative to `config` location, or absolute) to a stopwords
+    file configuration. Each stop word should be in its own "line" (separated
+    by a line break). The file must be UTF-8 encoded.
+
+`ignore_case`::
+
+    Set to `true` to lower case all words first. Defaults to `false`.
+
+`remove_trailing`::
+
+    Set to `false` in order to not ignore the last term of a search if it is a
+    stop word. This is very useful for the completion suggester as a query
+    like `green a` can be extended to `green apple` even though you remove
+    stop words in general. Defaults to `true`.
+
+The `stopwords` parameter accepts either an array of stopwords:
+
+[source,js]
+------------------------------------
+PUT /my_index
+{
+    "settings": {
+        "analysis": {
+            "filter": {
+                "my_stop": {
+                    "type":       "stop",
+                    "stopwords": ["and", "is", "the"]
+                }
+            }
+        }
+    }
+}
+------------------------------------
+// CONSOLE
+
+or a predefined language-specific list:
+
+[source,js]
+------------------------------------
+PUT /my_index
+{
+    "settings": {
+        "analysis": {
+            "filter": {
+                "my_stop": {
+                    "type":       "stop",
+                    "stopwords":  "_english_"
+                }
+            }
+        }
+    }
+}
+------------------------------------
+// CONSOLE
+
+Elasticsearch provides the following predefined list of languages:
+
+`_arabic_`, `_armenian_`, `_basque_`, `_bengali_`, `_brazilian_`, `_bulgarian_`,
+`_catalan_`, `_czech_`, `_danish_`, `_dutch_`, `_english_`, `_finnish_`,
+`_french_`, `_galician_`, `_german_`, `_greek_`, `_hindi_`, `_hungarian_`,
+`_indonesian_`, `_irish_`, `_italian_`, `_latvian_`, `_norwegian_`, `_persian_`,
+`_portuguese_`, `_romanian_`, `_russian_`, `_sorani_`, `_spanish_`,
+`_swedish_`, `_thai_`, `_turkish_`.
+
+For the empty stopwords list (to disable stopwords) use: `\_none_`.

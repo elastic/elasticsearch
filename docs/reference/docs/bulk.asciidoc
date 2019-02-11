@@ -1,0 +1,286 @@
+[[docs-bulk]]
+== Bulk API
+
+The bulk API makes it possible to perform many index/delete operations
+in a single API call. This can greatly increase the indexing speed.
+
+.Client support for bulk requests
+*********************************************
+
+Some of the officially supported clients provide helpers to assist with
+bulk requests and reindexing of documents from one index to another:
+
+Perl::
+
+    See https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Bulk[Search::Elasticsearch::Client::5_0::Bulk]
+    and https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Scroll[Search::Elasticsearch::Client::5_0::Scroll]
+
+Python::
+
+    See http://elasticsearch-py.readthedocs.org/en/master/helpers.html[elasticsearch.helpers.*]
+
+*********************************************
+
+The REST API endpoint is `/_bulk`, and it expects the following newline delimited JSON
+(NDJSON) structure:
+
+[source,js]
+--------------------------------------------------
+action_and_meta_data\n
+optional_source\n
+action_and_meta_data\n
+optional_source\n
+....
+action_and_meta_data\n
+optional_source\n
+--------------------------------------------------
+// NOTCONSOLE
+
+*NOTE*: the final line of data must end with a newline character `\n`. Each newline character
+may be preceded by a carriage return `\r`. When sending requests to this endpoint the
+`Content-Type` header should be set to `application/x-ndjson`.
+
+The possible actions are `index`, `create`, `delete` and `update`.
+`index` and `create` expect a source on the next
+line, and have the same semantics as the `op_type` parameter to the
+standard index API (i.e. create will fail if a document with the same
+index and type exists already, whereas index will add or replace a
+document as necessary). `delete` does not expect a source on the
+following line, and has the same semantics as the standard delete API.
+`update` expects that the partial doc, upsert and script and its options
+are specified on the next line.
+
+If you're providing text file input to `curl`, you *must* use the
+`--data-binary` flag instead of plain `-d`. The latter doesn't preserve
+newlines. Example:
+
+[source,js]
+--------------------------------------------------
+$ cat requests
+{ "index" : { "_index" : "test", "_id" : "1" } }
+{ "field1" : "value1" }
+$ curl -s -H "Content-Type: application/x-ndjson" -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
+{"took":7, "errors": false, "items":[{"index":{"_index":"test","_type":"_doc","_id":"1","_version":1,"result":"created","forced_refresh":false}}]}
+--------------------------------------------------
+// NOTCONSOLE
+// Not converting to console because this shows how curl works
+
+Because this format uses literal `\n`'s as delimiters, please be sure
+that the JSON actions and sources are not pretty printed. Here is an
+example of a correct sequence of bulk commands:
+
+[source,js]
+--------------------------------------------------
+POST _bulk
+{ "index" : { "_index" : "test", "_id" : "1" } }
+{ "field1" : "value1" }
+{ "delete" : { "_index" : "test", "_id" : "2" } }
+{ "create" : { "_index" : "test", "_id" : "3" } }
+{ "field1" : "value3" }
+{ "update" : {"_id" : "1", "_index" : "test"} }
+{ "doc" : {"field2" : "value2"} }
+--------------------------------------------------
+// CONSOLE
+
+The result of this bulk operation is:
+
+[source,js]
+--------------------------------------------------
+{
+   "took": 30,
+   "errors": false,
+   "items": [
+      {
+         "index": {
+            "_index": "test",
+            "_type": "_doc",
+            "_id": "1",
+            "_version": 1,
+            "result": "created",
+            "_shards": {
+               "total": 2,
+               "successful": 1,
+               "failed": 0
+            },
+            "status": 201,
+            "_seq_no" : 0,
+            "_primary_term": 1
+         }
+      },
+      {
+         "delete": {
+            "_index": "test",
+            "_type": "_doc",
+            "_id": "2",
+            "_version": 1,
+            "result": "not_found",
+            "_shards": {
+               "total": 2,
+               "successful": 1,
+               "failed": 0
+            },
+            "status": 404,
+            "_seq_no" : 1,
+            "_primary_term" : 2
+         }
+      },
+      {
+         "create": {
+            "_index": "test",
+            "_type": "_doc",
+            "_id": "3",
+            "_version": 1,
+            "result": "created",
+            "_shards": {
+               "total": 2,
+               "successful": 1,
+               "failed": 0
+            },
+            "status": 201,
+            "_seq_no" : 2,
+            "_primary_term" : 3
+         }
+      },
+      {
+         "update": {
+            "_index": "test",
+            "_type": "_doc",
+            "_id": "1",
+            "_version": 2,
+            "result": "updated",
+            "_shards": {
+                "total": 2,
+                "successful": 1,
+                "failed": 0
+            },
+            "status": 200,
+            "_seq_no" : 3,
+            "_primary_term" : 4
+         }
+      }
+   ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 30/"took": $body.took/]
+// TESTRESPONSE[s/"index_uuid": .../"index_uuid": $body.items.3.update.error.index_uuid/]
+// TESTRESPONSE[s/"_seq_no" : 0/"_seq_no" : $body.items.0.index._seq_no/]
+// TESTRESPONSE[s/"_primary_term" : 1/"_primary_term" : $body.items.0.index._primary_term/]
+// TESTRESPONSE[s/"_seq_no" : 1/"_seq_no" : $body.items.1.delete._seq_no/]
+// TESTRESPONSE[s/"_primary_term" : 2/"_primary_term" : $body.items.1.delete._primary_term/]
+// TESTRESPONSE[s/"_seq_no" : 2/"_seq_no" : $body.items.2.create._seq_no/]
+// TESTRESPONSE[s/"_primary_term" : 3/"_primary_term" : $body.items.2.create._primary_term/]
+// TESTRESPONSE[s/"_seq_no" : 3/"_seq_no" : $body.items.3.update._seq_no/]
+// TESTRESPONSE[s/"_primary_term" : 4/"_primary_term" : $body.items.3.update._primary_term/]
+
+The endpoints are `/_bulk`, `/{index}/_bulk`, and `{index}/{type}/_bulk`.
+When the index or the index/type are provided, they will be used by
+default on bulk items that don't provide them explicitly.
+
+A note on the format. The idea here is to make processing of this as
+fast as possible. As some of the actions will be redirected to other
+shards on other nodes, only `action_meta_data` is parsed on the
+receiving node side.
+
+Client libraries using this protocol should try and strive to do
+something similar on the client side, and reduce buffering as much as
+possible.
+
+The response to a bulk action is a large JSON structure with the individual
+results of each action that was performed in the same order as the actions that
+appeared in the request. The failure of a single action does not affect the
+remaining actions.
+
+There is no "correct" number of actions to perform in a single bulk
+call. You should experiment with different settings to find the optimum
+size for your particular workload.
+
+If using the HTTP API, make sure that the client does not send HTTP
+chunks, as this will slow things down.
+
+[float]
+[[bulk-optimistic-concurrency-control]]
+=== Optimistic Concurrency Control
+
+Each `index` and `delete` action within a bulk API call may include the
+`if_seq_no` and `if_primary_term` parameters in their respective action
+and meta data lines. The `if_seq_no` and `if_primary_term` parameters control
+how operations are executed, based on the last modification to existing
+documents. See <<optimistic-concurrency-control>> for more details.
+
+
+[float]
+[[bulk-versioning]]
+=== Versioning
+
+Each bulk item can include the version value using the
+`version` field. It automatically follows the behavior of the
+index / delete operation based on the `_version` mapping. It also
+support the `version_type` (see <<index-versioning, versioning>>)
+
+[float]
+[[bulk-routing]]
+=== Routing
+
+Each bulk item can include the routing value using the
+`routing` field. It automatically follows the behavior of the
+index / delete operation based on the `_routing` mapping.
+
+[float]
+[[bulk-wait-for-active-shards]]
+=== Wait For Active Shards
+
+When making bulk calls, you can set the `wait_for_active_shards`
+parameter to require a minimum number of shard copies to be active
+before starting to process the bulk request. See
+<<index-wait-for-active-shards,here>> for further details and a usage
+example.
+
+[float]
+[[bulk-refresh]]
+=== Refresh
+
+Control when the changes made by this request are visible to search. See
+<<docs-refresh,refresh>>.
+
+NOTE: Only the shards that receive the bulk request will be affected by
+`refresh`. Imagine a `_bulk?refresh=wait_for` request with three
+documents in it that happen to be routed to different shards in an index
+with five shards. The request will only wait for those three shards to
+refresh. The other two shards of that make up the index do not
+participate in the `_bulk` request at all.
+
+[float]
+[[bulk-update]]
+=== Update
+
+When using `update` action `retry_on_conflict` can be used as field in
+the action itself (not in the extra payload line), to specify how many
+times an update should be retried in the case of a version conflict.
+
+The `update` action payload, supports the following options: `doc`
+(partial document), `upsert`, `doc_as_upsert`, `script`, `params` (for
+script), `lang` (for script) and `_source`. See update documentation for details on
+the options. Example with update actions:
+
+[source,js]
+--------------------------------------------------
+POST _bulk
+{ "update" : {"_id" : "1", "_index" : "index1", "retry_on_conflict" : 3} }
+{ "doc" : {"field" : "value"} }
+{ "update" : { "_id" : "0", "_index" : "index1", "retry_on_conflict" : 3} }
+{ "script" : { "source": "ctx._source.counter += params.param1", "lang" : "painless", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
+{ "update" : {"_id" : "2", "_index" : "index1", "retry_on_conflict" : 3} }
+{ "doc" : {"field" : "value"}, "doc_as_upsert" : true }
+{ "update" : {"_id" : "3", "_index" : "index1", "_source" : true} }
+{ "doc" : {"field" : "value"} }
+{ "update" : {"_id" : "4", "_index" : "index1"} }
+{ "doc" : {"field" : "value"}, "_source": true}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[float]
+[[bulk-security]]
+=== Security
+
+See <<url-access-control>>

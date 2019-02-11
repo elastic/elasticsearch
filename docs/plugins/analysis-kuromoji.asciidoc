@@ -1,0 +1,536 @@
+[[analysis-kuromoji]]
+=== Japanese (kuromoji) Analysis Plugin
+
+The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis
+module into elasticsearch.
+
+:plugin_name: analysis-kuromoji
+include::install_remove.asciidoc[]
+
+[[analysis-kuromoji-analyzer]]
+==== `kuromoji` analyzer
+
+The `kuromoji` analyzer consists of the following tokenizer and token filters:
+
+* <<analysis-kuromoji-tokenizer,`kuromoji_tokenizer`>>
+* <<analysis-kuromoji-baseform,`kuromoji_baseform`>> token filter
+* <<analysis-kuromoji-speech,`kuromoji_part_of_speech`>> token filter
+* {ref}/analysis-cjk-width-tokenfilter.html[`cjk_width`] token filter
+* <<analysis-kuromoji-stop,`ja_stop`>> token filter
+* <<analysis-kuromoji-stemmer,`kuromoji_stemmer`>> token filter
+* {ref}/analysis-lowercase-tokenfilter.html[`lowercase`] token filter
+
+It supports the `mode` and `user_dictionary` settings from
+<<analysis-kuromoji-tokenizer,`kuromoji_tokenizer`>>.
+
+[[analysis-kuromoji-charfilter]]
+==== `kuromoji_iteration_mark` character filter
+
+The `kuromoji_iteration_mark` normalizes Japanese horizontal iteration marks
+(_odoriji_) to their expanded form. It accepts the following settings:
+
+`normalize_kanji`::
+
+    Indicates whether kanji iteration marks should be normalize. Defaults to `true`.
+
+`normalize_kana`::
+
+    Indicates whether kana iteration marks should be normalized. Defaults to `true`
+
+
+[[analysis-kuromoji-tokenizer]]
+==== `kuromoji_tokenizer`
+
+The `kuromoji_tokenizer` accepts the following settings:
+
+`mode`::
++
+--
+
+The tokenization mode determines how the tokenizer handles compound and
+unknown words.  It can be set to:
+
+`normal`::
+
+    Normal segmentation, no decomposition for compounds. Example output:
+
+    関西国際空港
+    アブラカダブラ
+
+`search`::
+
+    Segmentation geared towards search. This includes a decompounding process
+    for long nouns, also including the full compound token as a synonym.
+    Example output:
+
+    関西, 関西国際空港, 国際, 空港
+    アブラカダブラ
+
+`extended`::
+
+    Extended mode outputs unigrams for unknown words. Example output:
+
+    関西, 国際, 空港
+    ア, ブ, ラ, カ, ダ, ブ, ラ
+--
+
+`discard_punctuation`::
+
+    Whether punctuation should be discarded from the output. Defaults to `true`.
+
+`user_dictionary`::
++
+--
+The Kuromoji tokenizer uses the MeCab-IPADIC dictionary by default. A `user_dictionary`
+may be appended to the default dictionary. The dictionary should have the following CSV format:
+
+[source,csv]
+-----------------------
+<text>,<token 1> ... <token n>,<reading 1> ... <reading n>,<part-of-speech tag>
+-----------------------
+--
+
+As a demonstration of how the user dictionary can be used, save the following
+dictionary to `$ES_HOME/config/userdict_ja.txt`:
+
+[source,csv]
+-----------------------
+東京スカイツリー,東京 スカイツリー,トウキョウ スカイツリー,カスタム名詞
+-----------------------
+
+`nbest_cost`/`nbest_examples`::
++
+--
+Additional expert user parameters `nbest_cost` and `nbest_examples` can be used
+to include additional tokens that most likely according to the statistical model.
+If both parameters are used, the largest number of both is applied.
+
+`nbest_cost`::
+
+    The `nbest_cost` parameter specifies an additional Viterbi cost.
+    The KuromojiTokenizer will include all tokens in Viterbi paths that are
+    within the nbest_cost value of the best path.
+
+`nbest_examples`::
+
+    The `nbest_examples` can be used to find a `nbest_cost` value based on examples.
+    For example, a value of /箱根山-箱根/成田空港-成田/ indicates that in the texts,
+    箱根山 (Mt. Hakone) and 成田空港 (Narita Airport) we'd like a cost that gives is us
+    箱根 (Hakone) and 成田 (Narita).
+--
+
+
+Then create an analyzer as follows:
+
+[source,js]
+--------------------------------------------------
+PUT kuromoji_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "tokenizer": {
+          "kuromoji_user_dict": {
+            "type": "kuromoji_tokenizer",
+            "mode": "extended",
+            "discard_punctuation": "false",
+            "user_dictionary": "userdict_ja.txt"
+          }
+        },
+        "analyzer": {
+          "my_analyzer": {
+            "type": "custom",
+            "tokenizer": "kuromoji_user_dict"
+          }
+        }
+      }
+    }
+  }
+}
+
+GET kuromoji_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "東京スカイツリー"
+}
+--------------------------------------------------
+// CONSOLE
+
+The above `analyze` request returns the following:
+
+[source,js]
+--------------------------------------------------
+{
+  "tokens" : [ {
+    "token" : "東京",
+    "start_offset" : 0,
+    "end_offset" : 2,
+    "type" : "word",
+    "position" : 0
+  }, {
+    "token" : "スカイツリー",
+    "start_offset" : 2,
+    "end_offset" : 8,
+    "type" : "word",
+    "position" : 1
+  } ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+[[analysis-kuromoji-baseform]]
+==== `kuromoji_baseform` token filter
+
+The `kuromoji_baseform` token filter replaces terms with their
+BaseFormAttribute. This acts as a lemmatizer for verbs and adjectives. Example:
+
+[source,js]
+--------------------------------------------------
+PUT kuromoji_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_analyzer": {
+            "tokenizer": "kuromoji_tokenizer",
+            "filter": [
+              "kuromoji_baseform"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+
+GET kuromoji_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "飲み"
+}
+--------------------------------------------------
+// CONSOLE
+
+which responds with:
+
+[source,js]
+--------------------------------------------------
+{
+  "tokens" : [ {
+    "token" : "飲む",
+    "start_offset" : 0,
+    "end_offset" : 2,
+    "type" : "word",
+    "position" : 0
+  } ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+[[analysis-kuromoji-speech]]
+==== `kuromoji_part_of_speech` token filter
+
+The `kuromoji_part_of_speech` token filter removes tokens that match a set of
+part-of-speech tags. It accepts the following setting:
+
+`stoptags`::
+
+    An array of part-of-speech tags that should be removed. It defaults to the
+    `stoptags.txt` file embedded in the `lucene-analyzer-kuromoji.jar`.
+
+For example:
+
+[source,js]
+--------------------------------------------------
+PUT kuromoji_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_analyzer": {
+            "tokenizer": "kuromoji_tokenizer",
+            "filter": [
+              "my_posfilter"
+            ]
+          }
+        },
+        "filter": {
+          "my_posfilter": {
+            "type": "kuromoji_part_of_speech",
+            "stoptags": [
+              "助詞-格助詞-一般",
+              "助詞-終助詞"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+
+GET kuromoji_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "寿司がおいしいね"
+}
+--------------------------------------------------
+// CONSOLE
+
+Which responds with:
+
+[source,js]
+--------------------------------------------------
+{
+  "tokens" : [ {
+    "token" : "寿司",
+    "start_offset" : 0,
+    "end_offset" : 2,
+    "type" : "word",
+    "position" : 0
+  }, {
+    "token" : "おいしい",
+    "start_offset" : 3,
+    "end_offset" : 7,
+    "type" : "word",
+    "position" : 2
+  } ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+[[analysis-kuromoji-readingform]]
+==== `kuromoji_readingform` token filter
+
+The `kuromoji_readingform` token filter replaces the token with its reading
+form in either katakana or romaji. It accepts the following setting:
+
+`use_romaji`::
+
+    Whether romaji reading form should be output instead of katakana.  Defaults to `false`.
+
+When using the pre-defined `kuromoji_readingform` filter, `use_romaji` is set
+to `true`. The default when defining a custom `kuromoji_readingform`, however,
+is `false`.  The only reason to use the custom form is if you need the
+katakana reading form:
+
+[source,js]
+--------------------------------------------------
+PUT kuromoji_sample
+{
+    "settings": {
+        "index":{
+            "analysis":{
+                "analyzer" : {
+                    "romaji_analyzer" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["romaji_readingform"]
+                    },
+                    "katakana_analyzer" : {
+                        "tokenizer" : "kuromoji_tokenizer",
+                        "filter" : ["katakana_readingform"]
+                    }
+                },
+                "filter" : {
+                    "romaji_readingform" : {
+                        "type" : "kuromoji_readingform",
+                        "use_romaji" : true
+                    },
+                    "katakana_readingform" : {
+                        "type" : "kuromoji_readingform",
+                        "use_romaji" : false
+                    }
+                }
+            }
+        }
+    }
+}
+
+GET kuromoji_sample/_analyze
+{
+  "analyzer": "katakana_analyzer",
+  "text": "寿司" <1>
+}
+
+GET kuromoji_sample/_analyze
+{
+  "analyzer": "romaji_analyzer",
+  "text": "寿司" <2>
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> Returns `スシ`.
+<2> Returns `sushi`.
+
+[[analysis-kuromoji-stemmer]]
+==== `kuromoji_stemmer` token filter
+
+The `kuromoji_stemmer` token filter normalizes common katakana spelling
+variations ending in a long sound character by removing this character
+(U+30FC). Only full-width katakana characters are supported.
+
+This token filter accepts the following setting:
+
+`minimum_length`::
+
+    Katakana words shorter than the `minimum length` are not stemmed (default
+    is `4`).
+
+
+[source,js]
+--------------------------------------------------
+PUT kuromoji_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_analyzer": {
+            "tokenizer": "kuromoji_tokenizer",
+            "filter": [
+              "my_katakana_stemmer"
+            ]
+          }
+        },
+        "filter": {
+          "my_katakana_stemmer": {
+            "type": "kuromoji_stemmer",
+            "minimum_length": 4
+          }
+        }
+      }
+    }
+  }
+}
+
+GET kuromoji_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "コピー" <1>
+}
+
+GET kuromoji_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "サーバー" <2>
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> Returns `コピー`.
+<2> Return `サーバ`.
+
+
+[[analysis-kuromoji-stop]]
+==== `ja_stop` token filter
+
+The `ja_stop` token filter filters out Japanese stopwords (`_japanese_`), and
+any other custom stopwords specified by the user. This filter only supports
+the predefined `_japanese_` stopwords list.  If you want to use a different
+predefined list, then use the
+{ref}/analysis-stop-tokenfilter.html[`stop` token filter] instead.
+
+[source,js]
+--------------------------------------------------
+PUT kuromoji_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "analyzer_with_ja_stop": {
+            "tokenizer": "kuromoji_tokenizer",
+            "filter": [
+              "ja_stop"
+            ]
+          }
+        },
+        "filter": {
+          "ja_stop": {
+            "type": "ja_stop",
+            "stopwords": [
+              "_japanese_",
+              "ストップ"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+
+GET kuromoji_sample/_analyze
+{
+  "analyzer": "analyzer_with_ja_stop",
+  "text": "ストップは消える"
+}
+--------------------------------------------------
+// CONSOLE
+
+The above request returns:
+
+[source,js]
+--------------------------------------------------
+{
+  "tokens" : [ {
+    "token" : "消える",
+    "start_offset" : 5,
+    "end_offset" : 8,
+    "type" : "word",
+    "position" : 2
+  } ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+[[analysis-kuromoji-number]]
+==== `kuromoji_number` token filter
+
+The `kuromoji_number` token filter normalizes Japanese numbers (kansūji)
+to regular Arabic decimal numbers in half-width characters. For example:
+
+[source,js]
+--------------------------------------------------
+PUT kuromoji_sample
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_analyzer": {
+            "tokenizer": "kuromoji_tokenizer",
+            "filter": [
+              "kuromoji_number"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+
+GET kuromoji_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "一〇〇〇"
+}
+--------------------------------------------------
+// CONSOLE
+
+Which results in:
+
+[source,js]
+--------------------------------------------------
+{
+  "tokens" : [ {
+    "token" : "1000",
+    "start_offset" : 0,
+    "end_offset" : 4,
+    "type" : "word",
+    "position" : 0
+  } ]
+}
+--------------------------------------------------
+// TESTRESPONSE

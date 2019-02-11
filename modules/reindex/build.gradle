@@ -1,0 +1,144 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.tools.ant.taskdefs.condition.Os
+
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
+
+apply plugin: 'elasticsearch.test-with-dependencies'
+
+esplugin {
+  description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
+  classname 'org.elasticsearch.index.reindex.ReindexPlugin'
+  hasClientJar = true
+}
+
+integTestCluster {
+  // Modules who's integration is explicitly tested in integration tests
+  module project(':modules:parent-join')
+  module project(':modules:lang-painless')
+  // Whitelist reindexing from the local node so we can test reindex-from-remote.
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
+}
+
+run {
+  // Modules who's integration is explicitly tested in integration tests
+  module project(':modules:parent-join')
+  module project(':modules:lang-painless')
+  // Whitelist reindexing from the local node so we can test reindex-from-remote.
+  setting 'reindex.remote.whitelist', '127.0.0.1:*'
+}
+
+unitTest {
+  /*
+   * We have to disable setting the number of available processors as tests in the
+   * same JVM randomize processors and will step on each other if we allow them to
+   * set the number of available processors as it's set-once in Netty.
+   */
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+dependencies {
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile "org.elasticsearch:elasticsearch-ssl-config:${version}"
+  // for http - testing reindex from remote
+  testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
+  // for parent/child testing
+  testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+}
+
+thirdPartyAudit.ignoreMissingClasses (
+  // Commons logging
+  'javax.servlet.ServletContextEvent',
+  'javax.servlet.ServletContextListener',
+  'org.apache.avalon.framework.logger.Logger',
+  'org.apache.log.Hierarchy',
+  'org.apache.log.Logger',
+)
+
+forbiddenPatterns {
+    // PKCS#12 file are not UTF-8
+    exclude '**/*.p12'
+}
+
+// Support for testing reindex-from-remote against old Elaticsearch versions
+configurations {
+  oldesFixture
+  es2
+  es1
+  es090
+}
+
+dependencies {
+  oldesFixture project(':test:fixtures:old-elasticsearch')
+  /* Right now we just test against the latest version of each major we expect
+   * reindex-from-remote to work against. We could randomize the versions but
+   * that doesn't seem worth it at this point. */
+  es2 'org.elasticsearch.distribution.zip:elasticsearch:2.4.5@zip'
+  es1 'org.elasticsearch:elasticsearch:1.7.6@zip'
+  es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
+}
+
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
+  integTestRunner.systemProperty "tests.fromOld", "false"
+} else if (rootProject.rootDir.toString().contains(" ")) {
+  logger.warn("Disabling reindex-from-old tests because Elasticsearch 1.7 won't start with spaces in the path")
+  integTestRunner.systemProperty "tests.fromOld", "false"
+} else {
+  integTestRunner.systemProperty "tests.fromOld", "true"
+  /* Set up tasks to unzip and run the old versions of ES before running the
+   * integration tests. */
+  for (String version : ['2', '1', '090']) {
+    Task unzip = task("unzipEs${version}", type: Sync) {
+      Configuration oldEsDependency = configurations['es' + version]
+      dependsOn oldEsDependency
+      /* Use a closure here to delay resolution of the dependency until we need
+       * it */
+      from {
+        oldEsDependency.collect { zipTree(it) }
+      }
+      into temporaryDir
+    }
+    Task fixture = task("oldEs${version}Fixture",
+          type: org.elasticsearch.gradle.test.AntFixture) {
+      dependsOn project.configurations.oldesFixture
+      dependsOn unzip
+      executable = new File(project.runtimeJavaHome, 'bin/java')
+      env 'CLASSPATH', "${ -> project.configurations.oldesFixture.asPath }"
+      env 'JAVA_HOME', getJavaHome(it, 8)
+      args 'oldes.OldElasticsearch',
+           baseDir,
+           unzip.temporaryDir,
+           version == '090'
+      waitCondition = { fixture, ant ->
+        // the fixture writes the ports file when Elasticsearch's HTTP service
+        // is ready, so we can just wait for the file to exist
+        return fixture.portsFile.exists()
+      }
+    }
+    integTest.dependsOn fixture
+    integTestRunner {
+      /* Use a closure on the string to delay evaluation until right before we
+       * run the integration tests so that we can be sure that the file is
+       * ready. */
+      systemProperty "es${version}.port", "${ -> fixture.addressAndPort }"
+    }
+  }
+}

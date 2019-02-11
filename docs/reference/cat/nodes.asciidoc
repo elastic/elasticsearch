@@ -1,0 +1,196 @@
+[[cat-nodes]]
+== cat nodes
+
+The `nodes` command shows the cluster topology. For example
+
+[source,js]
+--------------------------------------------------
+GET /_cat/nodes?v
+--------------------------------------------------
+// CONSOLE
+
+Might look like:
+
+[source,txt]
+--------------------------------------------------
+ip        heap.percent ram.percent cpu load_1m load_5m load_15m node.role master name
+127.0.0.1           65          99  42    3.07                  mdi       *      mJw06l1
+--------------------------------------------------
+// TESTRESPONSE[s/3.07/(\\d+\\.\\d+( \\d+\\.\\d+ (\\d+\\.\\d+)?)?)?/]
+// TESTRESPONSE[s/65          99  42/\\d+ \\d+ \\d+/]
+// TESTRESPONSE[s/[*]/[*]/ s/mJw06l1/.+/ _cat]
+
+The first few columns (`ip`, `heap.percent`, `ram.percent`, `cpu`, `load_*`) tell
+you where your nodes live and give a quick picture of performance stats.
+
+The last (`node.role`, `master`, and `name`) columns provide ancillary
+information that can often be useful when looking at the cluster as a whole,
+particularly large ones.  How many master-eligible nodes do I have?
+
+The `nodes` API accepts an additional URL parameter `full_id` accepting `true`
+or `false`. The purpose of this parameter is to format the ID field (if
+requested with `id` or `nodeId`) in its full length or in abbreviated form (the
+default).
+
+[float]
+=== Columns
+
+Below is an exhaustive list of the existing headers that can be
+passed to `nodes?h=` to retrieve the relevant details in ordered
+columns.  If no headers are specified, then those marked to Appear
+by Default will appear. If any header is specified, then the defaults
+are not used.
+
+Aliases can be used in place of the full header name for brevity.
+Columns appear in the order that they are listed below unless a
+different order is specified (e.g., `h=pid,id` versus `h=id,pid`).
+
+When specifying headers, the headers are not placed in the output
+by default.  To have the headers appear in the output, use verbose
+mode (`v`). The header name will match the supplied value (e.g.,
+`pid` versus `p`).  For example:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/nodes?v&h=id,ip,port,v,m
+--------------------------------------------------
+// CONSOLE
+
+Might look like:
+
+["source","txt",subs="attributes,callouts"]
+--------------------------------------------------
+id   ip        port  v         m
+veJR 127.0.0.1 59938 {version} *
+--------------------------------------------------
+// TESTRESPONSE[s/veJR/.+/ s/59938/\\d+/ s/[*]/[*]/ _cat]
+
+[cols="<,<,<,<,<",options="header",subs="normal"]
+|=======================================================================
+|Header |Alias |Appear by Default |Description |Example
+|`id` |`nodeId` |No |Unique node ID |k0zy
+|`pid` |`p` |No |Process ID |13061
+|`ip` |`i` |Yes |IP address |127.0.1.1
+|`port` |`po` |No |Bound transport port |9300
+|`http_address` |`http`| No |Bound http address | 127.0.0.1:9200
+|`version` |`v` |No |Elasticsearch version |{version}
+|`build` |`b` |No |Elasticsearch Build hash |5c03844
+|`jdk` |`j` |No |Running Java version |1.8.0
+|`disk.total` |`dt`, `diskTotal` |No |Total disk space| 458.3gb
+|`disk.used` |`du`, `diskUsed` |No |Used disk space| 259.8gb
+|`disk.avail` |`d`, `disk`, `diskAvail` |No |Available disk space |198.4gb
+|`disk.used_percent` |`dup`, `diskUsedPercent` |No |Used disk space percentage |56.71
+|`heap.current` |`hc`, `heapCurrent` |No |Used heap |311.2mb
+|`heap.percent` |`hp`, `heapPercent` |Yes |Used heap percentage |7
+|`heap.max` |`hm`, `heapMax` |No |Maximum configured heap |1015.6mb
+|`ram.current` |`rc`, `ramCurrent` |No |Used total memory |513.4mb
+|`ram.percent` |`rp`, `ramPercent` |Yes |Used total memory percentage |47
+|`ram.max` |`rm`, `ramMax` |No |Total memory |2.9gb
+|`file_desc.current` |`fdc`, `fileDescriptorCurrent` |No |Used file
+descriptors |123
+|`file_desc.percent` |`fdp`, `fileDescriptorPercent` |Yes |Used file
+descriptors percentage |1
+|`file_desc.max` |`fdm`, `fileDescriptorMax` |No |Maximum number of file
+descriptors |1024
+|`cpu` | |No |Recent system CPU usage as percent |12
+|`load_1m` |`l` |No |Most recent load average |0.22
+|`load_5m` |`l` |No |Load average for the last five minutes |0.78
+|`load_15m` |`l` |No |Load average for the last fifteen minutes |1.24
+|`uptime` |`u` |No |Node uptime |17.3m
+|`node.role` |`r`, `role`, `nodeRole` |Yes |Master eligible node (m);
+Data node (d); Ingest node (i); Coordinating node only (-) |mdi
+|`master` |`m` |Yes |Elected master (*); Not elected master (-) |*
+|`name` |`n` |Yes |Node name |I8hydUG
+|`completion.size` |`cs`, `completionSize` |No |Size of completion |0b
+|`fielddata.memory_size` |`fm`, `fielddataMemory` |No |Used fielddata
+cache memory |0b
+|`fielddata.evictions` |`fe`, `fielddataEvictions` |No |Fielddata cache
+evictions |0
+|`query_cache.memory_size` |`qcm`, `queryCacheMemory` |No |Used query
+cache memory |0b
+|`query_cache.evictions` |`qce`, `queryCacheEvictions` |No |Query
+cache evictions |0
+|`request_cache.memory_size` |`rcm`, `requestCacheMemory` |No | Used request
+cache memory |0b
+|`request_cache.evictions` |`rce`, `requestCacheEvictions` |No |Request
+cache evictions |0
+|`request_cache.hit_count` |`rchc`, `requestCacheHitCount` |No | Request
+cache hit count |0
+|`request_cache.miss_count` |`rcmc`, `requestCacheMissCount` |No | Request
+cache miss count |0
+|`flush.total` |`ft`, `flushTotal` |No |Number of flushes |1
+|`flush.total_time` |`ftt`, `flushTotalTime` |No |Time spent in flush |1
+|`get.current` |`gc`, `getCurrent` |No |Number of current get
+operations |0
+|`get.time` |`gti`, `getTime` |No |Time spent in get |14ms
+|`get.total` |`gto`, `getTotal` |No |Number of get operations |2
+|`get.exists_time` |`geti`, `getExistsTime` |No |Time spent in
+successful gets |14ms
+|`get.exists_total` |`geto`, `getExistsTotal` |No |Number of successful
+get operations |2
+|`get.missing_time` |`gmti`, `getMissingTime` |No |Time spent in failed
+gets |0s
+|`get.missing_total` |`gmto`, `getMissingTotal` |No |Number of failed
+get operations |1
+|`indexing.delete_current` |`idc`, `indexingDeleteCurrent` |No |Number
+of current deletion operations |0
+|`indexing.delete_time` |`idti`, `indexingDeleteTime` |No |Time spent in
+deletions |2ms
+|`indexing.delete_total` |`idto`, `indexingDeleteTotal` |No |Number of
+deletion operations |2
+|`indexing.index_current` |`iic`, `indexingIndexCurrent` |No |Number
+of current indexing operations |0
+|`indexing.index_time` |`iiti`, `indexingIndexTime` |No |Time spent in
+indexing |134ms
+|`indexing.index_total` |`iito`, `indexingIndexTotal` |No |Number of
+indexing operations |1
+|`indexing.index_failed` |`iif`, `indexingIndexFailed` |No |Number of
+failed indexing operations |0
+|`merges.current` |`mc`, `mergesCurrent` |No |Number of current
+merge operations |0
+|`merges.current_docs` |`mcd`, `mergesCurrentDocs` |No |Number of
+current merging documents |0
+|`merges.current_size` |`mcs`, `mergesCurrentSize` |No |Size of current
+merges |0b
+|`merges.total` |`mt`, `mergesTotal` |No |Number of completed merge
+operations |0
+|`merges.total_docs` |`mtd`, `mergesTotalDocs` |No |Number of merged
+documents |0
+|`merges.total_size` |`mts`, `mergesTotalSize` |No |Size of current
+merges |0b
+|`merges.total_time` |`mtt`, `mergesTotalTime` |No |Time spent merging
+documents |0s
+|`refresh.total` |`rto`, `refreshTotal` |No |Number of refreshes |16
+|`refresh.time` |`rti`, `refreshTime` |No |Time spent in refreshes |91ms
+|`script.compilations` |`scrcc`, `scriptCompilations` |No |Total script compilations |17
+|`script.cache_evictions` |`scrce`, `scriptCacheEvictions` |No |Total compiled scripts evicted from cache |6
+|`search.fetch_current` |`sfc`, `searchFetchCurrent` |No |Current fetch
+phase operations |0
+|`search.fetch_time` |`sfti`, `searchFetchTime` |No |Time spent in fetch
+phase |37ms
+|`search.fetch_total` |`sfto`, `searchFetchTotal` |No |Number of fetch
+operations |7
+|`search.open_contexts` |`so`, `searchOpenContexts` |No |Open search
+contexts |0
+|`search.query_current` |`sqc`, `searchQueryCurrent` |No |Current query
+phase operations |0
+|`search.query_time` |`sqti`, `searchQueryTime` |No |Time spent in query
+phase |43ms
+|`search.query_total` |`sqto`, `searchQueryTotal` |No |Number of query
+operations |9
+|`search.scroll_current` |`scc`, `searchScrollCurrent` |No |Open scroll contexts |2
+|`search.scroll_time` |`scti`, `searchScrollTime` |No |Time scroll contexts held open|2m
+|`search.scroll_total` |`scto`, `searchScrollTotal` |No |Completed scroll contexts |1
+|`segments.count` |`sc`, `segmentsCount` |No |Number of segments |4
+|`segments.memory` |`sm`, `segmentsMemory` |No |Memory used by
+segments |1.4kb
+|`segments.index_writer_memory` |`siwm`, `segmentsIndexWriterMemory` |No
+|Memory used by index writer |18mb
+|`segments.version_map_memory` |`svmm`, `segmentsVersionMapMemory` |No
+|Memory used by version map |1.0kb
+|`segments.fixed_bitset_memory` |`sfbm`, `fixedBitsetMemory` |No
+|Memory used by fixed bit sets for nested object field types and type filters for types referred in `join` fields |1.0kb
+|`suggest.current` |`suc`, `suggestCurrent` |No |Number of current suggest operations |0
+|`suggest.time` |`suti`, `suggestTime` |No |Time spent in suggest |0
+|`suggest.total` |`suto`, `suggestTotal` |No |Number of suggest operations |0
+|=======================================================================

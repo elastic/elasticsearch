@@ -1,0 +1,5 @@
+[[tika-asciidoc]]
+= AsciiDoc test
+
+Here is a test of the asciidoc format.
+

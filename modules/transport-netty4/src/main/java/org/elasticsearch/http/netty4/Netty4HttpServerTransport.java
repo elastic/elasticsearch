@@ -1,0 +1,376 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.http.netty4;
+
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerAdapter;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.FixedRecvByteBufAllocator;
+import io.netty.channel.RecvByteBufAllocator;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.http.HttpContentCompressor;
+import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.handler.timeout.ReadTimeoutException;
+import io.netty.handler.timeout.ReadTimeoutHandler;
+import io.netty.util.AttributeKey;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.http.AbstractHttpServerTransport;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpHandlingSettings;
+import org.elasticsearch.http.HttpServerChannel;
+import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
+import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
+import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
+import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.netty4.Netty4Utils;
+
+import java.net.InetSocketAddress;
+import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
+import static org.elasticsearch.http.netty4.cors.Netty4CorsHandler.ANY_ORIGIN;
+
+public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
+    private static final Logger logger = LogManager.getLogger(Netty4HttpServerTransport.class);
+
+    static {
+        Netty4Utils.setup();
+    }
+
+    /*
+     * Size in bytes of an individual message received by io.netty.handler.codec.MessageAggregator which accumulates the content for an
+     * HTTP request. This number is used for estimating the maximum number of allowed buffers before the MessageAggregator's internal
+     * collection of buffers is resized.
+     *
+     * By default we assume the Ethernet MTU (1500 bytes) but users can override it with a system property.
+     */
+    private static final ByteSizeValue MTU = new ByteSizeValue(Long.parseLong(System.getProperty("es.net.mtu", "1500")));
+
+    private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
+
+    public static Setting<Integer> SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
+        new Setting<>(SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS, (s) -> {
+            ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(s);
+            /*
+             * Netty accumulates buffers containing data from all incoming network packets that make up one HTTP request in an instance of
+             * io.netty.buffer.CompositeByteBuf (think of it as a buffer of buffers). Once its capacity is reached, the buffer will iterate
+             * over its individual entries and put them into larger buffers (see io.netty.buffer.CompositeByteBuf#consolidateIfNeeded()
+             * for implementation details). We want to to resize that buffer because this leads to additional garbage on the heap and also
+             * increases the application's native memory footprint (as direct byte buffers hold their contents off-heap).
+             *
+             * With this setting we control the CompositeByteBuf's capacity (which is by default 1024, see
+             * io.netty.handler.codec.MessageAggregator#DEFAULT_MAX_COMPOSITEBUFFER_COMPONENTS). To determine a proper default capacity for
+             * that buffer, we need to consider that the upper bound for the size of HTTP requests is determined by `maxContentLength`. The
+             * number of buffers that are needed depend on how often Netty reads network packets which depends on the network type (MTU).
+             * We assume here that Elasticsearch receives HTTP requests via an Ethernet connection which has a MTU of 1500 bytes.
+             *
+             * Note that we are *not* pre-allocating any memory based on this setting but rather determine the CompositeByteBuf's capacity.
+             * The tradeoff is between less (but larger) buffers that are contained in the CompositeByteBuf and more (but smaller) buffers.
+             * With the default max content length of 100MB and a MTU of 1500 bytes we would allow 69905 entries.
+             */
+            long maxBufferComponentsEstimate = Math.round((double) (maxContentLength.getBytes() / MTU.getBytes()));
+            // clamp value to the allowed range
+            long maxBufferComponents = Math.max(2, Math.min(maxBufferComponentsEstimate, Integer.MAX_VALUE));
+            return String.valueOf(maxBufferComponents);
+            // Netty's CompositeByteBuf implementation does not allow less than two components.
+        }, s -> Setting.parseInt(s, 2, Integer.MAX_VALUE, SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS), Property.NodeScope);
+
+    public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = new Setting<>("http.netty.worker_count",
+        (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
+        (s) -> Setting.parseInt(s, 1, "http.netty.worker_count"), Property.NodeScope);
+
+    public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =
+        Setting.byteSizeSetting("http.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
+
+    private final ByteSizeValue maxInitialLineLength;
+    private final ByteSizeValue maxHeaderSize;
+    private final ByteSizeValue maxChunkSize;
+
+    private final int workerCount;
+
+    private final int pipeliningMaxEvents;
+
+    private final RecvByteBufAllocator recvByteBufAllocator;
+    private final int readTimeoutMillis;
+
+    private final int maxCompositeBufferComponents;
+
+    protected volatile ServerBootstrap serverBootstrap;
+
+    private final Netty4CorsConfig corsConfig;
+
+    public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
+                                     NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
+        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
+        Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
+
+        this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
+        this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
+        this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
+        this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
+
+        this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
+        this.workerCount = SETTING_HTTP_WORKER_COUNT.get(settings);
+
+        this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
+
+        ByteSizeValue receivePredictor = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
+        recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
+
+        this.corsConfig = buildCorsConfig(settings);
+
+        logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], " +
+                "receive_predictor[{}], max_composite_buffer_components[{}], pipelining_max_events[{}]",
+            maxChunkSize, maxHeaderSize, maxInitialLineLength, maxContentLength, receivePredictor, maxCompositeBufferComponents,
+            pipeliningMaxEvents);
+    }
+
+    public Settings settings() {
+        return this.settings;
+    }
+
+    @Override
+    protected void doStart() {
+        boolean success = false;
+        try {
+            serverBootstrap = new ServerBootstrap();
+
+            serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
+                HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
+            serverBootstrap.channel(NioServerSocketChannel.class);
+
+            serverBootstrap.childHandler(configureServerChannelHandler());
+            serverBootstrap.handler(new ServerChannelExceptionHandler(this));
+
+            serverBootstrap.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings));
+            serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
+
+            final ByteSizeValue tcpSendBufferSize = SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings);
+            if (tcpSendBufferSize.getBytes() > 0) {
+                serverBootstrap.childOption(ChannelOption.SO_SNDBUF, Math.toIntExact(tcpSendBufferSize.getBytes()));
+            }
+
+            final ByteSizeValue tcpReceiveBufferSize = SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings);
+            if (tcpReceiveBufferSize.getBytes() > 0) {
+                serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
+            }
+
+            serverBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
+            serverBootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
+
+            final boolean reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
+            serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
+            serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, reuseAddress);
+
+            bindServer();
+            success = true;
+        } finally {
+            if (success == false) {
+                doStop(); // otherwise we leak threads since we never moved to started
+            }
+        }
+    }
+
+    // package private for testing
+    static Netty4CorsConfig buildCorsConfig(Settings settings) {
+        if (SETTING_CORS_ENABLED.get(settings) == false) {
+            return Netty4CorsConfigBuilder.forOrigins().disable().build();
+        }
+        String origin = SETTING_CORS_ALLOW_ORIGIN.get(settings);
+        final Netty4CorsConfigBuilder builder;
+        if (Strings.isNullOrEmpty(origin)) {
+            builder = Netty4CorsConfigBuilder.forOrigins();
+        } else if (origin.equals(ANY_ORIGIN)) {
+            builder = Netty4CorsConfigBuilder.forAnyOrigin();
+        } else {
+            try {
+                Pattern p = RestUtils.checkCorsSettingForRegex(origin);
+                if (p == null) {
+                    builder = Netty4CorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
+                } else {
+                    builder = Netty4CorsConfigBuilder.forPattern(p);
+                }
+            } catch (PatternSyntaxException e) {
+                throw new SettingsException("Bad regex in [" + SETTING_CORS_ALLOW_ORIGIN.getKey() + "]: [" + origin + "]", e);
+            }
+        }
+        if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
+            builder.allowCredentials();
+        }
+        String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
+        HttpMethod[] methods = Arrays.stream(strMethods)
+            .map(HttpMethod::valueOf)
+            .toArray(HttpMethod[]::new);
+        return builder.allowedRequestMethods(methods)
+            .maxAge(SETTING_CORS_MAX_AGE.get(settings))
+            .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
+            .shortCircuit()
+            .build();
+    }
+
+    @Override
+    protected HttpServerChannel bind(InetSocketAddress socketAddress) throws Exception {
+        ChannelFuture future = serverBootstrap.bind(socketAddress).sync();
+        Channel channel = future.channel();
+        Netty4HttpServerChannel httpServerChannel = new Netty4HttpServerChannel(channel);
+        channel.attr(HTTP_SERVER_CHANNEL_KEY).set(httpServerChannel);
+        return httpServerChannel;
+    }
+
+    @Override
+    protected void stopInternal() {
+        if (serverBootstrap != null) {
+            serverBootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS).awaitUninterruptibly();
+            serverBootstrap = null;
+        }
+    }
+
+    @Override
+    protected void onException(HttpChannel channel, Exception cause) {
+        if (cause instanceof ReadTimeoutException) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("Http read timeout {}", channel);
+            }
+            CloseableChannel.closeChannel(channel);
+        } else {
+            super.onException(channel, cause);
+        }
+    }
+
+    public ChannelHandler configureServerChannelHandler() {
+        return new HttpChannelHandler(this, handlingSettings);
+    }
+
+    static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
+    static final AttributeKey<Netty4HttpServerChannel> HTTP_SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-http-server-channel");
+
+    protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
+
+        private final Netty4HttpServerTransport transport;
+        private final Netty4HttpRequestHandler requestHandler;
+        private final HttpHandlingSettings handlingSettings;
+
+        protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
+            this.transport = transport;
+            this.handlingSettings = handlingSettings;
+            this.requestHandler = new Netty4HttpRequestHandler(transport);
+        }
+
+        @Override
+        protected void initChannel(Channel ch) throws Exception {
+            Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
+            ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
+            ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
+            final HttpRequestDecoder decoder = new HttpRequestDecoder(
+                handlingSettings.getMaxInitialLineLength(),
+                handlingSettings.getMaxHeaderSize(),
+                handlingSettings.getMaxChunkSize());
+            decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
+            ch.pipeline().addLast("decoder", decoder);
+            ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
+            ch.pipeline().addLast("encoder", new HttpResponseEncoder());
+            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
+            aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
+            ch.pipeline().addLast("aggregator", aggregator);
+            if (handlingSettings.isCompression()) {
+                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
+            }
+            if (handlingSettings.isCorsEnabled()) {
+                ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.corsConfig));
+            }
+            ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
+            ch.pipeline().addLast("handler", requestHandler);
+            transport.serverAcceptedChannel(nettyHttpChannel);
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
+            super.exceptionCaught(ctx, cause);
+        }
+    }
+
+    @ChannelHandler.Sharable
+    private static class ServerChannelExceptionHandler extends ChannelHandlerAdapter {
+
+        private final Netty4HttpServerTransport transport;
+
+        private ServerChannelExceptionHandler(Netty4HttpServerTransport transport) {
+            this.transport = transport;
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            ExceptionsHelper.maybeDieOnAnotherThread(cause);
+            Netty4HttpServerChannel httpServerChannel = ctx.channel().attr(HTTP_SERVER_CHANNEL_KEY).get();
+            if (cause instanceof Error) {
+                transport.onServerException(httpServerChannel, new Exception(cause));
+            } else {
+                transport.onServerException(httpServerChannel, (Exception) cause);
+            }
+        }
+    }
+}

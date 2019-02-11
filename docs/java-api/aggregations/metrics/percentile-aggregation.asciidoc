@@ -1,0 +1,68 @@
+[[java-aggs-metrics-percentile]]
+==== Percentile Aggregation
+
+Here is how you can use
+{ref}/search-aggregations-metrics-percentile-aggregation.html[Percentile Aggregation]
+with Java API.
+
+
+===== Prepare aggregation request
+
+Here is an example on how to create the aggregation request:
+
+[source,java]
+--------------------------------------------------
+PercentilesAggregationBuilder aggregation =
+        AggregationBuilders
+                .percentiles("agg")
+                .field("height");
+--------------------------------------------------
+
+You can provide your own percentiles instead of using defaults:
+
+[source,java]
+--------------------------------------------------
+PercentilesAggregationBuilder aggregation =
+        AggregationBuilders
+                .percentiles("agg")
+                .field("height")
+                .percentiles(1.0, 5.0, 10.0, 20.0, 30.0, 75.0, 95.0, 99.0);
+--------------------------------------------------
+
+===== Use aggregation response
+
+Import Aggregation definition classes:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
+--------------------------------------------------
+
+[source,java]
+--------------------------------------------------
+// sr is here your SearchResponse object
+Percentiles agg = sr.getAggregations().get("agg");
+// For each entry
+for (Percentile entry : agg) {
+    double percent = entry.getPercent();    // Percent
+    double value = entry.getValue();        // Value
+
+    logger.info("percent [{}], value [{}]", percent, value);
+}
+--------------------------------------------------
+
+
+This will basically produce for the first example:
+
+[source,text]
+--------------------------------------------------
+percent [1.0], value [0.814338896154595]
+percent [5.0], value [0.8761912455821302]
+percent [25.0], value [1.173346540141847]
+percent [50.0], value [1.5432023318692198]
+percent [75.0], value [1.923915462033674]
+percent [95.0], value [2.2273644908535335]
+percent [99.0], value [2.284989339108279]
+--------------------------------------------------
+

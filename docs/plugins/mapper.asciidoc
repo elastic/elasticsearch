@@ -1,0 +1,31 @@
+[[mapper]]
+== Mapper Plugins
+
+Mapper plugins allow new field datatypes to be added to Elasticsearch.
+
+[float]
+=== Core mapper plugins
+
+The core mapper plugins are:
+
+<<mapper-size>>::
+
+The mapper-size plugin provides the `_size` meta field which, when enabled,
+indexes the size in bytes of the original
+{ref}/mapping-source-field.html[`_source`] field.
+
+<<mapper-murmur3>>::
+
+The mapper-murmur3 plugin allows hashes to be computed at index-time and stored
+in the index for later use with the `cardinality` aggregation.
+
+<<mapper-annotated-text>>::
+
+The annotated text plugin provides the ability to index text that is a
+combination of free-text and special markup that is typically used to identify
+items of interest such as people or organisations (see NER or Named Entity Recognition
+tools).
+
+include::mapper-size.asciidoc[]
+include::mapper-murmur3.asciidoc[]
+include::mapper-annotated-text.asciidoc[]

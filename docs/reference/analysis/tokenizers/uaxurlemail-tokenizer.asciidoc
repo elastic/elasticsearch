@@ -1,0 +1,197 @@
+[[analysis-uaxurlemail-tokenizer]]
+=== UAX URL Email  Tokenizer
+
+The `uax_url_email` tokenizer is like the <<analysis-standard-tokenizer,`standard` tokenizer>> except that it
+recognises URLs and email addresses as single tokens.
+
+[float]
+=== Example output
+
+[source,js]
+---------------------------
+POST _analyze
+{
+  "tokenizer": "uax_url_email",
+  "text": "Email me at john.smith@global-international.com"
+}
+---------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "Email",
+      "start_offset": 0,
+      "end_offset": 5,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "me",
+      "start_offset": 6,
+      "end_offset": 8,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "at",
+      "start_offset": 9,
+      "end_offset": 11,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "john.smith@global-international.com",
+      "start_offset": 12,
+      "end_offset": 47,
+      "type": "<EMAIL>",
+      "position": 3
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above sentence would produce the following terms:
+
+[source,text]
+---------------------------
+[ Email, me, at, john.smith@global-international.com ]
+---------------------------
+
+while the `standard` tokenizer would produce:
+
+[source,text]
+---------------------------
+[ Email, me, at, john.smith, global, international.com ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `uax_url_email` tokenizer accepts the following parameters:
+
+[horizontal]
+`max_token_length`::
+
+    The maximum token length. If a token is seen that exceeds this length then
+    it is split at `max_token_length` intervals. Defaults to `255`.
+
+[float]
+=== Example configuration
+
+In this example, we configure the `uax_url_email` tokenizer to have a
+`max_token_length` of 5 (for demonstration purposes):
+
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "my_tokenizer"
+        }
+      },
+      "tokenizer": {
+        "my_tokenizer": {
+          "type": "uax_url_email",
+          "max_token_length": 5
+        }
+      }
+    }
+  }
+}
+
+POST my_index/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "john.smith@global-international.com"
+}
+----------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "john",
+      "start_offset": 0,
+      "end_offset": 4,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "smith",
+      "start_offset": 5,
+      "end_offset": 10,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "globa",
+      "start_offset": 11,
+      "end_offset": 16,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "l",
+      "start_offset": 16,
+      "end_offset": 17,
+      "type": "<ALPHANUM>",
+      "position": 3
+    },
+    {
+      "token": "inter",
+      "start_offset": 18,
+      "end_offset": 23,
+      "type": "<ALPHANUM>",
+      "position": 4
+    },
+    {
+      "token": "natio",
+      "start_offset": 23,
+      "end_offset": 28,
+      "type": "<ALPHANUM>",
+      "position": 5
+    },
+    {
+      "token": "nal.c",
+      "start_offset": 28,
+      "end_offset": 33,
+      "type": "<ALPHANUM>",
+      "position": 6
+    },
+    {
+      "token": "om",
+      "start_offset": 33,
+      "end_offset": 35,
+      "type": "<ALPHANUM>",
+      "position": 7
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example produces the following terms:
+
+[source,text]
+---------------------------
+[ john, smith, globa, l, inter, natio, nal.c, om ]
+---------------------------

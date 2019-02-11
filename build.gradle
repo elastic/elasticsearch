@@ -1,0 +1,626 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionCollection
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.gradle.util.GradleVersion
+import org.gradle.util.DistributionLocator
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+
+plugins {
+    id 'com.gradle.build-scan' version '2.0.2'
+    id 'base'
+}
+if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
+    buildScan {
+        termsOfServiceUrl = 'https://gradle.com/terms-of-service'
+        termsOfServiceAgree = 'yes'
+    }
+}
+
+// common maven publishing configuration
+allprojects {
+  group = 'org.elasticsearch'
+  version = VersionProperties.elasticsearch
+  description = "Elasticsearch subproject ${project.path}"
+}
+
+apply plugin: 'nebula.info-scm'
+String licenseCommit
+if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
+  licenseCommit = scminfo.change ?: "master" // leniency for non git builds
+} else {
+  licenseCommit = "v${version}"
+}
+String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
+
+subprojects {
+  // Default to the apache license
+  project.ext.licenseName = 'The Apache Software License, Version 2.0'
+  project.ext.licenseUrl = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+
+  // But stick the Elastic license url in project.ext so we can get it if we need to switch to it
+  project.ext.elasticLicenseUrl = elasticLicenseUrl
+
+  // we only use maven publish to add tasks for pom generation
+  plugins.withType(MavenPublishPlugin).whenPluginAdded {
+    publishing {
+      publications {
+        // add license information to generated poms
+        all {
+          pom.withXml { XmlProvider xml ->
+            Node node = xml.asNode()
+            node.appendNode('inceptionYear', '2009')
+
+            Node license = node.appendNode('licenses').appendNode('license')
+            license.appendNode('name', project.licenseName)
+            license.appendNode('url', project.licenseUrl)
+            license.appendNode('distribution', 'repo')
+
+            Node developer = node.appendNode('developers').appendNode('developer')
+            developer.appendNode('name', 'Elastic')
+            developer.appendNode('url', 'http://www.elastic.co')
+          }
+        }
+      }
+      repositories {
+        maven {
+          name = 'localTest'
+          url = "${rootProject.buildDir}/local-test-repo"
+        }
+      }
+    }
+  }
+
+  plugins.withType(BuildPlugin).whenPluginAdded {
+    project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+    project.noticeFile = project.rootProject.file('NOTICE.txt')
+  }
+}
+
+/* Introspect all versions of ES that may be tested against for backwards
+ * compatibility. It is *super* important that this logic is the same as the
+ * logic in VersionUtils.java, throwing out alphas because they don't have any
+ * backwards compatibility guarantees and only keeping the latest beta or rc
+ * in a branch if there are only betas and rcs in the branch so we have
+ * *something* to test against. */
+VersionCollection versions = new VersionCollection(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
+
+// build metadata from previous build, contains eg hashes for bwc builds
+String buildMetadataValue = System.getenv('BUILD_METADATA')
+if (buildMetadataValue == null) {
+  buildMetadataValue = ''
+}
+Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectEntries {
+  def (String key, String value) = it.split('=')
+  return [key, value]
+}
+
+// injecting groovy property variables into all projects
+allprojects {
+  project.ext {
+    // for ide hacks...
+    isEclipse = System.getProperty("eclipse.launcher") != null ||   // Detects gradle launched from Eclipse's IDE
+            System.getProperty("eclipse.application") != null ||    // Detects gradle launched from the Eclipse compiler server
+            gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
+            gradle.startParameter.taskNames.contains('cleanEclipse')
+    isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
+
+    // for BWC testing
+    bwcVersions = versions
+
+    buildMetadata = buildMetadataMap
+  }
+}
+
+task verifyVersions {
+  doLast {
+    if (gradle.startParameter.isOffline()) {
+      throw new GradleException("Must run in online mode to verify versions")
+    }
+    // Read the list from maven central. 
+    // Fetch the metadata an parse the xml into Version instances because it's more straight forward here 
+    // rather than bwcVersion ( VersionCollection ).
+    new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
+      bwcVersions.compareToAuthoritative(
+              new XmlParser().parse(s)
+                      .versioning.versions.version
+                      .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
+                      .collect { Version.fromString(it) }
+      )
+    }
+  }
+}
+
+/*
+ * When adding backcompat behavior that spans major versions, temporarily
+ * disabling the backcompat tests is necessary. This flag controls
+ * the enabled state of every bwc task. It should be set back to true
+ * after the backport of the backcompat code is complete.
+ */
+final boolean bwc_tests_enabled = true
+final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
+if (bwc_tests_enabled == false) {
+  if (bwc_tests_disabled_issue.isEmpty()) {
+    throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
+  }
+  println "========================= WARNING ========================="
+  println "         Backwards compatibility tests are disabled!"
+  println "See ${bwc_tests_disabled_issue}"
+  println "==========================================================="
+}
+subprojects {
+  ext.bwc_tests_enabled = bwc_tests_enabled
+}
+
+task verifyBwcTestsEnabled {
+  doLast {
+    if (bwc_tests_enabled == false) {
+      throw new GradleException('Bwc tests are disabled. They must be re-enabled after completing backcompat behavior backporting.')
+    }
+  }
+}
+
+task branchConsistency {
+  description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
+  group 'Verification'
+  dependsOn verifyVersions, verifyBwcTestsEnabled
+}
+
+allprojects {
+  // ignore missing javadocs
+  tasks.withType(Javadoc) { Javadoc javadoc ->
+    // the -quiet here is because of a bug in gradle, in that adding a string option
+    // by itself is not added to the options. By adding quiet, both this option and
+    // the "value" -quiet is added, separated by a space. This is ok since the javadoc
+    // command already adds -quiet, so we are just duplicating it
+    // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
+    javadoc.options.encoding='UTF8'
+    javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
+  }
+
+  /* Sets up the dependencies that we build as part of this project but
+    register as though they were external to resolve internally. We register
+    them as external dependencies so the build plugin that we use can be used
+    to build elasticsearch plugins outside of the elasticsearch source tree. */
+  ext.projectSubstitutions = [
+    "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
+    "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
+    "org.elasticsearch:elasticsearch:${version}": ':server',
+    "org.elasticsearch:elasticsearch-cli:${version}": ':libs:elasticsearch-cli',
+    "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
+    "org.elasticsearch:elasticsearch-nio:${version}": ':libs:nio',
+    "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
+    "org.elasticsearch:elasticsearch-geo:${version}": ':libs:elasticsearch-geo',
+    "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
+    "org.elasticsearch:elasticsearch-ssl-config:${version}": ':libs:elasticsearch-ssl-config',
+    "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
+    "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
+    "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
+    "org.elasticsearch.client:test:${version}": ':client:test',
+    "org.elasticsearch.client:transport:${version}": ':client:transport',
+    "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${version}": ':modules:lang-painless:spi',
+    "org.elasticsearch.test:framework:${version}": ':test:framework',
+    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
+    "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
+    "org.elasticsearch.xpack.test:feature-aware:${version}": ':x-pack:test:feature-aware',
+    // for transport client
+    "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
+    "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',
+    "org.elasticsearch.plugin:lang-mustache-client:${version}": ':modules:lang-mustache',
+    "org.elasticsearch.plugin:parent-join-client:${version}": ':modules:parent-join',
+    "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
+    "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
+    "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
+    // for security example plugins
+    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core',
+    "org.elasticsearch.client.x-pack-transport:${version}": ':x-pack:transport-client'
+  ]
+
+  /*
+   * Gradle only resolve project substitutions during dependency resolution but
+   * we sometimes want to do the resolution at other times. This creates a
+   * convenient method we can call to do it.
+   */
+  ext.dependencyToProject = { Dependency dep ->
+    if (dep instanceof ProjectDependency) {
+      return dep.dependencyProject
+    } else {
+      String substitution = projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
+      if (substitution != null) {
+        return findProject(substitution)
+      }
+      return null
+    }
+  }
+
+  project.afterEvaluate {
+    configurations.all {
+      resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
+        projectSubstitutions.each { k,v ->
+          subs.substitute(subs.module(k)).with(subs.project(v))
+        }
+      }
+    }
+
+    // Handle javadoc dependencies across projects. Order matters: the linksOffline for
+    // org.elasticsearch:elasticsearch must be the last one or all the links for the
+    // other packages (e.g org.elasticsearch.client) will point to server rather than
+    // their own artifacts.
+    if (project.plugins.hasPlugin(BuildPlugin) || project.plugins.hasPlugin(PluginBuildPlugin)) {
+      String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+      Closure sortClosure = { a, b -> b.group <=> a.group }
+      Closure depJavadocClosure = { shadowed, dep ->
+        if (dep.group == null || false == dep.group.startsWith('org.elasticsearch')) {
+          return
+        }
+        Project upstreamProject = project.ext.dependencyToProject(dep)
+        if (upstreamProject == null) {
+          return
+        }
+        if (shadowed) {
+          /*
+           * Include the source of shadowed upstream projects so we don't
+           * have to publish their javadoc.
+           */
+          project.evaluationDependsOn(upstreamProject.path)
+          project.javadoc.source += upstreamProject.javadoc.source
+          /*
+           * Instead we need the upstream project's javadoc classpath so
+           * we don't barf on the classes that it references.
+           */
+          project.javadoc.classpath += upstreamProject.javadoc.classpath
+        } else {
+          // Link to non-shadowed dependant projects
+          project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
+          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
+        }
+      }
+      boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
+      project.configurations.compile.dependencies
+          .findAll()
+          .toSorted(sortClosure)
+          .each({ c -> depJavadocClosure(false, c) })
+      project.configurations.compileOnly.dependencies
+          .findAll()
+          .toSorted(sortClosure)
+          .each({ c -> depJavadocClosure(false, c) })
+      if (hasShadow) {
+        project.configurations.bundle.dependencies
+            .findAll()
+            .toSorted(sortClosure)
+            .each({ c -> depJavadocClosure(true, c) })
+      }
+    }
+  }
+}
+
+// Ensure similar tasks in dependent projects run first. The projectsEvaluated here is
+// important because, while dependencies.all will pickup future dependencies,
+// it is not necessarily true that the task exists in both projects at the time
+// the dependency is added.
+gradle.projectsEvaluated {
+  allprojects {
+    if (project.path == ':test:framework') {
+      // :test:framework:test cannot run before and after :server:test
+      return
+    }
+    if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
+      integTest.mustRunAfter test
+    }
+    configurations.all { Configuration configuration ->
+      /*
+       * The featureAwarePlugin configuration has a dependency on x-pack:plugin:core and x-pack:plugin:core has a dependency on the
+       * featureAwarePlugin configuration. The below task ordering logic would force :x-pack:plugin:core:test
+       * :x-pack:test:feature-aware:test to depend on each other circularly. We break that cycle here.
+       */
+      if (configuration.name == "featureAwarePlugin") {
+        return
+      }
+      dependencies.all { Dependency dep ->
+        Project upstreamProject = dependencyToProject(dep)
+        if (upstreamProject != null) {
+          if (project.path == upstreamProject.path) {
+            // TODO: distribution integ tests depend on themselves (!), fix that
+            return
+          }
+          for (String taskName : ['test', 'integTest']) {
+            Task task = project.tasks.findByName(taskName)
+            Task upstreamTask = upstreamProject.tasks.findByName(taskName)
+            if (task != null && upstreamTask != null) {
+              task.mustRunAfter(upstreamTask)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// intellij configuration
+allprojects {
+  apply plugin: 'idea'
+
+  if (isIdea) {
+    project.buildDir = file('build-idea')
+  }
+  idea {
+    module {
+      inheritOutputDirs = false
+      outputDir = file('build-idea/classes/main')
+      testOutputDir = file('build-idea/classes/test')
+
+      // also ignore other possible build dirs
+      excludeDirs += file('build')
+      excludeDirs += file('build-eclipse')
+
+      iml {
+        // fix so that Gradle idea plugin properly generates support for resource folders
+        // see also https://issues.gradle.org/browse/GRADLE-2975
+        withXml {
+          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/main/resources' }.each {
+            it.attributes().remove('isTestSource')
+            it.attributes().put('type', 'java-resource')
+          }
+          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/test/resources' }.each {
+            it.attributes().remove('isTestSource')
+            it.attributes().put('type', 'java-test-resource')
+          }
+        }
+      }
+    }
+  }
+
+  task cleanIdeaBuildDir(type: Delete) {
+    delete 'build-idea'
+  }
+  cleanIdeaBuildDir.setGroup("ide")
+  cleanIdeaBuildDir.setDescription("Deletes the IDEA build directory.")
+
+  tasks.cleanIdea.dependsOn(cleanIdeaBuildDir)
+}
+
+idea {
+  project {
+    vcs = 'Git'
+  }
+}
+// Make sure gradle idea was run before running anything in intellij (including import).
+File ideaMarker = new File(projectDir, '.local-idea-is-configured')
+tasks.idea.doLast {
+  ideaMarker.setText('', 'UTF-8')
+}
+if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
+  throw new GradleException('You must run `./gradlew idea` from the root of elasticsearch before importing into IntelliJ')
+}
+
+// eclipse configuration
+allprojects {
+  apply plugin: 'eclipse'
+  // Name all the non-root projects after their path so that paths get grouped together when imported into eclipse.
+  if (path != ':') {
+    eclipse.project.name = path
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+      eclipse.project.name = eclipse.project.name.replace(':', '_')
+    }
+  }
+
+  plugins.withType(JavaBasePlugin) {
+    File eclipseBuild = project.file('build-eclipse')
+    eclipse.classpath.defaultOutputDir = eclipseBuild
+    if (isEclipse) {
+      // set this so generated dirs will be relative to eclipse build
+      project.buildDir = eclipseBuild
+      // Work around https://docs.gradle.org/current/userguide/java_gradle_plugin.html confusing Eclipse by the metadata
+      // it adds to the  classpath
+      project.file("$buildDir/pluginUnderTestMetadata").mkdirs()
+    }
+    eclipse.classpath.file.whenMerged { classpath ->
+      // give each source folder a unique corresponding output folder
+      int i = 0;
+      classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
+        i++;
+        // this is *NOT* a path or a file.
+        folder.output = "build-eclipse/" + i
+      }
+    }
+  }
+
+  File licenseHeaderFile;
+  String prefix = ':x-pack';
+
+  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+    prefix = prefix.replace(':', '_')
+  }
+  if (eclipse.project.name.startsWith(prefix)) {
+      licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-header.txt')
+  } else {
+      licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
+  }
+
+  String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
+  String licenseHeader = licenseHeaderFile.getText('UTF-8').replace(System.lineSeparator(), lineSeparator)
+  task copyEclipseSettings(type: Copy) {
+    // TODO: "package this up" for external builds
+    from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
+    into '.settings'
+    filter{ it.replaceAll('@@LICENSE_HEADER_TEXT@@', licenseHeader)}
+  }
+  // otherwise .settings is not nuked entirely
+  task wipeEclipseSettings(type: Delete) {
+    delete '.settings'
+  }
+  tasks.cleanEclipse.dependsOn(wipeEclipseSettings)
+  // otherwise the eclipse merging is *super confusing*
+  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
+
+  // work arround https://github.com/gradle/gradle/issues/6582 
+  tasks.eclipseProject.mustRunAfter tasks.cleanEclipseProject
+  tasks.matching { it.name == 'eclipseClasspath' }.all {
+    it.mustRunAfter { tasks.cleanEclipseClasspath }
+  }
+  tasks.matching { it.name == 'eclipseJdt' }.all {
+    it.mustRunAfter { tasks.cleanEclipseJdt }
+  }
+  tasks.copyEclipseSettings.mustRunAfter tasks.wipeEclipseSettings
+}
+
+allprojects {
+  /*
+   * IntelliJ and Eclipse don't know about the shadow plugin so when we're
+   * in "IntelliJ mode" or "Eclipse mode" switch "bundle" dependencies into
+   * regular "compile" dependencies. This isn't needed for the project
+   * itself because the IDE configuration is done by SourceSets but it is
+   * *is* needed for projects that depends on the project doing the shadowing.
+   * Without this they won't properly depend on the shadowed project.
+   */
+  if (isEclipse || isIdea) {
+    project.plugins.withType(ShadowPlugin).whenPluginAdded {
+      project.afterEvaluate {
+        project.configurations.compile.extendsFrom project.configurations.bundle
+      }
+    }
+  }
+}
+
+// we need to add the same --debug-jvm option as
+// the real RunTask has, so we can pass it through
+class Run extends DefaultTask {
+  boolean debug = false
+
+  @Option(
+        option = "debug-jvm",
+        description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
+  )
+  public void setDebug(boolean enabled) {
+    project.project(':distribution').run.clusterConfig.debug = enabled
+  }
+}
+task run(type: Run) {
+  dependsOn ':distribution:run'
+  description = 'Runs elasticsearch in the foreground'
+  group = 'Verification'
+  impliesSubProjects = true
+}
+
+wrapper {
+    distributionType = 'ALL'
+    doLast {
+        final DistributionLocator locator = new DistributionLocator()
+        final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
+        final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
+        final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
+        final String sha256Sum = new String(sha256Uri.toURL().bytes)
+        wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
+        println "Added checksum to wrapper properties"
+        // Update build-tools to reflect the Gradle upgrade
+        // TODO: we can remove this once we have tests to make sure older versions work.
+        project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion
+        println "Updated minimum Gradle Version"
+    }
+}
+
+gradle.projectsEvaluated {
+  subprojects {
+    /*
+     * Remove assemble/dependenciesInfo on all qa projects because we don't
+     * need to publish artifacts for them.
+     */
+    if (project.name.equals('qa') || project.path.contains(':qa:')) {
+      Task assemble = project.tasks.findByName('assemble')
+      if (assemble) {
+        assemble.enabled = false
+      }
+      Task dependenciesInfo = project.tasks.findByName('dependenciesInfo')
+      if (dependenciesInfo) {
+        dependenciesInfo.enabled = false
+      }
+    }
+  }
+  // Having the same group and name for distinct projects causes Gradle to consider them equal when resolving
+  // dependencies leading to hard to debug failures. Run a check across all project to prevent this from happening.
+  // see: https://github.com/gradle/gradle/issues/847
+  Map coordsToProject = [:]
+  project.allprojects.forEach { p ->
+    String coords = "${p.group}:${p.name}"
+    if (false == coordsToProject.putIfAbsent(coords, p)) {
+      throw new GradleException(
+              "Detected that two projects: ${p.path} and ${coordsToProject[coords].path} " +
+                      "have the same name and group: ${coords}. " +
+                      "This doesn't currently work correctly in Gradle, see: " +
+                      "https://github.com/gradle/gradle/issues/847"
+      )
+    }
+  }
+}
+
+if (System.properties.get("build.compare") != null) {
+  apply plugin: 'compare-gradle-builds'
+  compareGradleBuilds {
+    ext.referenceProject = System.properties.get("build.compare")
+    doFirst {
+      if (file(referenceProject).exists() == false) {
+        throw new GradleException(
+                "Use git worktree to check out a version to compare against to ../elasticsearch_build_reference"
+        )
+      }
+    }
+    sourceBuild {
+      gradleVersion = gradle.getGradleVersion()
+      projectDir = referenceProject
+      tasks = ["clean", "assemble"]
+      arguments = ["-Dbuild.compare_friendly=true"]
+    }
+    targetBuild {
+      tasks = ["clean", "assemble"]
+      // use -Dorg.gradle.java.home= to alter jdk versions
+      arguments = ["-Dbuild.compare_friendly=true"]
+    }
+  }
+}
+
+allprojects {
+  task resolveAllDependencies {
+    doLast {
+      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
+    }
+  }
+}
+
+allprojects {
+  task checkPart1
+  task checkPart2 
+  tasks.matching { it.name == "check" }.all { check ->
+    if (check.path.startsWith(":x-pack:")) {
+      checkPart2.dependsOn check
+    } else {
+      checkPart1.dependsOn check
+    }
+  } 
+}
+
+
+
+

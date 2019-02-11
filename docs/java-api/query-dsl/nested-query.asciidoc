@@ -1,0 +1,12 @@
+[[java-query-dsl-nested-query]]
+==== Nested Query
+
+See {ref}/query-dsl-nested-query.html[Nested Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[nested]
+--------------------------------------------------
+<1> path to nested document
+<2> your query. Any fields referenced inside the query must use the complete path (fully qualified).
+<3> score mode could be `ScoreMode.Max`, `ScoreMode.Min`, `ScoreMode.Total`, `ScoreMode.Avg` or `ScoreMode.None`

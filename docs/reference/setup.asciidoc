@@ -1,0 +1,62 @@
+[[setup]]
+= Set up Elasticsearch
+
+[partintro]
+--
+This section includes information on how to setup Elasticsearch and get it
+running, including:
+
+* Downloading
+* Installing
+* Starting
+* Configuring
+
+[[supported-platforms]]
+[float]
+== Supported platforms
+
+The matrix of officially supported operating systems and JVMs is available here:
+link:/support/matrix[Support Matrix]. Elasticsearch is tested on the listed
+platforms, but it is possible that it will work on other platforms too.
+
+[float]
+[[jvm-version]]
+== Java (JVM) Version
+
+Elasticsearch is built using Java, and requires at least
+http://www.oracle.com/technetwork/java/javase/downloads/index.html[Java {jdk_major}]
+in order to run. Only Oracle's Java and the OpenJDK are supported. The same JVM
+version should be used on all Elasticsearch nodes and clients.
+
+We recommend installing Java version *{jdk} or a later version in the Java
+{jdk_major} release series*. We recommend using a
+link:/support/matrix[supported]
+http://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
+Elasticsearch will refuse to start if a known-bad version of Java is used.
+
+The version of Java that Elasticsearch will use can be configured by setting
+the `JAVA_HOME` environment variable.
+
+--
+
+include::setup/install.asciidoc[]
+
+include::setup/configuration.asciidoc[]
+
+include::setup/jvm-options.asciidoc[]
+
+include::setup/secure-settings.asciidoc[]
+
+include::setup/logging-config.asciidoc[]
+
+include::setup/important-settings.asciidoc[]
+
+include::setup/sysconfig.asciidoc[]
+
+include::setup/bootstrap-checks.asciidoc[]
+
+include::setup/starting.asciidoc[]
+
+include::setup/stopping.asciidoc[]
+
+include::setup/add-nodes.asciidoc[]

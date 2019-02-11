@@ -1,0 +1,34 @@
+[[java-aggs-bucket-nested]]
+==== Nested Aggregation
+
+Here is how you can use
+{ref}/search-aggregations-bucket-nested-aggregation.html[Nested Aggregation]
+with Java API.
+
+
+===== Prepare aggregation request
+
+Here is an example on how to create the aggregation request:
+
+[source,java]
+--------------------------------------------------
+AggregationBuilders
+    .nested("agg", "resellers");
+--------------------------------------------------
+
+
+===== Use aggregation response
+
+Import Aggregation definition classes:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.search.aggregations.bucket.nested.Nested;
+--------------------------------------------------
+
+[source,java]
+--------------------------------------------------
+// sr is here your SearchResponse object
+Nested agg = sr.getAggregations().get("agg");
+agg.getDocCount(); // Doc count
+--------------------------------------------------

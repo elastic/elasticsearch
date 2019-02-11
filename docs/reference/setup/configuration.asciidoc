@@ -1,0 +1,80 @@
+[[settings]]
+== Configuring Elasticsearch
+
+Elasticsearch ships with good defaults and requires very little configuration.
+Most settings can be changed on a running cluster using the
+<<cluster-update-settings>> API.
+
+The configuration files should contain settings which are node-specific (such
+as `node.name` and paths), or settings which a node requires in order to be
+able to join a cluster, such as `cluster.name` and `network.host`.
+
+[[config-files-location]]
+[float]
+=== Config files location
+
+Elasticsearch has three configuration files:
+
+* `elasticsearch.yml` for configuring Elasticsearch
+* `jvm.options` for configuring Elasticsearch JVM settings
+* `log4j2.properties` for configuring Elasticsearch logging
+
+These files are located in the config directory, whose default location depends
+on whether or not the installation is from an archive distribution (`tar.gz` or
+`zip`) or a package distribution (Debian or RPM packages).
+
+For the archive distributions, the config directory location defaults to
+`$ES_HOME/config`. The location of the config directory can be changed via the
+`ES_PATH_CONF` environment variable as follows:
+
+[source,sh]
+-------------------------------
+ES_PATH_CONF=/path/to/my/config ./bin/elasticsearch
+-------------------------------
+
+Alternatively, you can `export` the `ES_PATH_CONF` environment variable via the
+command line or via your shell profile.
+
+For the package distributions, the config directory location defaults to
+`/etc/elasticsearch`. The location of the config directory can also be changed
+via the `ES_PATH_CONF` environment variable, but note that setting this in your
+shell is not sufficient. Instead, this variable is sourced from
+`/etc/default/elasticsearch` (for the Debian package) and
+`/etc/sysconfig/elasticsearch` (for the RPM package). You will need to edit the
+`ES_PATH_CONF=/etc/elasticsearch` entry in one of these files accordingly to
+change the config directory location.
+
+
+[float]
+=== Config file format
+
+The configuration format is http://www.yaml.org/[YAML]. Here is an
+example of changing the path of the data and logs directories:
+
+[source,yaml]
+--------------------------------------------------
+path:
+    data: /var/lib/elasticsearch
+    logs: /var/log/elasticsearch
+--------------------------------------------------
+
+Settings can also be flattened as follows:
+
+[source,yaml]
+--------------------------------------------------
+path.data: /var/lib/elasticsearch
+path.logs: /var/log/elasticsearch
+--------------------------------------------------
+
+[float]
+=== Environment variable substitution
+
+Environment variables referenced with the `${...}` notation within the
+configuration file will be replaced with the value of the environment
+variable, for instance:
+
+[source,yaml]
+--------------------------------------------------
+node.name:    ${HOSTNAME}
+network.host: ${ES_NETWORK_HOST}
+--------------------------------------------------

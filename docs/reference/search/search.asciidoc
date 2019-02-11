@@ -1,0 +1,40 @@
+[[search-search]]
+== Search
+
+The search API allows you to execute a search query and get back search hits
+that match the query. The query can either be provided using a simple
+<<search-uri-request,query string as a parameter>>, or using a
+<<search-request-body,request body>>.
+
+["float",id="search-multi-index"]
+=== Multi-Index
+
+All search APIs can be applied across multiple indices with support for
+the <<multi-index,multi index syntax>>. For
+example, we can search on all documents within the twitter index:
+
+[source,js]
+--------------------------------------------------
+GET /twitter/_search?q=user:kimchy
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+We can also search all documents with a certain tag across several indices
+(for example, when there is one index per user):
+
+[source,js]
+--------------------------------------------------
+GET /kimchy,elasticsearch/_search?q=tag:wow
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+
+Or we can search across all available indices using `_all`:
+
+[source,js]
+---------------------------------------------------
+GET /_all/_search?q=tag:wow
+---------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]

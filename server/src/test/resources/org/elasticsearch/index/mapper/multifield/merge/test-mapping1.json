@@ -1,0 +1,10 @@
+{
+    "person":{
+        "properties":{
+            "name":{
+                "type": "text",
+                "store":true
+            }
+        }
+    }
+}

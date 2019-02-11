@@ -1,0 +1,36 @@
+[role="xpack"]
+[[xpack-api]]
+= {xpack} APIs
+
+[partintro]
+--
+{xpack} exposes REST APIs that are used by the UI components and can be called
+directly to configure and access {xpack} features.
+
+* <<info-api,Info API>>
+* <<ccr-apis,Cross-cluster replication APIs>>
+* <<graph-explore-api,Graph Explore API>>
+* <<freeze-index-api>>, <<unfreeze-index-api>>
+* <<index-lifecycle-management-api,Index lifecycle management APIs>>
+* <<licensing-apis,Licensing APIs>>
+* <<ml-apis,Machine Learning APIs>>
+* <<security-api,Security APIs>>
+* <<watcher-api,Watcher APIs>>
+* <<rollup-apis,Rollup APIs>>
+* <<migration-api,Migration APIs>>
+--
+
+
+include::info.asciidoc[]
+include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
+include::{es-repo-dir}/graph/explore.asciidoc[]
+include::{es-repo-dir}/indices/apis/freeze.asciidoc[]
+include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]
+include::{es-repo-dir}/licensing/index.asciidoc[]
+include::{es-repo-dir}/migration/migration.asciidoc[]
+include::{es-repo-dir}/ml/apis/ml-api.asciidoc[]
+include::{es-repo-dir}/rollup/rollup-api.asciidoc[]
+include::{xes-repo-dir}/rest-api/security.asciidoc[]
+include::{es-repo-dir}/indices/apis/unfreeze.asciidoc[]
+include::{xes-repo-dir}/rest-api/watcher.asciidoc[]
+include::defs.asciidoc[]

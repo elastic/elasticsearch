@@ -1,0 +1,55 @@
+[[indices-clearcache]]
+== Clear Cache
+
+The clear cache API allows to clear either all caches or specific cached
+associated with one or more indices.
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_cache/clear
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+The API, by default, will clear all caches. Specific caches can be cleaned
+explicitly by setting the `query`, `fielddata` or `request` url parameter to `true`.
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_cache/clear?query=true      <1>
+POST /twitter/_cache/clear?request=true    <2>
+POST /twitter/_cache/clear?fielddata=true   <3>
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+<1> Cleans only the query cache
+<2> Cleans only the request cache
+<3> Cleans only the fielddata cache
+
+In addition to this, all caches relating to a specific field can also be
+cleared by specifying `fields` url parameter with a comma delimited list of
+the fields that should be cleared. Note that the provided names must refer to
+concrete fields -- objects and field aliases are not supported.
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_cache/clear?fields=foo,bar   <1>
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+<1> Clear the cache for the `foo` an `bar` field
+
+[float]
+=== Multi Index
+
+The clear cache API can be applied to more than one index with a single
+call, or even on `_all` the indices.
+
+[source,js]
+--------------------------------------------------
+POST /kimchy,elasticsearch/_cache/clear
+
+POST /_cache/clear
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]

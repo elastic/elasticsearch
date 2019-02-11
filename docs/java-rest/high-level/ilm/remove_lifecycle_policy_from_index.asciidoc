@@ -1,0 +1,38 @@
+--
+:api: ilm-remove-lifecycle-policy-from-index
+:request: RemoveIndexLifecyclePolicyRequest
+:response: AcknowledgedResponse
+--
+
+[id="{upid}-{api}"]
+=== Remove Policy from Index API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+Removes the assigned lifecycle policy from an index.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> removes the `my_policy` policy from `my_index`
+
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the request to remove
+the lifecycle policy from the index was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not there were any policies failed
+to be removed from any indices from the request
+<2> A list of index names which are still managed
+by their policies.
+
+include::../execution.asciidoc[]

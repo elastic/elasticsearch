@@ -1,0 +1,87 @@
+---
+teardown:
+- do:
+    ingest.delete_pipeline:
+      id: "my_pipeline"
+      ignore: 404
+
+---
+"Test dissect processor match":
+- do:
+    ingest.put_pipeline:
+      id: "my_pipeline"
+      body:  >
+        {
+          "description": "_description",
+          "processors": [
+            {
+              "dissect" : {
+                "field" : "message",
+                "pattern" : "%{a} %{b} %{c}"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    index:
+      index: test
+      id: 1
+      pipeline: "my_pipeline"
+      body: {message: "foo bar baz"}
+
+- do:
+    get:
+      index: test
+      id: 1
+- match: { _source.message: "foo bar baz" }
+- match: { _source.a: "foo" }
+- match: { _source.b: "bar" }
+- match: { _source.c: "baz" }
+---
+"Test dissect processor mismatch":
+- do:
+    ingest.put_pipeline:
+      id: "my_pipeline"
+      body:  >
+        {
+          "description": "_description",
+          "processors": [
+            {
+              "dissect" : {
+                "field" : "message",
+                "pattern" : "%{a},%{b},%{c}"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    catch: '/Unable to find match for dissect pattern: \%\{a\},\%\{b\},\%\{c\} against source: foo bar baz/'
+    index:
+      index: test
+      type: test
+      id: 2
+      pipeline: "my_pipeline"
+      body: {message: "foo bar baz"}
+
+---
+"Test fail to create dissect processor":
+- do:
+    catch: '/Unable to parse pattern/'
+    ingest.put_pipeline:
+      id: "my_pipeline"
+      body:  >
+        {
+          "description": "_description",
+          "processors": [
+            {
+              "dissect" : {
+                "field" : "message",
+                "pattern" : "bad pattern"
+              }
+            }
+          ]
+        }

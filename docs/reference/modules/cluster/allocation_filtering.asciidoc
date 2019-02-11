@@ -1,0 +1,69 @@
+[[allocation-filtering]]
+=== Cluster-level shard allocation filtering
+
+You can use cluster-level shard allocation filters to control where {es}
+allocates shards from any index. These cluster wide filters are applied in
+conjunction with <<shard-allocation-filtering, per-index allocation filtering>>
+and <<allocation-awareness, allocation awareness>>.
+
+Shard allocation filters can be based on custom node attributes or the built-in
+`_name`, `_ip`, and `_host` attributes.
+
+The `cluster.routing.allocation` settings are dynamic, enabling live indices to
+be moved from one set of nodes to another. Shards are only relocated if it is
+possible to do so without breaking another routing constraint, such as never
+allocating a primary and replica shard on the same node.
+
+The most common use case for cluster-level shard allocation filtering is when
+you want to decommission a node. To move shards off of a node prior to shutting
+it down, you could create a filter that excludes the node by its IP address:
+
+[source,js]
+--------------------------------------------------
+PUT _cluster/settings
+{
+  "transient" : {
+    "cluster.routing.allocation.exclude._ip" : "10.0.0.1"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
+[[cluster-routing-settings]]
+==== Cluster routing settings
+
+`cluster.routing.allocation.include.{attribute}`::
+
+    Allocate shards to a node whose `{attribute}` has at least one of the
+    comma-separated values.
+
+`cluster.routing.allocation.require.{attribute}`::
+
+    Only allocate shards to a node whose `{attribute}` has _all_ of the
+    comma-separated values.
+
+`cluster.routing.allocation.exclude.{attribute}`::
+
+    Do not allocate shards to a node whose `{attribute}` has _any_ of the
+    comma-separated values.
+
+The cluster allocation settings support the following built-in attributes:
+
+[horizontal]
+`_name`::   Match nodes by node names
+`_ip`::     Match nodes by IP addresses (the IP address associated with the hostname)
+`_host`::   Match nodes by hostnames
+
+You can use wildcards when specifying attribute values, for example:
+
+[source,js]
+------------------------
+PUT _cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.exclude._ip": "192.168.2.*"
+  }
+}
+------------------------
+// CONSOLE

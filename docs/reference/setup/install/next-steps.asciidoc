@@ -1,0 +1,10 @@
+[role="exclude"]
+==== Next steps
+
+You now have a test {es} environment set up.  Before you start
+serious development or go into production with {es}, you must do some additional
+setup:
+
+* Learn how to <<settings,configure Elasticsearch>>.
+* Configure <<important-settings,important Elasticsearch settings>>.
+* Configure <<system-config,important system settings>>.

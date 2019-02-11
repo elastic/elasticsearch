@@ -1,0 +1,25 @@
+{
+    "person":{
+        "properties":{
+            "name":{
+                "type": "text",
+                "store":true,
+                "fields":{
+                    "indexed":{
+                        "type": "text"
+                    },
+                    "not_indexed":{
+                        "type": "text",
+                        "index":false,
+                        "store":true
+                    },
+                    "not_indexed2":{
+                        "type": "text",
+                        "index":false,
+                        "store":true
+                    }
+                }
+            }
+        }
+    }
+}

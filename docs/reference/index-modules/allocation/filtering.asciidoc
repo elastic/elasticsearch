@@ -1,0 +1,115 @@
+[[shard-allocation-filtering]]
+=== Index-level shard allocation filtering
+
+You can use shard allocation filters to control where {es} allocates shards of
+a particular index. These per-index filters are applied in conjunction with
+<<allocation-filtering, cluster-wide allocation filtering>> and
+<<allocation-awareness, allocation awareness>>.
+
+Shard allocation filters can be based on custom node attributes or the built-in
+`_name`, `host_ip`, `publish_ip`, `_ip`, and `_host` attributes.
+<<index-lifecycle-management, Index lifecycle management>> uses filters based
+on custom node attributes to determine how to reallocate shards when moving
+between phases.
+
+The `cluster.routing.allocation` settings are dynamic, enabling live indices to
+be moved from one set of nodes to another. Shards are only relocated if it is
+possible to do so without breaking another routing constraint, such as never
+allocating a primary and replica shard on the same node.
+
+For example, you could use a custom node attribute to indicate a node's
+performance characteristics and use shard allocation filtering to route shards
+for a particular index to the most appropriate class of hardware.
+
+[float]
+[[index-allocation-filters]]
+==== Enabling index-level shard allocation filtering
+
+To filter based on a custom node attribute:
+
+. Specify the filter characteristics with a custom node attribute in each
+node's `elasticsearch.yml` configuration file. For example, if you have `small`,
+`medium`, and `big` nodes, you could add a `size` attribute to filter based
+on node size.
++
+[source,yaml]
+--------------------------------------------------------
+node.attr.size: medium
+--------------------------------------------------------
++
+You can also set custom attributes when you start a node:
++
+[source,sh]
+--------------------------------------------------------
+`./bin/elasticsearch -Enode.attr.size=medium
+--------------------------------------------------------
+
+. Add a routing allocation filter to the index. The `index.routing.allocation`
+settings support three types of filters: `include`, `exclude`, and `require`.
+For example, to tell {es} to allocate shards from the `test` index to either
+`big` or `medium` nodes, use `index.routing.allocation.include`:
++
+[source,js]
+------------------------
+PUT test/_settings
+{
+  "index.routing.allocation.include.size": "big,medium"
+}
+------------------------
+// CONSOLE
+// TEST[s/^/PUT test\n/]
++
+If you specify multiple filters, all conditions must be satisfied for shards to
+be relocated. For example, to move the `test` index to `big` nodes in `rack1`,
+you could specify:
++
+[source,js]
+------------------------
+PUT test/_settings
+{
+  "index.routing.allocation.include.size": "big",
+  "index.routing.allocation.include.rack": "rack1"
+}
+------------------------
+// CONSOLE
+// TEST[s/^/PUT test\n/]
+
+[float]
+[[index-allocation-settings]]
+==== Index allocation filter settings
+
+`index.routing.allocation.include.{attribute}`::
+
+    Assign the index to a node whose `{attribute}` has at least one of the
+    comma-separated values.
+
+`index.routing.allocation.require.{attribute}`::
+
+    Assign the index to a node whose `{attribute}` has _all_ of the
+    comma-separated values.
+
+`index.routing.allocation.exclude.{attribute}`::
+
+    Assign the index to a node whose `{attribute}` has _none_ of the
+    comma-separated values.
+
+The index allocation settings support the following built-in attributes:
+
+[horizontal]
+`_name`::       Match nodes by node name
+`_host_ip`::    Match nodes by host IP address (IP associated with hostname)
+`_publish_ip`:: Match nodes by publish IP address
+`_ip`::         Match either `_host_ip` or `_publish_ip`
+`_host`::       Match nodes by hostname
+
+You can use wildcards when specifying attribute values, for example:
+
+[source,js]
+------------------------
+PUT test/_settings
+{
+  "index.routing.allocation.include._ip": "192.168.2.*"
+}
+------------------------
+// CONSOLE
+// TEST[skip:indexes don't assign]

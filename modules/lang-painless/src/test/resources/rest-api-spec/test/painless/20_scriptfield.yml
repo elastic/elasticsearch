@@ -1,0 +1,156 @@
+# Integration tests for using a scripted field
+#
+setup:
+    - do:
+        indices.create:
+          index: test
+          body:
+            mappings:
+              properties:
+                foo:
+                  type: keyword
+                missing:
+                  type: keyword
+                date:
+                  type: date
+                  format: yyyy/MM/dd
+                dates:
+                  type: date
+                  format: yyyy/MM/dd
+    - do:
+        index:
+            index: test
+            id: 1
+            body: {
+              "foo": "aaa",
+              "date": "2017/01/01",
+              "dates": ["2017/01/01", "2017/02/01", "2017/03/01"]
+            }
+    - do:
+        indices.refresh: {}
+
+---
+"Scripted Field":
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            source: "doc['foo'].value + params.x;"
+                            params:
+                                x: "bbb"
+
+    - match: { hits.hits.0.fields.bar.0: "aaabbb"}
+
+---
+"Scripted Field Doing Compare":
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            source: "boolean compare(Supplier s, def v) {return s.get() == v;}
+                                     compare(() -> { return doc['foo'].value }, params.x);"
+                            params:
+                                x: "aaa"
+
+    - match: { hits.hits.0.fields.bar.0: true}
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            source: "boolean compare(Supplier s, def v) {return s.get() == v;}
+                                     compare(() -> { return doc['foo'].value }, params.x);"
+                            params:
+                                x: "bbb"
+
+    - match: { hits.hits.0.fields.bar.0: false}
+
+---
+"Scripted Field with a null safe dereference (non-null)":
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            source: "(doc['foo'].value?.length() ?: 0) + params.x;"
+                            params:
+                                x: 5
+
+    - match: { hits.hits.0.fields.bar.0: 8}
+
+---
+"Scripted Field with a null safe dereference (null)":
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            source: "(doc['missing'].size() == 0 ? 0 : doc['missing'].value.length()) + params.x;"
+                            params:
+                                x: 5
+
+    - match: { hits.hits.0.fields.bar.0: 5}
+
+---
+"Access a date":
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            source: "doc.date.value.dayOfWeekEnum.value"
+
+    - match: { hits.hits.0.fields.bar.0: 7}
+
+---
+"Access many dates":
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                script_fields:
+                    bar:
+                        script:
+                            source: >
+                              StringBuilder b = new StringBuilder();
+                              for (def date : doc.dates) {
+                                b.append(" ").append(date.getDayOfWeekEnum().value);
+                              }
+                              return b.toString().trim()
+
+    - match: { hits.hits.0.fields.bar.0: "7 3 3"}
+
+---
+"Scripted Field with script error":
+    - do:
+        catch: bad_request
+        search:
+          rest_total_hits_as_int: true
+          body:
+            script_fields:
+              bar:
+                script:
+                  source: "while (true) {}"
+
+    - match: { error.root_cause.0.type: "script_exception" }
+    - match: { error.root_cause.0.reason: "compile error" }
+    - match: { error.type: "search_phase_execution_exception" }
+    - match: { error.reason: "all shards failed" }
+    - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+    - match: { error.failed_shards.0.reason.caused_by.reason: "While loop has no escape." }
+    - match: { error.failed_shards.0.reason.type: "script_exception" }
+    - match: { error.failed_shards.0.reason.reason: "compile error" }

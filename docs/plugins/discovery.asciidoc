@@ -1,0 +1,39 @@
+[[discovery]]
+== Discovery Plugins
+
+Discovery plugins extend Elasticsearch by adding new seed hosts providers that
+can be used to extend the {ref}/modules-discovery.html[cluster formation
+module].
+
+[float]
+==== Core discovery plugins
+
+The core discovery plugins are:
+
+<<discovery-ec2,EC2 discovery>>::
+
+The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API]
+to identify the addresses of seed hosts.
+
+<<discovery-azure-classic,Azure Classic discovery>>::
+
+The Azure Classic discovery plugin uses the Azure Classic API to identify the
+addresses of seed hosts.
+
+<<discovery-gce,GCE discovery>>::
+
+The Google Compute Engine discovery plugin uses the GCE API to identify the
+addresses of seed hosts.
+
+[float]
+==== Community contributed discovery plugins
+
+The following discovery plugins have been contributed by our community:
+
+* https://github.com/fabric8io/elasticsearch-cloud-kubernetes[Kubernetes Discovery Plugin] (by Jimmi Dyson, http://fabric8.io[fabric8])
+
+include::discovery-ec2.asciidoc[]
+
+include::discovery-azure-classic.asciidoc[]
+
+include::discovery-gce.asciidoc[]

@@ -1,0 +1,127 @@
+[[shards-allocation]]
+=== Cluster level shard allocation
+
+Shard allocation is the process of allocating shards to nodes. This can
+happen during initial recovery, replica allocation, rebalancing, or
+when nodes are added or removed.
+
+[float]
+=== Shard allocation settings
+
+The following _dynamic_ settings may be used to control shard allocation and recovery:
+
+`cluster.routing.allocation.enable`::
++
+--
+Enable or disable allocation for specific kinds of shards:
+
+* `all` -             (default) Allows shard allocation for all kinds of shards.
+* `primaries` -       Allows shard allocation only for primary shards.
+* `new_primaries` -   Allows shard allocation only for primary shards for new indices.
+* `none` -            No shard allocations of any kind are allowed for any indices.
+
+This setting does not affect the recovery of local primary shards when
+restarting a node.  A restarted node that has a copy of an unassigned primary
+shard will recover that primary immediately, assuming that its allocation id matches
+one of the active allocation ids in the cluster state.
+
+--
+
+`cluster.routing.allocation.node_concurrent_incoming_recoveries`::
+
+     How many concurrent incoming shard recoveries are allowed to happen on a node. Incoming recoveries are the recoveries
+     where the target shard (most likely the replica unless a shard is relocating) is allocated on the node. Defaults to `2`.
+
+`cluster.routing.allocation.node_concurrent_outgoing_recoveries`::
+
+     How many concurrent outgoing shard recoveries are allowed to happen on a node. Outgoing recoveries are the recoveries
+     where the source shard (most likely the primary unless a shard is relocating) is allocated on the node. Defaults to `2`.
+
+`cluster.routing.allocation.node_concurrent_recoveries`::
+
+     A shortcut to set both `cluster.routing.allocation.node_concurrent_incoming_recoveries` and
+     `cluster.routing.allocation.node_concurrent_outgoing_recoveries`.
+
+
+`cluster.routing.allocation.node_initial_primaries_recoveries`::
+
+    While the recovery of replicas happens over the network, the recovery of
+    an unassigned primary after node restart uses data from the local disk.
+    These should be fast so more initial primary recoveries can happen in
+    parallel on the same node.  Defaults to `4`.
+
+
+`cluster.routing.allocation.same_shard.host`::
+
+      Allows to perform a check to prevent allocation of multiple instances of
+      the same shard on a single host, based on host name and host address.
+      Defaults to `false`, meaning that no check is performed by default. This
+      setting only applies if multiple nodes are started on the same machine.
+
+[float]
+=== Shard rebalancing settings
+
+The following _dynamic_ settings may be used to control the rebalancing of
+shards across the cluster:
+
+
+`cluster.routing.rebalance.enable`::
++
+--
+Enable or disable rebalancing for specific kinds of shards:
+
+* `all` -         (default) Allows shard balancing for all kinds of shards.
+* `primaries` -   Allows shard balancing only for primary shards.
+* `replicas` -    Allows shard balancing only for replica shards.
+* `none` -        No shard balancing of any kind are allowed for any indices.
+--
+
+
+`cluster.routing.allocation.allow_rebalance`::
++
+--
+Specify when shard rebalancing is allowed:
+
+
+* `always` -                    Always allow rebalancing.
+* `indices_primaries_active` -  Only when all primaries in the cluster are allocated.
+* `indices_all_active` -        (default) Only when all shards (primaries and replicas) in the cluster are allocated.
+--
+
+`cluster.routing.allocation.cluster_concurrent_rebalance`::
+
+      Allow to control how many concurrent shard rebalances are
+      allowed cluster wide. Defaults to `2`. Note that this setting
+      only controls the number of concurrent shard relocations due
+      to imbalances in the cluster. This setting does not limit shard
+      relocations due to <<allocation-filtering,allocation filtering>>
+      or <<forced-awareness,forced awareness>>.
+
+[float]
+=== Shard balancing heuristics
+
+The following settings are used together to determine where to place each
+shard.  The cluster is balanced when no allowed rebalancing operation can bring the weight
+of any node closer to the weight of any other node by more than the `balance.threshold`.
+
+`cluster.routing.allocation.balance.shard`::
+
+     Defines the weight factor for the total number of shards allocated on a node
+     (float). Defaults to `0.45f`.  Raising this raises the tendency to
+     equalize the number of shards across all nodes in the cluster.
+
+`cluster.routing.allocation.balance.index`::
+
+     Defines the weight factor for the number of shards per index allocated
+      on a specific node (float). Defaults to `0.55f`.  Raising this raises the
+      tendency to equalize the number of shards per index across all nodes in
+      the cluster.
+
+`cluster.routing.allocation.balance.threshold`::
+     Minimal optimization value of operations that should be performed (non
+      negative float). Defaults to `1.0f`.  Raising this will cause the cluster
+      to be less aggressive about optimizing the shard balance.
+
+
+NOTE: Regardless of the result of the balancing algorithm, rebalancing might
+not be allowed due to forced awareness or allocation filtering.

@@ -1,0 +1,286 @@
+[[regexp-syntax]]
+==== Regular expression syntax
+
+Regular expression queries are supported by the `regexp` and the `query_string`
+queries.  The Lucene regular expression engine
+is not Perl-compatible but supports a smaller range of operators.
+
+[NOTE]
+=====
+We will not attempt to explain regular expressions, but
+just explain the supported operators.
+=====
+
+===== Standard operators
+
+Anchoring::
++
+--
+
+Most regular expression engines allow you to match any part of a string.
+If you want the regexp pattern to start at the beginning of the string or
+finish at the end of the string, then you have to _anchor_ it specifically,
+using `^` to indicate the beginning or `$` to indicate the end.
+
+Lucene's patterns are always anchored.  The pattern provided must match
+the entire string. For string `"abcde"`:
+
+    ab.*     # match
+    abcd     # no match
+
+--
+
+Allowed characters::
++
+--
+
+Any Unicode characters may be used in the pattern, but certain characters
+are reserved and must be escaped.  The standard reserved characters are:
+
+....
+. ? + * | { } [ ] ( ) " \
+....
+
+If you enable optional features (see below) then these characters may
+also be reserved:
+
+    # @ & < >  ~
+
+Any reserved character can be escaped with a backslash `"\*"` including
+a literal backslash character: `"\\"`
+
+Additionally, any characters (except double quotes) are interpreted literally
+when surrounded by double quotes:
+
+    john"@smith.com"
+
+
+--
+
+Match any character::
++
+--
+
+The period `"."` can be used to represent any character.  For string `"abcde"`:
+
+    ab...   # match
+    a.c.e   # match
+
+--
+
+One-or-more::
++
+--
+
+The plus sign `"+"` can be used to repeat the preceding shortest pattern
+once or more times. For string `"aaabbb"`:
+
+    a+b+        # match
+    aa+bb+      # match
+    a+.+        # match
+    aa+bbb+     # match
+
+--
+
+Zero-or-more::
++
+--
+
+The asterisk `"*"` can be used to match the preceding shortest pattern
+zero-or-more times.  For string `"aaabbb`":
+
+    a*b*        # match
+    a*b*c*      # match
+    .*bbb.*     # match
+    aaa*bbb*    # match
+
+--
+
+Zero-or-one::
++
+--
+
+The question mark `"?"` makes the preceding shortest pattern optional. It
+matches zero or one times.  For string `"aaabbb"`:
+
+    aaa?bbb?    # match
+    aaaa?bbbb?  # match
+    .....?.?    # match
+    aa?bb?      # no match
+
+--
+
+Min-to-max::
++
+--
+
+Curly brackets `"{}"` can be used to specify a minimum and (optionally)
+a maximum number of times the preceding shortest pattern can repeat.  The
+allowed forms are:
+
+    {5}     # repeat exactly 5 times
+    {2,5}   # repeat at least twice and at most 5 times
+    {2,}    # repeat at least twice
+
+For string `"aaabbb"`:
+
+    a{3}b{3}        # match
+    a{2,4}b{2,4}    # match
+    a{2,}b{2,}      # match
+    .{3}.{3}        # match
+    a{4}b{4}        # no match
+    a{4,6}b{4,6}    # no match
+    a{4,}b{4,}      # no match
+
+--
+
+Grouping::
++
+--
+
+Parentheses `"()"` can be used to form sub-patterns. The quantity operators
+listed above operate on the shortest previous pattern, which can be a group.
+For string `"ababab"`:
+
+    (ab)+       # match
+    ab(ab)+     # match
+    (..)+       # match
+    (...)+      # no match
+    (ab)*       # match
+    abab(ab)?   # match
+    ab(ab)?     # no match
+    (ab){3}     # match
+    (ab){1,2}   # no match
+
+--
+
+Alternation::
++
+--
+
+The pipe symbol `"|"` acts as an OR operator. The match will succeed if
+the pattern on either the left-hand side OR the right-hand side matches.
+The alternation applies to the _longest pattern_, not the shortest.
+For string `"aabb"`:
+
+    aabb|bbaa   # match
+    aacc|bb     # no match
+    aa(cc|bb)   # match
+    a+|b+       # no match
+    a+b+|b+a+   # match
+    a+(b|c)+    # match
+
+--
+
+Character classes::
++
+--
+
+Ranges of potential characters may be represented as character classes
+by enclosing them in square brackets `"[]"`. A leading `^`
+negates the character class. The allowed forms are:
+
+    [abc]   # 'a' or 'b' or 'c'
+    [a-c]   # 'a' or 'b' or 'c'
+    [-abc]  # '-' or 'a' or 'b' or 'c'
+    [abc\-] # '-' or 'a' or 'b' or 'c'
+    [^abc]  # any character except 'a' or 'b' or 'c'
+    [^a-c]  # any character except 'a' or 'b' or 'c'
+    [^-abc]  # any character except '-' or 'a' or 'b' or 'c'
+    [^abc\-] # any character except '-' or 'a' or 'b' or 'c'
+
+Note that the dash `"-"` indicates a range of characters, unless it is
+the first character or if it is escaped with a backslash.
+
+For string `"abcd"`:
+
+    ab[cd]+     # match
+    [a-d]+      # match
+    [^a-d]+     # no match
+
+--
+
+===== Optional operators
+
+These operators are available by default as the `flags` parameter defaults to `ALL`.
+Different flag combinations (concatenated with `"|"`) can be used to enable/disable
+specific operators:
+
+    {
+        "regexp": {
+            "username": {
+                "value": "john~athon<1-5>",
+                "flags": "COMPLEMENT|INTERVAL"
+            }
+        }
+    }
+
+Complement::
++
+--
+
+The complement is probably the most useful option. The shortest pattern that
+follows a tilde `"~"` is negated.  For instance, `"ab~cd" means:
+
+* Starts with `a`
+* Followed by `b`
+* Followed by a string of any length that it anything but `c`
+* Ends with `d`
+
+For the string `"abcdef"`:
+
+    ab~df     # match
+    ab~cf     # match
+    ab~cdef   # no match
+    a~(cb)def # match
+    a~(bc)def # no match
+
+Enabled with the `COMPLEMENT` or `ALL` flags.
+
+--
+
+Interval::
++
+--
+
+The interval option enables the use of numeric ranges, enclosed by angle
+brackets `"<>"`. For string: `"foo80"`:
+
+    foo<1-100>     # match
+    foo<01-100>    # match
+    foo<001-100>   # no match
+
+Enabled with the `INTERVAL` or `ALL` flags.
+
+
+--
+
+Intersection::
++
+--
+
+The ampersand `"&"` joins two patterns in a way that both of them have to
+match. For string `"aaabbb"`:
+
+    aaa.+&.+bbb     # match
+    aaa&bbb         # no match
+
+Using this feature usually means that you should rewrite your regular
+expression.
+
+Enabled with the `INTERSECTION` or `ALL` flags.
+
+--
+
+Any string::
++
+--
+
+The at sign `"@"` matches any string in its entirety.  This could be combined
+with the intersection and complement above to express ``everything except''.
+For instance:
+
+    @&~(foo.+)      # anything except string beginning with "foo"
+
+Enabled with the `ANYSTRING` or `ALL` flags.
+--

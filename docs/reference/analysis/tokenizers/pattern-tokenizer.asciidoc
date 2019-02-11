@@ -1,0 +1,278 @@
+[[analysis-pattern-tokenizer]]
+=== Pattern Tokenizer
+
+The `pattern` tokenizer uses a regular expression to either split text into
+terms whenever it matches a word separator, or to capture matching text as
+terms.
+
+The default pattern is `\W+`, which splits text whenever it encounters
+non-word characters.
+
+[WARNING]
+.Beware of Pathological Regular Expressions
+========================================
+
+The pattern tokenizer uses
+http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java Regular Expressions].
+
+A badly written regular expression could run very slowly or even throw a
+StackOverflowError and cause the node it is running on to exit suddenly.
+
+Read more about http://www.regular-expressions.info/catastrophic.html[pathological regular expressions and how to avoid them].
+
+========================================
+
+[float]
+=== Example output
+
+[source,js]
+---------------------------
+POST _analyze
+{
+  "tokenizer": "pattern",
+  "text": "The foo_bar_size's default is 5."
+}
+---------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "The",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "foo_bar_size",
+      "start_offset": 4,
+      "end_offset": 16,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "s",
+      "start_offset": 17,
+      "end_offset": 18,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "default",
+      "start_offset": 19,
+      "end_offset": 26,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "is",
+      "start_offset": 27,
+      "end_offset": 29,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "5",
+      "start_offset": 30,
+      "end_offset": 31,
+      "type": "word",
+      "position": 5
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above sentence would produce the following terms:
+
+[source,text]
+---------------------------
+[ The, foo_bar_size, s, default, is, 5 ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `pattern` tokenizer accepts the following parameters:
+
+[horizontal]
+`pattern`::
+
+    A http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expression], defaults to `\W+`.
+
+`flags`::
+
+    Java regular expression http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.summary[flags].
+    Flags should be pipe-separated, eg `"CASE_INSENSITIVE|COMMENTS"`.
+
+`group`::
+
+    Which capture group to extract as tokens.  Defaults to `-1` (split).
+
+[float]
+=== Example configuration
+
+In this example, we configure the `pattern` tokenizer to break text into
+tokens when it encounters commas:
+
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "my_tokenizer"
+        }
+      },
+      "tokenizer": {
+        "my_tokenizer": {
+          "type": "pattern",
+          "pattern": ","
+        }
+      }
+    }
+  }
+}
+
+POST my_index/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "comma,separated,values"
+}
+----------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "comma",
+      "start_offset": 0,
+      "end_offset": 5,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "separated",
+      "start_offset": 6,
+      "end_offset": 15,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "values",
+      "start_offset": 16,
+      "end_offset": 22,
+      "type": "word",
+      "position": 2
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above example produces the following terms:
+
+[source,text]
+---------------------------
+[ comma, separated, values ]
+---------------------------
+
+In the next example, we configure the `pattern` tokenizer to capture values
+enclosed in double quotes (ignoring embedded escaped quotes `\"`).  The regex
+itself looks like this:
+
+    "((?:\\"|[^"]|\\")*)"
+
+And reads as follows:
+
+* A literal `"`
+* Start capturing:
+** A literal `\"` OR any character except `"`
+** Repeat until no more characters match
+* A literal closing `"`
+
+When the pattern is specified in JSON, the `"` and `\` characters need to be
+escaped, so the pattern ends up looking like:
+
+    \"((?:\\\\\"|[^\"]|\\\\\")+)\"
+
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "my_tokenizer"
+        }
+      },
+      "tokenizer": {
+        "my_tokenizer": {
+          "type": "pattern",
+          "pattern": "\"((?:\\\\\"|[^\"]|\\\\\")+)\"",
+          "group": 1
+        }
+      }
+    }
+  }
+}
+
+POST my_index/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "\"value\", \"value with embedded \\\" quote\""
+}
+----------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "value",
+      "start_offset": 1,
+      "end_offset": 6,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "value with embedded \\\" quote",
+      "start_offset": 10,
+      "end_offset": 38,
+      "type": "word",
+      "position": 1
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+The above example produces the following two terms:
+
+[source,text]
+---------------------------
+[ value, value with embedded \" quote ]
+---------------------------

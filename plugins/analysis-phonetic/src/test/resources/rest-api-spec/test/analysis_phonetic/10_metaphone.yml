@@ -1,0 +1,34 @@
+# Integration tests for Phonetic analysis components
+#
+
+
+"Metaphone":
+    - do:
+        indices.create:
+            index:  phonetic_sample
+            body:
+                settings:
+                    index:
+                        analysis:
+                            analyzer:
+                                my_analyzer:
+                                    tokenizer:  standard
+                                    filter: ["lowercase", "my_metaphone"]
+                            filter:
+                                my_metaphone:
+                                    type: phonetic
+                                    encoder: metaphone
+                                    replace: false
+    - do:
+        indices.analyze:
+            index: phonetic_sample
+            body:
+                analyzer: my_analyzer
+                text: Joe Bloggs
+
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: J  }
+    - match:  { tokens.1.token: joe  }
+    - match:  { tokens.2.token: BLKS  }
+    - match:  { tokens.3.token: bloggs  }
+

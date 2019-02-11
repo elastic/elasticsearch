@@ -1,0 +1,85 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+grant {
+  // Hadoop UserGroupInformation, HdfsConstants, PipelineAck clinit
+  permission java.lang.RuntimePermission "getClassLoader";
+
+  // UserGroupInformation (UGI) Metrics clinit
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  // Needed so that Hadoop can load the correct classes for SPI and JAAS
+  // org.apache.hadoop.security.SecurityUtil clinit
+  // org.apache.hadoop.security.UserGroupInformation.newLoginContext()
+  permission java.lang.RuntimePermission "setContextClassLoader";
+
+  // org.apache.hadoop.util.StringUtils clinit
+  permission java.util.PropertyPermission "*", "read,write";
+
+  // org.apache.hadoop.util.ShutdownHookManager clinit
+  permission java.lang.RuntimePermission "shutdownHooks";
+  
+  // JAAS is used by Hadoop for authentication purposes
+  // The Hadoop Login JAAS module modifies a Subject's private credentials and principals
+  // The Hadoop RPC Layer must be able to read these credentials, and initiate Kerberos connections
+
+  // org.apache.hadoop.security.UserGroupInformation.getCurrentUser()
+  permission javax.security.auth.AuthPermission "getSubject";
+
+  // org.apache.hadoop.security.UserGroupInformation.doAs()
+  permission javax.security.auth.AuthPermission "doAs";
+
+  // org.apache.hadoop.security.UserGroupInformation.getCredentialsInternal()
+  permission javax.security.auth.PrivateCredentialPermission "org.apache.hadoop.security.Credentials * \"*\"", "read";
+
+  // Hadoop depends on the Kerberos login module for kerberos authentication
+  // com.sun.security.auth.module.Krb5LoginModule.login()
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.krb5";
+
+  // com.sun.security.auth.module.Krb5LoginModule.commit()
+  permission javax.security.auth.AuthPermission "modifyPrivateCredentials";
+  permission javax.security.auth.AuthPermission "modifyPrincipals";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KeyTab * \"*\"", "read";
+  permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosTicket * \"*\"", "read";
+
+  // Hadoop depends on OS level user information for simple authentication
+  // Unix: UnixLoginModule: com.sun.security.auth.module.UnixSystem.UnixSystem init
+  permission java.lang.RuntimePermission "loadLibrary.jaas";
+  permission java.lang.RuntimePermission "loadLibrary.jaas_unix";
+  // Windows: NTLoginModule: com.sun.security.auth.module.NTSystem.loadNative
+  permission java.lang.RuntimePermission "loadLibrary.jaas_nt";
+  permission javax.security.auth.AuthPermission "modifyPublicCredentials";
+
+  // org.apache.hadoop.security.SaslRpcServer.init()
+  permission java.security.SecurityPermission "putProviderProperty.SaslPlainServer";
+
+  // org.apache.hadoop.security.SaslPlainServer.SecurityProvider.SecurityProvider init
+  permission java.security.SecurityPermission "insertProvider.SaslPlainServer";
+
+  // org.apache.hadoop.security.SaslRpcClient.getServerPrincipal -> KerberosPrincipal init
+  permission javax.security.auth.kerberos.ServicePermission "*", "initiate";
+
+  // hdfs client opens socket connections for to access repository
+  permission java.net.SocketPermission "*", "connect";
+
+  // client binds to the address returned from the host name of any principal set up as a service principal
+  // org.apache.hadoop.ipc.Client.Connection.setupConnection
+  permission java.net.SocketPermission "localhost:0", "listen,resolve";
+};

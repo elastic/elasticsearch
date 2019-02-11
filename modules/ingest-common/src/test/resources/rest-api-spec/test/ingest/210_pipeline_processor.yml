@@ -1,0 +1,110 @@
+---
+teardown:
+- do:
+    ingest.delete_pipeline:
+      id: "inner"
+      ignore: 404
+
+- do:
+    ingest.delete_pipeline:
+      id: "outer"
+      ignore: 404
+
+---
+"Test Pipeline Processor with Simple Inner Pipeline":
+- do:
+    ingest.put_pipeline:
+      id: "inner"
+      body:  >
+        {
+          "description" : "inner pipeline",
+          "processors" : [
+            {
+              "set" : {
+                "field": "foo",
+                "value": "bar"
+              }
+            },
+            {
+              "set" : {
+                "field": "baz",
+                "value": "blub"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    ingest.put_pipeline:
+      id: "outer"
+      body:  >
+        {
+          "description" : "outer pipeline",
+          "processors" : [
+            {
+              "pipeline" : {
+                "name": "inner"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    index:
+      index: test
+      id: 1
+      pipeline: "outer"
+      body: {}
+
+- do:
+    get:
+      index: test
+      id: 1
+- match: { _source.foo: "bar" }
+- match: { _source.baz: "blub" }
+
+---
+"Test Pipeline Processor with Circular Pipelines":
+- do:
+    ingest.put_pipeline:
+      id: "outer"
+      body:  >
+        {
+          "description" : "outer pipeline",
+          "processors" : [
+            {
+              "pipeline" : {
+                "name": "inner"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    ingest.put_pipeline:
+      id: "inner"
+      body:  >
+        {
+          "description" : "inner pipeline",
+          "processors" : [
+            {
+              "pipeline" : {
+                "name": "outer"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    catch: /illegal_state_exception/
+    index:
+      index: test
+      id: 1
+      pipeline: "outer"
+      body: {}
+- match: { error.root_cause.0.type: "exception" }
+- match: { error.root_cause.0.reason: "java.lang.IllegalArgumentException: java.lang.IllegalStateException: Cycle detected for pipeline: inner" }

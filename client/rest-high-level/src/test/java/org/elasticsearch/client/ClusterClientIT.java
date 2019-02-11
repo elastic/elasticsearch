@@ -182,6 +182,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getIndices().size(), equalTo(0));
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35450")
     public void testClusterHealthYellowIndicesLevel() throws IOException {
         createIndex("index", Settings.EMPTY);
         createIndex("index2", Settings.EMPTY);
@@ -214,6 +215,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getActiveShardsPercent(), equalTo(50d));
     }
 
+    
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35450")
     public void testClusterHealthYellowSpecificIndex() throws IOException {
         createIndex("index", Settings.EMPTY);
         createIndex("index2", Settings.EMPTY);

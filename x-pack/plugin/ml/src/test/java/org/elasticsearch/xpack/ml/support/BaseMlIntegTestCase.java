@@ -26,7 +26,6 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -114,7 +113,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return Arrays.asList(TestZenDiscovery.TestPlugin.class, TestSeedPlugin.class, MockHttpTransport.TestPlugin.class);
+        return Arrays.asList(TestSeedPlugin.class, MockHttpTransport.TestPlugin.class);
     }
 
     @Before
@@ -318,7 +317,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         try {
             CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
-            closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
+            closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(30L));
             logger.info("Closing jobs using [{}]", MetaData.ALL);
             CloseJobAction.Response response = client.execute(CloseJobAction.INSTANCE, closeRequest)
                     .get();
@@ -327,7 +326,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             try {
                 CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
                 closeRequest.setForce(true);
-                closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
+                closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(30L));
                 CloseJobAction.Response response =
                         client.execute(CloseJobAction.INSTANCE, closeRequest).get();
                 assertTrue(response.isClosed());

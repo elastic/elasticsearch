@@ -460,9 +460,13 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     @Override
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         if (innerHitBuilder != null) {
+            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : type;
+            if (innerHits.containsKey(name)) {
+                throw new IllegalArgumentException("[inner_hits] already contains an entry for key [" + name + "]");
+            }
+
             Map<String, InnerHitContextBuilder> children = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(query, children);
-            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : type;
             InnerHitContextBuilder innerHitContextBuilder =
                 new ParentChildInnerHitContextBuilder(type, true, query, innerHitBuilder, children);
             innerHits.put(name, innerHitContextBuilder);

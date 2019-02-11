@@ -12,14 +12,12 @@ be a number field:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index?include_type_name=true
+PUT /my-index
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "required_matches": {
-                    "type": "long"
-                }
+        "properties": {
+            "required_matches": {
+                "type": "long"
             }
         }
     }

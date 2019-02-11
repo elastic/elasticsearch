@@ -142,14 +142,12 @@ exist in the mapping:
 
 [source,js]
 --------------------------------------------------
-PUT /test1?include_type_name=true
+PUT /test1
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "user" : {
-          "type": "keyword"
-        }
+    "properties": {
+      "user" : {
+        "type": "keyword"
       }
     }
   }
@@ -376,13 +374,11 @@ First create the index and add a mapping for the `user_id` field:
 
 [source,js]
 --------------------------------------------------
-PUT /users?include_type_name=true
+PUT /users
 {
     "mappings" : {
-        "_doc" : {
-            "properties" : {
-                "user_id" : {"type" : "integer"}
-            }
+        "properties" : {
+            "user_id" : {"type" : "integer"}
         }
     }
 }
@@ -416,13 +412,11 @@ Aliases can also be specified during <<create-index-aliases,index creation>>:
 
 [source,js]
 --------------------------------------------------
-PUT /logs_20162801?include_type_name=true
+PUT /logs_20162801
 {
     "mappings" : {
-        "_doc" : {
-            "properties" : {
-                "year" : {"type" : "integer"}
-            }
+        "properties" : {
+            "year" : {"type" : "integer"}
         }
     },
     "aliases" : {

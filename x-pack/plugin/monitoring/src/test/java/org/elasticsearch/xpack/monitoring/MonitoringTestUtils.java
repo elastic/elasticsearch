@@ -87,7 +87,8 @@ public final class MonitoringTestUtils {
                                                             final MonitoredSystem system,
                                                             final String type) throws IOException {
         final String id = random.nextBoolean() ? RandomStrings.randomAsciiLettersOfLength(random, 5) : null;
-        final long timestamp = RandomNumbers.randomLongBetween(random, 0L, Long.MAX_VALUE);
+        // ending date is the last second of 9999, should be sufficient
+        final long timestamp = RandomNumbers.randomLongBetween(random, 0L, 253402300799000L);
         final long interval = RandomNumbers.randomLongBetween(random, 0L, Long.MAX_VALUE);
         return new MonitoringBulkDoc(system, type, id, timestamp, interval, source, xContentType);
     }

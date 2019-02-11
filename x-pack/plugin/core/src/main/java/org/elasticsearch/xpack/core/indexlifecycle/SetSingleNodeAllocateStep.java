@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -42,7 +43,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState clusterState, Listener listener) {
+    public void performAction(IndexMetaData indexMetaData, ClusterState clusterState, ClusterStateObserver observer, Listener listener) {
         RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, clusterState.getRoutingNodes(), clusterState, null,
                 System.nanoTime());
         List<String> validNodeIds = new ArrayList<>();

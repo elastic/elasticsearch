@@ -196,15 +196,13 @@ You can use the following mapping for the example index above:
 
 [source,js]
 --------------------------------------------------
-PUT my_ip_locations?include_type_name=true
+PUT my_ip_locations
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "geoip": {
-          "properties": {
-            "location": { "type": "geo_point" }
-          }
+    "properties": {
+      "geoip": {
+        "properties": {
+          "location": { "type": "geo_point" }
         }
       }
     }

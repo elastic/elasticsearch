@@ -32,7 +32,6 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.concurrent.ScheduledFuture;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -212,7 +211,7 @@ public class TransportKeepAliveTests extends ESTestCase {
         }
 
         @Override
-        public ScheduledFuture<?> schedule(TimeValue delay, String executor, Runnable task) {
+        public ScheduledCancellable schedule(Runnable task, TimeValue delay, String executor) {
             scheduledTasks.add(new Tuple<>(delay, task));
             return null;
         }

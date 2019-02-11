@@ -224,7 +224,7 @@ The following setting allows to limit the number of tokens that can be produced:
 
 [source,js]
 --------------------------------------------------
-PUT analyze_sample?include_type_name=true
+PUT analyze_sample
 {
   "settings" : {
     "index.analyze.max_token_count" : 20000

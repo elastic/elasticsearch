@@ -16,21 +16,19 @@ Below is an example of configuring a mapping with various range fields followed 
 
 [source,js]
 --------------------------------------------------
-PUT range_index?include_type_name=true
+PUT range_index
 {
   "settings": {
     "number_of_shards": 2
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "expected_attendees": {
-          "type": "integer_range"
-        },
-        "time_frame": {
-          "type": "date_range", <1>
-          "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
-        }
+    "properties": {
+      "expected_attendees": {
+        "type": "integer_range"
+      },
+      "time_frame": {
+        "type": "date_range", <1>
+        "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
       }
     }
   }

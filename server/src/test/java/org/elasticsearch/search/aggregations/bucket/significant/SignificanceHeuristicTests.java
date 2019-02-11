@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -33,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
@@ -87,7 +88,8 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
         @Override
         public SearchShardTarget shardTarget() {
-            return new SearchShardTarget("no node, this is a unit test", new Index("no index, this is a unit test", "_na_"), 0, null);
+            return new SearchShardTarget("no node, this is a unit test", new ShardId("no index, this is a unit test", "_na_", 0),
+                null, OriginalIndices.NONE);
         }
     }
 

@@ -6,14 +6,12 @@ https://en.wikipedia.org/wiki/IPv6[IPv6] addresses.
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "ip_addr": {
-          "type": "ip"
-        }
+    "properties": {
+      "ip_addr": {
+        "type": "ip"
       }
     }
   }

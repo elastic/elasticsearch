@@ -24,14 +24,12 @@ the search index:
 
 [source,js]
 --------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_field": {
-          "type": "annotated_text"
-        }
+    "properties": {
+      "my_field": {
+        "type": "annotated_text"
       }
     }
   }
@@ -168,20 +166,18 @@ sense to include them in dedicated structured fields to support discovery via ag
 
 [source,js]
 --------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_unstructured_text_field": {
-          "type": "annotated_text"
-        },
-        "my_structured_people_field": {
-          "type": "text",
-          "fields": {
-          	"keyword" :{
-          	  "type": "keyword"
-          	}
+    "properties": {
+      "my_unstructured_text_field": {
+        "type": "annotated_text"
+      },
+      "my_structured_people_field": {
+        "type": "text",
+        "fields": {
+          "keyword" : {
+            "type": "keyword"
           }
         }
       }

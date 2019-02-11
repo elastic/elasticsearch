@@ -217,6 +217,9 @@ public class JdbcAssert {
                         // fix for CSV which returns the shortName not fully-qualified name
                         if (!columnClassName.contains(".")) {
                             switch (columnClassName) {
+                                case "Date":
+                                    columnClassName = "java.sql.Date";
+                                    break;
                                 case "Timestamp":
                                     columnClassName = "java.sql.Timestamp";
                                     break;

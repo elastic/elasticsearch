@@ -49,8 +49,7 @@ public class SearchHitFieldRef extends FieldReference {
             return;
         }
         if (docValue) {
-            String format = dataType == DataType.DATE ? "epoch_millis" : null;
-            sourceBuilder.addDocField(name, format);
+            sourceBuilder.addDocField(name, dataType.format());
         } else {
             sourceBuilder.addSourceField(name);
         }

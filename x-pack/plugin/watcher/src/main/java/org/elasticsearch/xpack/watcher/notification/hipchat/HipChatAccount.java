@@ -23,7 +23,6 @@ import java.util.Map;
 
 public abstract class HipChatAccount  {
 
-    public static final String AUTH_TOKEN_SETTING = "auth_token";
     public static final String ROOM_SETTING = HipChatMessage.Field.ROOM.getPreferredName();
     public static final String DEFAULT_ROOM_SETTING = "message_defaults." + HipChatMessage.Field.ROOM.getPreferredName();
     public static final String DEFAULT_USER_SETTING = "message_defaults." + HipChatMessage.Field.USER.getPreferredName();
@@ -32,7 +31,7 @@ public abstract class HipChatAccount  {
     public static final String DEFAULT_COLOR_SETTING = "message_defaults." + HipChatMessage.Field.COLOR.getPreferredName();
     public static final String DEFAULT_NOTIFY_SETTING = "message_defaults." + HipChatMessage.Field.NOTIFY.getPreferredName();
 
-    private static final Setting<SecureString> SECURE_AUTH_TOKEN_SETTING = SecureSetting.secureString("secure_" + AUTH_TOKEN_SETTING, null);
+    static final Setting<SecureString> SECURE_AUTH_TOKEN_SETTING = SecureSetting.secureString("secure_auth_token", null);
 
     protected final Logger logger;
     protected final String name;
@@ -52,16 +51,12 @@ public abstract class HipChatAccount  {
     }
 
     private static String getAuthToken(String name, Settings settings) {
-        String authToken = settings.get(AUTH_TOKEN_SETTING);
-        if (authToken == null || authToken.length() == 0) {
-            SecureString secureString = SECURE_AUTH_TOKEN_SETTING.get(settings);
-            if (secureString == null || secureString.length() < 1) {
-                throw new SettingsException("hipchat account [" + name + "] missing required [" + AUTH_TOKEN_SETTING + "] setting");
-            }
-            authToken = secureString.toString();
+        SecureString secureString = SECURE_AUTH_TOKEN_SETTING.get(settings);
+        if (secureString == null || secureString.length() < 1) {
+            throw new SettingsException(
+                    "hipchat account [" + name + "] missing required [" + SECURE_AUTH_TOKEN_SETTING.getKey() + "] secure setting");
         }
-
-        return authToken;
+        return secureString.toString();
     }
 
     public abstract String type();

@@ -20,7 +20,7 @@ import java.io.IOException;
  */
 public class GeoShape implements ToXContentFragment {
 
-    private final ShapeBuilder<?, ?> shapeBuilder;
+    private final ShapeBuilder<?, ?, ?> shapeBuilder;
 
     public GeoShape(Object value) throws IOException {
         shapeBuilder = ShapeParser.parse(value);

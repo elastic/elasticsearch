@@ -8,15 +8,13 @@ NOTE: All strings/array elements will still be present in the `_source` field, i
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "message": {
-          "type": "keyword",
-          "ignore_above": 20 <1>
-        }
+    "properties": {
+      "message": {
+        "type": "keyword",
+        "ignore_above": 20 <1>
       }
     }
   }

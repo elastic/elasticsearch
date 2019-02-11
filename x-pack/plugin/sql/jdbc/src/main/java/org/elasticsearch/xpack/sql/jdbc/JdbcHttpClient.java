@@ -68,7 +68,7 @@ class JdbcHttpClient {
     }
 
     boolean queryClose(String cursor) throws SQLException {
-        return httpClient.queryClose(cursor);
+        return httpClient.queryClose(cursor, Mode.JDBC);
     }
 
     InfoResponse serverInfo() throws SQLException {

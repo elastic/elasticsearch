@@ -180,7 +180,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10010; i++) {
             String docId = "non_existing_job_" + randomFrom("model_state_1234567#" + i, "quantiles", "categorizer_state#" + i);
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexName(), "doc", docId);
+            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), "doc", docId);
             indexRequest.source(Collections.emptyMap());
             bulkRequestBuilder.add(indexRequest);
         }

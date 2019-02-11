@@ -30,7 +30,7 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
     public void testScrollIsPerUser() throws Exception {
         assertSecurityIndexActive();
         securityClient().preparePutRole("scrollable")
-                .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null)
+                .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null, randomBoolean())
                 .get();
         securityClient().preparePutUser("other", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), getFastStoredHashAlgoForTests(),
             "scrollable")

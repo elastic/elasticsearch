@@ -151,6 +151,13 @@ remote cluster.
     alias `leader`
 <2> This shows the number of nodes in the remote cluster the local cluster is
     connected to.
+    
+Alternatively, you can manage remote clusters on the
+*Management / Elasticsearch / Remote Clusters* page in {kib}:
+
+[role="screenshot"]
+image::ml/images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
+
 
 [float]
 [[ccr-getting-started-leader-index]]
@@ -167,7 +174,7 @@ In the following example, we will create a leader index in the remote cluster:
 
 [source,js]
 --------------------------------------------------
-PUT /server-metrics?include_type_name=true
+PUT /server-metrics
 {
   "settings" : {
     "index" : {
@@ -181,29 +188,27 @@ PUT /server-metrics?include_type_name=true
     }
   },
   "mappings" : {
-    "metric" : {
-      "properties" : {
-        "@timestamp" : {
-          "type" : "date"
-        },
-        "accept" : {
-          "type" : "long"
-        },
-        "deny" : {
-          "type" : "long"
-        },
-        "host" : {
-          "type" : "keyword"
-        },
-        "response" : {
-          "type" : "float"
-        },
-        "service" : {
-          "type" : "keyword"
-        },
-        "total" : {
-          "type" : "long"
-        }
+    "properties" : {
+      "@timestamp" : {
+        "type" : "date"
+      },
+      "accept" : {
+        "type" : "long"
+      },
+      "deny" : {
+        "type" : "long"
+      },
+      "host" : {
+        "type" : "keyword"
+      },
+      "response" : {
+        "type" : "float"
+      },
+      "service" : {
+        "type" : "keyword"
+      },
+      "total" : {
+        "type" : "long"
       }
     }
   }
@@ -225,7 +230,7 @@ cluster.
 
 [source,js]
 --------------------------------------------------
-PUT /server-metrics-copy/_ccr/follow
+PUT /server-metrics-copy/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "leader",
   "leader_index" : "server-metrics"
@@ -325,3 +330,9 @@ DELETE /_ccr/auto_follow/beats
 // TEST[continued]
 
 //////////////////////////
+
+Alternatively, you can manage auto-follow patterns on the
+*Management / Elasticsearch / Cross Cluster Replication* page in {kib}:
+
+[role="screenshot"]
+image::ml/images/auto-follow-patterns.jpg["The Auto-follow patterns page in {kib}"]

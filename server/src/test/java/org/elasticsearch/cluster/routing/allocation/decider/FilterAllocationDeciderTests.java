@@ -111,7 +111,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
         // now remove the node of the other copy and fail the current
         DiscoveryNode node1 = state.nodes().resolveNode("node1");
-        state = service.deassociateDeadNodes(
+        state = service.disassociateDeadNodes(
             ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).remove("node1")).build(),
             true, "test");
         state = service.applyFailedShard(state, routingTable.index("idx").shard(0).primaryShard(), randomBoolean());

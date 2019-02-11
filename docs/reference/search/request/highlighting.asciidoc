@@ -787,15 +787,13 @@ allow for highlighting using the postings:
 
 [source,js]
 --------------------------------------------------
-PUT /example?include_type_name=true
+PUT /example
 {
   "mappings": {
-    "doc" : {
-      "properties": {
-        "comment" : {
-          "type": "text",
-          "index_options" : "offsets"
-        }
+    "properties": {
+      "comment" : {
+        "type": "text",
+        "index_options" : "offsets"
       }
     }
   }
@@ -808,15 +806,13 @@ highlighting using the `term_vectors` (this will cause the index to be bigger):
 
 [source,js]
 --------------------------------------------------
-PUT /example?include_type_name=true
+PUT /example
 {
   "mappings": {
-    "doc" : {
-      "properties": {
-        "comment" : {
-          "type": "text",
-          "term_vector" : "with_positions_offsets"
-        }
+    "properties": {
+      "comment" : {
+        "type": "text",
+        "term_vector" : "with_positions_offsets"
       }
     }
   }

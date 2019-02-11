@@ -87,15 +87,13 @@ using `english` analyzer, and will be indexed without offsets or term vectors.
 
 [source,js]
 --------------------------------------------------
-PUT test_index?include_type_name=true
+PUT test_index
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "content" : {
-                    "type" : "text",
-                    "analyzer" : "english"
-                }
+        "properties": {
+            "content" : {
+                "type" : "text",
+                "analyzer" : "english"
             }
         }
     }

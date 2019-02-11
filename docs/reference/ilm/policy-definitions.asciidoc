@@ -85,15 +85,21 @@ executing.
 The below list shows the actions which are available in each phase.
 
 * Hot
+  - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-rollover-action,Rollover>>
+  - <<ilm-unfollow-action,Unfollow>>
 * Warm
+  - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-readonly-action,Read-Only>>
   - <<ilm-forcemerge-action,Force Merge>>
   - <<ilm-shrink-action,Shrink>>
+  - <<ilm-unfollow-action,Unfollow>>
 * Cold
+  - <<ilm-set-priority-action,Set Priority>>
   - <<ilm-allocate-action,Allocate>>
   - <<ilm-freeze-action,Freeze>>
+  - <<ilm-unfollow-action,Unfollow>>
 * Delete
   - <<ilm-delete-action,Delete>>
 
@@ -347,13 +353,20 @@ index format must match pattern '^.*-\\d+$', for example (`logs-000001`).
 The managed index must set `index.lifecycle.rollover_alias` as the
 alias to rollover. The index must also be the write index for the alias.
 
+[IMPORTANT]
+If a policy using the Rollover action is used on a <<ccr-put-follow,follower
+index>>, policy execution will wait until the leader index rolls over (or has
+<<skipping-rollover, otherwise been marked as complete>>), then convert the
+follower index into a regular index as if <<ilm-unfollow-action,the Unfollow
+action>> had been used instead of rolling over.
+
 For example, if an index to be managed has an alias `my_data`. The managed
 index "my_index" must be the write index for the alias. For more information, read
 <<indices-rollover-is-write-index,Write Index Alias Behavior>>.
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "settings": {
     "index.lifecycle.name": "my_policy",
@@ -525,11 +538,60 @@ The above example illustrates a policy which attempts to delete an
 index one day after the index has been rolled over. It does not
 delete the index one day after it has been created.
 
+[[ilm-set-priority-action]]
+==== Set Priority
+
+Phases allowed: hot, warm, cold.
+
+This action sets the <<recovery-prioritization, index priority>> on the index as
+soon as the policy enters the hot, warm, or cold phase. Indices with a higher
+priority will be recovered before indices with lower priorities following a node
+restart. Generally, indexes in the hot phase should have the highest value and
+indexes in the cold phase should have the lowest values. For example:
+100 for the hot phase, 50 for the warm phase, and 0 for the cold phase.
+Indicies that don't set this value have an implicit default priority of 1.
+
+[[ilm-set-priority-options]]
+.Set Priority Options
+[options="header"]
+|======
+| Name         | Required  | Default     | Description
+| `priority`   | yes       | -           | The priority for the index. Must be 0 or greater.
+                                           The value may also be set to null to remove the priority.
+
+|======
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "set_priority" : {
+            "priority": 50
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
 [[ilm-shrink-action]]
 ==== Shrink
 
 NOTE: Index will be be made read-only when this action is run
 (see: <<dynamic-index-settings,index.blocks.write>>)
+[IMPORTANT]
+If a policy using the Shrink action is used on a <<ccr-put-follow,follower
+index>>, policy execution will wait until the leader index rolls over (or has
+<<skipping-rollover, otherwise been marked as complete>>), then convert the
+follower index into a regular index as if <<ilm-unfollow-action,the Unfollow
+action>> had been used before shrink is applied, as shrink cannot be safely
+applied to follower indices.
 
 This action shrinks an existing index into a new index with fewer primary
 shards. It calls the <<indices-shrink-index,Shrink API>> to shrink the index.
@@ -571,6 +633,59 @@ PUT _ilm/policy/my_policy
 --------------------------------------------------
 // CONSOLE
 
+[[ilm-unfollow-action]]
+==== Unfollow
+
+[IMPORTANT]
+This action may be used explicitly, as shown below, but this action is also run
+before <<ilm-rollover-action,the Rollover action>> and <<ilm-shrink-action,the
+Shrink action>> as described in the documentation for those actions.
+
+This action turns a {ref}/ccr-apis.html[ccr] follower index
+into a regular index. This can be desired when moving follower
+indices into the next phase. Also certain actions like shrink
+and rollover can then be performed safely on follower indices.
+
+This action will wait until is it safe to convert a follower index into a
+regular index. In particular, the following conditions must be met:
+
+* The leader index must have `index.lifecycle.indexing_complete` set to `true`.
+This happens automatically if the leader index is rolled over using
+<<ilm-rollover-action,the Rollover action>>, or may be set manually using
+the <<indices-update-settings,Index Settings API>>.
+* All operations performed on the leader index must have been replicated to the
+follower index. This ensures that no operations will be lost when the index is
+converted into a regular index.
+
+If the unfollow action encounters a follower index then
+the following operations will be performed on it:
+
+* Pauses indexing following for the follower index.
+* Closes the follower index.
+* Unfollows the follower index.
+* Opens the follower index (which is at this point is a regular index).
+
+The unfollow action does not have any options and
+if it encounters a non follower index, then the
+unfollow action leaves that index untouched and
+lets the next action operate on this index.
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "unfollow" : {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
 
 === Full Policy
 

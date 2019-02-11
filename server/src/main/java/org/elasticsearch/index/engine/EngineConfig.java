@@ -35,7 +35,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -43,7 +43,6 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.LongSupplier;
@@ -81,7 +80,7 @@ public final class EngineConfig {
     @Nullable
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
-    private final Supplier<Collection<RetentionLease>> retentionLeasesSupplier;
+    private final Supplier<RetentionLeases> retentionLeasesSupplier;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -89,7 +88,7 @@ public final class EngineConfig {
      *
      * @return a supplier of outstanding retention leases
      */
-    public Supplier<Collection<RetentionLease>> retentionLeasesSupplier() {
+    public Supplier<RetentionLeases> retentionLeasesSupplier() {
         return retentionLeasesSupplier;
     }
 
@@ -141,7 +140,7 @@ public final class EngineConfig {
                         List<ReferenceManager.RefreshListener> externalRefreshListener,
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
                         CircuitBreakerService circuitBreakerService, LongSupplier globalCheckpointSupplier,
-                        Supplier<Collection<RetentionLease>> retentionLeasesSupplier,
+                        Supplier<RetentionLeases> retentionLeasesSupplier,
                         LongSupplier primaryTermSupplier,
                         TombstoneDocSupplier tombstoneDocSupplier) {
         this.shardId = shardId;

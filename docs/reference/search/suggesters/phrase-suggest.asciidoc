@@ -23,7 +23,7 @@ work. The `reverse` analyzer is used only in the last example.
 
 [source,js]
 --------------------------------------------------
-PUT test?include_type_name=true
+PUT test
 {
   "settings": {
     "index": {
@@ -52,19 +52,17 @@ PUT test?include_type_name=true
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "title": {
-          "type": "text",
-          "fields": {
-            "trigram": {
-              "type": "text",
-              "analyzer": "trigram"
-            },
-            "reverse": {
-              "type": "text",
-              "analyzer": "reverse"
-            }
+    "properties": {
+      "title": {
+        "type": "text",
+        "fields": {
+          "trigram": {
+            "type": "text",
+            "analyzer": "trigram"
+          },
+          "reverse": {
+            "type": "text",
+            "analyzer": "reverse"
           }
         }
       }

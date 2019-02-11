@@ -46,7 +46,7 @@ This is particularly useful for indexing text like camel-case code, eg
 
 [source,js]
 --------------------------------------------------
-PUT test?include_type_name=true
+PUT test
 {
    "settings" : {
       "analysis" : {
@@ -87,7 +87,7 @@ Another example is analyzing email addresses:
 
 [source,js]
 --------------------------------------------------
-PUT test?include_type_name=true
+PUT test
 {
    "settings" : {
       "analysis" : {

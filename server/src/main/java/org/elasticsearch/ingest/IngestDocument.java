@@ -19,9 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Set;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -37,12 +34,15 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).

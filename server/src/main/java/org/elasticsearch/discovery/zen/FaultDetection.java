@@ -45,15 +45,15 @@ public abstract class FaultDetection implements Closeable {
     private static final Logger logger = LogManager.getLogger(FaultDetection.class);
 
     public static final Setting<Boolean> CONNECT_ON_NETWORK_DISCONNECT_SETTING =
-        Setting.boolSetting("discovery.zen.fd.connect_on_network_disconnect", false, Property.NodeScope);
+        Setting.boolSetting("discovery.zen.fd.connect_on_network_disconnect", false, Property.NodeScope, Property.Deprecated);
     public static final Setting<TimeValue> PING_INTERVAL_SETTING =
-        Setting.positiveTimeSetting("discovery.zen.fd.ping_interval", timeValueSeconds(1), Property.NodeScope);
+        Setting.positiveTimeSetting("discovery.zen.fd.ping_interval", timeValueSeconds(1), Property.NodeScope, Property.Deprecated);
     public static final Setting<TimeValue> PING_TIMEOUT_SETTING =
-        Setting.timeSetting("discovery.zen.fd.ping_timeout", timeValueSeconds(30), Property.NodeScope);
+        Setting.timeSetting("discovery.zen.fd.ping_timeout", timeValueSeconds(30), Property.NodeScope, Property.Deprecated);
     public static final Setting<Integer> PING_RETRIES_SETTING =
-        Setting.intSetting("discovery.zen.fd.ping_retries", 3, Property.NodeScope);
+        Setting.intSetting("discovery.zen.fd.ping_retries", 3, Property.NodeScope, Property.Deprecated);
     public static final Setting<Boolean> REGISTER_CONNECTION_LISTENER_SETTING =
-        Setting.boolSetting("discovery.zen.fd.register_connection_listener", true, Property.NodeScope);
+        Setting.boolSetting("discovery.zen.fd.register_connection_listener", true, Property.NodeScope, Property.Deprecated);
 
     protected final ThreadPool threadPool;
     protected final ClusterName clusterName;

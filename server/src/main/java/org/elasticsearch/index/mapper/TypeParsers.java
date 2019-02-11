@@ -43,7 +43,6 @@ public class TypeParsers {
     public static final String INDEX_OPTIONS_POSITIONS = "positions";
     public static final String INDEX_OPTIONS_OFFSETS = "offsets";
 
-
     private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
                                                      Mapper.TypeParser.ParserContext parserContext) {
         NamedAnalyzer indexAnalyzer = null;

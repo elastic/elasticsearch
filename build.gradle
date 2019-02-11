@@ -201,7 +201,7 @@ allprojects {
   }
 
   /* Sets up the dependencies that we build as part of this project but
-    register as thought they were external to resolve internally. We register
+    register as though they were external to resolve internally. We register
     them as external dependencies so the build plugin that we use can be used
     to build elasticsearch plugins outside of the elasticsearch source tree. */
   ext.projectSubstitutions = [
@@ -212,7 +212,9 @@ allprojects {
     "org.elasticsearch:elasticsearch-core:${version}": ':libs:core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:nio',
     "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
+    "org.elasticsearch:elasticsearch-geo:${version}": ':libs:elasticsearch-geo',
     "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
+    "org.elasticsearch:elasticsearch-ssl-config:${version}": ':libs:elasticsearch-ssl-config',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
     "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
     "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
@@ -221,14 +223,6 @@ allprojects {
     "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${version}": ':modules:lang-painless:spi',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
-    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',
-    "org.elasticsearch.distribution.zip:elasticsearch-oss:${version}": ':distribution:archives:oss-zip',
-    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:archives:tar',
-    "org.elasticsearch.distribution.tar:elasticsearch-oss:${version}": ':distribution:archives:oss-tar',
-    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:packages:rpm',
-    "org.elasticsearch.distribution.rpm:elasticsearch-oss:${version}": ':distribution:packages:oss-rpm',
-    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:packages:deb',
-    "org.elasticsearch.distribution.deb:elasticsearch-oss:${version}": ':distribution:packages:oss-deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
     "org.elasticsearch.xpack.test:feature-aware:${version}": ':x-pack:test:feature-aware',
     // for transport client
@@ -239,20 +233,10 @@ allprojects {
     "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
+    // for security example plugins
+    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core',
+    "org.elasticsearch.client.x-pack-transport:${version}": ':x-pack:transport-client'
   ]
-  // substitute unreleased versions with projects that check out and build locally
-  bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion ->
-    Version unreleased = unreleasedVersion.version
-    String snapshotProject = ":distribution:bwc:${unreleasedVersion.gradleProjectName}"
-    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${unreleased}"] = snapshotProject
-    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${unreleased}"] = snapshotProject
-    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${unreleased}"] = snapshotProject
-    if (unreleased.onOrAfter('6.3.0')) {
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${unreleased}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${unreleased}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${unreleased}"] = snapshotProject
-    }
-  }
 
   /*
    * Gradle only resolve project substitutions during dependency resolution but

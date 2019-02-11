@@ -9,16 +9,14 @@ A parent/child relation can be defined as follows:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": { <1>
-          "type": "join",
-          "relations": {
-            "question": "answer" <2>
-          }
+    "properties": {
+      "my_join_field": { <1>
+        "type": "join",
+        "relations": {
+          "question": "answer" <2>
         }
       }
     }
@@ -319,18 +317,16 @@ make sense to disable eager loading:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-             "question": "answer"
-          },
-          "eager_global_ordinals": false
-        }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+           "question": "answer"
+        },
+        "eager_global_ordinals": false
       }
     }
   }
@@ -358,16 +354,14 @@ It is also possible to define multiple children for a single parent:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-            "question": ["answer", "comment"]  <1>
-          }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+          "question": ["answer", "comment"]  <1>
         }
       }
     }
@@ -388,17 +382,15 @@ Multiple levels of parent/child:
 
 [source,js]
 --------------------------------------------------
-PUT my_index?include_type_name=true
+PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-            "question": ["answer", "comment"],  <1>
-            "answer": "vote" <2>
-          }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+          "question": ["answer", "comment"],  <1>
+          "answer": "vote" <2>
         }
       }
     }

@@ -104,7 +104,6 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertNotNull(result.getMetadata().get(CONTEXT_TOKEN_DATA));
         assertThat(result.getMetadata().get(CONTEXT_TOKEN_DATA), instanceOf(Map.class));
         Map<String, Object> tokenMetadata = (Map) result.getMetadata().get(CONTEXT_TOKEN_DATA);
-        assertThat(tokenMetadata.get("oidc_realm"), equalTo(REALM_NAME));
         assertThat(tokenMetadata.get("id_token_hint"), equalTo("thisis.aserialized.jwt"));
     }
 

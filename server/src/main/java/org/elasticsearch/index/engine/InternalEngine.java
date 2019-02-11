@@ -476,6 +476,11 @@ public class InternalEngine extends Engine {
         return translog;
     }
 
+    // Package private for testing purposes only
+    boolean hasSnapshottedCommits() {
+        return combinedDeletionPolicy.hasSnapshottedCommits();
+    }
+
     @Override
     public boolean isTranslogSyncNeeded() {
         return getTranslog().syncNeeded();

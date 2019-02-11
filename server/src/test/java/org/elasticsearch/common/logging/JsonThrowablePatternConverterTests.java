@@ -47,6 +47,7 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
         assertThat(jsonLogLine.stacktrace(), Matchers.nullValue());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38705")
     public void testStacktraceWithJson() throws IOException {
         LogManager.getLogger().info("asdf");
 

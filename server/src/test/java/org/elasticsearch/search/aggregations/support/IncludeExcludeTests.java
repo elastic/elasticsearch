@@ -24,18 +24,21 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.OrdinalsFilter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.TreeSet;
 
@@ -126,14 +129,14 @@ public class IncludeExcludeTests extends ESTestCase {
 
     public void testConvertToLongFilter() {
         IncludeExclude includeExclude = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("4094779560956318341"))), null);
-        IncludeExclude.LongFilter filter = includeExclude.convertToLongFilter();
+        IncludeExclude.LongFilter filter = includeExclude.convertToLongFilter(DocValueFormat.RAW);
         assertTrue(filter.accept(4094779560956318341L));
 
         // Longs
         for (int i = 0; i < 100; i++) {
             long num = randomLong();
             includeExclude = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef(String.valueOf(num)))), null);
-            filter = includeExclude.convertToLongFilter();
+            filter = includeExclude.convertToLongFilter(DocValueFormat.RAW);
             assertTrue(filter.accept(num));
         }
 
@@ -141,7 +144,7 @@ public class IncludeExcludeTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             int num = randomInt();
             includeExclude = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef(String.valueOf(num)))), null);
-            filter = includeExclude.convertToLongFilter();
+            filter = includeExclude.convertToLongFilter(DocValueFormat.RAW);
             assertTrue(filter.accept(num));
         }
 
@@ -149,7 +152,7 @@ public class IncludeExcludeTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             short num = randomShort();
             includeExclude = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef(String.valueOf(num)))), null);
-            filter = includeExclude.convertToLongFilter();
+            filter = includeExclude.convertToLongFilter(DocValueFormat.RAW);
             assertTrue(filter.accept(num));
         }
 
@@ -157,15 +160,24 @@ public class IncludeExcludeTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             byte num = randomByte();
             includeExclude = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef(String.valueOf(num)))), null);
-            filter = includeExclude.convertToLongFilter();
+            filter = includeExclude.convertToLongFilter(DocValueFormat.RAW);
             assertTrue(filter.accept(num));
         }
 
         double num = randomDouble();
         final IncludeExclude badIncludeExclude
             = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef(String.valueOf(num)))), null);
-        NumberFormatException e = expectThrows(NumberFormatException.class, badIncludeExclude::convertToLongFilter);
+        NumberFormatException e = expectThrows(NumberFormatException.class,
+            () -> badIncludeExclude.convertToLongFilter(DocValueFormat.RAW));
         assertThat(e.getMessage(), equalTo("For input string: \"" + num + "\""));
+    }
+
+    public void testConvertLongFilterDate() {
+        IncludeExclude includeExclude = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("2016-05-03"))), null);
+        DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime");
+        IncludeExclude.LongFilter filter = includeExclude.convertToLongFilter(new DocValueFormat.DateTime(formatter,
+            ZoneOffset.ofHours(1), DateFieldMapper.Resolution.MILLISECONDS));
+        assertTrue(filter.accept(1462230000000L));
     }
 
     public void testPartitionedEquals() throws IOException {

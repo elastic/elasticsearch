@@ -235,7 +235,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             }
             IncludeExclude.LongFilter longFilter = null;
             if (includeExclude != null) {
-                longFilter = includeExclude.convertToLongFilter();
+                longFilter = includeExclude.convertToLongFilter(config.format());
             }
             return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
                     bucketCountThresholds, context, parent, significanceHeuristic, this, longFilter, pipelineAggregators,

@@ -621,7 +621,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         return new TermListBackedOrdinalsFilter(parseForDocValues(includeValues, format), parseForDocValues(excludeValues, format));
     }
 
-    public LongFilter convertToLongFilter() {
+    public LongFilter convertToLongFilter(DocValueFormat format) {
 
         if(isPartitionBased()){
             return new PartitionedLongFilter();
@@ -632,12 +632,21 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         SetBackedLongFilter result = new SetBackedLongFilter(numValids, numInvalids);
         if (includeValues != null) {
             for (BytesRef val : includeValues) {
-                result.addAccept(Long.parseLong(val.utf8ToString()));
+                if (format.getWriteableName().equalsIgnoreCase(DocValueFormat.RAW.getWriteableName())) {
+                    result.addAccept(Long.parseLong(val.utf8ToString()));
+                } else {
+                    result.addAccept(format.parseLong(val.utf8ToString(), false, null));
+                }
+
             }
         }
         if (excludeValues != null) {
             for (BytesRef val : excludeValues) {
-                result.addReject(Long.parseLong(val.utf8ToString()));
+                if (format.getWriteableName().equalsIgnoreCase(DocValueFormat.RAW.getWriteableName())) {
+                    result.addReject(Long.parseLong(val.utf8ToString()));
+                } else {
+                    result.addReject(format.parseLong(val.utf8ToString(), false, null));
+                }
             }
         }
         return result;

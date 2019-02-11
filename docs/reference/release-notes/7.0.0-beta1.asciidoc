@@ -1,6 +1,3 @@
-:issue: https://github.com/elastic/elasticsearch/issues/
-:pull:  https://github.com/elastic/elasticsearch/pull/
-
 [[release-notes-7.0.0-beta1]]
 == 7.0.0-beta1 Release Notes
 

@@ -1554,7 +1554,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                  * otherwise we might lose the latest committed retention leases when re-opening an engine.
                  */
                 final Map<String, String> userData = new HashMap<>(startingIndexCommit.getUserData());
-                userData.put(Engine.RETENTION_LEASES, lastIndexCommitCommit.getUserData().get(Engine.RETENTION_LEASES));
+                userData.put(Engine.RETENTION_LEASES, lastIndexCommitCommit.getUserData().getOrDefault(Engine.RETENTION_LEASES, ""));
                 try (IndexWriter writer = newAppendingIndexWriter(directory, startingIndexCommit)) {
                     // this achieves two things:
                     // - by committing a new commit based on the starting commit, it make sure the starting commit will be opened

@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack;
 
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -15,6 +17,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
@@ -30,6 +33,7 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.CcrIntegTestCase.removeCCRRelatedMetadataFromClusterState;
@@ -57,11 +61,17 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     @Before
-    public void setupLocalRemote() {
+    public void setupLocalRemote() throws Exception {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         String address = getInstanceFromNode(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", address));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        assertBusy(() -> {
+            List<RemoteConnectionInfo> infos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+            assertThat(infos.size(), equalTo(1));
+            assertThat(infos.get(0).getNumNodesConnected(), equalTo(1));
+        });
     }
 
     @Before
@@ -76,10 +86,15 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     @After
-    public void removeLocalRemote() {
+    public void removeLocalRemote() throws Exception {
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        assertBusy(() -> {
+            List<RemoteConnectionInfo> infos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+            assertThat(infos.size(), equalTo(0));
+        });
     }
 
     protected AutoFollowStats getAutoFollowStats() {

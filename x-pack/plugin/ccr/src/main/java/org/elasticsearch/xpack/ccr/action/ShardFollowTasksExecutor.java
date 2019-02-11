@@ -45,6 +45,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
@@ -113,7 +114,16 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final Index followerIndex = params.getFollowShardId().getIndex();
                 final Index leaderIndex = params.getLeaderShardId().getIndex();
                 final Supplier<TimeValue> timeout = () -> isStopped() ? TimeValue.MINUS_ONE : waitForMetadataTimeOut;
-                CcrRequests.getIndexMetadata(remoteClient(params), leaderIndex, minRequiredMappingVersion, 0L, timeout, ActionListener.wrap(
+
+                final Client remoteClient;
+                try {
+                    remoteClient = remoteClient(params);
+                } catch (NoSuchRemoteClusterException e) {
+                    errorHandler.accept(e);
+                    return;
+                }
+
+                CcrRequests.getIndexMetadata(remoteClient, leaderIndex, minRequiredMappingVersion, 0L, timeout, ActionListener.wrap(
                     indexMetaData -> {
                         if (indexMetaData.getMappings().isEmpty()) {
                             assert indexMetaData.getMappingVersion() == 1;
@@ -172,7 +182,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 };
                 try {
                     remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
-                } catch (Exception e) {
+                } catch (NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
             }
@@ -230,7 +240,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 request.setPollTimeout(params.getReadPollTimeout());
                 try {
                     remoteClient(params).execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
-                } catch (Exception e) {
+                } catch (NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
             }

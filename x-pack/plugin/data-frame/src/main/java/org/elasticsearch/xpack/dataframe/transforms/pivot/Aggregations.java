@@ -25,7 +25,11 @@ public final class Aggregations {
      */
     enum AggregationType {
         AVG("avg", "double"),
-        MAX("max", null);
+        CARDINALITY("cardinality", "long"),
+        VALUE_COUNT("value_count", "long"),
+        MAX("max", null),
+        MIN("min", null),
+        SUM("sum", null);
 
         private final String aggregationType;
         private final String targetMapping;

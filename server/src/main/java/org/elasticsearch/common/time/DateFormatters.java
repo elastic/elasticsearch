@@ -175,6 +175,43 @@ public class DateFormatters {
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME_NANOS = new JavaDateFormatter("strict_date_optional_time_nanos",
         STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS, STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS);
 
+    /**
+     * Returns a ISO 8601 compatible date time formatter and parser.
+     * This is not fully compatible to the existing spec, which would require far more edge cases, but merely compatible with the
+     * existing joda time ISO data formater
+     */
+    private static final DateFormatter ISO_8601 = new JavaDateFormatter("iso8601", STRICT_DATE_OPTIONAL_TIME_PRINTER,
+        new DateTimeFormatterBuilder()
+            .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+            .optionalStart()
+            .appendLiteral('T')
+            .optionalStart()
+            .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+            .optionalStart()
+            .appendLiteral(':')
+            .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+            .optionalStart()
+            .appendLiteral(':')
+            .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+            .optionalStart()
+            .appendFraction(NANO_OF_SECOND, 1, 9, true)
+            .optionalEnd()
+            .optionalStart()
+            .appendLiteral(",")
+            .appendFraction(NANO_OF_SECOND, 1, 9, false)
+            .optionalEnd()
+            .optionalEnd()
+            .optionalStart()
+            .appendZoneOrOffsetId()
+            .optionalEnd()
+            .optionalStart()
+            .append(TIME_ZONE_FORMATTER_NO_COLON)
+            .optionalEnd()
+            .optionalEnd()
+            .optionalEnd()
+            .optionalEnd()
+            .toFormatter(Locale.ROOT));
+
     /////////////////////////////////////////
     //
     // BEGIN basic time formatters
@@ -1363,7 +1400,9 @@ public class DateFormatters {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
-        if ("basicDate".equals(input) || "basic_date".equals(input)) {
+        if ("iso8601".equals(input)) {
+            return ISO_8601;
+        } else if ("basicDate".equals(input) || "basic_date".equals(input)) {
             return BASIC_DATE;
         } else if ("basicDateTime".equals(input) || "basic_date_time".equals(input)) {
             return BASIC_DATE_TIME;

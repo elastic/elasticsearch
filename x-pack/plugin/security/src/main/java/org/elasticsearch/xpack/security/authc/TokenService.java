@@ -411,7 +411,7 @@ public final class TokenService {
     }
 
     /*
-     * If needed, for tokens that were created in pre 7.0.0 cluster, it asynchronously decodes the string representation of a {@link
+     * If needed, for tokens that were created in pre 7.1.0 cluster, it asynchronously decodes the string representation of a {@link
      * UserToken}. The process for this is asynchronous as we may need to compute a key, which can be computationally expensive
      * so this should not block the current thread, which is typically a network thread. A second reason for being asynchronous is that
      * we can restrain the amount of resources consumed by the key computation to a single thread.
@@ -422,15 +422,15 @@ public final class TokenService {
         StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length);
         // the token exists and the value is at least as long as we'd expect
         final Version version = Version.readVersion(in);
-        if (version.onOrAfter(Version.V_7_1_0)) {
+        if (version.onOrAfter(Version.V_8_0_0)) {
             // The token was created in a > 7.1.0 cluster so it contains the tokenId as a String
-            if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_7_1_0)) {
+            if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_8_0_0)) {
                 logger.debug("Invalid token with unencrypted format in a cluster that is pre v7.1.0");
             }
             String usedTokenId = in.readString();
             getUserTokenFromId(usedTokenId, listener);
         } else {
-            // The token was created in a < 7.0.0 cluster so we need to decrypt it to get the tokenId
+            // The token was created in a < 7.1.0 cluster so we need to decrypt it to get the tokenId
             in.setVersion(version);
             if (in.available() < MINIMUM_BASE64_BYTES) {
                 logger.debug("invalid token, smaller than [{}] bytes", MINIMUM_BASE64_BYTES);
@@ -938,7 +938,7 @@ public final class TokenService {
         Version authVersion = Version.fromId(version);
         final Boolean refreshed = (Boolean) refreshTokenSrc.get("refreshed");
         if (refreshed) {
-            if (authVersion.onOrAfter(Version.V_7_1_0)) {
+            if (authVersion.onOrAfter(Version.V_8_0_0)) {
                 final Long refreshedEpochMilli = (Long) refreshTokenSrc.get("refresh_time");
                 final Instant refreshTime = refreshedEpochMilli == null ? null : Instant.ofEpochMilli(refreshedEpochMilli);
                 final String supersededBy = (String) refreshTokenSrc.get("superseded_by");
@@ -970,7 +970,7 @@ public final class TokenService {
         final Long refreshedEpochMilli = (Long) refreshTokenSrc.get("refresh_time");
         final Instant refreshTime = refreshedEpochMilli == null ? null : Instant.ofEpochMilli(refreshedEpochMilli);
         final String supersededBy = (String) refreshTokenSrc.get("superseded_by");
-        return authVersion.onOrAfter(Version.V_7_1_0)
+        return authVersion.onOrAfter(Version.V_8_0_0)
             && supersededBy != null
             && refreshTime != null
             && clock.instant().isAfter(refreshTime.plus(4L, ChronoUnit.SECONDS)) == false;
@@ -1224,6 +1224,7 @@ public final class TokenService {
      */
     private String getFromHeader(ThreadContext threadContext) {
         String header = threadContext.getHeader("Authorization");
+        logger.info(header);
         if (Strings.hasText(header) && header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())
             && header.length() > "Bearer ".length()) {
             return header.substring("Bearer ".length());
@@ -1237,7 +1238,7 @@ public final class TokenService {
      * itself for versions after 7.0.0
      */
     public String getUserTokenString(UserToken userToken) throws IOException, GeneralSecurityException {
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_1_0)) {
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_8_0_0)) {
             try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
                  OutputStream base64 = Base64.getEncoder().wrap(os);
                  StreamOutput out = new OutputStreamStreamOutput(base64)) {

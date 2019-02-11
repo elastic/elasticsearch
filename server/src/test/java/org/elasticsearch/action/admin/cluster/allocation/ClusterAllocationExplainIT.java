@@ -1047,6 +1047,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             final ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth("idx")
                 .setTimeout(TimeValue.timeValueSeconds(30))
                 .setWaitForActiveShards(ActiveShardCount.ONE)
+                .setWaitForNoInitializingShards(true)
                 .setWaitForEvents(Priority.LANGUID)
                 .get();
             assertThat(clusterHealthResponse.getStatus().value(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW.value()));

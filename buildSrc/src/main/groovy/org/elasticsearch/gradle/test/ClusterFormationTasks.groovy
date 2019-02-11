@@ -358,7 +358,8 @@ class ClusterFormationTasks {
                     // macos and linux use tar
                     project.tarTree(project.resources.gzip(configuration.singleFile))
                 } else {
-                    throw new GradleException("Archive file ")
+                    throw new GradleException("Unrecognized archive file format [${archiveFile.getName()}]" +
+                            " - Expected .zip or .tar.gz")
                 }
             }
             into node.baseDir

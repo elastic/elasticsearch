@@ -2493,6 +2493,7 @@ public class InternalEngineTests extends EngineTestCase {
                 prevLocalCheckpoint = localCheckpoint;
                 prevMaxSeqNo = maxSeqNo;
             }
+            IOUtils.close(commits);
         }
     }
 

@@ -418,7 +418,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         }
 
         private void checkCompletionContextsLimit(BuilderContext context) {
-            if (this.contextMappings.size() > COMPLETION_CONTEXTS_LIMIT) {
+            if (this.contextMappings != null && this.contextMappings.size() > COMPLETION_CONTEXTS_LIMIT) {
                 if (context.indexCreatedVersion().onOrAfter(Version.V_8_0_0)) {
                     throw new IllegalArgumentException(
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded");

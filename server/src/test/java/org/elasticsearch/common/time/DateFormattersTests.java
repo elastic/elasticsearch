@@ -102,7 +102,7 @@ public class DateFormattersTests extends ESTestCase {
         DateFormatter formatter = DateFormatter.forPattern("8strict_date_optional_time||epoch_millis");
         TemporalAccessor accessor = formatter.parse("123");
         assertThat(DateFormatters.from(accessor).toInstant().toEpochMilli(), is(123L));
-        assertThat(formatter.pattern(), is("strict_date_optional_time||epoch_millis"));
+        assertThat(formatter.pattern(), is("8strict_date_optional_time||epoch_millis"));
     }
 
     public void testParsersWithMultipleInternalFormats() throws Exception {

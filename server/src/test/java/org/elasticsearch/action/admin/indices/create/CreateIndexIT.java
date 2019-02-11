@@ -37,7 +37,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -48,6 +50,7 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -61,8 +64,10 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -433,4 +438,21 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(e, hasToString(containsString("unknown setting [index.foo]")));
     }
 
+    public void testCreateIndexWithJava8Date() throws Exception {
+        String jodaIncompatibleFormat = "8yyyy-MM-dd HH:mm:ssXX";
+        XContentBuilder builder = jsonBuilder().startObject().startObject("properties")
+            .startObject("time")
+            .field("type", "date")
+            .field("format", jodaIncompatibleFormat)
+            .endObject().endObject().endObject();
+
+        CreateIndexRequestBuilder requestBuilder = client().admin().indices().prepareCreate("test");
+        assertAcked(requestBuilder.addMapping("doc", builder).get());
+
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
+        List<Object> formats =
+            XContentMapValues.extractRawValues("properties.time.format", response.getMappings().get("test").get("doc").getSourceAsMap());
+        assertThat(formats, hasSize(1));
+        assertThat(formats.get(0), is(jodaIncompatibleFormat));
+    }
 }

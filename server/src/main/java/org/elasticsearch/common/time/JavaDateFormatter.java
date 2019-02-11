@@ -53,7 +53,7 @@ class JavaDateFormatter implements DateFormatter {
     private final DateTimeFormatter roundupParser;
 
     private JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter roundupParser, DateTimeFormatter parser) {
-        this.format = format;
+        this.format = "8" + format;
         this.printer = printer;
         this.roundupParser = roundupParser;
         this.parser = parser;
@@ -87,7 +87,7 @@ class JavaDateFormatter implements DateFormatter {
             }
             this.parser = builder.toFormatter(Locale.ROOT);
         }
-        this.format = format;
+        this.format = "8" + format;
         this.printer = printer;
 
         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();

@@ -84,6 +84,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -1195,6 +1196,7 @@ public final class InternalTestCluster extends TestCluster {
         //check that shards that have same sync id also contain same number of documents
         assertSameSyncIdSameDocs();
         assertOpenTranslogReferences();
+        assertNoSnapshottedIndexCommit();
     }
 
     private void assertSameSyncIdSameDocs() {
@@ -1258,6 +1260,28 @@ public final class InternalTestCluster extends TestCluster {
                             }
                         } catch (AlreadyClosedException ok) {
                             // all good
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    private void assertNoSnapshottedIndexCommit() throws Exception {
+        assertBusy(() -> {
+            final Collection<NodeAndClient> nodesAndClients = nodes.values();
+            for (NodeAndClient nodeAndClient : nodesAndClients) {
+                IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+                for (IndexService indexService : indexServices) {
+                    for (IndexShard indexShard : indexService) {
+                        try {
+                            Engine engine = IndexShardTestCase.getEngine(indexShard);
+                            if (engine instanceof InternalEngine) {
+                                assertFalse(indexShard.routingEntry().toString() + " has unreleased snapshotted index commits",
+                                    EngineTestCase.hasSnapshottedCommits(engine));
+                            }
+                        } catch (AlreadyClosedException ignored) {
+
                         }
                     }
                 }

@@ -3,8 +3,6 @@
 [[sql-functions-math]]
 === Math Functions
 
-beta[]
-
 All math and trigonometric functions require their input (where applicable)
 to be numeric.
 

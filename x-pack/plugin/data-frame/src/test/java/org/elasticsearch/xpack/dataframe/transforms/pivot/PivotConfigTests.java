@@ -84,6 +84,28 @@ public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<Pivot
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot));
     }
 
+    public void testDoubleAggs() throws IOException {
+        String pivot = "{"
+                + " \"group_by\": [ {"
+                + "   \"id\": {"
+                + "     \"terms\": {"
+                + "       \"field\": \"id\""
+                + "} } } ],"
+                + " \"aggs\": {"
+                + "   \"avg\": {"
+                + "     \"avg\": {"
+                + "       \"field\": \"points\""
+                + "} } },"
+                + " \"aggregations\": {"
+                + "   \"avg\": {"
+                + "     \"avg\": {"
+                + "       \"field\": \"points\""
+                + "} } }"
+                + "}";
+
+        expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot));
+    }
+
     private PivotConfig createPivotConfigFromString(String json) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(),
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);

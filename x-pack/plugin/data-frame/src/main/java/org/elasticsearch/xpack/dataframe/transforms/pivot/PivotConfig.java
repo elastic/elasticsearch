@@ -45,13 +45,19 @@ public class PivotConfig implements Writeable, ToXContentObject {
                     List<GroupConfig> groups = (List<GroupConfig>) args[0];
 
                     // allow "aggs" and "aggregations" but require one to be specified
-                    // for the pathological case somebody specifies both we take "aggregations"
+                    // if somebody specifies both: throw
                     AggregationConfig aggregationConfig = null;
                     if (args[1] != null) {
                         aggregationConfig = (AggregationConfig) args[1];
-                    } else if (args[2] != null) {
+                    }
+
+                    if (args[2] != null) {
+                        if (aggregationConfig != null) {
+                            throw new IllegalArgumentException("Found two aggregation definitions: [aggs] and [aggregations]");
+                        }
                         aggregationConfig = (AggregationConfig) args[2];
-                    } else {
+                    }
+                    if (aggregationConfig == null) {
                         throw new IllegalArgumentException("Required [aggregations]");
                     }
 

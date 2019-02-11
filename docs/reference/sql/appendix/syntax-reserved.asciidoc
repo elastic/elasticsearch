@@ -3,8 +3,6 @@
 [[sql-syntax-reserved]]
 == Reserved keywords
 
-beta[]
-
 Table with reserved keywords that need to be quoted. Also provide an example to make it more obvious.
 
 The following table lists all of the keywords that are reserved in Presto,

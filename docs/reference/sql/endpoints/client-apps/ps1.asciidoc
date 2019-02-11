@@ -3,8 +3,6 @@
 [[sql-client-apps-ps1]]
 === Microsoft PowerShell
 
-experimental[]
-
 [quote, https://docs.microsoft.com/en-us/powershell/scripting/powershell-scripting]
 ____
 https://docs.microsoft.com/en-us/powershell/[PowerShell] is a task-based command-line shell and scripting language built on .NET.

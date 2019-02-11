@@ -96,6 +96,20 @@ public class SecurityFeatureSetTests extends ESTestCase {
         settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
         final boolean transportSSLEnabled = randomBoolean();
         settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
+
+        boolean configureEnabledFlagForTokenAndApiKeyServices = randomBoolean();
+        final boolean tokenServiceEnabled;
+        final boolean apiKeyServiceEnabled;
+        if (configureEnabledFlagForTokenAndApiKeyServices) {
+            tokenServiceEnabled = randomBoolean();
+            settings.put("xpack.security.authc.token.enabled", tokenServiceEnabled);
+            apiKeyServiceEnabled = randomBoolean();
+            settings.put("xpack.security.authc.api_key.enabled", apiKeyServiceEnabled);
+        } else {
+            tokenServiceEnabled = httpSSLEnabled;
+            apiKeyServiceEnabled = httpSSLEnabled;
+        }
+
         final boolean auditingEnabled = randomBoolean();
         settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
         final boolean httpIpFilterEnabled = randomBoolean();
@@ -185,6 +199,12 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 assertThat(source.getValue("ssl.http.enabled"), is(httpSSLEnabled));
                 assertThat(source.getValue("ssl.transport.enabled"), is(transportSSLEnabled));
 
+                // check Token service
+                assertThat(source.getValue("token_service.enabled"), is(tokenServiceEnabled));
+
+                // check API Key service
+                assertThat(source.getValue("api_key_service.enabled"), is(apiKeyServiceEnabled));
+
                 // auditing
                 assertThat(source.getValue("audit.enabled"), is(auditingEnabled));
                 if (auditingEnabled) {
@@ -218,6 +238,8 @@ public class SecurityFeatureSetTests extends ESTestCase {
             } else {
                 assertThat(source.getValue("realms"), is(nullValue()));
                 assertThat(source.getValue("ssl"), is(nullValue()));
+                assertThat(source.getValue("token_service"), is(nullValue()));
+                assertThat(source.getValue("api_key_service"), is(nullValue()));
                 assertThat(source.getValue("audit"), is(nullValue()));
                 assertThat(source.getValue("anonymous"), is(nullValue()));
                 assertThat(source.getValue("ipfilter"), is(nullValue()));

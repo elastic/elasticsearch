@@ -25,6 +25,7 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.ISODateTimeFormat;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -663,6 +664,23 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
             DateFormatter javaFormatter = DateFormatter.forPattern(format);
             assertSameDate("31-01-2014", format, jodaFormatter, javaFormatter);
         }
+    }
+
+    // the iso 8601 parser is available via Joda.forPattern(), so we have to test this slightly differently
+    public void testIso8601Parsers() {
+        String format = "iso8601";
+        org.joda.time.format.DateTimeFormatter isoFormatter = ISODateTimeFormat.dateTimeParser().withZone(DateTimeZone.UTC);
+        JodaDateFormatter jodaFormatter = new JodaDateFormatter(format, isoFormatter, isoFormatter);
+        DateFormatter javaFormatter = DateFormatter.forPattern(format);
+
+        assertSameDate("2018-10-10T", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12.123", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12.123Z", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12,123", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12,123Z", format, jodaFormatter, javaFormatter);
     }
 
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {

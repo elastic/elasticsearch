@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFuncti
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
@@ -229,6 +230,7 @@ public final class Verifier {
                 validateInExpression(p, localFailures);
                 validateConditional(p, localFailures);
 
+                checkGroupingFunctionInGroupBy(p, localFailures);
                 checkFilterOnAggs(p, localFailures);
                 checkFilterOnGrouping(p, localFailures);
 
@@ -586,6 +588,40 @@ public final class Verifier {
         }
         return false;
     }
+    
+    private static void checkGroupingFunctionInGroupBy(LogicalPlan p, Set<Failure> localFailures) {
+        // check if the query has a grouping function (Histogram) but no GROUP BY
+        if (p instanceof Project) {
+            Project proj = (Project) p;
+            proj.projections().forEach(e -> e.forEachDown(f ->
+                localFailures.add(fail(f, "[{}] needs to be part of the grouping", Expressions.name(f))), GroupingFunction.class));
+        } else if (p instanceof Aggregate) {
+            // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms)
+            Aggregate a = (Aggregate) p;
+            a.aggregates().forEach(agg -> agg.forEachDown(e -> {
+                if (a.groupings().size() == 0
+                        || Expressions.anyMatch(a.groupings(), g -> g instanceof Function && e.functionEquals((Function) g)) == false) {
+                    localFailures.add(fail(e, "[{}] needs to be part of the grouping", Expressions.name(e)));
+                }
+                else {
+                    checkGroupingFunctionTarget(e, localFailures);
+                }
+            }, GroupingFunction.class));
+
+            a.groupings().forEach(g -> g.forEachDown(e -> {
+                checkGroupingFunctionTarget(e, localFailures);
+            }, GroupingFunction.class));
+        }
+    }
+
+    private static void checkGroupingFunctionTarget(GroupingFunction f, Set<Failure> localFailures) {
+        f.field().forEachDown(e -> {
+            if (e instanceof GroupingFunction) {
+                localFailures.add(fail(f.field(), "Cannot embed grouping functions within each other, found [{}] in [{}]",
+                        Expressions.name(f.field()), Expressions.name(f)));
+            }
+        });
+    }
 
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof Filter) {
@@ -662,7 +698,7 @@ public final class Verifier {
                     for (Expression value : in.list()) {
                         if (areTypesCompatible(dt, value.dataType()) == false) {
                             localFailures.add(fail(value, "expected data type [{}], value provided is of type [{}]",
-                                dt.esType, value.dataType().esType));
+                                dt.typeName, value.dataType().typeName));
                             return;
                         }
                     }
@@ -683,7 +719,7 @@ public final class Verifier {
                         } else {
                             if (areTypesCompatible(dt, child.dataType()) == false) {
                                 localFailures.add(fail(child, "expected data type [{}], value provided is of type [{}]",
-                                    dt.esType, child.dataType().esType));
+                                    dt.typeName, child.dataType().typeName));
                                 return;
                             }
                         }

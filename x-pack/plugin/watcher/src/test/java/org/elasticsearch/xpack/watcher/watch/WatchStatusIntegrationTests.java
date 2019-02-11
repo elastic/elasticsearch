@@ -29,6 +29,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/38619")
     public void testThatStatusGetsUpdated() {
         timeWarp().clock().setTime(
             ZonedDateTime.of(2019,02,9,15,9,50,687670, ZoneOffset.UTC));

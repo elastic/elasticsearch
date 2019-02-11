@@ -566,10 +566,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testAggsInHistogram() {
-        assertEquals("1:47: Cannot use an aggregate [MAX] for grouping",
-                error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(MAX(int), 1)"));
+        assertEquals("1:37: Cannot use an aggregate [MAX] for grouping",
+                error("SELECT MAX(date) FROM test GROUP BY MAX(int)"));
     }
-    
+
+    public void testGroupingsInHistogram() {
+        assertEquals(
+                "1:47: Cannot embed grouping functions within each other, found [HISTOGRAM(int, 1)] in [HISTOGRAM(HISTOGRAM(int, 1), 1)]",
+                error("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(HISTOGRAM(int, 1), 1)"));
+    }
+
+    public void testCastInHistogram() {
+        accept("SELECT MAX(date) FROM test GROUP BY HISTOGRAM(CAST(int AS LONG), 1)");
+    }
+
     public void testHistogramNotInGrouping() {
         assertEquals("1:8: [HISTOGRAM(date, INTERVAL 1 MONTH)] needs to be part of the grouping",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test"));

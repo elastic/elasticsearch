@@ -3,8 +3,6 @@
 [[sql-client-apps-powerbi]]
 === Microsoft Power BI Desktop
 
-experimental[]
-
 [quote, https://powerbi.microsoft.com/en-us/what-is-power-bi/]
 ____
 https://powerbi.microsoft.com/en-us/desktop/[Power BI] is a business analytics solution that lets you visualize your data and share

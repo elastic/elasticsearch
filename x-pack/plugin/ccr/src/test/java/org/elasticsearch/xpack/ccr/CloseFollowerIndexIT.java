@@ -81,6 +81,7 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         leaderSearchRequest.source().trackTotalHits(true);
         long leaderIndexDocs = leaderClient().search(leaderSearchRequest).actionGet().getHits().getTotalHits().value;
         assertBusy(() -> {
+            refresh(followerClient(), "index2");
             SearchRequest followerSearchRequest = new SearchRequest("index2");
             followerSearchRequest.source().trackTotalHits(true);
             long followerIndexDocs = followerClient().search(followerSearchRequest).actionGet().getHits().getTotalHits().value;

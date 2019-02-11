@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,10 +32,12 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
-import org.joda.time.DateTime;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -52,7 +55,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -161,7 +163,7 @@ public class IndexActionTests extends ESTestCase {
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
         final Map<String, Object> docWithId = MapBuilder.<String, Object>newMapBuilder().put("foo", "bar").put("_id", "0").immutableMap();
-        final DateTime executionTime = DateTime.now(UTC);
+        final ZonedDateTime executionTime = ZonedDateTime.now(ZoneOffset.UTC);
 
         // using doc_id with bulk fails regardless of using ID
         expectThrows(IllegalStateException.class, () -> {
@@ -285,7 +287,7 @@ public class IndexActionTests extends ESTestCase {
                 refreshPolicy);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client, TimeValue.timeValueSeconds(30),
                 TimeValue.timeValueSeconds(30));
-        DateTime executionTime = DateTime.now(UTC);
+        ZonedDateTime executionTime = DateUtils.nowWithMillisResolution();
         Payload payload;
 
         if (customId && docIdAsParam == false) {
@@ -324,8 +326,9 @@ public class IndexActionTests extends ESTestCase {
         assertThat(indexRequest.getRefreshPolicy(), is(expectedRefreshPolicy));
 
         if (timestampField != null) {
+            final DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE_TIME;
             assertThat(indexRequest.sourceAsMap().keySet(), is(hasSize(2)));
-            assertThat(indexRequest.sourceAsMap(), hasEntry(timestampField, executionTime.toString()));
+            assertThat(indexRequest.sourceAsMap(), hasEntry(timestampField, formatter.format(executionTime)));
         } else {
             assertThat(indexRequest.sourceAsMap().keySet(), is(hasSize(1)));
         }
@@ -344,7 +347,7 @@ public class IndexActionTests extends ESTestCase {
         docs.add(Collections.singletonMap("foo", Collections.singletonMap("foo", "bar")));
         Payload payload = new Payload.Simple(Collections.singletonMap("_doc", docs));
 
-        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", DateTime.now(UTC), payload);
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", ZonedDateTime.now(ZoneOffset.UTC), payload);
 
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();

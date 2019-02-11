@@ -210,7 +210,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 // Create an index on the leader using the template set up above
                 Request createIndexRequest = new Request("PUT", "/" + indexName);
                 createIndexRequest.setJsonEntity("{" +
-                    "\"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}, " +
+                    "\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}, " +
                     "\"aliases\": {\"" + alias + "\":  {\"is_write_index\":  true}} }");
                 assertOK(leaderClient.performRequest(createIndexRequest));
                 // Check that the new index is created
@@ -326,6 +326,9 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
     }
 
+    // Specifically, this is waiting for this bullet to be complete:
+    // - integrate shard history retention leases with cross-cluster replication
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37165")
     public void testCannotShrinkLeaderIndex() throws Exception {
         String indexName = "shrink-leader-test";
         String shrunkenIndexName = "shrink-" + indexName;

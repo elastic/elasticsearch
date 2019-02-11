@@ -13,9 +13,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -23,32 +20,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
-
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testGeneratingTokenInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
-        {
-            Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
-            assertThat("this branch is not needed if we aren't compatible with 6.0",
-                    minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
-            if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
-                XContentBuilder template = jsonBuilder();
-                template.startObject();
-                {
-                    template.field("index_patterns", "*");
-                    template.startObject("settings");
-                    template.field("number_of_shards", 5);
-                    template.endObject();
-                }
-                template.endObject();
-                Request createTemplate = new Request("PUT", "/_template/template");
-                createTemplate.setJsonEntity(Strings.toString(template));
-                client().performRequest(createTemplate);
-            }
-        }
 
         Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
         createTokenRequest.setJsonEntity(
@@ -64,7 +39,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertNotNull(token);
         assertTokenWorks(token);
 
-        Request indexRequest1 = new Request("PUT", "token_backwards_compatibility_it/doc/old_cluster_token1");
+        Request indexRequest1 = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token1");
         indexRequest1.setJsonEntity(
                 "{\n" +
                 "    \"token\": \"" + token + "\"\n" +
@@ -78,7 +53,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         token = (String) responseMap.get("access_token");
         assertNotNull(token);
         assertTokenWorks(token);
-        Request indexRequest2 = new Request("PUT", "token_backwards_compatibility_it/doc/old_cluster_token2");
+        Request indexRequest2 = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token2");
         indexRequest2.setJsonEntity(
                 "{\n" +
                 "    \"token\": \"" + token + "\"\n" +
@@ -89,8 +64,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testTokenWorksInMixedOrUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed or upgraded cluster",
                 CLUSTER_TYPE == ClusterType.MIXED || CLUSTER_TYPE == ClusterType.UPGRADED);
-        Request getRequest = new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token1");
-        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token1");
         Response getResponse = client().performRequest(getRequest);
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
@@ -100,8 +74,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testMixedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         assumeTrue("the master must be on the latest version before we can write", isMasterOnLatestVersion());
-        Request getRequest = new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token2");
-        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token2");
 
         Response getResponse = client().performRequest(getRequest);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
@@ -152,8 +125,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
-        Request getRequest = new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token2");
-        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token2");
 
         Response getResponse = client().performRequest(getRequest);
         assertOK(getResponse);
@@ -168,8 +140,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertOK(invalidationResponse);
         assertTokenDoesNotWork(token);
 
-        getRequest = new Request("GET", "token_backwards_compatibility_it/doc/old_cluster_token1");
-        getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
+        getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token1");
 
         getResponse = client().performRequest(getRequest);
         source = (Map<String, Object>) entityAsMap(getResponse).get("_source");

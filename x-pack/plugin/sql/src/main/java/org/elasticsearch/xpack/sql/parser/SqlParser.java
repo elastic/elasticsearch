@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.carrotsearch.hppc.ObjectShortHashMap;
-
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonToken;
@@ -37,8 +36,6 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QuoteIdentifierContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementDefaultContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.UnquoteIdentifierContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
@@ -242,7 +239,6 @@ public class SqlParser {
             ENTER_EXIT_RULE_MAPPING.put(StatementDefaultContext.class.getSimpleName(), StatementContext.class.getSimpleName());
             ENTER_EXIT_RULE_MAPPING.put(QueryPrimaryDefaultContext.class.getSimpleName(), QueryTermContext.class.getSimpleName());
             ENTER_EXIT_RULE_MAPPING.put(BooleanDefaultContext.class.getSimpleName(), BooleanExpressionContext.class.getSimpleName());
-            ENTER_EXIT_RULE_MAPPING.put(ValueExpressionDefaultContext.class.getSimpleName(), ValueExpressionContext.class.getSimpleName());
         }
 
         private boolean insideIn = false;
@@ -265,6 +261,9 @@ public class SqlParser {
             if (ctx.getClass() != UnquoteIdentifierContext.class &&
                 ctx.getClass() != QuoteIdentifierContext.class &&
                 ctx.getClass() != BackQuotedIdentifierContext.class &&
+                ctx.getClass() != SqlBaseParser.ConstantContext.class &&
+                ctx.getClass() != SqlBaseParser.NumberContext.class &&
+                ctx.getClass() != SqlBaseParser.ValueExpressionContext.class &&
                 (insideIn == false || ctx.getClass() != PrimaryExpressionContext.class)) {
 
                 int currentDepth = depthCounts.putOrAdd(ctx.getClass().getSimpleName(), (short) 1, (short) 1);

@@ -29,6 +29,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -97,6 +98,18 @@ public class DateProcessorTests extends ESTestCase {
         }
     }
 
+    public void testJavaPatternNoTimezone() {
+        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
+            null, null,
+            "date_as_string", Arrays.asList("yyyy dd MM HH:mm:ss XXX"), "date_as_date");
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "2010 12 06 00:00:00 -02:00");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        dateProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T02:00:00.000Z"));
+    }
+
     public void testInvalidJavaPattern() {
         try {
             DateProcessor processor = new DateProcessor(randomAlphaOfLength(10),
@@ -113,6 +126,8 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     public void testJavaPatternLocale() {
+        // @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/31724")
+        assumeFalse("Can't run in a FIPS JVM, Joda parse date error", inFipsJvm());
         DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
             templatize(ZoneId.of("Europe/Amsterdam")), templatize(Locale.ITALIAN),
                 "date_as_string", Collections.singletonList("yyyy dd MMMM"), "date_as_date");

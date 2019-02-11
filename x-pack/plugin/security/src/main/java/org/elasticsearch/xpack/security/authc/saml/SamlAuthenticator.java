@@ -141,14 +141,13 @@ class SamlAuthenticator extends SamlRequestHandler {
         StatusCode subLevel = firstLevel.getStatusCode();
         StringBuilder sb = new StringBuilder();
         if (StatusCode.REQUESTER.equals(firstLevel.getValue())) {
-            sb.append("The request could not be granted due to an error in the Elastic Stack side (");
+            sb.append("The SAML IdP did not grant the request. It indicated that the Elastic Stack side sent something invalid (");
         } else if (StatusCode.RESPONDER.equals(firstLevel.getValue())) {
             sb.append("The request could not be granted due to an error in the SAML IDP side (");
         } else if (StatusCode.VERSION_MISMATCH.equals(firstLevel.getValue())) {
             sb.append("The request could not be granted because the SAML IDP doesn't support SAML 2.0 (");
         } else {
             sb.append("The request could not be granted, the SAML IDP responded with a non-standard Status code (");
-
         }
         sb.append(firstLevel.getValue()).append(").");
         if (getMessage(status) != null) {

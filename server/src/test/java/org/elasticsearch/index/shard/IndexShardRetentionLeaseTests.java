@@ -320,7 +320,8 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         final IndexShard failedShard = reinitShard(shard, newShardRouting(shard.routingEntry().shardId(),
             shard.routingEntry().currentNodeId(), true, ShardRoutingState.INITIALIZING,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE));
-        final DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
+        final DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
+            Collections.emptyMap(), Collections.emptySet(), Version.CURRENT);
         failedShard.markAsRecovering("store", new RecoveryState(failedShard.routingEntry(), localNode, null));
         throwDuringRecoverFromTranslog.set(true);
         expectThrows(IndexShardRecoveryException.class, failedShard::recoverFromStore);

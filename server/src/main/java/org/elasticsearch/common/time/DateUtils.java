@@ -31,6 +31,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.time.DateUtilsRounding.getMonthOfYear;
+import static org.elasticsearch.common.time.DateUtilsRounding.getTotalMillisByYearMonth;
+import static org.elasticsearch.common.time.DateUtilsRounding.getYear;
+import static org.elasticsearch.common.time.DateUtilsRounding.utcMillisAtStartOfYear;
+
 public class DateUtils {
     public static DateTimeZone zoneIdToDateTimeZone(ZoneId zoneId) {
         if (zoneId == null) {
@@ -138,5 +143,78 @@ public class DateUtils {
         }
 
         return nanoSecondsSinceEpoch / 1_000_000;
+    }
+
+    /**
+     * Rounds the given utc milliseconds sicne the epoch down to the next unit millis
+     *
+     * Note: This does not check for correctness of the result, as this only works with units smaller or equal than a day
+     *       In order to ensure the performane of this methods, there are no guards or checks in it
+     *
+     * @param utcMillis   the milliseconds since the epoch
+     * @param unitMillis  the unit to round to
+     * @return            the rounded milliseconds since the epoch
+     */
+    public static long roundFloor(long utcMillis, final long unitMillis) {
+        if (utcMillis >= 0) {
+            return utcMillis - utcMillis % unitMillis;
+        } else {
+            utcMillis += 1;
+            return utcMillis - utcMillis % unitMillis - unitMillis;
+        }
+    }
+
+    /**
+     * Round down to the beginning of the quarter of the year of the specified time
+     * @param utcMillis the milliseconds since the epoch
+     * @return The milliseconds since the epoch rounded down to the quarter of the year
+     */
+    public static long roundQuarterOfYear(final long utcMillis) {
+        int year = getYear(utcMillis);
+        int month = getMonthOfYear(utcMillis, year);
+        int firstMonthOfQuarter = (((month-1) / 3) * 3) + 1;
+        return DateUtils.of(year, firstMonthOfQuarter);
+    }
+
+    /**
+     * Round down to the beginning of the month of the year of the specified time
+     * @param utcMillis the milliseconds since the epoch
+     * @return The milliseconds since the epoch rounded down to the month of the year
+     */
+    public static long roundMonthOfYear(final long utcMillis) {
+        int year = getYear(utcMillis);
+        int month = getMonthOfYear(utcMillis, year);
+        return DateUtils.of(year, month);
+    }
+
+    /**
+     * Round down to the beginning of the year of the specified time
+     * @param utcMillis the milliseconds since the epoch
+     * @return The milliseconds since the epoch rounded down to the beginning of the year
+     */
+    public static long roundYear(final long utcMillis) {
+        int year = getYear(utcMillis);
+        return utcMillisAtStartOfYear(year);
+    }
+
+    /**
+     * Round down to the beginning of the week based on week year of the specified time
+     * @param utcMillis the milliseconds since the epoch
+     * @return The milliseconds since the epoch rounded down to the beginning of the week based on week year
+     */
+    public static long roundWeekOfWeekYear(final long utcMillis) {
+        return roundFloor(utcMillis + 3 * 86400 * 1000L, 604800000) - 3 * 86400 * 1000L;
+    }
+
+    /**
+     * Return the first day of the month
+     * @param year  the year to return
+     * @param month the month to return, ranging from 1-12
+     * @return the milliseconds since the epoch of the first day of the month in the year
+     */
+    private static long of(final int year, final int month) {
+        long millis = utcMillisAtStartOfYear(year);
+        millis += getTotalMillisByYearMonth(year, month);
+        return millis;
     }
 }

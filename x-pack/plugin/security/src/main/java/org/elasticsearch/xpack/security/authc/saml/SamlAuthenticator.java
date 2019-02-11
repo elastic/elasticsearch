@@ -106,8 +106,7 @@ class SamlAuthenticator extends SamlRequestHandler {
             throw samlException("SAML Response has no status code");
         }
         if (isSuccess(status) == false) {
-            throw samlException("SAML Response is not a 'success' response: Code={} Message={} Detail={}",
-                    status.getStatusCode().getValue(), getMessage(status), getDetail(status));
+            throw samlException("SAML Response is not a 'success' response: {}", getStatusCodeMessage(status));
         }
         checkIssuer(response.getIssuer(), response);
         checkResponseDestination(response);
@@ -135,6 +134,32 @@ class SamlAuthenticator extends SamlRequestHandler {
         }
 
         return new SamlAttributes(nameId, session, attributes);
+    }
+
+    private String getStatusCodeMessage(Status status) {
+        StatusCode firstLevel = status.getStatusCode();
+        StatusCode subLevel = firstLevel.getStatusCode();
+        StringBuilder sb = new StringBuilder();
+        if (StatusCode.REQUESTER.equals(firstLevel.getValue())) {
+            sb.append("The SAML IdP did not grant the request. It indicated that the Elastic Stack side sent something invalid (");
+        } else if (StatusCode.RESPONDER.equals(firstLevel.getValue())) {
+            sb.append("The request could not be granted due to an error in the SAML IDP side (");
+        } else if (StatusCode.VERSION_MISMATCH.equals(firstLevel.getValue())) {
+            sb.append("The request could not be granted because the SAML IDP doesn't support SAML 2.0 (");
+        } else {
+            sb.append("The request could not be granted, the SAML IDP responded with a non-standard Status code (");
+        }
+        sb.append(firstLevel.getValue()).append(").");
+        if (getMessage(status) != null) {
+            sb.append(" Message: [").append(getMessage(status)).append("]");
+        }
+        if (getDetail(status) != null) {
+            sb.append(" Detail: [").append(getDetail(status)).append("]");
+        }
+        if (null != subLevel) {
+            sb.append(" Specific status code which might indicate what the issue is: [").append(subLevel.getValue()).append("]");
+        }
+        return sb.toString();
     }
 
     private String getMessage(Status status) {

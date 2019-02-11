@@ -3092,4 +3092,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
         assert seqNo <= getMaxSeqNoOfUpdatesOrDeletes() : getMaxSeqNoOfUpdatesOrDeletes() + " < " + seqNo;
     }
+
+    /**
+     * Performs the pre-closing checks on the {@link IndexShard}.
+     *
+     * @throws IllegalStateException if the sanity checks failed
+     */
+    public void verifyShardBeforeIndexClosing() throws IllegalStateException {
+        getEngine().verifyEngineBeforeIndexClosing();
+    }
 }

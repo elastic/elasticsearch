@@ -105,7 +105,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
 
             // check retention leases have been committed on the primary
             final RetentionLeases primaryCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
-                    primary.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
+                    primary.commitStats().getUserData().get(Engine.RETENTION_LEASES));
             assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(primaryCommittedRetentionLeases)));
 
             // check current retention leases have been synced to all replicas
@@ -120,7 +120,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
 
                 // check retention leases have been committed on the replica
                 final RetentionLeases replicaCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
-                        replica.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
+                        replica.commitStats().getUserData().get(Engine.RETENTION_LEASES));
                 assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(replicaCommittedRetentionLeases)));
             }
         }
@@ -260,6 +260,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38588")
     public void testRetentionLeasesSyncOnRecovery() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);

@@ -6,10 +6,8 @@
 
 This section summarizes the changes in each release.
 
-* <<release-notes-7.0.0-alpha2>>
-* <<release-notes-7.0.0-alpha1>>
+* <<release-notes-8.0.0-alpha1>>
 
 --
 
-include::release-notes/7.0.0-alpha2.asciidoc[]
-include::release-notes/7.0.0-alpha1.asciidoc[]
+include::release-notes/8.0.0-alpha1.asciidoc[]

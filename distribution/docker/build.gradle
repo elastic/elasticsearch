@@ -18,14 +18,33 @@ dependencies {
 }
 
 ext.expansions = { oss ->
-  String classifier = 'linux-x86_64'
+  final String classifier = 'linux-x86_64'            
+  final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
   return [
-    'elasticsearch' : oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz",
-    'jdkUrl' : 'https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz',
-    'jdkVersion' : '11.0.2',
-    'license': oss ? 'Apache-2.0' : 'Elastic License',
-    'version' : VersionProperties.elasticsearch
+    'elasticsearch'       : elasticsearch,
+    'jdkUrl'              : 'https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz',
+    'jdkVersion'          : '11.0.2',
+    'license'             : oss ? 'Apache-2.0' : 'Elastic License',
+    'source_elasticsearch': local() ? "COPY $elasticsearch /opt/" : "RUN curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch}",
+    'version'             : VersionProperties.elasticsearch
   ]
+}
+
+/*
+ * We need to be able to render a Dockerfile that references the official artifacts on https://artifacts.elastic.co. For this, we use a
+ * substitution in the Dockerfile template where we can either replace source_elasticsearch with a COPY from the Docker build context, or
+ * a RUN curl command to retrieve the artifact from https://artifacts.elastic.co. The system property build.docker.source, which can be
+ * either "local" (default) or "remote" controls which version of the Dockerfile is produced.
+ */
+private static boolean local() {
+  final String buildDockerSource = System.getProperty("build.docker.source")
+  if (buildDockerSource == null || "local".equals(buildDockerSource)) {
+    return true
+  } else if ("remote".equals(buildDockerSource)) {
+    return false
+  } else {
+    throw new IllegalArgumentException("expected build.docker.source to be [local] or [remote] but was [" + buildDockerSource + "]")
+  }
 }
 
 private static String files(final boolean oss) {
@@ -48,20 +67,22 @@ void addCopyDockerContextTask(final boolean oss) {
       from 'src/docker/config'
     }
 
-    if (oss) {
-      from configurations.ossDockerSource
-    } else {
-      from configurations.dockerSource
-    }
+    if (local()) {
+      if (oss) {
+        from configurations.ossDockerSource
+      } else {
+        from configurations.dockerSource
+      }
 
-    from configurations.dockerPlugins
+      from configurations.dockerPlugins
+    }
   }
 }
 
 void addCopyDockerfileTask(final boolean oss) {
   task(taskName("copy", oss, "Dockerfile"), type: Copy) {
+    dependsOn taskName("copy", oss, "DockerContext")
     inputs.properties(expansions(oss)) // ensure task is run when ext.expansions is changed
-    mustRunAfter(taskName("copy", oss, "DockerContext"))
     into files(oss)
 
     from('src/docker/Dockerfile') {
@@ -69,7 +90,6 @@ void addCopyDockerfileTask(final boolean oss) {
     }
   }
 }
-
 
 preProcessFixture {
   dependsOn taskName("copy", true, "DockerContext")

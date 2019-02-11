@@ -3,8 +3,6 @@
 [[sql-syntax-select]]
 === SELECT
 
-beta[]
-
 .Synopsis
 [source, sql]
 ----

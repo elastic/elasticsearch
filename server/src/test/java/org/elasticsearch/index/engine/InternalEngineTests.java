@@ -5297,7 +5297,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/pull/38285")
     public void testKeepMinRetainedSeqNoByMergePolicy() throws IOException {
         IOUtils.close(engine, store);
         Settings.Builder settings = Settings.builder()
@@ -5309,7 +5308,8 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         final AtomicLong retentionLeasesVersion = new AtomicLong();
-        final AtomicReference<RetentionLeases> retentionLeasesHolder = new AtomicReference<>(RetentionLeases.EMPTY);
+        final AtomicReference<RetentionLeases> retentionLeasesHolder = new AtomicReference<>(
+            new RetentionLeases(primaryTerm, retentionLeasesVersion.get(), Collections.emptyList()));
         final List<Engine.Operation> operations = generateSingleDocHistory(true,
             randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 10, 300, "2");
         Randomness.shuffle(operations);

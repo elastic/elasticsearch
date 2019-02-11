@@ -2,7 +2,6 @@
 "Test common terms query with stacked tokens":
   - do:
       indices.create:
-          include_type_name: false
           index: test
           body:
             settings:
@@ -220,7 +219,6 @@
 "Test match query with synonyms - see #3881 for extensive description of the issue":
   - do:
       indices.create:
-          include_type_name: false
           index: test
           body:
             settings:

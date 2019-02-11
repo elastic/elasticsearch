@@ -603,8 +603,8 @@ public class JobManager {
             .setModelSnapshotId(modelSnapshot.getSnapshotId())
             .build();
 
-        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(
-            job -> {
+        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit,
+            ActionListener.wrap(job -> {
                 auditor.info(request.getJobId(),
                     Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
                 updateHandler.accept(Boolean.TRUE);

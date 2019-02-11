@@ -166,9 +166,8 @@
         index: test
         body:
           mappings:
-            test:
-              _source:
-                enabled: false
+            _source:
+              enabled: false
   - do:
       index:
         index:  test
@@ -178,7 +177,7 @@
       indices.refresh: {}
 
   - do:
-      catch: /\[test\]\[test\]\[1\] didn't store _source/
+      catch: /\[test\]\[_doc\]\[1\] didn't store _source/
       reindex:
         body:
           source:

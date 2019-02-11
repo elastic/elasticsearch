@@ -67,6 +67,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private final String localClusterAlias;
     private final long absoluteStartMillis;
+    private final boolean finalReduce;
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -102,13 +103,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
+        this.finalReduce = true;
     }
 
     /**
      * Constructs a new search request from the provided search request
      */
     public SearchRequest(SearchRequest searchRequest) {
-        this(searchRequest, searchRequest.indices, searchRequest.localClusterAlias, searchRequest.absoluteStartMillis);
+        this(searchRequest, searchRequest.indices, searchRequest.localClusterAlias,
+            searchRequest.absoluteStartMillis, searchRequest.finalReduce);
     }
 
     /**
@@ -132,25 +135,30 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
-     * Creates a new search request by providing the search request to copy all fields from, the indices to search against,
-     * the alias of the cluster where it will be executed, as well as the start time in milliseconds from the epoch time.
-     * Used when a {@link SearchRequest} is created and executed as part of a cross-cluster search request performing local reduction
-     * on each cluster. The coordinating CCS node provides the original search request, the indices to search against as well as the
-     * alias to prefix index names with in the returned search results, and the absolute start time to be used on the remote clusters
-     * to ensure that the same value is used.
+     * Creates a new search request by providing the search request to copy all fields from, the indices to search against, the alias of
+     * the cluster where it will be executed, as well as the start time in milliseconds from the epoch time and whether the reduction
+     * should be final or not. Used when a {@link SearchRequest} is created and executed as part of a cross-cluster search request
+     * performing reduction on each cluster in order to minimize network round-trips between the coordinating node and the remote clusters.
+     *
+     * @param originalSearchRequest the original search request
+     * @param indices the indices to search against
+     * @param localClusterAlias the alias to prefix index names with in the returned search results
+     * @param absoluteStartMillis the absolute start time to be used on the remote clusters to ensure that the same value is used
+     * @param finalReduce whether the reduction should be final or not
      */
     static SearchRequest withLocalReduction(SearchRequest originalSearchRequest, String[] indices,
-                                            String localClusterAlias, long absoluteStartMillis) {
+                                            String localClusterAlias, long absoluteStartMillis, boolean finalReduce) {
         Objects.requireNonNull(originalSearchRequest, "search request must not be null");
         validateIndices(indices);
         Objects.requireNonNull(localClusterAlias, "cluster alias must not be null");
         if (absoluteStartMillis < 0) {
             throw new IllegalArgumentException("absoluteStartMillis must not be negative but was [" + absoluteStartMillis + "]");
         }
-        return new SearchRequest(originalSearchRequest, indices, localClusterAlias, absoluteStartMillis);
+        return new SearchRequest(originalSearchRequest, indices, localClusterAlias, absoluteStartMillis, finalReduce);
     }
 
-    private SearchRequest(SearchRequest searchRequest, String[] indices, String localClusterAlias, long absoluteStartMillis) {
+    private SearchRequest(SearchRequest searchRequest, String[] indices, String localClusterAlias, long absoluteStartMillis,
+                          boolean finalReduce) {
         this.allowPartialSearchResults = searchRequest.allowPartialSearchResults;
         this.batchedReduceSize = searchRequest.batchedReduceSize;
         this.ccsMinimizeRoundtrips = searchRequest.ccsMinimizeRoundtrips;
@@ -167,6 +175,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         this.types = searchRequest.types;
         this.localClusterAlias = localClusterAlias;
         this.absoluteStartMillis = absoluteStartMillis;
+        this.finalReduce = finalReduce;
     }
 
     /**
@@ -196,12 +205,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             localClusterAlias = in.readOptionalString();
             if (localClusterAlias != null) {
                 absoluteStartMillis = in.readVLong();
+                finalReduce = in.readBoolean();
             } else {
                 absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
+                finalReduce = true;
             }
         } else {
             localClusterAlias = null;
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
+            finalReduce = true;
         }
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             ccsMinimizeRoundtrips = in.readBoolean();
@@ -230,6 +242,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             out.writeOptionalString(localClusterAlias);
             if (localClusterAlias != null) {
                 out.writeVLong(absoluteStartMillis);
+                out.writeBoolean(finalReduce);
             }
         }
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
@@ -278,10 +291,17 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
+     * Returns whether the reduction phase that will be performed needs to be final or not.
+     */
+    boolean isFinalReduce() {
+        return finalReduce;
+    }
+
+    /**
      * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
      * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
-     * request. When created through {@link #withLocalReduction(SearchRequest, String[], String, long)}, this method returns the provided
-     * current time, otherwise it will return {@link System#currentTimeMillis()}.
+     * request. When created through {@link #withLocalReduction(SearchRequest, String[], String, long, boolean)}, this method returns
+     * the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
      *
      */
     long getOrCreateAbsoluteStartMillis() {

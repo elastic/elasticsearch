@@ -14,15 +14,15 @@
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "test_index"}}'
             - '{"f1": "local_cluster", "filter_field": 0}'
-            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "test_index"}}'
             - '{"f1": "local_cluster", "filter_field": 1}'
-            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "test_index"}}'
             - '{"f1": "local_cluster", "filter_field": 0}'
-            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "test_index"}}'
             - '{"f1": "local_cluster", "filter_field": 1}'
-            - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+            - '{"index": {"_index": "test_index"}}'
             - '{"f1": "local_cluster", "filter_field": 0}'
 
   - do:
@@ -36,6 +36,7 @@
               terms:
                 field: f1.keyword
 
+  - match: { num_reduce_phases: 3 }
   - match: {_clusters.total: 2}
   - match: {_clusters.successful: 2}
   - match: {_clusters.skipped: 0}
@@ -63,6 +64,7 @@
               terms:
                 field: f1.keyword
 
+  - match: { num_reduce_phases: 3 }
   - match: {_clusters.total: 2}
   - match: {_clusters.successful: 2}
   - match: {_clusters.skipped: 0}
@@ -83,6 +85,7 @@
               terms:
                 field: f1.keyword
 
+  - is_false: num_reduce_phases
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}
@@ -103,6 +106,7 @@
               terms:
                 field: f1.keyword
 
+  - is_false: num_reduce_phases
   - is_false: _clusters
   - match: { _shards.total: 2 }
   - match: { hits.total: 5}
@@ -133,6 +137,7 @@
         rest_total_hits_as_int: true
         index: test_remote_cluster:test_index
 
+  - is_false: num_reduce_phases
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}
@@ -162,6 +167,7 @@
         rest_total_hits_as_int: true
         index: "*:test_index"
 
+  - match: { num_reduce_phases: 3 }
   - match: {_clusters.total: 2}
   - match: {_clusters.successful: 2}
   - match: {_clusters.skipped: 0}
@@ -176,6 +182,7 @@
         rest_total_hits_as_int: true
         index: my_remote_cluster:aliased_test_index
 
+  - is_false: num_reduce_phases
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}
@@ -192,6 +199,7 @@
         rest_total_hits_as_int: true
         index: my_remote_cluster:aliased_test_index,my_remote_cluster:field_caps_index_1
 
+  - is_false: num_reduce_phases
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}
@@ -208,6 +216,7 @@
         rest_total_hits_as_int: true
         index: "my_remote_cluster:single_doc_index"
 
+  - is_false: num_reduce_phases
   - match: {_clusters.total: 1}
   - match: {_clusters.successful: 1}
   - match: {_clusters.skipped: 0}

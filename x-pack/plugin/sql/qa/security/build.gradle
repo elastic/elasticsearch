@@ -7,7 +7,7 @@ Project mainProject = project
 group = "${group}.x-pack.qa.sql.security"
 
 // Tests are pushed down to subprojects and will be checked there.
-testingConventions.enabled = false 
+testingConventions.enabled = false
 
 subprojects {
   // Use resources from the parent project in subprojects
@@ -41,8 +41,11 @@ subprojects {
   }
 
   integTestRunner {
+    def today = new Date().format('yyyy-MM-dd')
     systemProperty 'tests.audit.logfile',
         "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_audit.json"
+    systemProperty 'tests.audit.yesterday.logfile',
+        "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_audit-${today}.json"
   }
 
   runqa {

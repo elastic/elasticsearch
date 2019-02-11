@@ -52,10 +52,12 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.CronSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.joda.time.DateTime;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,7 +69,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.joda.time.DateTimeZone.UTC;
 
 public final class WatcherTestUtils {
 
@@ -97,27 +98,28 @@ public final class WatcherTestUtils {
 
     public static WatchExecutionContextMockBuilder mockExecutionContextBuilder(String watchId) {
         return new WatchExecutionContextMockBuilder(watchId)
-                .wid(new Wid(watchId, DateTime.now(UTC)));
+                .wid(new Wid(watchId, ZonedDateTime.now(ZoneOffset.UTC)));
     }
 
     public static WatchExecutionContext mockExecutionContext(String watchId, Payload payload) {
         return mockExecutionContextBuilder(watchId)
-                .wid(new Wid(watchId, DateTime.now(UTC)))
+                .wid(new Wid(watchId, ZonedDateTime.now(ZoneOffset.UTC)))
                 .payload(payload)
                 .buildMock();
     }
 
-    public static WatchExecutionContext mockExecutionContext(String watchId, DateTime time, Payload payload) {
+    public static WatchExecutionContext mockExecutionContext(String watchId, ZonedDateTime time, Payload payload) {
         return mockExecutionContextBuilder(watchId)
-                .wid(new Wid(watchId, DateTime.now(UTC)))
+                .wid(new Wid(watchId, ZonedDateTime.now(ZoneOffset.UTC)))
                 .payload(payload)
                 .time(watchId, time)
                 .buildMock();
     }
 
-    public static WatchExecutionContext mockExecutionContext(String watchId, DateTime executionTime, TriggerEvent event, Payload payload) {
+    public static WatchExecutionContext mockExecutionContext(String watchId, ZonedDateTime executionTime, TriggerEvent event,
+                                                             Payload payload) {
         return mockExecutionContextBuilder(watchId)
-                .wid(new Wid(watchId, DateTime.now(UTC)))
+                .wid(new Wid(watchId, ZonedDateTime.now(ZoneOffset.UTC)))
                 .payload(payload)
                 .executionTime(executionTime)
                 .triggerEvent(event)
@@ -125,6 +127,7 @@ public final class WatcherTestUtils {
     }
 
     public static WatchExecutionContext createWatchExecutionContext() throws Exception {
+        ZonedDateTime EPOCH_UTC = Instant.EPOCH.atZone(ZoneOffset.UTC);
         Watch watch = new Watch("test-watch",
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple())),
@@ -133,11 +136,10 @@ public final class WatcherTestUtils {
                 null,
                 new ArrayList<>(),
                 null,
-                new WatchStatus(new DateTime(0, UTC), emptyMap()), 1L, 1L);
-        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(),
-                new DateTime(0, UTC),
-                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
-                TimeValue.timeValueSeconds(5));
+
+                new WatchStatus(EPOCH_UTC, emptyMap()), 1L, 1L);
+        TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(), EPOCH_UTC,
+            new ScheduleTriggerEvent(watch.id(), EPOCH_UTC, EPOCH_UTC), TimeValue.timeValueSeconds(5));
         context.ensureWatchExists(() -> watch);
         return context;
     }
@@ -163,7 +165,7 @@ public final class WatcherTestUtils {
                 new HtmlSanitizer(Settings.EMPTY), Collections.emptyMap());
         actions.add(new ActionWrapper("_email", null, null, null, executale));
 
-        DateTime now = DateTime.now(UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Map<String, ActionStatus> statuses = new HashMap<>();
         statuses.put("_webhook", new ActionStatus(now));
         statuses.put("_email", new ActionStatus(now));

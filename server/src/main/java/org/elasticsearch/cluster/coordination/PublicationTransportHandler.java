@@ -93,31 +93,9 @@ public class PublicationTransportHandler {
         transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, BytesTransportRequest::new, ThreadPool.Names.GENERIC,
             false, false, (request, channel, task) -> channel.sendResponse(handleIncomingPublishRequest(request)));
 
-        transportService.registerRequestHandler(PublishClusterStateAction.SEND_ACTION_NAME, BytesTransportRequest::new,
-            ThreadPool.Names.GENERIC,
-            false, false, (request, channel, task) -> {
-                handleIncomingPublishRequest(request);
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            });
-
         transportService.registerRequestHandler(COMMIT_STATE_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
             ApplyCommitRequest::new,
             (request, channel, task) -> handleApplyCommit.accept(request, transportCommitCallback(channel)));
-
-        transportService.registerRequestHandler(PublishClusterStateAction.COMMIT_ACTION_NAME,
-            PublishClusterStateAction.CommitClusterStateRequest::new,
-            ThreadPool.Names.GENERIC, false, false,
-            (request, channel, task) -> {
-                final Optional<ClusterState> matchingClusterState = Optional.ofNullable(lastSeenClusterState.get()).filter(
-                    cs -> cs.stateUUID().equals(request.stateUUID));
-                if (matchingClusterState.isPresent() == false) {
-                    throw new IllegalStateException("can't resolve cluster state with uuid" +
-                        " [" + request.stateUUID + "] to commit");
-                }
-                final ApplyCommitRequest applyCommitRequest = new ApplyCommitRequest(matchingClusterState.get().getNodes().getMasterNode(),
-                    matchingClusterState.get().term(), matchingClusterState.get().version());
-                handleApplyCommit.accept(applyCommitRequest, transportCommitCallback(channel));
-            });
     }
 
     private ActionListener<Void> transportCommitCallback(TransportChannel channel) {

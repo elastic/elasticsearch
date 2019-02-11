@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -248,20 +249,20 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             IndexShard shard = indexService.getShard(0);
             assertFalse(indexService.getIndexSettings().isSearchThrottled());
             SearchService searchService = getInstanceFromNode(SearchService.class);
-            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(shard.shardId(), 1, SearchType.QUERY_THEN_FETCH, null,
-                Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null)));
+            SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+            searchRequest.source(sourceBuilder);
             sourceBuilder.query(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d/d"));
-            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(shard.shardId(), 1, SearchType.QUERY_THEN_FETCH, sourceBuilder,
-                Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null)));
+            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
-            sourceBuilder = new SearchSourceBuilder();
             sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
-            assertFalse(searchService.canMatch(new ShardSearchLocalRequest(shard.shardId(), 1, SearchType.QUERY_THEN_FETCH, sourceBuilder,
-                Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null)));
+            assertFalse(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
         }
-
 
         XPackClient xPackClient = new XPackClient(client());
         assertAcked(xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest("index")));
@@ -273,18 +274,19 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             IndexShard shard = indexService.getShard(0);
             assertTrue(indexService.getIndexSettings().isSearchThrottled());
             SearchService searchService = getInstanceFromNode(SearchService.class);
-            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(shard.shardId(), 1, SearchType.QUERY_THEN_FETCH, null,
-                Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null)));
+            SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
             sourceBuilder.query(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d/d"));
-            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(shard.shardId(), 1, SearchType.QUERY_THEN_FETCH, sourceBuilder,
-                Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null)));
+            searchRequest.source(sourceBuilder);
+            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
-            sourceBuilder = new SearchSourceBuilder();
             sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
-            assertFalse(searchService.canMatch(new ShardSearchLocalRequest(shard.shardId(), 1, SearchType.QUERY_THEN_FETCH, sourceBuilder,
-                Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, true, null, null)));
+            assertFalse(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+                new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
             IndicesStatsResponse response = client().admin().indices().prepareStats("index").clear().setRefresh(true).get();
             assertEquals(0, response.getTotal().refresh.getTotal()); // never opened a reader

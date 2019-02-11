@@ -109,6 +109,8 @@ import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
@@ -130,6 +132,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
@@ -143,7 +146,6 @@ import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -210,6 +212,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return globalCheckpointSyncer;
     }
 
+    private final RetentionLeaseSyncer retentionLeaseSyncer;
+
     @Nullable
     private RecoveryState recoveryState;
 
@@ -267,7 +271,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final List<SearchOperationListener> searchOperationListener,
             final List<IndexingOperationListener> listeners,
             final Runnable globalCheckpointSyncer,
-            final BiConsumer<Collection<RetentionLease>, ActionListener<ReplicationResponse>> retentionLeaseSyncer,
+            final RetentionLeaseSyncer retentionLeaseSyncer,
             final CircuitBreakerService circuitBreakerService) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -289,6 +293,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         listenersList.add(internalIndexingStats);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(listenersList, logger);
         this.globalCheckpointSyncer = globalCheckpointSyncer;
+        this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         final List<SearchOperationListener> searchListenersList = new ArrayList<>(searchOperationListener);
         searchListenersList.add(searchStats);
         this.searchOperationListener = new SearchOperationListener.CompositeListener(searchListenersList, logger);
@@ -319,7 +324,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         UNASSIGNED_SEQ_NO,
                         globalCheckpointListeners::globalCheckpointUpdated,
                         threadPool::absoluteTimeInMillis,
-                        retentionLeaseSyncer);
+                        (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, retentionLeases, listener));
         this.replicationTracker = replicationTracker;
 
         // the query cache is a node-level thing, however we want the most popular filters
@@ -1444,12 +1449,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 
-    static Collection<RetentionLease> getRetentionLeases(final SegmentInfos segmentInfos) {
+    static RetentionLeases getRetentionLeases(final SegmentInfos segmentInfos) {
         final String committedRetentionLeases = segmentInfos.getUserData().get(Engine.RETENTION_LEASES);
         if (committedRetentionLeases == null) {
-            return Collections.emptyList();
+            return RetentionLeases.EMPTY;
         }
-        return RetentionLease.decodeRetentionLeases(committedRetentionLeases);
+        return RetentionLeases.decodeRetentionLeases(committedRetentionLeases);
     }
 
     private void trimUnsafeCommits() throws IOException {
@@ -1888,13 +1893,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Get all non-expired retention leases tracked on this shard. An unmodifiable copy of the retention leases is returned.
+     * Get all retention leases tracked on this shard.
      *
      * @return the retention leases
      */
-    public Collection<RetentionLease> getRetentionLeases() {
+    public RetentionLeases getRetentionLeases() {
+        return getRetentionLeases(false).v2();
+    }
+
+    /**
+     * If the expire leases parameter is false, gets all retention leases tracked on this shard and otherwise first calculates
+     * expiration of existing retention leases, and then gets all non-expired retention leases tracked on this shard. Note that only the
+     * primary shard calculates which leases are expired, and if any have expired, syncs the retention leases to any replicas. If the
+     * expire leases parameter is true, this replication tracker must be in primary mode.
+     *
+     * @return a tuple indicating whether or not any retention leases were expired, and the non-expired retention leases
+     */
+    public Tuple<Boolean, RetentionLeases> getRetentionLeases(final boolean expireLeases) {
+        assert expireLeases == false || assertPrimaryMode();
         verifyNotClosed();
-        return replicationTracker.getRetentionLeases();
+        return replicationTracker.getRetentionLeases(expireLeases);
     }
 
     public RetentionLeaseStats getRetentionLeaseStats() {
@@ -1943,10 +1961,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param retentionLeases the retention leases
      */
-    public void updateRetentionLeasesOnReplica(final Collection<RetentionLease> retentionLeases) {
+    public void updateRetentionLeasesOnReplica(final RetentionLeases retentionLeases) {
         assert assertReplicationTarget();
         verifyNotClosed();
         replicationTracker.updateRetentionLeasesOnReplica(retentionLeases);
+    }
+
+    /**
+     * Syncs the current retention leases to all replicas.
+     */
+    public void syncRetentionLeases() {
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
+        if (retentionLeases.v1()) {
+            retentionLeaseSyncer.sync(shardId, retentionLeases.v2(), ActionListener.wrap(() -> {}));
+        } else {
+            retentionLeaseSyncer.backgroundSync(shardId, retentionLeases.v2());
+        }
     }
 
     /**
@@ -3051,7 +3083,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * which is at least the value of the max_seq_no_of_updates marker on the primary after that operation was executed on the primary.
      *
      * @see #acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)
-     * @see org.elasticsearch.indices.recovery.RecoveryTarget#indexTranslogOperations(List, int, long, long, ActionListener)
+     * @see RecoveryTarget#indexTranslogOperations(List, int, long, long, RetentionLeases, ActionListener)
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
         assert seqNo != UNASSIGNED_SEQ_NO
@@ -3059,5 +3091,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             "replica has max_seq_no_of_updates=" + getMaxSeqNoOfUpdatesOrDeletes() + " but primary does not";
         getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
         assert seqNo <= getMaxSeqNoOfUpdatesOrDeletes() : getMaxSeqNoOfUpdatesOrDeletes() + " < " + seqNo;
+    }
+
+    /**
+     * Performs the pre-closing checks on the {@link IndexShard}.
+     *
+     * @throws IllegalStateException if the sanity checks failed
+     */
+    public void verifyShardBeforeIndexClosing() throws IllegalStateException {
+        getEngine().verifyEngineBeforeIndexClosing();
     }
 }

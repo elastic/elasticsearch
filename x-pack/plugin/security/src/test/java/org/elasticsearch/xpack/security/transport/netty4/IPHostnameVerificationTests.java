@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.hamcrest.CoreMatchers.is;
 
 // TODO delete this test?
@@ -38,13 +39,13 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
 
         // The default Unicast test behavior is to use 'localhost' with the port number. For this test we need to use IP
          List<String> newUnicastAddresses = new ArrayList<>();
-         for (String address : settings.getAsList("discovery.zen.ping.unicast.hosts")) {
+         for (String address : settings.getAsList(DISCOVERY_SEED_HOSTS_SETTING.getKey())) {
              newUnicastAddresses.add(address.replace("localhost", "127.0.0.1"));
          }
 
         Settings.Builder settingsBuilder = Settings.builder()
                 .put(settings)
-                .putList("discovery.zen.ping.unicast.hosts", newUnicastAddresses);
+                .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), newUnicastAddresses);
 
         try {
             //Use a cert with a CN of "Elasticsearch Test Node" and IPv4+IPv6 ip addresses as SubjectAlternativeNames

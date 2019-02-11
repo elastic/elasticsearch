@@ -169,8 +169,12 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         assertNotEquals(leaderMetadata.getIndexUUID(), followerMetadata.getIndexUUID());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38100")
     public void testDocsAreRecovered() throws Exception {
+        ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
+        String chunkSize = randomFrom("4KB", "128KB", "1MB");
+        settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), chunkSize));
+        assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
         String leaderIndex = "index1";
         String followerIndex = "index2";
@@ -243,6 +247,11 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         isRunning.set(false);
         thread.join();
+
+        settingsRequest = new ClusterUpdateSettingsRequest();
+        ByteSizeValue defaultValue = CcrSettings.RECOVERY_CHUNK_SIZE.getDefault(Settings.EMPTY);
+        settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), defaultValue));
+        assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
     }
 
     public void testRateLimitingIsEmployed() throws Exception {
@@ -390,7 +399,6 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37887")
     public void testFollowerMappingIsUpdated() throws IOException {
         String leaderClusterRepoName = CcrRepository.NAME_PREFIX + "leader_cluster";
         String leaderIndex = "index1";
@@ -413,16 +421,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .renameReplacement(followerIndex).masterNodeTimeout(new TimeValue(1L, TimeUnit.HOURS))
             .indexSettings(settingsBuilder);
 
-        // TODO: Eventually when the file recovery work is complete, we should test updated mappings by
-        //  indexing to the leader while the recovery is happening. However, into order to that test mappings
-        //  are updated prior to that work, we index documents in the clear session callback. This will
-        //  ensure a mapping change prior to the final mapping check on the follower side.
-        for (CcrRestoreSourceService restoreSourceService : getLeaderCluster().getDataNodeInstances(CcrRestoreSourceService.class)) {
-            restoreSourceService.addCloseSessionListener(s -> {
-                final String source = String.format(Locale.ROOT, "{\"k\":%d}", 1);
-                leaderClient().prepareIndex("index1", "doc", Long.toString(1)).setSource(source, XContentType.JSON).get();
-            });
-        }
+        final String source = String.format(Locale.ROOT, "{\"k\":%d}", 1);
+        leaderClient().prepareIndex("index1", "doc", Long.toString(1)).setSource(source, XContentType.JSON).get();
 
         PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
         restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
@@ -435,10 +435,6 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
         clusterStateRequest.indices(followerIndex);
-        ClusterStateResponse clusterState = followerClient().admin().cluster().state(clusterStateRequest).actionGet();
-        IndexMetaData followerIndexMetadata = clusterState.getState().metaData().index(followerIndex);
-        assertEquals(2, followerIndexMetadata.getMappingVersion());
-
         MappingMetaData mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
             .get("index2").get("doc");
         assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetaData.sourceAsMap()), equalTo("long"));

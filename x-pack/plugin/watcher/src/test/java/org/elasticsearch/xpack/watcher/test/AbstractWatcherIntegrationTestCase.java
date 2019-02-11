@@ -58,12 +58,12 @@ import org.elasticsearch.xpack.watcher.notification.email.Profile;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.hamcrest.Matcher;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.Before;
 
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -252,7 +252,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 assertAcked(client().admin().indices().prepareCreate(triggeredWatchIndexName));
             }
 
-            String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(DateTime.now(DateTimeZone.UTC));
+            String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(ZonedDateTime.now(ZoneOffset.UTC));
             assertAcked(client().admin().indices().prepareCreate(historyIndex));
             logger.info("creating watch history index [{}]", historyIndex);
             ensureGreen(historyIndex, watchIndexName, triggeredWatchIndexName);

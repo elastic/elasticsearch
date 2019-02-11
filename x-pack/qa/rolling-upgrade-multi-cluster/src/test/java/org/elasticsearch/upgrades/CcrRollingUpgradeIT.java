@@ -37,10 +37,10 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                 case TWO_THIRD:
                     break;
                 case ALL:
-                    // At this point all nodes in both clusters have been updated and
-                    // the leader cluster can now follow leader_index4 in the follower cluster:
-                    followIndex(leaderClient(), "follower", "leader_index4", "follower_index4");
-                    assertBusy(() -> verifyTotalHitCount("follower_index4", 64, leaderClient()));
+                    createLeaderIndex(leaderClient(), "leader_index4");
+                    followIndex(followerClient(), "leader", "leader_index4", "follower_index4");
+                    index(leaderClient(), "leader_index4", 64);
+                    assertBusy(() -> verifyTotalHitCount("follower_index4", 64, followerClient()));
                     break;
                 default:
                     throw new AssertionError("unexpected upgrade_state [" + upgradeState + "]");
@@ -79,20 +79,34 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
                     index(leaderClient(), "leader_index3", 64);
                     assertBusy(() -> verifyTotalHitCount("follower_index3", 128, followerClient()));
-
-                    // At this point the leader cluster has not been upgraded, but follower cluster has been upgrade.
-                    // Create a leader index in the follow cluster and try to follow it in the leader cluster.
-                    // This should fail, because the leader cluster at this point in time can't do file based recovery from follower.
-                    createLeaderIndex(followerClient(), "leader_index4");
-                    index(followerClient(), "leader_index4", 64);
-                    ResponseException e = expectThrows(ResponseException.class,
-                        () -> followIndex(leaderClient(), "follower", "leader_index4", "follower_index4"));
-                    assertThat(e.getMessage(), containsString("the snapshot was created with Elasticsearch version ["));
-                    assertThat(e.getMessage(), containsString("] which is higher than the version of this node ["));
                     break;
                 default:
                     throw new AssertionError("unexpected upgrade_state [" + upgradeState + "]");
             }
+        } else {
+            throw new AssertionError("unexpected cluster_name [" + clusterName + "]");
+        }
+    }
+
+    public void testCannotFollowLeaderInUpgradedCluster() throws Exception {
+        assumeTrue("Tests only runs with upgrade_state [all]", upgradeState == UpgradeState.ALL);
+
+        if (clusterName == ClusterName.FOLLOWER) {
+            // At this point the leader cluster has not been upgraded, but follower cluster has been upgrade.
+            // Create a leader index in the follow cluster and try to follow it in the leader cluster.
+            // This should fail, because the leader cluster at this point in time can't do file based recovery from follower.
+            createLeaderIndex(followerClient(), "not_supported");
+            index(followerClient(), "not_supported", 64);
+
+            ResponseException e = expectThrows(ResponseException.class,
+                () -> followIndex(leaderClient(), "follower", "not_supported", "not_supported"));
+            assertThat(e.getMessage(), containsString("the snapshot was created with Elasticsearch version ["));
+            assertThat(e.getMessage(), containsString("] which is higher than the version of this node ["));
+        } else if (clusterName == ClusterName.LEADER) {
+            // At this point all nodes in both clusters have been updated and
+            // the leader cluster can now follow leader_index4 in the follower cluster:
+            followIndex(leaderClient(), "follower", "not_supported", "not_supported");
+            assertBusy(() -> verifyTotalHitCount("not_supported", 64, leaderClient()));
         } else {
             throw new AssertionError("unexpected cluster_name [" + clusterName + "]");
         }

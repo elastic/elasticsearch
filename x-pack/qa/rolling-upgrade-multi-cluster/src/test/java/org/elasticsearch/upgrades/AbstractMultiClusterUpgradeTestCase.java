@@ -73,12 +73,17 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
 
     private static RestClient leaderClient;
     private static RestClient followerClient;
+    private static boolean initialized = false;
 
     @Before
     public void initClientsAndConfigureClusters() throws IOException {
         String leaderHost = System.getProperty("tests.leader_host");
         if (leaderHost == null) {
             throw new AssertionError("leader host is missing");
+        }
+
+        if (initialized) {
+            return;
         }
 
         String followerHost = System.getProperty("tests.follower_host");
@@ -100,6 +105,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
 
         configureLeaderRemoteClusters();
         configureFollowerRemoteClusters();
+        initialized = true;
     }
 
     private void configureLeaderRemoteClusters() throws IOException {

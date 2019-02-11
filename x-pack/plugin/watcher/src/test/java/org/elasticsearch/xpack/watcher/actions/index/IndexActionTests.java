@@ -36,10 +36,8 @@ import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.time.Clock;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;

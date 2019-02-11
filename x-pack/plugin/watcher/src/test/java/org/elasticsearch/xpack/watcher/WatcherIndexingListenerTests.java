@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.BitSet;

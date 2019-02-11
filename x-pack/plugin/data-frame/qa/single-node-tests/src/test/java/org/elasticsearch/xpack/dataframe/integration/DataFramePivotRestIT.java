@@ -218,7 +218,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
         startAndWaitForTransform(transformId, dataFrameIndex);
 
-        // we expect 17 documents as there shall be 21 days worth of docs
+        // we expect 21 documents as there shall be 21 days worth of docs
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
         assertEquals(21, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
         assertOnePivotValue(dataFrameIndex + "/_search?q=by_day:2017-01-15", 3.82);

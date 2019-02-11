@@ -14,7 +14,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -58,15 +58,12 @@ public class DataFrameDataExtractorFactory {
     private final String analyticsId;
     private final String index;
     private final ExtractedFields extractedFields;
-    private final QueryBuilder query;
 
-    private DataFrameDataExtractorFactory(Client client, String analyticsId, String index, ExtractedFields extractedFields,
-                                          QueryBuilder query) {
+    private DataFrameDataExtractorFactory(Client client, String analyticsId, String index, ExtractedFields extractedFields) {
         this.client = Objects.requireNonNull(client);
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.index = Objects.requireNonNull(index);
         this.extractedFields = Objects.requireNonNull(extractedFields);
-        this.query = query;
     }
 
     public DataFrameDataExtractor newExtractor(boolean includeSource) {
@@ -74,7 +71,7 @@ public class DataFrameDataExtractorFactory {
                 analyticsId,
                 extractedFields,
                 Arrays.asList(index),
-                query,
+                QueryBuilders.matchAllQuery(),
                 1000,
                 Collections.emptyMap(),
                 includeSource
@@ -99,7 +96,7 @@ public class DataFrameDataExtractorFactory {
 
         validateIndexAndExtractFields(client, headers, config.getDest(), ActionListener.wrap(
             extractedFields -> listener.onResponse(
-                new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(), extractedFields, config.getParsedQuery())),
+                new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(), extractedFields)),
             listener::onFailure
         ));
     }

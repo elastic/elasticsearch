@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -13,7 +12,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
@@ -25,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.sql.TestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.sql.expression.function.FunctionRegistry.def;
 import static org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType.DISTINCT;
 import static org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType.EXTRACT;
@@ -231,28 +230,6 @@ public class FunctionRegistryTests extends ESTestCase {
         return new UnresolvedFunction(SourceTests.randomSource(), "DUMMY_FUNCTION", resolutionType, Arrays.asList(children));
     }
     
-    private Configuration randomConfiguration() {
-        return new Configuration(randomZone(),
-                randomIntBetween(0,  1000),
-                new TimeValue(randomNonNegativeLong()),
-                new TimeValue(randomNonNegativeLong()),
-                null,
-                randomFrom(Mode.values()),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10));
-    }
-    
-    private Configuration randomConfiguration(ZoneId providedZoneId) {
-        return new Configuration(providedZoneId,
-                randomIntBetween(0,  1000),
-                new TimeValue(randomNonNegativeLong()),
-                new TimeValue(randomNonNegativeLong()),
-                null,
-                randomFrom(Mode.values()),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10));
-    }
-
     public static class DummyFunction extends ScalarFunction {
         public DummyFunction(Source source) {
             super(source, emptyList());

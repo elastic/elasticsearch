@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -853,7 +854,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());
     }
-
 
     public void testMasterAndDataShutdownDuringSnapshot() throws Exception {
         logger.info("-->  starting three master nodes and two data nodes");

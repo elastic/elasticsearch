@@ -232,7 +232,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("unrecognized index name [" + indexName + "]"));
         //This test's JSON contains outdated references to types
         assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
-        
     }
 
     public void testSerialization() throws IOException {

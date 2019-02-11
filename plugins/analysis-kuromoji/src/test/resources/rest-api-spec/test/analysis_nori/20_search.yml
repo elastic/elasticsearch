@@ -7,11 +7,10 @@
         index: test
         body:
           mappings:
-            type:
-              properties:
-                text:
-                  type:     text
-                  analyzer: kuromoji
+            properties:
+              text:
+                type:     text
+                analyzer: kuromoji
 
   - do:
       index:

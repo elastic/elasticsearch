@@ -175,6 +175,43 @@ public class DateFormatters {
     private static final DateFormatter STRICT_DATE_OPTIONAL_TIME_NANOS = new JavaDateFormatter("strict_date_optional_time_nanos",
         STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS, STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS);
 
+    /**
+     * Returns a ISO 8601 compatible date time formatter and parser.
+     * This is not fully compatible to the existing spec, which would require far more edge cases, but merely compatible with the
+     * existing joda time ISO data formater
+     */
+    private static final DateFormatter ISO_8601 = new JavaDateFormatter("iso8601", STRICT_DATE_OPTIONAL_TIME_PRINTER,
+        new DateTimeFormatterBuilder()
+            .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+            .optionalStart()
+            .appendLiteral('T')
+            .optionalStart()
+            .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
+            .optionalStart()
+            .appendLiteral(':')
+            .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
+            .optionalStart()
+            .appendLiteral(':')
+            .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+            .optionalStart()
+            .appendFraction(NANO_OF_SECOND, 1, 9, true)
+            .optionalEnd()
+            .optionalStart()
+            .appendLiteral(",")
+            .appendFraction(NANO_OF_SECOND, 1, 9, false)
+            .optionalEnd()
+            .optionalEnd()
+            .optionalStart()
+            .appendZoneOrOffsetId()
+            .optionalEnd()
+            .optionalStart()
+            .append(TIME_ZONE_FORMATTER_NO_COLON)
+            .optionalEnd()
+            .optionalEnd()
+            .optionalEnd()
+            .optionalEnd()
+            .toFormatter(Locale.ROOT));
+
     /////////////////////////////////////////
     //
     // BEGIN basic time formatters
@@ -1363,7 +1400,9 @@ public class DateFormatters {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
-        if ("basicDate".equals(input) || "basic_date".equals(input)) {
+        if ("iso8601".equals(input)) {
+            return ISO_8601;
+        } else if ("basicDate".equals(input) || "basic_date".equals(input)) {
             return BASIC_DATE;
         } else if ("basicDateTime".equals(input) || "basic_date_time".equals(input)) {
             return BASIC_DATE_TIME;
@@ -1604,13 +1643,16 @@ public class DateFormatters {
         } else if (isLocalDateSet) {
             return localDate.atStartOfDay(zoneId);
         } else if (isLocalTimeSet) {
-            return of(LOCALDATE_EPOCH, localTime, zoneId);
+            return of(getLocaldate(accessor), localTime, zoneId);
         } else if (accessor.isSupported(ChronoField.YEAR)) {
             if (accessor.isSupported(MONTH_OF_YEAR)) {
                 return getFirstOfMonth(accessor).atStartOfDay(zoneId);
             } else {
                 return Year.of(accessor.get(ChronoField.YEAR)).atDay(1).atStartOfDay(zoneId);
             }
+        } else if (accessor.isSupported(MONTH_OF_YEAR)) {
+            // missing year, falling back to the epoch and then filling
+            return getLocaldate(accessor).atStartOfDay(zoneId);
         } else if (accessor.isSupported(WeekFields.ISO.weekBasedYear())) {
             if (accessor.isSupported(WeekFields.ISO.weekOfWeekBasedYear())) {
                 return Year.of(accessor.get(WeekFields.ISO.weekBasedYear()))
@@ -1628,6 +1670,18 @@ public class DateFormatters {
         // we should not reach this piece of code, everything being parsed we should be able to
         // convert to a zoned date time! If not, we have to extend the above methods
         throw new IllegalArgumentException("temporal accessor [" + accessor + "] cannot be converted to zoned date time");
+    }
+
+    private static LocalDate getLocaldate(TemporalAccessor accessor) {
+        if (accessor.isSupported(MONTH_OF_YEAR)) {
+            if (accessor.isSupported(DAY_OF_MONTH)) {
+                return LocalDate.of(1970, accessor.get(MONTH_OF_YEAR), accessor.get(DAY_OF_MONTH));
+            } else {
+                return LocalDate.of(1970, accessor.get(MONTH_OF_YEAR), 1);
+            }
+        }
+
+        return LOCALDATE_EPOCH;
     }
 
     @SuppressForbidden(reason = "ZonedDateTime.of is fine here")

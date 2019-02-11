@@ -18,9 +18,9 @@ import java.util.Locale;
 import java.util.StringJoiner;
 import java.util.function.Predicate;
 
-import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 
 public final class Expressions {
@@ -36,7 +36,7 @@ public final class Expressions {
     private Expressions() {}
 
     public static NamedExpression wrapAsNamed(Expression exp) {
-        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.nodeName(), exp);
+        return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.source(), exp.sourceText(), exp);
     }
 
     public static List<Attribute> asAttributes(List<? extends NamedExpression> named) {
@@ -186,12 +186,12 @@ public final class Expressions {
                                             String... acceptedTypes) {
         return predicate.test(e.dataType()) || DataTypes.isNull(e.dataType())?
             TypeResolution.TYPE_RESOLVED :
-            new TypeResolution(format(Locale.ROOT, "[%s]%s argument must be [%s], found value [%s] type [%s]",
+                new TypeResolution(format(null, "[{}]{} argument must be [{}], found value [{}] type [{}]",
                 operationName,
                 paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
                 acceptedTypesForErrorMsg(acceptedTypes),
                 Expressions.name(e),
-                e.dataType().esType));
+                e.dataType().typeName));
     }
 
     private static String acceptedTypesForErrorMsg(String... acceptedTypes) {

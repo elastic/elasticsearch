@@ -20,7 +20,6 @@
 package org.elasticsearch.example.rescore;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
@@ -46,7 +45,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -225,7 +223,7 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
         }
 
         @Override
-        public void extractTerms(IndexSearcher searcher, RescoreContext rescoreContext, Set<Term> termsSet) {
+        public void extractTerms(IndexSearcher searcher, RescoreContext rescoreContext) {
             // Since we don't use queries there are no terms to extract.
         }
     }

@@ -44,20 +44,20 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             builder.startObject();
             {
                 builder.startObject("mappings")
-                      .startObject("properties")
-                        .startObject("timestamp")
-                           .field("type", "date")
-                        .endObject()
-                        .startObject("user_id")
-                          .field("type", "keyword")
-                        .endObject()
-                        .startObject("business_id")
-                          .field("type", "keyword")
-                        .endObject()
-                        .startObject("stars")
-                          .field("type", "integer")
-                        .endObject()
+                    .startObject("properties")
+                      .startObject("timestamp")
+                         .field("type", "date")
                       .endObject()
+                      .startObject("user_id")
+                        .field("type", "keyword")
+                      .endObject()
+                      .startObject("business_id")
+                        .field("type", "keyword")
+                      .endObject()
+                      .startObject("stars")
+                        .field("type", "integer")
+                      .endObject()
+                    .endObject()
                   .endObject();
             }
             builder.endObject();

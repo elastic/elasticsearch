@@ -1,0 +1,47 @@
+[float]
+[[breaking_70_java_time_changes]]
+=== Replacing joda time with java time
+
+Since Java 8 there is a dedicated `java.time` package, which is superior to
+the joda time library, that has been used so far in Elasticsearch. One of
+the biggest advantages is the ability to be able to store dates in a higher
+resolution than milliseconds for greater precision. Also this will allow us
+to remove the joda time dependency in the future.
+
+The mappings, aggregations and search code switched from joda time to
+java time.
+
+[float]
+==== Joda based date formatters are replaced with java ones
+
+With the release of Elasticsearch 6.7 a backwards compatibility layer was
+introduced, that checked if you are using a joda time based formatter, that is
+supported differently in java time. A log message was emitted, and you could
+create the proper java time based formatter prefixed with an `8`.
+
+With Elasticsearch 7.0 all formatters are now java based, which means you might
+get exceptions when keeping your old formatters the same without checking the
+depreciation log in 6.7.
+
+[float]
+==== Using time zones in the Java client
+
+Timezones have to specified as java time based zone objects.
+
+[float]
+==== Parsing aggregation buckets in the Java client
+
+The date based aggregation buckets in responses used to be of
+type `JodaTime`. Due to moving over to java-time, the buckets are now of
+type `ZonedDateTime`. As the client is returning untyped objects here, you
+may run into class cast exceptions only when running the code, but not in
+compile time, ensure you have proper test coverage for this in your
+own code.
+
+[float]
+==== Parsing `GMT0` timezone with JDK8 is not supported
+
+When you are running Elasticsearch 7 under Java, you are not able to parse
+the timezone `GMT0` properly anymore. The reason for this is a bug in the
+JDK, which has not been fixed for JDK8. You can read more information in the
+https://bugs.openjdk.java.net/browse/JDK-8138664[official issue]

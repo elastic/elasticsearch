@@ -11,7 +11,7 @@ GET _field_caps?fields=rating
 --------------------------------------------------
 // CONSOLE
 
-...but the request can also be restricted to specific indices:
+The request can also be restricted to specific indices:
 
 [source,js]
 --------------------------------------------------

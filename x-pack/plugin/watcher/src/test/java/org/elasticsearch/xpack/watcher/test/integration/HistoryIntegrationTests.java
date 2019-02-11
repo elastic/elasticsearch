@@ -150,7 +150,6 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38693")
     public void testThatHistoryContainsStatus() throws Exception {
         watcherClient().preparePutWatch("test_watch")
                 .setSource(watchBuilder()

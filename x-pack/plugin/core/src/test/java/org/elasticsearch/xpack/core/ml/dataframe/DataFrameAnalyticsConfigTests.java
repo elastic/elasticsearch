@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -25,6 +26,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -87,6 +89,35 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         "    \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}}\n" +
         "}";
 
+    private static final String MODERN_QUERY_DATA_FRAME_ANALYTICS = "{\n" +
+        "    \"id\": \"data-frame\",\n" +
+        "    \"source\": \"my-index\",\n" +
+        "    \"dest\": \"dest-index\",\n" +
+        "    \"analyses\": {\"outlier_detection\": {\"number_neighbours\": 10}},\n" +
+        // match_all if parsed, adds default values in the options
+        "    \"query\": {\"match_all\" : {}}\n" +
+        "}";
+
+    public void testQueryConfigStoresUserInputOnly() throws IOException {
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                MODERN_QUERY_DATA_FRAME_ANALYTICS)) {
+
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
+            assertThat(config.getQuery(), equalTo(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap())));
+        }
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                MODERN_QUERY_DATA_FRAME_ANALYTICS)) {
+
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null).build();
+            assertThat(config.getQuery(), equalTo(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap())));
+        }
+    }
+
     public void testPastQueryConfigParse() throws IOException {
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
             .createParser(NamedXContentRegistry.EMPTY,
@@ -105,7 +136,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
 
             XContentParseException e = expectThrows(XContentParseException.class,
                 () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null).build());
-            assertEquals("[6:25] [data_frame_analytics_config] failed to parse field [query]", e.getMessage());
+            assertEquals("[6:64] [data_frame_analytics_config] failed to parse field [query]", e.getMessage());
         }
     }
 

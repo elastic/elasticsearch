@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -17,9 +19,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -34,6 +35,7 @@ import java.util.Objects;
 
 public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
+    private static final Logger logger = LogManager.getLogger(DataFrameAnalyticsConfig.class);
     public static final String TYPE = "data_frame_analytics_config";
 
     private static final XContentObjectTransformer<QueryBuilder> QUERY_TRANSFORMER = XContentObjectTransformer.queryBuilderTransformer();
@@ -72,11 +74,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         parser.declareString(Builder::setSource, SOURCE);
         parser.declareString(Builder::setDest, DEST);
         parser.declareObjectArray(Builder::setAnalyses, DataFrameAnalysisConfig.parser(), ANALYSES);
-        if (ignoreUnknownFields) {
-            parser.declareObject(Builder::setQuery, (p, c) -> p.mapOrdered(), QUERY);
-        } else {
-            parser.declareObject(Builder::setParsedQuery, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY);
-        }
+        parser.declareObject((builder, query) -> builder.setQuery(query, ignoreUnknownFields), (p, c) -> p.mapOrdered(), QUERY);
         return parser;
     }
 
@@ -205,13 +203,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private String source;
         private String dest;
         private List<DataFrameAnalysisConfig> analyses;
-        private Map<String, Object> query;
-
-        public Builder() {
-            try {
-                query = QUERY_TRANSFORMER.toMap(QueryBuilders.matchAllQuery());
-            } catch (IOException ex) { /*Should never happen*/ }
-        }
+        private Map<String, Object> query = Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap());
 
         public String getId() {
             return id;
@@ -248,7 +240,21 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
 
         public Builder setQuery(Map<String, Object> query) {
+            return setQuery(query, true);
+        }
+
+        public Builder setQuery(Map<String, Object> query, boolean lenient) {
             this.query = ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName());
+            try {
+                QUERY_TRANSFORMER.fromMap(query);
+            } catch (Exception exception) {
+                if (lenient) {
+                    logger.warn(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, id), exception);
+                } else {
+                    throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, id), exception);
+                }
+            }
             return this;
         }
 

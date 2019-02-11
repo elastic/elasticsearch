@@ -59,13 +59,15 @@ GET /_search
 {
     "aggs" : {
         "genres" : {
-            "terms" : { "field" : "genre" }
+            "terms" : { "field" : "genre" } <1>
         }
     }
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
+<1> `terms` aggregation needs a field of type `keyword` or any other data type suitable for bucket aggregations. In order to use it with `text` you will need to enable 
+<<fielddata>>.
 
 Response:
 

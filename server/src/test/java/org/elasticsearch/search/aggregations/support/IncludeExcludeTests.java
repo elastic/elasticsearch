@@ -39,6 +39,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.TreeSet;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class IncludeExcludeTests extends ESTestCase {
     public void testEmptyTermsWithOrds() throws IOException {
         IncludeExclude inexcl = new IncludeExclude(
@@ -120,6 +122,50 @@ public class IncludeExcludeTests extends ESTestCase {
         acceptedOrds = filter.acceptedGlobalOrdinals(ords);
         assertEquals(1, acceptedOrds.length());
         assertFalse(acceptedOrds.get(0));
+    }
+
+    public void testConvertToLongFilter() {
+        IncludeExclude includeExclude = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef("4094779560956318341"))), null);
+        IncludeExclude.LongFilter filter = includeExclude.convertToLongFilter();
+        assertTrue(filter.accept(4094779560956318341L));
+
+        // Longs
+        for (int i = 0; i < 100; i++) {
+            long num = randomLong();
+            includeExclude = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef(String.valueOf(num)))), null);
+            filter = includeExclude.convertToLongFilter();
+            assertTrue(filter.accept(num));
+        }
+
+        // Ints
+        for (int i = 0; i < 100; i++) {
+            int num = randomInt();
+            includeExclude = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef(String.valueOf(num)))), null);
+            filter = includeExclude.convertToLongFilter();
+            assertTrue(filter.accept(num));
+        }
+
+        // Shorts
+        for (int i = 0; i < 100; i++) {
+            short num = randomShort();
+            includeExclude = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef(String.valueOf(num)))), null);
+            filter = includeExclude.convertToLongFilter();
+            assertTrue(filter.accept(num));
+        }
+
+        // bytes
+        for (int i = 0; i < 100; i++) {
+            byte num = randomByte();
+            includeExclude = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef(String.valueOf(num)))), null);
+            filter = includeExclude.convertToLongFilter();
+            assertTrue(filter.accept(num));
+        }
+
+        double num = randomDouble();
+        final IncludeExclude badIncludeExclude
+            = new IncludeExclude(new TreeSet<>(Collections.singleton(new BytesRef(String.valueOf(num)))), null);
+        NumberFormatException e = expectThrows(NumberFormatException.class, badIncludeExclude::convertToLongFilter);
+        assertThat(e.getMessage(), equalTo("For input string: \"" + num + "\""));
     }
 
     public void testPartitionedEquals() throws IOException {

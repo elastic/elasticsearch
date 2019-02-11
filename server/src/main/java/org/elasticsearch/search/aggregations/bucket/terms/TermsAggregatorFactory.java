@@ -181,7 +181,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                         pipelineAggregators, metaData);
             }
             if (includeExclude != null) {
-                longFilter = includeExclude.convertToLongFilter(config.format());
+                longFilter = includeExclude.convertToLongFilter();
             }
             return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), order,
                     bucketCountThresholds, context, parent, cm, showTermDocCountError, longFilter, pipelineAggregators,

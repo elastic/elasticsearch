@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
@@ -22,7 +23,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class FollowParameters implements Writeable {
+public class FollowParameters implements Writeable, ToXContentObject {
 
     static final TimeValue RETRY_DELAY_MAX = TimeValue.timeValueMinutes(5);
 
@@ -185,7 +186,7 @@ public class FollowParameters implements Writeable {
         return e;
     }
 
-    FollowParameters(StreamInput in) throws IOException {
+    public FollowParameters(StreamInput in) throws IOException {
         fromStreamInput(in);
     }
 
@@ -214,6 +215,14 @@ public class FollowParameters implements Writeable {
         maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
         maxRetryDelay = in.readOptionalTimeValue();
         readPollTimeout = in.readOptionalTimeValue();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        toXContentFragment(builder);
+        builder.endObject();
+        return builder;
     }
 
     XContentBuilder toXContentFragment(final XContentBuilder builder) throws IOException {

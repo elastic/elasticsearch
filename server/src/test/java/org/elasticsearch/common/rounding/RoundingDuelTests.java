@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.joda.time.DateTimeZone;
 
 import java.time.ZoneOffset;
 
@@ -54,6 +55,26 @@ public class RoundingDuelTests extends ESTestCase  {
         int randomInt = randomIntBetween(1, 1_000_000_000);
         assertThat(roundingJoda.round(randomInt), is(roundingJavaTime.round(randomInt)));
         assertThat(roundingJoda.nextRoundingValue(randomInt), is(roundingJavaTime.nextRoundingValue(randomInt)));
+    }
+
+    public void testDuellingImplementations() {
+        org.elasticsearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
+            randomFrom(org.elasticsearch.common.Rounding.DateTimeUnit.values());
+        org.elasticsearch.common.Rounding rounding;
+        Rounding roundingJoda;
+
+        if (randomBoolean()) {
+            rounding = org.elasticsearch.common.Rounding.builder(randomDateTimeUnit).timeZone(ZoneOffset.UTC).build();
+            DateTimeUnit dateTimeUnit = DateTimeUnit.resolve(randomDateTimeUnit.getId());
+            roundingJoda = Rounding.builder(dateTimeUnit).timeZone(DateTimeZone.UTC).build();
+        } else {
+            TimeValue interval = timeValue();
+            rounding = org.elasticsearch.common.Rounding.builder(interval).timeZone(ZoneOffset.UTC).build();
+            roundingJoda = Rounding.builder(interval).timeZone(DateTimeZone.UTC).build();
+        }
+
+        long roundValue = randomLong();
+        assertThat(roundingJoda.round(roundValue), is(rounding.round(roundValue)));
     }
 
     static TimeValue timeValue() {

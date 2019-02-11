@@ -80,7 +80,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -271,60 +270,67 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         ensureGreen("test");
     }
 
-    // NORELEASE This test need to be adapted for replicated closed indices
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33888")
     public void testPendingTasks() throws Exception {
-        IndicesService indicesService = getIndicesService();
-        IndexService test = createIndex("test");
+        final IndexService indexService = createIndex("test");
+        final Index index = indexService.index();
+        final IndexSettings indexSettings = indexService.getIndexSettings();
 
-        assertTrue(test.hasShard(0));
-        ShardPath path = test.getShardOrNull(0).shardPath();
-        assertTrue(test.getShardOrNull(0).routingEntry().started());
-        ShardPath shardPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0), test.getIndexSettings());
-        assertEquals(shardPath, path);
-        try {
-            indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
-            fail("can't get lock");
-        } catch (ShardLockObtainFailedException ex) {
+        final IndexShard indexShard = indexService.getShardOrNull(0);
+        assertNotNull(indexShard);
+        assertTrue(indexShard.routingEntry().started());
 
-        }
-        assertTrue(path.exists());
+        final ShardPath shardPath = indexShard.shardPath();
+        assertEquals(ShardPath.loadShardPath(logger, getNodeEnvironment(), indexShard.shardId(), indexSettings), shardPath);
+
+        final IndicesService indicesService = getIndicesService();
+        expectThrows(ShardLockObtainFailedException.class, () ->
+            indicesService.processPendingDeletes(index, indexSettings, TimeValue.timeValueMillis(0)));
+        assertTrue(shardPath.exists());
 
         int numPending = 1;
         if (randomBoolean()) {
-            indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
+            indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
         } else {
             if (randomBoolean()) {
                 numPending++;
-                indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
+                indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
             }
-            indicesService.addPendingDelete(test.index(), test.getIndexSettings());
+            indicesService.addPendingDelete(index, indexSettings);
         }
-        assertAcked(client().admin().indices().prepareClose("test"));
-        assertTrue(path.exists());
 
-        assertEquals(indicesService.numPendingDeletes(test.index()), numPending);
+        assertAcked(client().admin().indices().prepareClose("test"));
+        assertTrue(shardPath.exists());
+        ensureGreen("test");
+
+        assertEquals(indicesService.numPendingDeletes(index), numPending);
         assertTrue(indicesService.hasUncompletedPendingDeletes());
 
-        // shard lock released... we can now delete
-        indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
-        assertEquals(indicesService.numPendingDeletes(test.index()), 0);
-        assertFalse(indicesService.hasUncompletedPendingDeletes());
-        assertFalse(path.exists());
+        expectThrows(ShardLockObtainFailedException.class, () ->
+            indicesService.processPendingDeletes(index, indexSettings, TimeValue.timeValueMillis(0)));
 
-        if (randomBoolean()) {
-            indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
-            indicesService.addPendingDelete(new ShardId(test.index(), 1), test.getIndexSettings());
-            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), test.getIndexSettings());
-            assertEquals(indicesService.numPendingDeletes(test.index()), 2);
+        assertEquals(indicesService.numPendingDeletes(index), numPending);
+        assertTrue(indicesService.hasUncompletedPendingDeletes());
+
+        final boolean hasBogus = randomBoolean();
+        if (hasBogus) {
+            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings);
+            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings);
+            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings);
+            assertEquals(indicesService.numPendingDeletes(index), numPending + 2);
             assertTrue(indicesService.hasUncompletedPendingDeletes());
-            // shard lock released... we can now delete
-            indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
-            assertEquals(indicesService.numPendingDeletes(test.index()), 0);
-            assertTrue(indicesService.hasUncompletedPendingDeletes()); // "bogus" index has not been removed
         }
-        assertAcked(client().admin().indices().prepareOpen("test").setTimeout(TimeValue.timeValueSeconds(1)));
 
+        assertAcked(client().admin().indices().prepareDelete("test"));
+        assertBusy(() -> {
+            try {
+                indicesService.processPendingDeletes(index, indexSettings, TimeValue.timeValueMillis(0));
+                assertEquals(indicesService.numPendingDeletes(index), 0);
+            } catch (final Exception e) {
+                fail(e.getMessage());
+            }
+        });
+        assertThat(indicesService.hasUncompletedPendingDeletes(), equalTo(hasBogus)); // "bogus" index has not been removed
+        assertFalse(shardPath.exists());
     }
 
     public void testVerifyIfIndexContentDeleted() throws Exception {
@@ -644,5 +650,48 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
     }
 
+    public void testOptimizeAutoGeneratedIdsSettingRemoval() throws Exception {
+        final IndicesService indicesService = getIndicesService();
+
+        final Index index = new Index("foo-index", UUIDs.randomBase64UUID());
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_7_0_0)
+            .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
+        IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
+            .settings(builder.build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+        assertNotNull(indexService);
+
+        final Index index2 = new Index("bar-index", UUIDs.randomBase64UUID());
+        Settings.Builder builder2 = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_7_0_0)
+            .put(IndexMetaData.SETTING_INDEX_UUID, index2.getUUID())
+            .put(EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey(), randomBoolean());
+        IndexMetaData indexMetaData2 = new IndexMetaData.Builder(index2.getName())
+            .settings(builder2.build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> indicesService.createIndex(indexMetaData2, Collections.emptyList()));
+        assertEquals("Setting [" + EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey() + "] was removed in version 7.0.0",
+            ex.getMessage());
+
+        Version version = randomFrom(Version.V_6_0_0_rc1, Version.V_6_0_0, Version.V_6_2_0, Version.V_6_3_0, Version.V_6_4_0);
+        builder = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .put(IndexMetaData.SETTING_INDEX_UUID, index2.getUUID())
+            .put(EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey(), randomBoolean());
+        IndexMetaData indexMetaData3 = new IndexMetaData.Builder(index2.getName())
+            .settings(builder.build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexService indexService2 = indicesService.createIndex(indexMetaData3, Collections.emptyList());
+        assertNotNull(indexService2);
+    }
 
 }

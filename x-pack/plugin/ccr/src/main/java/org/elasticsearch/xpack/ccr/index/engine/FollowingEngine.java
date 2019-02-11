@@ -197,7 +197,7 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    public void checkGlobalCheckpointBeforeClose(final long globalCheckpoint) {
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
         // the value of the global checkpoint is not verified when the following engine is closed,
         // allowing it to be closed even in the case where all operations have not been fetched and
         // processed from the leader and the operations history has gaps. This way the following

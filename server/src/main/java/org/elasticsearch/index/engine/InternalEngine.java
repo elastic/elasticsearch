@@ -2460,15 +2460,6 @@ public class InternalEngine extends Engine {
         return localCheckpointTracker.getStats(globalCheckpoint);
     }
 
-    @Override
-    public void checkGlobalCheckpointBeforeClose(final long globalCheckpoint) {
-        final long maxSeqNo = getSeqNoStats(globalCheckpoint).getMaxSeqNo();
-        if (globalCheckpoint != maxSeqNo) {
-            throw new IllegalStateException("Global checkpoint [" + globalCheckpoint
-                + "] mismatches maximum sequence number [" + maxSeqNo + "] on index shard " + shardId);
-        }
-    }
-
     /**
      * Returns the number of times a version was looked up either from the index.
      * Note this is only available if assertions are enabled

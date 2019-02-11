@@ -143,7 +143,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void checkGlobalCheckpointBeforeClose(final long globalCheckpoint) {
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
         // the value of the global checkpoint is verified when the read-only engine is opened,
         // and it is not expected to change during the lifecycle of the engine. We could also
         // check this value before closing the read-only engine but if something went wrong

@@ -266,11 +266,18 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Check the consistency of the given global checkpoint with the engine before closing it
+     * Performs the pre-closing checks on the {@link Engine}.
      *
-     * @param globalCheckpoint the value of the global checkpoint
+     * @throws IllegalStateException if the sanity checks failed
      */
-    public abstract void checkGlobalCheckpointBeforeClose(long globalCheckpoint);
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
+        final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
+        final long maxSeqNo = getSeqNoStats(globalCheckpoint).getMaxSeqNo();
+        if (globalCheckpoint != maxSeqNo) {
+            throw new IllegalStateException("Global checkpoint [" + globalCheckpoint
+                + "] mismatches maximum sequence number [" + maxSeqNo + "] on index shard " + shardId);
+        }
+    }
 
     /**
      * A throttling class that can be activated, causing the

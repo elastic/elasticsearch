@@ -171,16 +171,16 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 
-    public void testCheckIndexBeforeClose() throws Exception {
+    public void testVerifyShardBeforeIndexClosing() throws Exception {
         executeOnPrimaryOrReplica();
-        verify(indexShard, times(1)).checkIndexBeforeClose();
+        verify(indexShard, times(1)).verifyShardBeforeIndexClosing();
         verify(indexShard, times(1)).flush(any(FlushRequest.class));
     }
 
-    public void testCheckIndexBeforeCloseFailed() {
-        doThrow(new IllegalStateException("test")).when(indexShard).checkIndexBeforeClose();
+    public void testVerifyShardBeforeIndexClosingFailed() {
+        doThrow(new IllegalStateException("test")).when(indexShard).verifyShardBeforeIndexClosing();
         expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
-        verify(indexShard, times(1)).checkIndexBeforeClose();
+        verify(indexShard, times(1)).verifyShardBeforeIndexClosing();
         verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 

@@ -108,7 +108,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         if (clusterBlocks.hasIndexBlock(shardId.getIndexName(), request.clusterBlock()) == false) {
             throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + request.clusterBlock() + " before closing");
         }
-        indexShard.checkIndexBeforeClose();
+        indexShard.verifyShardBeforeIndexClosing();
         indexShard.flush(new FlushRequest().force(true));
         logger.trace("{} shard is ready for closing", shardId);
     }

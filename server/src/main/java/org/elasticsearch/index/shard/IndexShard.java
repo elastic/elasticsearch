@@ -3098,7 +3098,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @throws IllegalStateException if the sanity checks failed
      */
-    public void checkIndexBeforeClose() throws IllegalStateException {
-        getEngine().checkGlobalCheckpointBeforeClose(replicationTracker.getGlobalCheckpoint());
+    public void verifyShardBeforeIndexClosing() throws IllegalStateException {
+        getEngine().verifyEngineBeforeIndexClosing();
     }
 }

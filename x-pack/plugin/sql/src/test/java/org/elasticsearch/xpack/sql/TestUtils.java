@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.session.Configuration;
@@ -14,6 +15,14 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.ZonedDateTime;
+import java.time.ZoneId;
+
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
+import static org.elasticsearch.test.ESTestCase.randomZone;
+
 
 public class TestUtils {
 
@@ -35,4 +44,30 @@ public class TestUtils {
     public static final ZonedDateTime now() {
         return ZonedDateTime.now(Clock.tick(Clock.system(DateUtils.UTC), Duration.ofMillis(1)));
     }
+
+    public static Configuration randomConfiguration() {
+        return new Configuration(randomZone(),
+                randomIntBetween(0,  1000),
+                new TimeValue(randomNonNegativeLong()),
+                new TimeValue(randomNonNegativeLong()),
+                null,
+                randomFrom(Mode.values()),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10));
+    }
+
+    public static Configuration randomConfiguration(ZoneId providedZoneId) {
+        return new Configuration(providedZoneId,
+                randomIntBetween(0,  1000),
+                new TimeValue(randomNonNegativeLong()),
+                new TimeValue(randomNonNegativeLong()),
+                null,
+                randomFrom(Mode.values()),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10));
+    }
+
 }
+

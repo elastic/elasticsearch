@@ -3,8 +3,6 @@
 [[sql-client-apps]]
 == SQL Client Applications
 
-beta[]
-
 Thanks to its <<sql-jdbc, JDBC>> and <<sql-odbc, ODBC>> interfaces, a broad range of third-party applications can use {es}'s SQL capabilities.
 This section lists, in alphabetical order, a number of them and their respective configuration - the list however is by no means comprehensive (feel free to https://www.elastic.co/blog/art-of-pull-request[submit a PR] to improve it):
 as long as the app can use the {es-sql} driver, it can use {es-sql}.

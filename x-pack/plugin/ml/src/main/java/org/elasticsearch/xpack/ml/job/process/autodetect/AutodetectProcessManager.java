@@ -475,14 +475,14 @@ public class AutodetectProcessManager implements ClusterStateListener {
                                                 .kill();
                                             processByAllocation.remove(jobTask.getAllocationId());
                                         } finally {
-                                            setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1, true));
+                                            setJobState(jobTask, JobState.FAILED, e1.getMessage(), e2 -> closeHandler.accept(e1, true));
                                         }
                                     }
                                 }
                             });
                         }, e1 -> {
                             logger.warn("Failed to gather information required to open job [" + jobId + "]", e1);
-                            setJobState(jobTask, JobState.FAILED, e2 -> closeHandler.accept(e1, true));
+                            setJobState(jobTask, JobState.FAILED, e1.getMessage(), e2 -> closeHandler.accept(e1, true));
                         });
                     },
                     e -> closeHandler.accept(e, true)
@@ -601,8 +601,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
         auditor.info(jobId, msg);
     }
 
-    private Runnable onProcessCrash(JobTask jobTask) {
-        return () -> {
+    private Consumer<String> onProcessCrash(JobTask jobTask) {
+        return (reason) -> {
             ProcessContext processContext = processByAllocation.remove(jobTask.getAllocationId());
             if (processContext != null) {
                 AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
@@ -610,7 +610,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     communicator.destroyCategorizationAnalyzer();
                 }
             }
-            setJobState(jobTask, JobState.FAILED);
+            setJobState(jobTask, JobState.FAILED, reason);
             try {
                 removeTmpStorage(jobTask.getJobId());
             } catch (IOException e) {
@@ -666,7 +666,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 throw e;
             }
             logger.warn("[" + jobId + "] Exception closing autodetect process", e);
-            setJobState(jobTask, JobState.FAILED);
+            setJobState(jobTask, JobState.FAILED, e.getMessage());
             throw ExceptionsHelper.serverError("Exception closing autodetect process", e);
         } finally {
             // to ensure the contract that multiple simultaneous close calls for the same job wait until
@@ -720,8 +720,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
         return Optional.of(Duration.between(communicator.getProcessStartTime(), ZonedDateTime.now()));
     }
 
-    void setJobState(JobTask jobTask, JobState state) {
-        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId());
+    void setJobState(JobTask jobTask, JobState state, String reason) {
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
         jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
             @Override
             public void onResponse(PersistentTask<?> persistentTask) {
@@ -735,27 +735,31 @@ public class AutodetectProcessManager implements ClusterStateListener {
         });
     }
 
-    void setJobState(JobTask jobTask, JobState state, CheckedConsumer<Exception, IOException> handler) {
-        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId());
-        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
-                    @Override
-                    public void onResponse(PersistentTask<?> persistentTask) {
-                        try {
-                            handler.accept(null);
-                        } catch (IOException e1) {
-                            logger.warn("Error while delegating response", e1);
-                        }
-                    }
+    void setJobState(JobTask jobTask, JobState state) {
+        setJobState(jobTask, state, null);
+    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            handler.accept(e);
-                        } catch (IOException e1) {
-                            logger.warn("Error while delegating exception [" + e.getMessage() + "]", e1);
-                        }
-                    }
-                });
+    void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
+        jobTask.updatePersistentTaskState(jobTaskState, new ActionListener<PersistentTask<?>>() {
+            @Override
+            public void onResponse(PersistentTask<?> persistentTask) {
+                try {
+                    handler.accept(null);
+                } catch (IOException e1) {
+                    logger.warn("Error while delegating response", e1);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    handler.accept(e);
+                } catch (IOException e1) {
+                    logger.warn("Error while delegating exception [" + e.getMessage() + "]", e1);
+                }
+            }
+        });
     }
 
     public Optional<Tuple<DataCounts, ModelSizeStats>> getStatistics(JobTask jobTask) {

@@ -34,6 +34,7 @@ import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -56,7 +57,6 @@ import org.elasticsearch.common.util.CancellableThreadsTests;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
@@ -363,9 +363,9 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testTooManyBucketsException() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_2_0, Version.CURRENT);
         MultiBucketConsumerService.TooManyBucketsException ex =
-            serialize(new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100),
-                randomFrom(Version.V_7_0_0));
+            serialize(new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100), version);
         assertEquals("Too many buckets", ex.getMessage());
         assertEquals(100, ex.getMaxBuckets());
     }
@@ -485,9 +485,9 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testClusterBlockException() throws IOException {
-        ClusterBlockException ex = serialize(new ClusterBlockException(singleton(DiscoverySettings.NO_MASTER_BLOCK_WRITES)));
+        ClusterBlockException ex = serialize(new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)));
         assertEquals("blocked by: [SERVICE_UNAVAILABLE/2/no master];", ex.getMessage());
-        assertTrue(ex.blocks().contains(DiscoverySettings.NO_MASTER_BLOCK_WRITES));
+        assertTrue(ex.blocks().contains(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
         assertEquals(1, ex.blocks().size());
     }
 
@@ -878,6 +878,13 @@ public class ExceptionSerializationTests extends ESTestCase {
         ShardLockObtainFailedException ex = serialize(orig, version);
         assertEquals(orig.getMessage(), ex.getMessage());
         assertEquals(orig.getShardId(), ex.getShardId());
+    }
+
+    public void testSnapshotInProgressException() throws IOException {
+        SnapshotInProgressException orig = new SnapshotInProgressException("boom");
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_7_0, Version.CURRENT);
+        SnapshotInProgressException ex = serialize(orig, version);
+        assertEquals(orig.getMessage(), ex.getMessage());
     }
 
     private static class UnknownException extends Exception {

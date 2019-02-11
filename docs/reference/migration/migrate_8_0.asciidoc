@@ -1,0 +1,12 @@
+[[breaking-changes-8.0]]
+== Breaking changes in 8.0
+++++
+<titleabbrev>8.0</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 8.0.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+coming[8.0.0]

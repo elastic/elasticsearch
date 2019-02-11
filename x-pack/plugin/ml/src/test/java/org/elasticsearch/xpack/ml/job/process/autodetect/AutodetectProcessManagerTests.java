@@ -204,7 +204,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager.openJob(jobTask, clusterState, (e, b) -> {});
         assertEquals(1, manager.numberOfOpenJobs());
         assertTrue(manager.jobHasActiveAutodetectProcess(jobTask));
-        verify(jobTask).updatePersistentTaskState(eq(new JobTaskState(JobState.OPENED, 1L)), any());
+        verify(jobTask).updatePersistentTaskState(eq(new JobTaskState(JobState.OPENED, 1L, null)), any());
     }
 
 
@@ -266,10 +266,10 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         doReturn(executorService).when(manager).createAutodetectExecutorService(any());
 
         doAnswer(invocationOnMock -> {
-            CheckedConsumer<Exception, IOException> consumer = (CheckedConsumer<Exception, IOException>) invocationOnMock.getArguments()[2];
+            CheckedConsumer<Exception, IOException> consumer = (CheckedConsumer<Exception, IOException>) invocationOnMock.getArguments()[3];
             consumer.accept(null);
             return null;
-        }).when(manager).setJobState(any(), eq(JobState.FAILED), any());
+        }).when(manager).setJobState(any(), eq(JobState.FAILED), any(), any());
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
@@ -512,7 +512,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         expectThrows(ElasticsearchException.class, () -> manager.closeJob(jobTask, false, null));
         assertEquals(0, manager.numberOfOpenJobs());
 
-        verify(manager).setJobState(any(), eq(JobState.FAILED));
+        verify(manager).setJobState(any(), eq(JobState.FAILED), any());
     }
 
     public void testWriteUpdateProcessMessage() {

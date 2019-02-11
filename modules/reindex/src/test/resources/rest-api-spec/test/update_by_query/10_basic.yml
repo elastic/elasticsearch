@@ -3,7 +3,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -30,7 +29,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -87,7 +85,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -96,7 +93,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test2" }
 
@@ -132,7 +128,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -141,7 +136,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test2" }
 
@@ -203,13 +197,11 @@
   - do:
       index:
         index:   twitter
-        type:    _doc
         id:      1
         body:    { "user": "kimchy" }
   - do:
       index:
         index:   twitter
-        type:    _doc
         id:      2
         body:    { "user": "junk" }
   - do:
@@ -233,13 +225,11 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     2
         body:   { "user": "kimchy" }
   - do:
@@ -267,17 +257,14 @@
   - do:
       index:
         index:   test
-        type:    _doc
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    _doc
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    _doc
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -293,7 +280,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    {}
   - do:
@@ -307,7 +293,6 @@
   - do:
       get:
         index:   test
-        type:    _doc
         id:      1
   - match: { _source: {} }
   - match: { _version: 2 }

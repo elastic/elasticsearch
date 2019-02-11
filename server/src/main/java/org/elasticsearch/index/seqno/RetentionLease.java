@@ -25,11 +25,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * A "shard history retention lease" (or "retention lease" for short) is conceptually a marker containing a retaining sequence number such
@@ -160,22 +157,10 @@ public final class RetentionLease implements Writeable {
         return String.format(
                 Locale.ROOT,
                 "id:%s;retaining_seq_no:%d;timestamp:%d;source:%s",
-                retentionLease.id(),
-                retentionLease.retainingSequenceNumber(),
-                retentionLease.timestamp(),
-                retentionLease.source());
-    }
-
-    /**
-     * Encodes a collection of retention leases as a string. This encoding can be decoed by {@link #decodeRetentionLeases(String)}. The
-     * encoding is a comma-separated encoding of each retention lease as encoded by {@link #encodeRetentionLease(RetentionLease)}.
-     *
-     * @param retentionLeases the retention leases
-     * @return the encoding of the retention leases
-     */
-    public static String encodeRetentionLeases(final Collection<RetentionLease> retentionLeases) {
-        Objects.requireNonNull(retentionLeases);
-        return retentionLeases.stream().map(RetentionLease::encodeRetentionLease).collect(Collectors.joining(","));
+                retentionLease.id,
+                retentionLease.retainingSequenceNumber,
+                retentionLease.timestamp,
+                retentionLease.source);
     }
 
     /**
@@ -197,23 +182,6 @@ public final class RetentionLease implements Writeable {
         assert fields[3].matches("source:[^:;,]+") : fields[3];
         final String source = fields[3].substring("source:".length());
         return new RetentionLease(id, retainingSequenceNumber, timestamp, source);
-    }
-
-    /**
-     * Decodes retention leases encoded by {@link #encodeRetentionLeases(Collection)}.
-     *
-     * @param encodedRetentionLeases an encoded collection of retention leases
-     * @return the decoded retention leases
-     */
-    public static Collection<RetentionLease> decodeRetentionLeases(final String encodedRetentionLeases) {
-        Objects.requireNonNull(encodedRetentionLeases);
-        if (encodedRetentionLeases.isEmpty()) {
-            return Collections.emptyList();
-        }
-        assert Arrays.stream(encodedRetentionLeases.split(","))
-                .allMatch(s -> s.matches("id:[^:;,]+;retaining_seq_no:\\d+;timestamp:\\d+;source:[^:;,]+"))
-                : encodedRetentionLeases;
-        return Arrays.stream(encodedRetentionLeases.split(",")).map(RetentionLease::decodeRetentionLease).collect(Collectors.toList());
     }
 
     @Override

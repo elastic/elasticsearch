@@ -47,7 +47,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Objects;
 
 /**
@@ -97,9 +96,9 @@ public class RetentionLeaseSyncAction extends
      * @param retentionLeases the retention leases to sync
      * @param listener        the callback to invoke when the sync completes normally or abnormally
      */
-    public void syncRetentionLeasesForShard(
+    public void sync(
             final ShardId shardId,
-            final Collection<RetentionLease> retentionLeases,
+            final RetentionLeases retentionLeases,
             final ActionListener<ReplicationResponse> listener) {
         Objects.requireNonNull(shardId);
         Objects.requireNonNull(retentionLeases);
@@ -149,9 +148,9 @@ public class RetentionLeaseSyncAction extends
 
     public static final class Request extends ReplicatedWriteRequest<Request> {
 
-        private Collection<RetentionLease> retentionLeases;
+        private RetentionLeases retentionLeases;
 
-        public Collection<RetentionLease> getRetentionLeases() {
+        public RetentionLeases getRetentionLeases() {
             return retentionLeases;
         }
 
@@ -159,7 +158,7 @@ public class RetentionLeaseSyncAction extends
 
         }
 
-        public Request(final ShardId shardId, final Collection<RetentionLease> retentionLeases) {
+        public Request(final ShardId shardId, final RetentionLeases retentionLeases) {
             super(Objects.requireNonNull(shardId));
             this.retentionLeases = Objects.requireNonNull(retentionLeases);
         }
@@ -167,13 +166,13 @@ public class RetentionLeaseSyncAction extends
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            retentionLeases = in.readList(RetentionLease::new);
+            retentionLeases = new RetentionLeases(in);
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(Objects.requireNonNull(out));
-            out.writeCollection(retentionLeases);
+            retentionLeases.writeTo(out);
         }
 
         @Override

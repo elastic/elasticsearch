@@ -185,7 +185,11 @@ SHOW FUNCTIONS;
       name       |     type      
 -----------------+---------------
 AVG              |AGGREGATE      
-COUNT            |AGGREGATE      
+COUNT            |AGGREGATE
+FIRST            |AGGREGATE
+FIRST_VALUE      |AGGREGATE
+LAST             |AGGREGATE
+LAST_VALUE       |AGGREGATE
 MAX              |AGGREGATE      
 MIN              |AGGREGATE      
 SUM              |AGGREGATE      
@@ -204,6 +208,8 @@ ISNULL           |CONDITIONAL
 LEAST            |CONDITIONAL
 NULLIF           |CONDITIONAL
 NVL              |CONDITIONAL
+CURDATE          |SCALAR
+CURRENT_DATE     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
 DAY              |SCALAR
 DAYNAME          |SCALAR
@@ -238,7 +244,8 @@ MONTH_OF_YEAR    |SCALAR
 NOW              |SCALAR
 QUARTER          |SCALAR         
 SECOND           |SCALAR         
-SECOND_OF_MINUTE |SCALAR         
+SECOND_OF_MINUTE |SCALAR
+TODAY            |SCALAR
 WEEK             |SCALAR         
 WEEK_OF_YEAR     |SCALAR         
 YEAR             |SCALAR         
@@ -361,6 +368,7 @@ HOUR_OF_DAY    |SCALAR
 ISODAYOFWEEK   |SCALAR
 ISO_DAY_OF_WEEK|SCALAR
 MINUTE_OF_DAY  |SCALAR         
+TODAY          |SCALAR
 
 // end::showFunctionsWithPattern
 ;
@@ -699,6 +707,8 @@ SELECT MIN(salary) AS min, MAX(salary) AS max FROM emp HAVING min > 25000;
 // end::groupByHavingImplicitNoMatch
 //;
 
+
+
 ///////////////////////////////
 //
 // Grouping
@@ -997,6 +1007,141 @@ SELECT COUNT(DISTINCT hire_date) unique_hires, COUNT(hire_date) AS hires FROM em
 99              |100
 // end::aggCountDistinct
 ;
+
+firstWithOneArg
+schema::FIRST(first_name):s
+// tag::firstWithOneArg
+SELECT FIRST(first_name) FROM emp;
+
+   FIRST(first_name)
+--------------------
+Alejandro
+
+// end::firstWithOneArg
+;
+
+firstWithOneArgAndGroupBy
+schema::gender:s|FIRST(first_name):s
+// tag::firstWithOneArgAndGroupBy
+SELECT gender, FIRST(first_name) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender   |   FIRST(first_name)
+------------+--------------------
+null        |   Berni
+F           |   Alejandro
+M           |   Amabile
+
+// end::firstWithOneArgAndGroupBy
+;
+
+firstWithTwoArgs
+schema::FIRST(first_name, birth_date):s
+// tag::firstWithTwoArgs
+SELECT FIRST(first_name, birth_date) FROM emp;
+
+   FIRST(first_name, birth_date)
+--------------------------------
+Remzi
+
+// end::firstWithTwoArgs
+;
+
+firstWithTwoArgsAndGroupBy
+schema::gender:s|FIRST(first_name, birth_date):s
+// tag::firstWithTwoArgsAndGroupBy
+SELECT gender, FIRST(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+    gender    |   FIRST(first_name, birth_date)
+--------------+--------------------------------
+null          |   Lillian
+F             |   Sumant
+M             |   Remzi
+
+// end::firstWithTwoArgsAndGroupBy
+;
+
+firstValueWithTwoArgsAndGroupBy
+schema::gender:s|FIRST_VALUE(first_name, birth_date):s
+// tag::firstValueWithTwoArgsAndGroupBy
+SELECT gender, FIRST_VALUE(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+    gender    |   FIRST_VALUE(first_name, birth_date)
+--------------+--------------------------------------
+null          |   Lillian
+F             |   Sumant
+M             |   Remzi
+
+// end::firstValueWithTwoArgsAndGroupBy
+;
+
+lastWithOneArg
+schema::LAST(first_name):s
+// tag::lastWithOneArg
+SELECT LAST(first_name) FROM emp;
+
+   LAST(first_name)
+-------------------
+Zvonko
+
+// end::lastWithOneArg
+;
+
+
+lastWithOneArgAndGroupBy
+schema::gender:s|LAST(first_name):s
+// tag::lastWithOneArgAndGroupBy
+SELECT gender, LAST(first_name) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender   |   LAST(first_name)
+------------+-------------------
+null        |   Patricio
+F           |   Xinglin
+M           |   Zvonko
+
+// end::lastWithOneArgAndGroupBy
+;
+
+
+lastWithTwoArgs
+schema::LAST(first_name, birth_date):s
+// tag::lastWithTwoArgs
+SELECT LAST(first_name, birth_date) FROM emp;
+
+   LAST(first_name, birth_date)
+-------------------------------
+Hilari
+
+// end::lastWithTwoArgs
+;
+
+lastWithTwoArgsAndGroupBy
+schema::gender:s|LAST(first_name, birth_date):s
+// tag::lastWithTwoArgsAndGroupBy
+SELECT gender, LAST(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender  |   LAST(first_name, birth_date)
+-----------+-------------------------------
+null       |   Eberhardt
+F          |   Valdiodio
+M          |   Hilari
+
+// end::lastWithTwoArgsAndGroupBy
+;
+
+lastValueWithTwoArgsAndGroupBy
+schema::gender:s|LAST_VALUE(first_name, birth_date):s
+// tag::lastValueWithTwoArgsAndGroupBy
+SELECT gender, LAST_VALUE(first_name, birth_date) FROM emp GROUP BY gender ORDER BY gender;
+
+   gender  |   LAST_VALUE(first_name, birth_date)
+-----------+-------------------------------------
+null       |   Eberhardt
+F          |   Valdiodio
+M          |   Hilari
+
+// end::lastValueWithTwoArgsAndGroupBy
+;
+
 
 aggMax
 // tag::aggMax
@@ -2086,18 +2231,50 @@ SELECT WEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS week, ISOWEEK(CAST('19
 ;
 
 
-currentNow
-// tag::filterNow
-SELECT first_name FROM emp WHERE hire_date > NOW() - INTERVAL 100 YEARS ORDER BY first_name ASC LIMIT 5;
 
-  first_name   
----------------
-Alejandro      
-Amabile        
-Anneke         
-Anoosh         
-Arumugam       
-// end::filterNow
+
+currentDate-Ignore
+// tag::curDate
+SELECT CURRENT_TIMESTAMP AS result;
+
+         result
+------------------------
+2018-12-12
+// end::curDate
+;
+
+currentDateFunction-Ignore
+// tag::curDateFunction
+SELECT CURRENT_TIMESTAMP() AS result;
+
+         result
+------------------------
+2018-12-12
+// end::curDateFunction
+;
+
+todayFunction-Ignore
+// tag::todayFunction
+SELECT TODAY() AS result;
+
+         result
+------------------------
+2018-12-12
+// end::todayFunction
+;
+
+filterToday
+// tag::filterToday
+SELECT first_name FROM emp WHERE hire_date > TODAY() - INTERVAL 25 YEARS ORDER BY first_name ASC LIMIT 5;
+
+ first_name
+------------
+Kazuhito
+Kenroku
+Lillian
+Mayumi
+Mingsen
+// end::filterToday
 ;
 
 currentTimestamp-Ignore
@@ -2139,6 +2316,20 @@ SELECT NOW() AS result;
 ------------------------
 2018-12-12T14:48:52.448Z
 // end::nowFunction
+;
+
+filterNow
+// tag::filterNow
+SELECT first_name FROM emp WHERE hire_date > NOW() - INTERVAL 100 YEARS ORDER BY first_name ASC LIMIT 5;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+// end::filterNow
 ;
 
 ////////////

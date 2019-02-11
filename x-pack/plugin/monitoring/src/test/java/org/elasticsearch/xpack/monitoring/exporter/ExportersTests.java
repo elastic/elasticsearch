@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,11 +31,15 @@ import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -90,6 +95,21 @@ public class ExportersTests extends ESTestCase {
         factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, mock(CleanerService.class)));
 
         exporters = new Exporters(Settings.EMPTY, factories, clusterService, licenseState, threadContext);
+    }
+
+    public void testExporterIndexPattern() {
+        Exporter.Config config = mock(Exporter.Config.class);
+        when(config.name()).thenReturn("anything");
+        when(config.settings()).thenReturn(Settings.EMPTY);
+        DateFormatter formatter = Exporter.dateTimeFormatter(config);
+        Instant instant = Instant.ofEpochSecond(randomLongBetween(0, 86400 * 365 * 130L));
+        ZonedDateTime zonedDateTime = instant.atZone(ZoneOffset.UTC);
+        int year = zonedDateTime.getYear();
+        int month = zonedDateTime.getMonthValue();
+        int day = zonedDateTime.getDayOfMonth();
+        String expecdateDate = String.format(Locale.ROOT, "%02d.%02d.%02d", year, month, day);
+        String formattedDate = formatter.format(instant);
+        assertThat("input date was " + instant, expecdateDate, is(formattedDate));
     }
 
     public void testInitExportersDefault() throws Exception {

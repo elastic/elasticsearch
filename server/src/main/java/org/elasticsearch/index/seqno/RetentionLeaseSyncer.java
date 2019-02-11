@@ -23,13 +23,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.Collection;
-
 /**
  * A functional interface that represents a method for syncing retention leases to replica shards after a new retention lease is added on
  * the primary.
  */
-@FunctionalInterface
 public interface RetentionLeaseSyncer {
 
     /**
@@ -40,9 +37,20 @@ public interface RetentionLeaseSyncer {
      * @param retentionLeases the retention leases to sync
      * @param listener        the callback when sync completes
      */
-    void syncRetentionLeasesForShard(
-            ShardId shardId,
-            Collection<RetentionLease> retentionLeases,
-            ActionListener<ReplicationResponse> listener);
+    void sync(ShardId shardId, RetentionLeases retentionLeases, ActionListener<ReplicationResponse> listener);
+
+    void backgroundSync(ShardId shardId, RetentionLeases retentionLeases);
+
+    RetentionLeaseSyncer EMPTY = new RetentionLeaseSyncer() {
+        @Override
+        public void sync(final ShardId shardId, final RetentionLeases retentionLeases, final ActionListener<ReplicationResponse> listener) {
+
+        }
+
+        @Override
+        public void backgroundSync(final ShardId shardId, final RetentionLeases retentionLeases) {
+
+        }
+    };
 
 }

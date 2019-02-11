@@ -3,7 +3,6 @@
   - do:
       get:
         index: scroll_index
-        type: doc
         id: 1
 
   - set: {_source.value: scroll_id}

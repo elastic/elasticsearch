@@ -45,7 +45,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -466,6 +465,24 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         expectThrows(ResponseException.class, this::indexDocument);
     }
 
+    public void testShrinkSameShards() throws Exception {
+        int numberOfShards = randomFrom(1, 2);
+        String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+        createNewSingletonPolicy("warm", new ShrinkAction(numberOfShards));
+        updatePolicy(index, policy);
+        assertBusy(() -> {
+            assertTrue(indexExists(index));
+            assertFalse(indexExists(shrunkenIndex));
+            assertFalse(aliasExists(shrunkenIndex, index));
+            Map<String, Object> settings = getOnlyIndexSettings(index);
+            assertThat(getStepKeyForIndex(index), equalTo(TerminalPolicyStep.KEY));
+            assertThat(settings.get(IndexMetaData.SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(numberOfShards)));
+            assertNull(settings.get(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.getKey()));
+        });
+    }
+
     public void testShrinkDuringSnapshot() throws Exception {
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + index;
         // Create the repository before taking the snapshot.
@@ -652,16 +669,16 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
-    public void testInvalidPolicyNames() throws UnsupportedEncodingException {
+    public void testInvalidPolicyNames() {
         ResponseException ex;
 
         policy = randomAlphaOfLengthBetween(0,10) + "," + randomAlphaOfLengthBetween(0,10);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
-        assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
+        assertThat(ex.getMessage(), containsString("invalid policy name"));
         
         policy = randomAlphaOfLengthBetween(0,10) + "%20" + randomAlphaOfLengthBetween(0,10);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
-        assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
+        assertThat(ex.getMessage(), containsString("invalid policy name"));
 
         policy = "_" + randomAlphaOfLengthBetween(1, 20);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
@@ -698,7 +715,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         Request deleteRequest = new Request("DELETE", "_ilm/policy/" + originalPolicy);
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(deleteRequest));
-        assertThat(ex.getCause().getMessage(),
+        assertThat(ex.getMessage(),
             Matchers.allOf(
                 containsString("Cannot delete policy [" + originalPolicy + "]. It is in use by one or more indices: ["),
                 containsString(managedIndex1),

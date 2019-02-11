@@ -38,11 +38,12 @@ import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
 import org.junit.Before;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -56,7 +57,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.Is.is;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -227,8 +227,10 @@ public class WebhookActionTests extends ESTestCase {
 
             ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, httpClient, templateEngine);
             String watchId = "test_url_encode" + randomAlphaOfLength(10);
-            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watchId, new DateTime(UTC),
-                    new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
+            ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(watchId, ZonedDateTime.now(ZoneOffset.UTC),
+                ZonedDateTime.now(ZoneOffset.UTC));
+            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watchId, ZonedDateTime.now(ZoneOffset.UTC),
+                triggerEvent, timeValueSeconds(5));
             Watch watch = createWatch(watchId);
             ctx.ensureWatchExists(() -> watch);
             executable.execute("_id", ctx, new Payload.Simple());
@@ -252,8 +254,10 @@ public class WebhookActionTests extends ESTestCase {
 
         ExecutableWebhookAction executable = new ExecutableWebhookAction(action, logger, client, templateEngine);
 
-        TriggeredExecutionContext ctx = new TriggeredExecutionContext(watchId, new DateTime(UTC),
-                new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
+        ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(watchId, ZonedDateTime.now(ZoneOffset.UTC),
+            ZonedDateTime.now(ZoneOffset.UTC));
+        TriggeredExecutionContext ctx = new TriggeredExecutionContext(watchId, ZonedDateTime.now(ZoneOffset.UTC),
+            triggerEvent, timeValueSeconds(5));
         Watch watch = createWatch(watchId);
         ctx.ensureWatchExists(() -> watch);
         Action.Result result = executable.execute("_id", ctx, new Payload.Simple());

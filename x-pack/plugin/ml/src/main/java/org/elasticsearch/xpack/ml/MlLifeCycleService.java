@@ -45,7 +45,7 @@ public class MlLifeCycleService {
                 // datafeeds, so they get reallocated.  We have to do this first, otherwise the datafeeds
                 // could fail if they send data to a dead autodetect process.
                 if (datafeedManager != null) {
-                    datafeedManager.isolateAllDatafeedsOnThisNode();
+                    datafeedManager.isolateAllDatafeedsOnThisNodeBeforeShutdown();
                 }
                 NativeController nativeController = NativeControllerHolder.getNativeController(environment);
                 if (nativeController != null) {

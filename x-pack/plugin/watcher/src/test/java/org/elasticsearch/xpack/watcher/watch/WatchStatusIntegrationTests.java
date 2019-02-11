@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class WatchStatusIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/38619")
     public void testThatStatusGetsUpdated() {
         WatcherClient watcherClient = watcherClient();
         watcherClient.preparePutWatch("_name")

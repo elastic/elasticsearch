@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.impl.Log4jLogEvent;
 import org.apache.logging.log4j.message.SimpleMessage;
@@ -48,7 +47,6 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
     }
 
     public void testStacktraceWithJson() throws IOException {
-        LogManager.getLogger().info("asdf");
 
         String json = "{\n" +
             "  \"terms\" : {\n" +
@@ -66,6 +64,7 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
                                       .setThrown(thrown)
                                       .build();
 
+
         String result = format(event);
 
         //confirms exception is correctly parsed
@@ -76,7 +75,7 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
 
         int jsonLength = json.split("\n").length;
         int stacktraceLength = thrown.getStackTrace().length;
-        assertThat("stacktrace should formatted in multiple lines",
+        assertThat("stacktrace should formatted in multiple lines. JsonLogLine= " + jsonLogLine+" result= "+result,
             jsonLogLine.stacktrace().size(), equalTo(jsonLength + stacktraceLength));
     }
 

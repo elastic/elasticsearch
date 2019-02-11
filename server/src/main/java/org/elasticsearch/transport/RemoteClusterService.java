@@ -69,7 +69,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     static {
         // remove search.remote.* settings in 8.0.0
-        assert Version.CURRENT.major < 8;
+        // TODO
+        // assert Version.CURRENT.major < 8;
     }
 
     public static final Setting<Integer> SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER =

@@ -27,7 +27,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public abstract class SingleGroupSource<AB extends SingleGroupSource<AB>> implements Writeable, ToXContentObject {
 
     public enum Type {
-        TERMS(0);
+        TERMS(0),
+        HISTOGRAM(1),
+        DATE_HISTOGRAM(2);
 
         private final byte id;
 
@@ -53,10 +55,10 @@ public abstract class SingleGroupSource<AB extends SingleGroupSource<AB>> implem
         }
     }
 
-    private static final ParseField FIELD = new ParseField("field");
+    protected static final ParseField FIELD = new ParseField("field");
 
     // TODO: add script
-    private final String field;
+    protected final String field;
 
     static <VB extends SingleGroupSource<?>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> parser,
             ValueType targetValueType) {

@@ -58,7 +58,9 @@ public class DfsPhase implements SearchPhase {
                         throw new TaskCancelledException("cancelled");
                     }
                     TermStatistics ts = super.termStatistics(term, states);
-                    stats.put(term, ts);
+                    if (ts != null) {
+                        stats.put(term, ts);
+                    }
                     return ts;
                 }
 
@@ -68,7 +70,9 @@ public class DfsPhase implements SearchPhase {
                         throw new TaskCancelledException("cancelled");
                     }
                     CollectionStatistics cs = super.collectionStatistics(field);
-                    fieldStatistics.put(field, cs);
+                    if (cs != null) {
+                        fieldStatistics.put(field, cs);
+                    }
                     return cs;
                 }
             };

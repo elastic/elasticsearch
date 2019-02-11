@@ -29,6 +29,13 @@ public final class DataFrameField {
     // note: this is used to match tasks
     public static final String PERSISTENT_TASK_DESCRIPTION_PREFIX = "data_frame_";
 
+    // strings for meta information
+    public static final String META_FIELDNAME = "_data_frame";
+    public static final String CREATION_DATE_MILLIS = "creation_date_in_millis";
+    public static final String VERSION = "version";
+    public static final String CREATED = "created";
+    public static final String TRANSFORM = "transform";
+
     private DataFrameField() {
     }
 }

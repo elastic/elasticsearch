@@ -30,6 +30,7 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
      * issuer to the UA needs to be redirected for authentication
      */
     private String issuer;
+    private String loginHint;
     private String state;
     private String nonce;
 
@@ -49,6 +50,11 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         return issuer;
     }
 
+    public String getLoginHint() {
+        return loginHint;
+    }
+
+
     public void setRealmName(String realmName) {
         this.realmName = realmName;
     }
@@ -65,6 +71,10 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         this.nonce = nonce;
     }
 
+    public void setLoginHint(String loginHint) {
+        this.loginHint = loginHint;
+    }
+
     public OpenIdConnectPrepareAuthenticationRequest() {
     }
 
@@ -72,6 +82,7 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         super.readFrom(in);
         realmName = in.readOptionalString();
         issuer = in.readOptionalString();
+        loginHint = in.readOptionalString();
         state = in.readOptionalString();
         nonce = in.readOptionalString();
     }
@@ -93,6 +104,7 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         super.writeTo(out);
         out.writeOptionalString(realmName);
         out.writeOptionalString(issuer);
+        out.writeOptionalString(loginHint);
         out.writeOptionalString(state);
         out.writeOptionalString(nonce);
     }
@@ -103,7 +115,8 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     }
 
     public String toString() {
-        return "{realmName=" + realmName + ", issuer=" + issuer +", state=" + state + ", nonce=" + nonce + "}";
+        return "{realmName=" + realmName + ", issuer=" + issuer + ", login_hint=" +
+            loginHint + ", state=" + state + ", nonce=" + nonce + "}";
     }
 
 }

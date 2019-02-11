@@ -294,23 +294,26 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
      *
      * @param existingState An existing state that can be reused or null if we need to generate one
      * @param existingNonce An existing nonce that can be reused or null if we need to generate one
+     * @param loginHint A String with a login hint to add to the authentication request in case of a 3rd party initiated login
      *
      * @return an {@link OpenIdConnectPrepareAuthenticationResponse}
      */
     public OpenIdConnectPrepareAuthenticationResponse buildAuthenticationRequestUri(@Nullable String existingState,
-                                                                                    @Nullable String existingNonce) {
+                                                                                    @Nullable String existingNonce,
+                                                                                    @Nullable String loginHint) {
         final State state = existingState != null ? new State(existingState) : new State();
         final Nonce nonce = existingNonce != null ? new Nonce(existingNonce) : new Nonce();
-        final AuthenticationRequest authenticationRequest = new AuthenticationRequest(
-            opConfiguration.getAuthorizationEndpoint(),
-            rpConfiguration.getResponseType(),
+        final AuthenticationRequest.Builder builder = new AuthenticationRequest.Builder(rpConfiguration.getResponseType(),
             rpConfiguration.getRequestedScope(),
             rpConfiguration.getClientId(),
-            rpConfiguration.getRedirectUri(),
-            state,
-            nonce);
-
-        return new OpenIdConnectPrepareAuthenticationResponse(authenticationRequest.toURI().toString(),
+            rpConfiguration.getRedirectUri())
+            .endpointURI(opConfiguration.getAuthorizationEndpoint())
+            .state(state)
+            .nonce(nonce);
+        if (Strings.hasText(loginHint)) {
+            builder.loginHint(loginHint);
+        }
+        return new OpenIdConnectPrepareAuthenticationResponse(builder.build().toURI().toString(),
             state.getValue(), nonce.getValue());
     }
 

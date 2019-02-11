@@ -61,17 +61,19 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
         }
 
         if (realm instanceof OpenIdConnectRealm) {
-            prepareAuthenticationResponse((OpenIdConnectRealm) realm, request.getState(), request.getNonce(), listener);
+            prepareAuthenticationResponse((OpenIdConnectRealm) realm, request.getState(), request.getNonce(), request.getLoginHint(),
+                listener);
         } else {
             listener.onFailure(
                 new ElasticsearchSecurityException("Cannot find OpenID Connect realm with name [{}]", request.getRealmName()));
         }
     }
 
-    private void prepareAuthenticationResponse(OpenIdConnectRealm realm, String state, String nonce,
+    private void prepareAuthenticationResponse(OpenIdConnectRealm realm, String state, String nonce, String loginHint,
                                                ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener) {
         try {
-            final OpenIdConnectPrepareAuthenticationResponse authenticationResponse = realm.buildAuthenticationRequestUri(state, nonce);
+            final OpenIdConnectPrepareAuthenticationResponse authenticationResponse =
+                realm.buildAuthenticationRequestUri(state, nonce, loginHint);
             listener.onResponse(authenticationResponse);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);

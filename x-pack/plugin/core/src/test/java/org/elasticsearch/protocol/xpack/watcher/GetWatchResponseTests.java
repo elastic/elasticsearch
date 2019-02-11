@@ -6,6 +6,7 @@
 package org.elasticsearch.protocol.xpack.watcher;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -124,15 +124,15 @@ public class GetWatchResponseTests extends
 
     private static WatchStatus randomWatchStatus() {
         long version = randomLongBetween(-1, Long.MAX_VALUE);
-        WatchStatus.State state = new WatchStatus.State(randomBoolean(), ZonedDateTime.now(ZoneOffset.UTC));
+        WatchStatus.State state = new WatchStatus.State(randomBoolean(), DateUtils.nowWithMillisResolution());
         ExecutionState executionState = randomFrom(ExecutionState.values());
-        ZonedDateTime lastChecked = rarely() ? null : ZonedDateTime.now(ZoneOffset.UTC);
-        ZonedDateTime lastMetCondition = rarely() ? null : ZonedDateTime.now(ZoneOffset.UTC);
+        ZonedDateTime lastChecked = rarely() ? null : DateUtils.nowWithMillisResolution();
+        ZonedDateTime lastMetCondition = rarely() ? null : DateUtils.nowWithMillisResolution();
         int size = randomIntBetween(0, 5);
         Map<String, ActionStatus> actionMap = new HashMap<>();
         for (int i = 0; i < size; i++) {
             ActionStatus.AckStatus ack = new ActionStatus.AckStatus(
-                ZonedDateTime.now(ZoneOffset.UTC),
+                DateUtils.nowWithMillisResolution(),
                 randomFrom(ActionStatus.AckStatus.State.values())
             );
             ActionStatus actionStatus = new ActionStatus(
@@ -152,16 +152,16 @@ public class GetWatchResponseTests extends
     }
 
     private static ActionStatus.Throttle randomThrottle() {
-        return new ActionStatus.Throttle(ZonedDateTime.now(ZoneOffset.UTC), randomAlphaOfLengthBetween(10, 20));
+        return new ActionStatus.Throttle(DateUtils.nowWithMillisResolution(), randomAlphaOfLengthBetween(10, 20));
     }
 
     private static ActionStatus.Execution randomExecution() {
         if (randomBoolean()) {
             return null;
         } else if (randomBoolean()) {
-            return ActionStatus.Execution.failure(ZonedDateTime.now(ZoneOffset.UTC), randomAlphaOfLengthBetween(10, 20));
+            return ActionStatus.Execution.failure(DateUtils.nowWithMillisResolution(), randomAlphaOfLengthBetween(10, 20));
         } else {
-            return ActionStatus.Execution.successful(ZonedDateTime.now(ZoneOffset.UTC));
+            return ActionStatus.Execution.successful(DateUtils.nowWithMillisResolution());
         }
     }
 

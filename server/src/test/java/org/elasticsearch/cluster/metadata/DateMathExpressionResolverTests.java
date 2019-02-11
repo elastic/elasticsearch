@@ -91,7 +91,6 @@ public class DateMathExpressionResolverTests extends ESTestCase {
                 + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37037")
     public void testExpression_CustomFormat() throws Exception {
         List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd}}>"));
         assertThat(results.size(), equalTo(1));
@@ -106,7 +105,6 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             equalTo(".mar{v}el-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37037")
     public void testExpression_EscapeDateFormat() throws Exception {
         List<String> result = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{'\\{year\\}'yyyy}}>"));
         assertThat(result.size(), equalTo(1));
@@ -127,7 +125,6 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             DateTimeFormat.forPattern("YYYY.MM").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37037")
     public void testExpression_CustomTimeZoneInIndexName() throws Exception {
         DateTimeZone timeZone;
         int hoursOffset;

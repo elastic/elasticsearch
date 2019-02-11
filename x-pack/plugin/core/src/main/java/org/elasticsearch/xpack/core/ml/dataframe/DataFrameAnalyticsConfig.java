@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -32,6 +33,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING;
 
 public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
@@ -62,6 +65,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static final ParseField ANALYSES = new ParseField("analyses");
     public static final ParseField CONFIG_TYPE = new ParseField("config_type");
     public static final ParseField QUERY = new ParseField("query");
+    public static final ParseField FIELDS = new ParseField("fields");
 
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -75,6 +79,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         parser.declareString(Builder::setDest, DEST);
         parser.declareObjectArray(Builder::setAnalyses, DataFrameAnalysisConfig.parser(), ANALYSES);
         parser.declareObject((builder, query) -> builder.setQuery(query, ignoreUnknownFields), (p, c) -> p.mapOrdered(), QUERY);
+        parser.declareField(Builder::setFields, (p, c) -> FetchSourceContext.fromXContent(p), FIELDS, OBJECT_ARRAY_BOOLEAN_OR_STRING);
         return parser;
     }
 
@@ -84,9 +89,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final List<DataFrameAnalysisConfig> analyses;
     private final Map<String, Object> query;
     private final CachedSupplier<QueryBuilder> querySupplier;
+    private final FetchSourceContext fields;
 
     public DataFrameAnalyticsConfig(String id, String source, String dest, List<DataFrameAnalysisConfig> analyses,
-                                    Map<String, Object> query) {
+                                    Map<String, Object> query, FetchSourceContext fields) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
         this.source = ExceptionsHelper.requireNonNull(source, SOURCE);
         this.dest = ExceptionsHelper.requireNonNull(dest, DEST);
@@ -100,6 +106,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
         this.query = Collections.unmodifiableMap(query);
         this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
+        this.fields = fields;
     }
 
     public DataFrameAnalyticsConfig(StreamInput in) throws IOException {
@@ -109,6 +116,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         analyses = in.readList(DataFrameAnalysisConfig::new);
         this.query = in.readMap();
         this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
+        this.fields = in.readOptionalWriteable(FetchSourceContext::new);
     }
 
     public String getId() {
@@ -137,6 +145,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return querySupplier.get();
     }
 
+    public FetchSourceContext getFields() {
+        return fields;
+    }
+
     /**
      * Calls the lazy parser and returns any gathered deprecations
      * @return The deprecations from parsing the query
@@ -162,6 +174,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
         }
         builder.field(QUERY.getPreferredName(), query);
+        if (fields != null) {
+            builder.field(FIELDS.getPreferredName(), fields);
+        }
         builder.endObject();
         return builder;
     }
@@ -173,6 +188,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         out.writeString(dest);
         out.writeList(analyses);
         out.writeMap(query);
+        out.writeOptionalWriteable(fields);
     }
 
     @Override
@@ -185,12 +201,13 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             && Objects.equals(source, other.source)
             && Objects.equals(dest, other.dest)
             && Objects.equals(analyses, other.analyses)
-            && Objects.equals(query, other.query);
+            && Objects.equals(query, other.query)
+            && Objects.equals(fields, other.fields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, analyses, query);
+        return Objects.hash(id, source, dest, analyses, query, fields);
     }
 
     public static String documentId(String id) {
@@ -204,6 +221,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private String dest;
         private List<DataFrameAnalysisConfig> analyses;
         private Map<String, Object> query = Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap());
+        private FetchSourceContext fields;
 
         public String getId() {
             return id;
@@ -248,8 +266,13 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setFields(FetchSourceContext fields) {
+            this.fields = fields;
+            return this;
+        }
+
         public DataFrameAnalyticsConfig build() {
-            return new DataFrameAnalyticsConfig(id, source, dest, analyses, query);
+            return new DataFrameAnalyticsConfig(id, source, dest, analyses, query, fields);
         }
     }
 }

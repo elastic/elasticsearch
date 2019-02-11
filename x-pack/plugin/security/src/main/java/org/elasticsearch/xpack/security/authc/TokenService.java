@@ -229,6 +229,7 @@ public final class TokenService {
                                 boolean includeRefreshToken) throws IOException {
         createUserToken(UUIDs.randomBase64UUID(), authentication, originatingClientAuth, listener, metadata, includeRefreshToken);
     }
+
     /**
      * Create a token based on the provided authentication and metadata with the given token id.
      * The created token will be stored in the security index.
@@ -289,6 +290,9 @@ public final class TokenService {
         }
     }
 
+    /**
+     * Reconstructs the {@link UserToken} from the existing {@code userTokenSource}
+     */
     private void reIssueTokens(Map<String, Object> userTokenSource,
                                String refreshToken, ActionListener<Tuple<UserToken, String>> listener) {
         final String authString = (String) userTokenSource.get("authentication");
@@ -301,7 +305,7 @@ public final class TokenService {
         try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(authString))) {
             in.setVersion(authVersion);
             Authentication authentication = new Authentication(in);
-            UserToken userToken = new UserToken(id, Version.fromId(version), authentication, Instant.ofEpochMilli(expiration), metadata);
+            UserToken userToken = new UserToken(id, authVersion, authentication, Instant.ofEpochMilli(expiration), metadata);
             listener.onResponse(new Tuple<>(userToken, refreshToken));
         } catch (IOException e) {
             logger.debug("Unable to decode existing user token", e);
@@ -418,10 +422,10 @@ public final class TokenService {
         StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length);
         // the token exists and the value is at least as long as we'd expect
         final Version version = Version.readVersion(in);
-        if (version.onOrAfter(Version.V_7_0_0)) {
-            // The token was created in a > 7.0.0 cluster so it contains the tokenId as a String
-            if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_7_0_0)) {
-                logger.debug("Invalid token with unencrypted format in a cluster that is pre v7.0.0");
+        if (version.onOrAfter(Version.V_7_1_0)) {
+            // The token was created in a > 7.1.0 cluster so it contains the tokenId as a String
+            if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_7_1_0)) {
+                logger.debug("Invalid token with unencrypted format in a cluster that is pre v7.1.0");
             }
             String usedTokenId = in.readString();
             getUserTokenFromId(usedTokenId, listener);
@@ -759,13 +763,16 @@ public final class TokenService {
     }
 
     /**
-     * Performs the actual refresh of the token with retries in case of certain exceptions that
-     * may be recoverable. The refresh involves retrieval of the token document and then
-     * updating the token document to indicate that the document has been refreshed and to add a pointer to the token doc
-     * of the newly created token doc that supersedes this one.
-     * In the case that the token has been refreshed within the previous 4 seconds, we do not create a new token document
+     * Performs the actual refresh of the token with retries in case of certain exceptions that may be recoverable. The
+     * refresh involves two steps:
+     * First, the token document is retrieved and we check if is still valid, and hasn't been already refreshed.
+     * Then, in the case that the token has been refreshed within the previous 4 seconds (see
+     * {@link TokenService#checkLenientlyIfTokenAlreadyRefreshed(Map, Authentication)}), we do not create a new token document
      * but instead retrieve the one that was created by the original refresh and return a user token and
-     * refresh token based on that. See also {@link TokenService#lenientIsAlreadyRefreshed(Map, Authentication)}
+     * refresh token based on that ( see {@link TokenService#reIssueTokens(Map, String, ActionListener)} ).
+     * Otherwise this token document gets its refresh_token marked as refreshed, while also storing the Instant when it was
+     * refreshed along with a pointer to the new token document that holds the refresh_token that supersedes this one. Finally
+     * the new access token and refresh token are returned to the listener.
      */
     private void innerRefresh(String tokenDocId, Authentication userAuth, ActionListener<Tuple<UserToken, String>> listener,
                               AtomicInteger attemptCount) {
@@ -780,7 +787,6 @@ public final class TokenService {
                     if (response.isExists()) {
                         final Map<String, Object> source = response.getSource();
                         final Optional<ElasticsearchSecurityException> invalidSource = checkTokenDocForRefresh(source, userAuth);
-
                         if (invalidSource.isPresent()) {
                             onFailure.accept(invalidSource.get());
                         } else {
@@ -815,7 +821,6 @@ public final class TokenService {
                                 final String authString = (String) userTokenSource.get("authentication");
                                 final Integer version = (Integer) userTokenSource.get("version");
                                 final Map<String, Object> metadata = (Map<String, Object>) userTokenSource.get("metadata");
-
                                 Version authVersion = Version.fromId(version);
                                 try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(authString))) {
                                     in.setVersion(authVersion);
@@ -830,12 +835,8 @@ public final class TokenService {
                                         client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, tokenDocId)
                                             .setDoc("refresh_token", updateMap)
                                             .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-                                    if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0)) {
-                                        updateRequest.setIfSeqNo(response.getSeqNo());
-                                        updateRequest.setIfPrimaryTerm(response.getPrimaryTerm());
-                                    } else {
-                                        updateRequest.setVersion(response.getVersion());
-                                    }
+                                    updateRequest.setIfSeqNo(response.getSeqNo());
+                                    updateRequest.setIfPrimaryTerm(response.getPrimaryTerm());
                                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
                                         ActionListener.<UpdateResponse>wrap(
                                             updateResponse ->
@@ -904,7 +905,7 @@ public final class TokenService {
             } else if (userTokenSrc.get("metadata") == null) {
                 return Optional.of(invalidGrantException("token is missing metadata"));
             } else {
-                return lenientIsAlreadyRefreshed(source, userAuth);
+                return checkLenientlyIfTokenAlreadyRefreshed(source, userAuth);
             }
         }
     }
@@ -928,7 +929,8 @@ public final class TokenService {
      * from clients
      */
     @SuppressWarnings("unchecked")
-    private Optional<ElasticsearchSecurityException> lenientIsAlreadyRefreshed(Map<String, Object> source, Authentication userAuth) {
+    private Optional<ElasticsearchSecurityException> checkLenientlyIfTokenAlreadyRefreshed(Map<String, Object> source,
+                                                                                           Authentication userAuth) {
         final Map<String, Object> refreshTokenSrc = (Map<String, Object>) source.get("refresh_token");
         final Map<String, Object> userTokenSource = (Map<String, Object>)
             ((Map<String, Object>) source.get("access_token")).get("user_token");
@@ -936,7 +938,7 @@ public final class TokenService {
         Version authVersion = Version.fromId(version);
         final Boolean refreshed = (Boolean) refreshTokenSrc.get("refreshed");
         if (refreshed) {
-            if (authVersion.onOrAfter(Version.V_7_0_0)) {
+            if (authVersion.onOrAfter(Version.V_7_1_0)) {
                 final Long refreshedEpochMilli = (Long) refreshTokenSrc.get("refresh_time");
                 final Instant refreshTime = refreshedEpochMilli == null ? null : Instant.ofEpochMilli(refreshedEpochMilli);
                 final String supersededBy = (String) refreshTokenSrc.get("superseded_by");
@@ -968,9 +970,10 @@ public final class TokenService {
         final Long refreshedEpochMilli = (Long) refreshTokenSrc.get("refresh_time");
         final Instant refreshTime = refreshedEpochMilli == null ? null : Instant.ofEpochMilli(refreshedEpochMilli);
         final String supersededBy = (String) refreshTokenSrc.get("superseded_by");
-        return authVersion.onOrAfter(Version.V_7_0_0) && supersededBy != null && refreshTime != null
+        return authVersion.onOrAfter(Version.V_7_1_0)
+            && supersededBy != null
+            && refreshTime != null
             && clock.instant().isAfter(refreshTime.plus(4L, ChronoUnit.SECONDS)) == false;
-
     }
 
     /**
@@ -1234,7 +1237,7 @@ public final class TokenService {
      * itself for versions after 7.0.0
      */
     public String getUserTokenString(UserToken userToken) throws IOException, GeneralSecurityException {
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_0_0)) {
+        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_1_0)) {
             try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
                  OutputStream base64 = Base64.getEncoder().wrap(os);
                  StreamOutput out = new OutputStreamStreamOutput(base64)) {

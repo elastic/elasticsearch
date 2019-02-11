@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.Locale;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
@@ -546,8 +547,8 @@ public abstract class DataTypeConversion {
                     return converter.apply(value.toString());
                 } catch (NumberFormatException e) {
                     throw new SqlIllegalArgumentException(e, "cannot cast [{}] to [{}]", value, to);
-                } catch (IllegalArgumentException e) {
-                    throw new SqlIllegalArgumentException(e, "cannot cast [{}] to [{}]:{}", value, to, e.getMessage());
+                } catch (DateTimeParseException | IllegalArgumentException e) {
+                    throw new SqlIllegalArgumentException(e, "cannot cast [{}] to [{}]: {}", value, to, e.getMessage());
                 }
             };
         }

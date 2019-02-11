@@ -401,7 +401,7 @@ public class MovAvgIT extends ESIntegTestCase {
      */
     public void testSimpleSingleValuedField() {
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, interval * (numBuckets - 1))
@@ -449,7 +449,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
     public void testLinearSingleValuedField() {
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, interval * (numBuckets - 1))
@@ -497,7 +497,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
     public void testEwmaSingleValuedField() {
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, interval * (numBuckets - 1))
@@ -545,7 +545,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
     public void testHoltSingleValuedField() {
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, interval * (numBuckets - 1))
@@ -594,7 +594,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
     public void testHoltWintersValuedField() {
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, interval * (numBuckets - 1))
@@ -648,7 +648,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
         SearchResponse response = client()
                 .prepareSearch("neg_idx")
-                .setTypes("type")
+                
                 .addAggregation(
                         histogram("histo")
                                 .field(INTERVAL_FIELD)
@@ -701,7 +701,7 @@ public class MovAvgIT extends ESIntegTestCase {
     public void testSizeZeroWindow() {
         try {
             client()
-                    .prepareSearch("idx").setTypes("type")
+                    .prepareSearch("idx")
                     .addAggregation(
                             histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                     .extendedBounds(0L, interval * (numBuckets - 1))
@@ -720,7 +720,7 @@ public class MovAvgIT extends ESIntegTestCase {
     public void testBadParent() {
         try {
             client()
-                    .prepareSearch("idx").setTypes("type")
+                    .prepareSearch("idx")
                     .addAggregation(
                             range("histo").field(INTERVAL_FIELD).addRange(0, 10)
                                     .subAggregation(randomMetric("the_metric", VALUE_FIELD))
@@ -739,7 +739,7 @@ public class MovAvgIT extends ESIntegTestCase {
     public void testNegativeWindow() {
         try {
             client()
-                    .prepareSearch("idx").setTypes("type")
+                    .prepareSearch("idx")
                     .addAggregation(
                             histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                     .extendedBounds(0L, interval * (numBuckets - 1))
@@ -758,7 +758,7 @@ public class MovAvgIT extends ESIntegTestCase {
     public void testNoBucketsInHistogram() {
 
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field("test").interval(interval)
                                 .subAggregation(randomMetric("the_metric", VALUE_FIELD))
@@ -780,7 +780,7 @@ public class MovAvgIT extends ESIntegTestCase {
     public void testNoBucketsInHistogramWithPredict() {
         int numPredictions = randomIntBetween(1,10);
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field("test").interval(interval)
                                 .subAggregation(randomMetric("the_metric", VALUE_FIELD))
@@ -803,7 +803,7 @@ public class MovAvgIT extends ESIntegTestCase {
     public void testZeroPrediction() {
         try {
             client()
-                    .prepareSearch("idx").setTypes("type")
+                    .prepareSearch("idx")
                     .addAggregation(
                             histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                     .extendedBounds(0L, interval * (numBuckets - 1))
@@ -824,7 +824,7 @@ public class MovAvgIT extends ESIntegTestCase {
     public void testNegativePrediction() {
         try {
             client()
-                    .prepareSearch("idx").setTypes("type")
+                    .prepareSearch("idx")
                     .addAggregation(
                             histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                     .extendedBounds(0L, interval * (numBuckets - 1))
@@ -842,31 +842,35 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34046")
     public void testHoltWintersNotEnoughData() {
         Client client = client();
-        expectThrows(SearchPhaseExecutionException.class, () -> client.prepareSearch("idx").setTypes("type")
-                    .addAggregation(
-                            histogram("histo").field(INTERVAL_FIELD).interval(interval)
-                                    .extendedBounds(0L, interval * (numBuckets - 1))
-                                    .subAggregation(metric)
-                                    .subAggregation(movingAvg("movavg_counts", "_count")
-                                            .window(10)
-                                            .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
-                                                    .alpha(alpha).beta(beta).gamma(gamma).period(20).seasonalityType(seasonalityType))
-                                            .gapPolicy(gapPolicy))
-                                    .subAggregation(movingAvg("movavg_values", "the_metric")
-                                            .window(windowSize)
-                                            .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
-                                                    .alpha(alpha).beta(beta).gamma(gamma).period(20).seasonalityType(seasonalityType))
-                                            .gapPolicy(gapPolicy))
-                    ).get());
+        expectThrows(IllegalArgumentException.class, () -> client.prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(INTERVAL_FIELD).interval(interval)
+                    .extendedBounds(0L, interval * (numBuckets - 1))
+                    .subAggregation(metric)
+                    .subAggregation(movingAvg("movavg_counts", "_count")
+                        .window(10)
+                        .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
+                            .alpha(alpha).beta(beta).gamma(gamma)
+                            .period(interval * 10)
+                            .seasonalityType(seasonalityType))
+                        .gapPolicy(gapPolicy))
+                    .subAggregation(movingAvg("movavg_values", "the_metric")
+                        .window(10)
+                        .modelBuilder(new HoltWintersModel.HoltWintersModelBuilder()
+                            .alpha(alpha).beta(beta).gamma(gamma)
+                            .period(interval * 10)
+                            .seasonalityType(seasonalityType))
+                        .gapPolicy(gapPolicy))
+            ).get());
+
     }
 
     public void testTwoMovAvgsWithPredictions() {
         SearchResponse response = client()
                 .prepareSearch("double_predict")
-                .setTypes("type")
+                
                 .addAggregation(
                         histogram("histo")
                                 .field(INTERVAL_FIELD)
@@ -980,24 +984,9 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/34046")
-    public void testBadModelParams() {
-        expectThrows(SearchPhaseExecutionException.class, () -> client()
-                    .prepareSearch("idx").setTypes("type")
-                    .addAggregation(
-                            histogram("histo").field(INTERVAL_FIELD).interval(interval)
-                                    .extendedBounds(0L, interval * (numBuckets - 1))
-                                    .subAggregation(metric)
-                                    .subAggregation(movingAvg("movavg_counts", "_count")
-                                            .window(10)
-                                            .modelBuilder(randomModelBuilder(100))
-                                            .gapPolicy(gapPolicy))
-                    ).get());
-    }
-
     public void testHoltWintersMinimization() {
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, interval * (numBuckets - 1))
@@ -1083,7 +1072,7 @@ public class MovAvgIT extends ESIntegTestCase {
      */
     public void testMinimizeNotEnoughData() {
         SearchResponse response = client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, interval * (numBuckets - 1))
@@ -1137,7 +1126,7 @@ public class MovAvgIT extends ESIntegTestCase {
     public void testCheckIfNonTunableCanBeMinimized() {
         try {
             client()
-                .prepareSearch("idx").setTypes("type")
+                .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                 .extendedBounds(0L, interval * (numBuckets - 1))
@@ -1155,7 +1144,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
         try {
             client()
-                    .prepareSearch("idx").setTypes("type")
+                    .prepareSearch("idx")
                     .addAggregation(
                             histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                     .extendedBounds(0L, interval * (numBuckets - 1))
@@ -1185,7 +1174,7 @@ public class MovAvgIT extends ESIntegTestCase {
         for (MovAvgModelBuilder builder : builders) {
             try {
                 client()
-                        .prepareSearch("idx").setTypes("type")
+                        .prepareSearch("idx")
                         .addAggregation(
                                 histogram("histo").field(INTERVAL_FIELD).interval(interval)
                                         .extendedBounds(0L, interval * (numBuckets - 1))
@@ -1225,7 +1214,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
         SearchResponse response = client()
             .prepareSearch("predict_non_empty")
-            .setTypes("type")
+            
             .addAggregation(
                 histogram("histo")
                     .field(INTERVAL_FIELD)

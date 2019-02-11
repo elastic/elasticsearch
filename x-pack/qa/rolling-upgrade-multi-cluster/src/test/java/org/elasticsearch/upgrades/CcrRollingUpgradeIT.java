@@ -38,7 +38,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                     break;
                 case ALL:
                     // At this point all nodes in both clusters have been updated and
-                    // the leader cluster can now will leader_index4 in the follower cluster:
+                    // the leader cluster can now follow leader_index4 in the follower cluster:
                     followIndex(leaderClient(), "follower", "leader_index4", "follower_index4");
                     assertBusy(() -> verifyTotalHitCount("follower_index4", 64, leaderClient()));
                     break;
@@ -125,6 +125,9 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
             final Request request = new Request("POST", "/" + index + "/_doc/");
             request.setJsonEntity("{}");
             assertOK(client.performRequest(request));
+            if (randomIntBetween(0, 5) == 3) {
+                assertOK(client.performRequest(new Request("POST", "/" + index + "/_refresh")));
+            }
         }
     }
 

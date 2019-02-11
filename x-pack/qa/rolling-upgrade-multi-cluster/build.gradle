@@ -17,10 +17,6 @@ task bwcTest {
 }
 
 for (Version version : bwcVersions.wireCompatible) {
-    if (version.before('6.7.0')) {
-        continue
-    }
-
     String taskPrefix = "v${version}"
 
     // ============================================================================================
@@ -47,10 +43,13 @@ for (Version version : bwcVersions.wireCompatible) {
     leaderClusterTestRunner.configure {
         systemProperty 'tests.rest.upgrade_state', 'none'
         systemProperty 'tests.rest.cluster_name', 'leader'
+
+        systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
     }
 
     // ============================================================================================
-    // Create leader cluster
+    // Create follower cluster
     // ============================================================================================
 
     RestIntegTestTask followerClusterTest = tasks.create(name: "${taskPrefix}#follower#clusterTest", type: RestIntegTestTask) {

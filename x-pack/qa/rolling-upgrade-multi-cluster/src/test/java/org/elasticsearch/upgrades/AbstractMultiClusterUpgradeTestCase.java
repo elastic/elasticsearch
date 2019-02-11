@@ -71,46 +71,62 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
 
     protected final ClusterName clusterName = ClusterName.parse(System.getProperty("tests.rest.cluster_name"));
 
-    @Before
-    public void configureLeaderRemoteClusters() throws IOException {
-        String leaderRemoteClusterSeed = System.getProperty("tests.leader_remote_cluster_seed");
-        if (leaderRemoteClusterSeed != null) {
-            try  (RestClient client = buildFollowerClient()){
-                logger.info("Configuring leader remote cluster [{}]", leaderRemoteClusterSeed);
-                Request request = new Request("PUT", "/_cluster/settings");
-                request.setJsonEntity("{\"persistent\": {\"cluster.remote.leader.seeds\": \"" + leaderRemoteClusterSeed + "\"}}");
-                assertThat(client.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
-            }
-        } else {
-            logger.info("No leader remote cluster seen found.");
-        }
-    }
-
-    @Before
-    public void configureFollowerRemoteClusters() throws IOException {
-        String followerRemoteClusterSeed = System.getProperty("tests.follower_remote_cluster_seed");
-        if (followerRemoteClusterSeed != null) {
-            try  (RestClient client = buildLeaderClient()){
-                logger.info("Configuring follower remote cluster [{}]", followerRemoteClusterSeed);
-                Request request = new Request("PUT", "/_cluster/settings");
-                request.setJsonEntity("{\"persistent\": {\"cluster.remote.follower.seeds\": \"" + followerRemoteClusterSeed + "\"}}");
-                assertThat(client.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
-            }
-        } else {
-            logger.info("No follower remote cluster seen found.");
-        }
-    }
-
     private static RestClient leaderClient;
     private static RestClient followerClient;
 
     @Before
-    public void initClients() throws IOException {
-        if (leaderClient == null) {
-            leaderClient = clusterName == ClusterName.LEADER ? client() : buildLeaderClient();
+    public void initClientsAndConfigureClusters() throws IOException {
+        String leaderHost = System.getProperty("tests.leader_host");
+        if (leaderHost == null) {
+            throw new AssertionError("leader host is missing");
         }
-        if (followerClient == null) {
-            followerClient = clusterName == ClusterName.FOLLOWER ? client() : buildFollowerClient();
+
+        String followerHost = System.getProperty("tests.follower_host");
+        if (clusterName == ClusterName.LEADER) {
+            leaderClient = buildClient(leaderHost);
+            if (followerHost != null) {
+                followerClient = buildClient(followerHost);
+            }
+        } else if (clusterName == ClusterName.FOLLOWER) {
+            if (followerHost == null) {
+                throw new AssertionError("follower host is missing");
+            }
+
+            leaderClient = buildClient(leaderHost);
+            followerClient = buildClient(followerHost);
+        } else {
+            throw new AssertionError("unknown cluster name: " + clusterName);
+        }
+
+        configureLeaderRemoteClusters();
+        configureFollowerRemoteClusters();
+    }
+
+    private void configureLeaderRemoteClusters() throws IOException {
+        String leaderRemoteClusterSeed = System.getProperty("tests.leader_remote_cluster_seed");
+        if (leaderRemoteClusterSeed != null) {
+            logger.info("Configuring leader remote cluster [{}]", leaderRemoteClusterSeed);
+            Request request = new Request("PUT", "/_cluster/settings");
+            request.setJsonEntity("{\"persistent\": {\"cluster.remote.leader.seeds\": \"" + leaderRemoteClusterSeed + "\"}}");
+            assertThat(leaderClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
+            if (followerClient != null) {
+                assertThat(followerClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
+            }
+        } else {
+            logger.info("No leader remote cluster seed found.");
+        }
+    }
+
+    private void configureFollowerRemoteClusters() throws IOException {
+        String followerRemoteClusterSeed = System.getProperty("tests.follower_remote_cluster_seed");
+        if (followerRemoteClusterSeed != null) {
+            logger.info("Configuring follower remote cluster [{}]", followerRemoteClusterSeed);
+            Request request = new Request("PUT", "/_cluster/settings");
+            request.setJsonEntity("{\"persistent\": {\"cluster.remote.follower.seeds\": \"" + followerRemoteClusterSeed + "\"}}");
+            assertThat(leaderClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
+            assertThat(followerClient.performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
+        } else {
+            logger.info("No follower remote cluster seed found.");
         }
     }
 
@@ -130,24 +146,6 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
 
     protected static RestClient followerClient() {
         return followerClient;
-    }
-
-    private RestClient buildLeaderClient() throws IOException {
-        String leaderHost = System.getProperty("tests.leader_host");
-        if (leaderHost != null) {
-            return buildClient(leaderHost);
-        } else {
-            return null;
-        }
-    }
-
-    private RestClient buildFollowerClient() throws IOException {
-        String followerHost = System.getProperty("tests.follower_host");
-        if (followerHost != null) {
-            return buildClient(followerHost);
-        } else {
-            return null;
-        }
     }
 
     private RestClient buildClient(final String url) throws IOException {

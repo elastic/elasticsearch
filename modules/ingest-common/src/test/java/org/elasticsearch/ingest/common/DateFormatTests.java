@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 
@@ -41,6 +42,14 @@ public class DateFormatTests extends ESTestCase {
                         .atZone(ZoneId.of("GMT-8"))
                         .format(DateTimeFormatter.ofPattern("MM dd HH:mm:ss", Locale.ENGLISH)),
                 equalTo("11 24 01:29:01"));
+    }
+
+    public void testParseJavaWithTimeZone() {
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSZZ",
+            ZoneOffset.UTC, Locale.ROOT);
+        ZonedDateTime datetime = javaFunction.apply("2018-02-05T13:44:56.657+0100");
+        String expectedDateTime = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").withZone(ZoneOffset.UTC).format(datetime);
+        assertThat(expectedDateTime, is("2018-02-05T12:44:56.657Z"));
     }
 
     public void testParseJavaDefaultYear() {
@@ -70,10 +79,10 @@ public class DateFormatTests extends ESTestCase {
     public void testParseISO8601() {
         assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800").toInstant().toEpochMilli(),
                 equalTo(978336000000L));
-        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00.000-0800")
-                .toInstant().toEpochMilli(), equalTo(978336000000L));
-        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00,000-0800")
-                .toInstant().toEpochMilli(), equalTo(978336000000L));
+        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800").toString(),
+                equalTo("2001-01-01T08:00Z"));
+        assertThat(DateFormat.Iso8601.getFunction(null, ZoneOffset.UTC, null).apply("2001-01-01T00:00:00-0800").toString(),
+                equalTo("2001-01-01T08:00Z"));
     }
 
     public void testParseISO8601Failure() {

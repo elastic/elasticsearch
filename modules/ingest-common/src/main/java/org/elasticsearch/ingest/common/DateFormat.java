@@ -87,10 +87,16 @@ enum DateFormat {
                 format = format.substring(1);
             }
 
+            boolean isUtc = ZoneOffset.UTC.equals(zoneId);
+
             int year = LocalDate.now(ZoneOffset.UTC).getYear();
-            DateFormatter formatter = DateFormatter.forPattern(format)
-                .withLocale(locale)
-                .withZone(zoneId);
+            DateFormatter dateFormatter = DateFormatter.forPattern(format)
+                .withLocale(locale);
+            // if UTC zone is set here, the the time zone specified in the format will be ignored, leading to wrong dates
+            if (isUtc == false) {
+                dateFormatter = dateFormatter.withZone(zoneId);
+            }
+            final DateFormatter formatter = dateFormatter;
             return text -> {
                 TemporalAccessor accessor = formatter.parse(text);
                 // if there is no year, we fall back to the current one and
@@ -106,7 +112,11 @@ enum DateFormat {
                     accessor = newTime.withZoneSameLocal(zoneId);
                 }
 
-                return DateFormatters.from(accessor);
+                if (isUtc) {
+                    return DateFormatters.from(accessor).withZoneSameInstant(ZoneOffset.UTC);
+                } else {
+                    return DateFormatters.from(accessor);
+                }
             };
         }
     };

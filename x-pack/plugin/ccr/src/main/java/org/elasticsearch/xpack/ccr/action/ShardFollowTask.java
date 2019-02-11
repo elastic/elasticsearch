@@ -28,6 +28,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_READ_REQUEST_OPERATION_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_READ_REQUEST_SIZE;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_OUTSTANDING_READ_REQUESTS;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_WRITE_REQUEST_OPERATION_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_WRITE_REQUEST_SIZE;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_OUTSTANDING_WRITE_REQUESTS;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_WRITE_BUFFER_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_WRITE_BUFFER_SIZE;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_RETRY_DELAY;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.READ_POLL_TIMEOUT;
+
 public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
 
     public static final String NAME = "xpack/ccr/shard_follow_task";
@@ -36,24 +47,14 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     public static final Set<String> HEADER_FILTERS =
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication")));
 
-    static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
-    static final ParseField FOLLOW_SHARD_INDEX_FIELD = new ParseField("follow_shard_index");
-    static final ParseField FOLLOW_SHARD_INDEX_UUID_FIELD = new ParseField("follow_shard_index_uuid");
-    static final ParseField FOLLOW_SHARD_SHARDID_FIELD = new ParseField("follow_shard_shard");
-    static final ParseField LEADER_SHARD_INDEX_FIELD = new ParseField("leader_shard_index");
-    static final ParseField LEADER_SHARD_INDEX_UUID_FIELD = new ParseField("leader_shard_index_uuid");
-    static final ParseField LEADER_SHARD_SHARDID_FIELD = new ParseField("leader_shard_shard");
-    static final ParseField HEADERS = new ParseField("headers");
-    public static final ParseField MAX_READ_REQUEST_OPERATION_COUNT = new ParseField("max_read_request_operation_count");
-    public static final ParseField MAX_READ_REQUEST_SIZE = new ParseField("max_read_request_size");
-    public static final ParseField MAX_OUTSTANDING_READ_REQUESTS = new ParseField("max_outstanding_read_requests");
-    public static final ParseField MAX_WRITE_REQUEST_OPERATION_COUNT = new ParseField("max_write_request_operation_count");
-    public static final ParseField MAX_WRITE_REQUEST_SIZE = new ParseField("max_write_request_size");
-    public static final ParseField MAX_OUTSTANDING_WRITE_REQUESTS = new ParseField("max_outstanding_write_requests");
-    public static final ParseField MAX_WRITE_BUFFER_COUNT = new ParseField("max_write_buffer_count");
-    public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
-    public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
-    public static final ParseField READ_POLL_TIMEOUT = new ParseField("read_poll_timeout");
+    private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
+    private static final ParseField FOLLOW_SHARD_INDEX_FIELD = new ParseField("follow_shard_index");
+    private static final ParseField FOLLOW_SHARD_INDEX_UUID_FIELD = new ParseField("follow_shard_index_uuid");
+    private static final ParseField FOLLOW_SHARD_SHARDID_FIELD = new ParseField("follow_shard_shard");
+    private static final ParseField LEADER_SHARD_INDEX_FIELD = new ParseField("leader_shard_index");
+    private static final ParseField LEADER_SHARD_INDEX_UUID_FIELD = new ParseField("leader_shard_index_uuid");
+    private static final ParseField LEADER_SHARD_SHARDID_FIELD = new ParseField("leader_shard_shard");
+    private static final ParseField HEADERS = new ParseField("headers");
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(NAME,

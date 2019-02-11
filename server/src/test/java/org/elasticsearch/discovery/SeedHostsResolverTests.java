@@ -39,10 +39,10 @@ import static org.hamcrest.core.IsNull.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class UnicastConfiguredHostsResolverTests extends ESTestCase {
+public class SeedHostsResolverTests extends ESTestCase {
 
     private List<TransportAddress> transportAddresses;
-    private UnicastConfiguredHostsResolver unicastConfiguredHostsResolver;
+    private SeedHostsResolver seedHostsResolver;
     private ThreadPool threadPool;
 
     @Before
@@ -53,14 +53,13 @@ public class UnicastConfiguredHostsResolverTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
 
-        unicastConfiguredHostsResolver
-            = new UnicastConfiguredHostsResolver("test_node", Settings.EMPTY, transportService, hostsResolver -> transportAddresses);
-        unicastConfiguredHostsResolver.start();
+        seedHostsResolver = new SeedHostsResolver("test_node", Settings.EMPTY, transportService, hostsResolver -> transportAddresses);
+        seedHostsResolver.start();
     }
 
     @After
     public void stopResolver() {
-        unicastConfiguredHostsResolver.stop();
+        seedHostsResolver.stop();
         threadPool.shutdown();
     }
 
@@ -74,7 +73,7 @@ public class UnicastConfiguredHostsResolverTests extends ESTestCase {
             transportAddresses.add(buildNewFakeTransportAddress());
         }
 
-        unicastConfiguredHostsResolver.resolveConfiguredHosts(resolvedAddresses -> {
+        seedHostsResolver.resolveConfiguredHosts(resolvedAddresses -> {
             try {
                 assertTrue(startLatch.await(30, TimeUnit.SECONDS));
             } catch (InterruptedException e) {
@@ -84,7 +83,7 @@ public class UnicastConfiguredHostsResolverTests extends ESTestCase {
             endLatch.countDown();
         });
 
-        unicastConfiguredHostsResolver.resolveConfiguredHosts(resolvedAddresses -> {
+        seedHostsResolver.resolveConfiguredHosts(resolvedAddresses -> {
             throw new AssertionError("unexpected concurrent resolution");
         });
 

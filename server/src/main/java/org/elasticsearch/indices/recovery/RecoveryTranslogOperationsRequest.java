@@ -108,7 +108,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
             // UNASSIGNED_SEQ_NO means uninitialized and replica won't enable optimization using seq_no
             maxSeqNoOfUpdatesOrDeletesOnPrimary = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
             retentionLeases = new RetentionLeases(in);
         } else {
             retentionLeases = RetentionLeases.EMPTY;
@@ -128,7 +128,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             retentionLeases.writeTo(out);
         }
     }

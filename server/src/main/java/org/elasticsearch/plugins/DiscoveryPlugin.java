@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
@@ -45,6 +45,7 @@ import java.util.function.Supplier;
  * }</pre>
  */
 public interface DiscoveryPlugin {
+
     /**
      * Override to add additional {@link NetworkService.CustomNameResolver}s.
      * This can be handy if you want to provide your own Network interface name like _mycard_
@@ -63,7 +64,7 @@ public interface DiscoveryPlugin {
     }
 
     /**
-     * Returns providers of unicast host lists for zen discovery.
+     * Returns providers of seed hosts for discovery.
      *
      * The key of the returned map is the name of the host provider
      * (see {@link org.elasticsearch.discovery.DiscoveryModule#DISCOVERY_SEED_PROVIDERS_SETTING}), and
@@ -73,8 +74,8 @@ public interface DiscoveryPlugin {
      *                         of a {@link org.elasticsearch.cluster.node.DiscoveryNode}
      * @param networkService Use to find the publish host address of the current node
      */
-    default Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
-                                                                             NetworkService networkService) {
+    default Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
+                                                                          NetworkService networkService) {
         return Collections.emptyMap();
     }
 

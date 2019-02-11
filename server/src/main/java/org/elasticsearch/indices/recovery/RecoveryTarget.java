@@ -20,14 +20,9 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -39,7 +34,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -55,15 +49,7 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.PriorityQueue;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -85,15 +71,13 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final long recoveryId;
     private final IndexShard indexShard;
     private final DiscoveryNode sourceNode;
-    private final String tempFilePrefix;
+    private final MultiFileWriter multiFileWriter;
     private final Store store;
     private final PeerRecoveryTargetService.RecoveryListener listener;
     private final LongConsumer ensureClusterStateVersionCallback;
 
     private final AtomicBoolean finished = new AtomicBoolean();
 
-    private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<String, FileChunkWriter> fileChunkWriters = ConcurrentCollections.newConcurrentMap();
     private final CancellableThreads cancellableThreads;
 
     // last time this status was accessed
@@ -101,8 +85,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
-
-    private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
     /**
      * Creates a new recovery target object that represents a recovery to the provided shard.
@@ -126,7 +108,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
-        this.tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
+        final String tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
+        this.multiFileWriter = new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger,
+            this::ensureRefCount);
         this.store = indexShard.store();
         this.ensureClusterStateVersionCallback = ensureClusterStateVersionCallback;
         // make sure the store is not released until we are done.
@@ -185,12 +169,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     public RecoveryState.Stage stage() {
         return state().getStage();
-    }
-
-    /** renames all temporary files to their true name, potentially overriding existing files */
-    public void renameAllTempFiles() throws IOException {
-        ensureRefCount();
-        store.renameTempFilesSafe(tempFileNames);
     }
 
     /**
@@ -274,7 +252,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /** mark the current recovery as done */
     public void markAsDone() {
         if (finished.compareAndSet(false, true)) {
-            assert tempFileNames.isEmpty() : "not all temporary files are renamed";
+            assert multiFileWriter.tempFileNames.isEmpty() : "not all temporary files are renamed";
             try {
                 // this might still throw an exception ie. if the shard is CLOSED due to some other event.
                 // it's safer to decrement the reference in a try finally here.
@@ -287,65 +265,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         }
     }
 
-    /** Get a temporary name for the provided file name. */
-    public String getTempNameForFile(String origFile) {
-        return tempFilePrefix + origFile;
-    }
-
-    public IndexOutput getOpenIndexOutput(String key) {
-        ensureRefCount();
-        return openIndexOutputs.get(key);
-    }
-
-    /** remove and {@link org.apache.lucene.store.IndexOutput} for a given file. It is the caller's responsibility to close it */
-    public IndexOutput removeOpenIndexOutputs(String name) {
-        ensureRefCount();
-        return openIndexOutputs.remove(name);
-    }
-
-    /**
-     * Creates an {@link org.apache.lucene.store.IndexOutput} for the given file name. Note that the
-     * IndexOutput actually point at a temporary file.
-     * <p>
-     * Note: You can use {@link #getOpenIndexOutput(String)} with the same filename to retrieve the same IndexOutput
-     * at a later stage
-     */
-    public IndexOutput openAndPutIndexOutput(String fileName, StoreFileMetaData metaData, Store store) throws IOException {
-        ensureRefCount();
-        String tempFileName = getTempNameForFile(fileName);
-        if (tempFileNames.containsKey(tempFileName)) {
-            throw new IllegalStateException("output for file [" + fileName + "] has already been created");
-        }
-        // add first, before it's created
-        tempFileNames.put(tempFileName, fileName);
-        IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, metaData, IOContext.DEFAULT);
-        openIndexOutputs.put(fileName, indexOutput);
-        return indexOutput;
-    }
-
     @Override
     protected void closeInternal() {
         try {
-            // clean open index outputs
-            Iterator<Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Map.Entry<String, IndexOutput> entry = iterator.next();
-                logger.trace("closing IndexOutput file [{}]", entry.getValue());
-                try {
-                    entry.getValue().close();
-                } catch (Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
-                }
-                iterator.remove();
-            }
-            // trash temporary files
-            for (String file : tempFileNames.keySet()) {
-                logger.trace("cleaning temporary file [{}]", file);
-                store.deleteQuiet(file);
-            }
+            multiFileWriter.close();
         } finally {
             // free store. increment happens in constructor
-            fileChunkWriters.clear();
             store.decRef();
             indexShard.recoveryStats().decCurrentAsTarget();
             closedLatch.countDown();
@@ -470,7 +395,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // first, we go and move files that were created with the recovery id suffix to
         // the actual names, its ok if we have a corrupted index here, since we have replicas
         // to recover from in case of a full cluster shutdown just when this code executes...
-        renameAllTempFiles();
+        multiFileWriter.renameAllTempFiles();
         final Store store = store();
         store.incRef();
         try {
@@ -511,96 +436,21 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         }
     }
 
-    private void innerWriteFileChunk(StoreFileMetaData fileMetaData, long position,
-                                     BytesReference content, boolean lastChunk) throws IOException {
-        final Store store = store();
-        final String name = fileMetaData.name();
-        final RecoveryState.Index indexState = state().getIndex();
-        IndexOutput indexOutput;
-        if (position == 0) {
-            indexOutput = openAndPutIndexOutput(name, fileMetaData, store);
-        } else {
-            indexOutput = getOpenIndexOutput(name);
-        }
-        assert indexOutput.getFilePointer() == position : "file-pointer " + indexOutput.getFilePointer() + " != " + position;
-        BytesRefIterator iterator = content.iterator();
-        BytesRef scratch;
-        while((scratch = iterator.next()) != null) { // we iterate over all pages - this is a 0-copy for all core impls
-            indexOutput.writeBytes(scratch.bytes, scratch.offset, scratch.length);
-        }
-        indexState.addRecoveredBytesToFile(name, content.length());
-        if (indexOutput.getFilePointer() >= fileMetaData.length() || lastChunk) {
-            try {
-                Store.verify(indexOutput);
-            } finally {
-                // we are done
-                indexOutput.close();
-            }
-            final String temporaryFileName = getTempNameForFile(name);
-            assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName) :
-                "expected: [" + temporaryFileName + "] in " + Arrays.toString(store.directory().listAll());
-            store.directory().sync(Collections.singleton(temporaryFileName));
-            IndexOutput remove = removeOpenIndexOutputs(name);
-            assert remove == null || remove == indexOutput; // remove maybe null if we got finished
-        }
-    }
-
     @Override
     public void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                                boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
         try {
             state().getTranslog().totalOperations(totalTranslogOps);
-            final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetaData.name(), name -> new FileChunkWriter());
-            writer.writeChunk(new FileChunk(fileMetaData, content, position, lastChunk));
+            multiFileWriter.writeFileChunk(fileMetaData, position, content, lastChunk);
             listener.onResponse(null);
         } catch (Exception e) {
             listener.onFailure(e);
         }
     }
 
-    private static final class FileChunk {
-        final StoreFileMetaData md;
-        final BytesReference content;
-        final long position;
-        final boolean lastChunk;
-        FileChunk(StoreFileMetaData md, BytesReference content, long position, boolean lastChunk) {
-            this.md = md;
-            this.content = content;
-            this.position = position;
-            this.lastChunk = lastChunk;
-        }
-    }
-
-    private final class FileChunkWriter {
-        // chunks can be delivered out of order, we need to buffer chunks if there's a gap between them.
-        final PriorityQueue<FileChunk> pendingChunks = new PriorityQueue<>(Comparator.comparing(fc -> fc.position));
-        long lastPosition = 0;
-
-        void writeChunk(FileChunk newChunk) throws IOException {
-            synchronized (this) {
-                pendingChunks.add(newChunk);
-            }
-            while (true) {
-                final FileChunk chunk;
-                synchronized (this) {
-                    chunk = pendingChunks.peek();
-                    if (chunk == null || chunk.position != lastPosition) {
-                        return;
-                    }
-                    pendingChunks.remove();
-                }
-                innerWriteFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
-                synchronized (this) {
-                    assert lastPosition == chunk.position : "last_position " + lastPosition + " != chunk_position " + chunk.position;
-                    lastPosition += chunk.content.length();
-                    if (chunk.lastChunk) {
-                        assert pendingChunks.isEmpty() == true : "still have pending chunks [" + pendingChunks + "]";
-                        fileChunkWriters.remove(chunk.md.name());
-                        assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
-                    }
-                }
-            }
-        }
+    /** Get a temporary name for the provided file name. */
+    public String getTempNameForFile(String origFile) {
+        return multiFileWriter.getTempNameForFile(origFile);
     }
 
     Path translogLocation() {

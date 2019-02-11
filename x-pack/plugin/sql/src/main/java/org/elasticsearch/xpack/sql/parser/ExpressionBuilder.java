@@ -111,15 +111,12 @@ import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
-import org.joda.time.DateTime;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.DateTimeFormatterBuilder;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.time.Duration;
+import java.time.LocalTime;
 import java.time.Period;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAmount;
 import java.util.EnumSet;
 import java.util.List;
@@ -127,9 +124,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
+import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
+import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
+import static org.elasticsearch.xpack.sql.util.DateUtils.ofEscapedLiteral;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
 
@@ -791,13 +791,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         String string = string(ctx.string());
         Source source = source(ctx);
         // parse yyyy-MM-dd
-        DateTime dt = null;
         try {
-            dt = ISODateTimeFormat.date().parseDateTime(string);
-        } catch(IllegalArgumentException ex) {
+            return new Literal(source, asDateOnly(string), DataType.DATE);
+        } catch(DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid date received; {}", ex.getMessage());
         }
-        return new Literal(source, DateUtils.asDateOnly(dt), DataType.DATE);
     }
 
     @Override
@@ -806,10 +804,10 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
 
         // parse HH:mm:ss
-        DateTime dt = null;
+        LocalTime lt = null;
         try {
-            dt = ISODateTimeFormat.hourMinuteSecond().parseDateTime(string);
-        } catch (IllegalArgumentException ex) {
+            lt = LocalTime.parse(string, ISO_LOCAL_TIME);
+        } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid time received; {}", ex.getMessage());
         }
 
@@ -822,18 +820,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         Source source = source(ctx);
         // parse yyyy-mm-dd hh:mm:ss(.f...)
-        DateTime dt = null;
         try {
-            DateTimeFormatter formatter = new DateTimeFormatterBuilder()
-                    .append(ISODateTimeFormat.date())
-                    .appendLiteral(" ")
-                    .append(ISODateTimeFormat.hourMinuteSecondFraction())
-                    .toFormatter();
-            dt = formatter.parseDateTime(string);
-        } catch (IllegalArgumentException ex) {
+            return new Literal(source, ofEscapedLiteral(string), DataType.DATETIME);
+        } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid timestamp received; {}", ex.getMessage());
         }
-        return new Literal(source, DateUtils.asDateTime(dt), DataType.DATETIME);
     }
 
     @Override

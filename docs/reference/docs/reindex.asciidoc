@@ -525,9 +525,9 @@ POST _reindex
 ==== Configuring SSL parameters
 
 Reindex from remote supports configurable SSL settings. These must be
-specified in the `elasticsearch.yml` file (or, for "secure settings",
-in the elasticsearch keystore). It is not possible to configure
-SSL in the body of the `_reindex` request.
+specified in the `elasticsearch.yml` file, with the exception of the
+secure settings, which you add in the Elasticsearch keystore.
+It is not possible to configure SSL in the body of the `_reindex` request.
 
 The following settings are supported:
 
@@ -565,7 +565,7 @@ Defaults to `full`.
 
 `reindex.ssl.certificate`::
 Specifies the path to the PEM encoded certificate (or certificate chain) to be
-used for http client authentication (if required by the remote cluster)
+used for HTTP client authentication (if required by the remote cluster)
 This setting requires that `reindex.ssl.key` also be set.
 You cannot specify both `reindex.ssl.certificate` and `reindex.ssl.keystore.path`.
 
@@ -586,7 +586,7 @@ Cannot be used with `reindex.ssl.key_passphrase`.
 
 `reindex.ssl.keystore.path`::
 Specifies the path to the keystore that contains a private key and certificate
-to be used for http client authentication (if required by the remote cluster).
+to be used for HTTP client authentication (if required by the remote cluster).
 This keystore can be in "JKS" or "PKCS#12" format.
 You cannot specify both `reindex.ssl.key` and `reindex.ssl.keystore.path`.
 

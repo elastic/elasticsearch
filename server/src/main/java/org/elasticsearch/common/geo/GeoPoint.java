@@ -25,7 +25,10 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -225,5 +228,18 @@ public final class GeoPoint implements ToXContentFragment {
 
     public double distanceFrom(GeoPoint other, DistanceUnit units) {
         return DistanceUnit.convert(GeoUtils.arcDistance(lat, lon, other.lat, other.lon), DistanceUnit.METERS, units);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.latlon(lat, lon);
+    }
+
+    public static double assertZValue(final boolean ignoreZValue, double zValue) {
+        if (ignoreZValue == false) {
+            throw new ElasticsearchParseException("Exception parsing coordinates: found Z value [{}] but [{}] "
+                + "parameter is [{}]", zValue, IGNORE_Z_VALUE, ignoreZValue);
+        }
+        return zValue;
     }
 }

@@ -355,13 +355,18 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
-                    return geoPointValues.advanceExact(docId);
-                }
-
-                @Override
-                public double nextValue() throws IOException {
-                    GeoPoint other = geoPointValues.nextValue();
-                    return Math.max(0.0d, origin.distanceFrom(other));
+                    if (geoPointValues.advanceExact(docId)) {
+                        int n = geoPointValues.docValueCount();
+                        resize(n);
+                        for (int i = 0; i < n; i++) {
+                           values[i] = Math.max(0.0d, 
+                               origin.distanceFrom(geoPointValues.nextValue(), DistanceUnit.METERS) - offset);
+                        }
+                        sort();
+                        return true;
+                    } else {
+                        return false;
+                    }
                 }
             }), 0);
         }

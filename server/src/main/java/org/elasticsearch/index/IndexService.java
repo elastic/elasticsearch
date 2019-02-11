@@ -838,6 +838,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             rescheduleIfNecessary();
         }
 
+        @Override
         protected boolean mustReschedule() {
             // don't re-schedule if the IndexService instance is closed or if the index is closed
             return indexService.closed.get() == false

@@ -240,34 +240,15 @@ public class AnalysisModuleTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/38635")
     public void testStandardFilterBWC() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT.minimumCompatibilityVersion());
-        // bwc deprecation
-        {
-            Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
+        final Settings settings = Settings.builder().put("index.analysis.analyzer.my_standard.tokenizer", "standard")
                 .put("index.analysis.analyzer.my_standard.filter", "standard")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).put(IndexMetaData.SETTING_VERSION_CREATED, version)
                 .build();
-            IndexAnalyzers analyzers = getIndexAnalyzers(settings);
-            assertTokenStreamContents(analyzers.get("my_standard").tokenStream("", "test"), new String[]{"test"});
-            assertWarnings("The [standard] token filter is deprecated and will be removed in a future version.");
-        }
-        // removal
-        {
-            final Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
-                .put("index.analysis.analyzer.my_standard.filter", "standard")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_7_0_0)
-                .build();
-            IndexAnalyzers analyzers = getIndexAnalyzers(settings);
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () ->
-                analyzers.get("my_standard").tokenStream("", ""));
-            assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
-        }
+        IndexAnalyzers analyzers = getIndexAnalyzers(settings);
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> analyzers.get("my_standard").tokenStream("", ""));
+        assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
     }
 
     /**

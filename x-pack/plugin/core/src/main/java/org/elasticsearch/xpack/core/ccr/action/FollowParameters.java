@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -25,18 +24,18 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class FollowParameters implements Writeable, ToXContentObject {
 
-    static final TimeValue RETRY_DELAY_MAX = TimeValue.timeValueMinutes(5);
+    private static final TimeValue RETRY_DELAY_MAX = TimeValue.timeValueMinutes(5);
 
-    static final ParseField MAX_READ_REQUEST_OPERATION_COUNT = new ParseField("max_read_request_operation_count");
-    static final ParseField MAX_WRITE_REQUEST_OPERATION_COUNT = new ParseField("max_write_request_operation_count");
-    static final ParseField MAX_OUTSTANDING_READ_REQUESTS = new ParseField("max_outstanding_read_requests");
-    static final ParseField MAX_OUTSTANDING_WRITE_REQUESTS = new ParseField("max_outstanding_write_requests");
-    static final ParseField MAX_READ_REQUEST_SIZE = new ParseField("max_read_request_size");
-    static final ParseField MAX_WRITE_REQUEST_SIZE = new ParseField("max_write_request_size");
-    static final ParseField MAX_WRITE_BUFFER_COUNT = new ParseField("max_write_buffer_count");
-    static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
-    static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
-    static final ParseField READ_POLL_TIMEOUT = new ParseField("read_poll_timeout");
+    public static final ParseField MAX_READ_REQUEST_OPERATION_COUNT = new ParseField("max_read_request_operation_count");
+    public static final ParseField MAX_WRITE_REQUEST_OPERATION_COUNT = new ParseField("max_write_request_operation_count");
+    public static final ParseField MAX_OUTSTANDING_READ_REQUESTS = new ParseField("max_outstanding_read_requests");
+    public static final ParseField MAX_OUTSTANDING_WRITE_REQUESTS = new ParseField("max_outstanding_write_requests");
+    public static final ParseField MAX_READ_REQUEST_SIZE = new ParseField("max_read_request_size");
+    public static final ParseField MAX_WRITE_REQUEST_SIZE = new ParseField("max_write_request_size");
+    public static final ParseField MAX_WRITE_BUFFER_COUNT = new ParseField("max_write_buffer_count");
+    public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
+    public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
+    public static final ParseField READ_POLL_TIMEOUT = new ParseField("read_poll_timeout");
 
     Integer maxReadRequestOperationCount;
     Integer maxWriteRequestOperationCount;
@@ -267,12 +266,12 @@ public class FollowParameters implements Writeable, ToXContentObject {
         parser.declareField(
             FollowParameters::setMaxReadRequestSize,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
-            AutoFollowMetadata.AutoFollowPattern.MAX_READ_REQUEST_SIZE,
+            MAX_READ_REQUEST_SIZE,
             ObjectParser.ValueType.STRING);
         parser.declareField(
             FollowParameters::setMaxWriteRequestSize,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
-            AutoFollowMetadata.AutoFollowPattern.MAX_WRITE_REQUEST_SIZE,
+            MAX_WRITE_REQUEST_SIZE,
             ObjectParser.ValueType.STRING);
         parser.declareInt(FollowParameters::setMaxWriteBufferCount, MAX_WRITE_BUFFER_COUNT);
         parser.declareField(

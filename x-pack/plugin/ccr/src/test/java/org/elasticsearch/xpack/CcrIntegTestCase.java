@@ -102,7 +102,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.empty;
@@ -487,9 +487,14 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             }
             IndexShard indexShard = cluster.getInstance(IndicesService.class, state.nodes().get(shardRouting.currentNodeId()).getName())
                 .indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
-            docs.put(shardRouting.shardId().id(), IndexShardTestCase.getDocIdAndSeqNos(indexShard).stream()
-                .map(d -> new DocIdSeqNoAndTerm(d.getId(), d.getSeqNo(), 1L))  // normalize primary term as the follower use its own term
-                .collect(Collectors.toList()));
+            try {
+                docs.put(shardRouting.shardId().id(), IndexShardTestCase.getDocIdAndSeqNos(indexShard).stream()
+                    // normalize primary term as the follower use its own term
+                    .map(d -> new DocIdSeqNoAndTerm(d.getId(), d.getSeqNo(), 1L))
+                    .collect(Collectors.toList()));
+            } catch (AlreadyClosedException e) {
+                // Ignore this exception and try getting List<DocIdSeqNoAndTerm> from other IndexShard instance.
+            }
         }
         return docs;
     }

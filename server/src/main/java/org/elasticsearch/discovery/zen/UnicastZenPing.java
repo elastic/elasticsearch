@@ -45,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -121,7 +122,7 @@ public class UnicastZenPing implements ZenPing {
     // a list of temporal responses a node will return for a request (holds responses from other nodes)
     private final Queue<PingResponse> temporalResponses = ConcurrentCollections.newQueue();
 
-    private final UnicastHostsProvider hostsProvider;
+    private final SeedHostsProvider hostsProvider;
 
     protected final EsThreadPoolExecutor unicastZenPingExecutorService;
 
@@ -132,11 +133,11 @@ public class UnicastZenPing implements ZenPing {
     private volatile boolean closed = false;
 
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
-                          UnicastHostsProvider unicastHostsProvider, PingContextProvider contextProvider) {
+                          SeedHostsProvider seedHostsProvider, PingContextProvider contextProvider) {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        this.hostsProvider = unicastHostsProvider;
+        this.hostsProvider = seedHostsProvider;
         this.contextProvider = contextProvider;
 
         final int concurrentConnects = getMaxConcurrentResolvers(settings);
@@ -238,7 +239,7 @@ public class UnicastZenPing implements ZenPing {
         return Collections.unmodifiableList(transportAddresses);
     }
 
-    private UnicastHostsProvider.HostsResolver createHostsResolver() {
+    private SeedHostsProvider.HostsResolver createHostsResolver() {
         return (hosts, limitPortCounts) -> resolveHostsLists(unicastZenPingExecutorService, logger, hosts,
             limitPortCounts, transportService, resolveTimeout);
     }
@@ -284,7 +285,7 @@ public class UnicastZenPing implements ZenPing {
                         final TimeValue scheduleDuration,
                         final TimeValue requestDuration) {
         final List<TransportAddress> seedAddresses = new ArrayList<>();
-        seedAddresses.addAll(hostsProvider.buildDynamicHosts(createHostsResolver()));
+        seedAddresses.addAll(hostsProvider.getSeedAddresses(createHostsResolver()));
         final DiscoveryNodes nodes = contextProvider.clusterState().nodes();
         // add all possible master nodes that were active in the last known cluster configuration
         for (ObjectCursor<DiscoveryNode> masterNode : nodes.getMasterNodes().values()) {

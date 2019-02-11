@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -2492,6 +2493,7 @@ public class InternalEngineTests extends EngineTestCase {
                 prevLocalCheckpoint = localCheckpoint;
                 prevMaxSeqNo = maxSeqNo;
             }
+            IOUtils.close(commits);
         }
     }
 
@@ -5295,6 +5297,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/pull/38285")
     public void testKeepMinRetainedSeqNoByMergePolicy() throws IOException {
         IOUtils.close(engine, store);
         Settings.Builder settings = Settings.builder()

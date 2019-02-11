@@ -331,7 +331,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             public TimeValue timeout() {
                 return request.masterNodeTimeout();
             }
-
         });
     }
 
@@ -394,6 +393,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             boolean snapshotCreated;
 
+            boolean hadAbortedInitializations;
+
             @Override
             protected void doRun() {
                 assert initializingSnapshots.contains(snapshot.snapshot());
@@ -433,6 +434,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                             if (entry.state() == State.ABORTED) {
                                 entries.add(entry);
+                                assert entry.shards().isEmpty();
+                                hadAbortedInitializations = true;
                             } else {
                                 // Replace the snapshot that was just initialized
                                 ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards =
@@ -491,6 +494,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // completion listener in this method. For the snapshot completion to work properly, the snapshot
                         // should still exist when listener is registered.
                         userCreateSnapshotListener.onResponse(snapshot.snapshot());
+
+                        if (hadAbortedInitializations) {
+                            final SnapshotsInProgress snapshotsInProgress = newState.custom(SnapshotsInProgress.TYPE);
+                            assert snapshotsInProgress != null;
+                            final SnapshotsInProgress.Entry entry = snapshotsInProgress.snapshot(snapshot.snapshot());
+                            assert entry != null;
+                            endSnapshot(entry);
+                        }
                     }
                 });
             }
@@ -687,8 +698,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (event.localNodeMaster()) {
                 // We don't remove old master when master flips anymore. So, we need to check for change in master
                 final SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
+                final boolean newMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false;
                 if (snapshotsInProgress != null) {
-                    if (removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes())) {
+                    if (newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes())) {
                         processSnapshotsOnRemovedNodes();
                     }
                     if (event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event)) {
@@ -700,11 +712,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // 3. Snapshots in any other state that have all their shard tasks completed
                     snapshotsInProgress.entries().stream().filter(
                         entry -> entry.state().completed()
-                            || entry.state() == State.INIT && initializingSnapshots.contains(entry.snapshot()) == false
-                            || entry.state() != State.INIT && completed(entry.shards().values())
+                            || initializingSnapshots.contains(entry.snapshot()) == false
+                               && (entry.state() == State.INIT || completed(entry.shards().values()))
                     ).forEach(this::endSnapshot);
                 }
-                if (event.previousState().nodes().isLocalNodeElectedMaster() == false) {
+                if (newMaster) {
                     finalizeSnapshotDeletionFromPreviousMaster(event);
                 }
             }

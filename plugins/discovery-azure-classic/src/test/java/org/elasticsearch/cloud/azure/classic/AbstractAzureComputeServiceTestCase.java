@@ -34,7 +34,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.azure.classic.AzureUnicastHostsProvider;
+import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider;
 import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -152,15 +152,15 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
         }
 
         /**
-         * Defines a {@link AzureUnicastHostsProvider} for testing purpose that is able to resolve
+         * Defines a {@link AzureSeedHostsProvider} for testing purpose that is able to resolve
          * network addresses for Azure instances running on the same host but different ports.
          */
         @Override
-        protected AzureUnicastHostsProvider createUnicastHostsProvider(final Settings settings,
-                                                                       final AzureComputeService azureComputeService,
-                                                                       final TransportService transportService,
-                                                                       final NetworkService networkService) {
-            return new AzureUnicastHostsProvider(settings, azureComputeService, transportService, networkService) {
+        protected AzureSeedHostsProvider createSeedHostsProvider(final Settings settings,
+                                                                 final AzureComputeService azureComputeService,
+                                                                 final TransportService transportService,
+                                                                 final NetworkService networkService) {
+            return new AzureSeedHostsProvider(settings, azureComputeService, transportService, networkService) {
                 @Override
                 protected String resolveInstanceAddress(final HostType hostType, final RoleInstance instance) {
                     if (hostType == HostType.PRIVATE_IP) {

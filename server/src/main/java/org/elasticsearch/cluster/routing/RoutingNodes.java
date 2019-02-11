@@ -577,7 +577,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             if (failedShard.relocatingNodeId() == null) {
                 if (failedShard.primary()) {
                     // promote active replica to primary if active replica exists (only the case for shadow replicas)
-                    tryPromoteActiveReplica(failedShard, unassignedInfo, routingChangesObserver);
+                    unassignPrimaryAndPromoteActiveReplicaIfExists(failedShard, unassignedInfo, routingChangesObserver);
                 } else {
                     // initializing shard that is not relocation target, just move to unassigned
                     moveToUnassigned(failedShard, unassignedInfo);
@@ -599,7 +599,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             assert failedShard.active();
             if (failedShard.primary()) {
                 // promote active replica to primary if active replica exists
-                tryPromoteActiveReplica(failedShard, unassignedInfo, routingChangesObserver);
+                unassignPrimaryAndPromoteActiveReplicaIfExists(failedShard, unassignedInfo, routingChangesObserver);
             } else {
                 if (failedShard.relocating()) {
                     remove(failedShard);
@@ -613,8 +613,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             " was matched but wasn't removed";
     }
 
-    private void tryPromoteActiveReplica(ShardRouting failedShard, UnassignedInfo unassignedInfo,
-            RoutingChangesObserver routingChangesObserver) {
+    private void unassignPrimaryAndPromoteActiveReplicaIfExists(ShardRouting failedShard, UnassignedInfo unassignedInfo,
+                                                                RoutingChangesObserver routingChangesObserver) {
+        assert failedShard.primary();
         ShardRouting activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
         if (activeReplica == null) {
             moveToUnassigned(failedShard, unassignedInfo);

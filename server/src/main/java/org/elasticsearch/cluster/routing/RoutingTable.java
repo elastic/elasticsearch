@@ -67,6 +67,14 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         this.indicesRouting = indicesRouting;
     }
 
+    /**
+     * Get's the {@link IndexShardRoutingTable} for the given shard id from the given {@link IndexRoutingTable}
+     * or throws a {@link ShardNotFoundException} if no shard by the given id is found in the IndexRoutingTable.
+     *
+     * @param indexRouting IndexRoutingTable
+     * @param shardId ShardId
+     * @return IndexShardRoutingTable
+     */
     public static IndexShardRoutingTable shardRoutingTable(IndexRoutingTable indexRouting, int shardId) {
         IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
         if (indexShard == null) {
@@ -209,10 +217,20 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return shards;
     }
 
+    /**
+     * Return GroupShardsIterator where each active shard routing has it's own shard iterator.
+     *
+     * @param includeEmpty             if true, a shard iterator will be added for non-assigned shards as well
+     */
     public GroupShardsIterator<ShardIterator> allActiveShardsGrouped(String[] indices, boolean includeEmpty) {
         return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, ACTIVE_PREDICATE);
     }
 
+    /**
+     * Return GroupShardsIterator where each assigned shard routing has it's own shard iterator.
+     *
+     * @param includeEmpty if true, a shard iterator will be added for non-assigned shards as well
+     */
     public GroupShardsIterator<ShardIterator> allAssignedShardsGrouped(String[] indices, boolean includeEmpty) {
         return allSatisfyingPredicateShardsGrouped(indices, includeEmpty, ASSIGNED_PREDICATE);
     }
@@ -221,7 +239,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     private static Predicate<ShardRouting> ASSIGNED_PREDICATE = ShardRouting::assignedToNode;
 
     private GroupShardsIterator<ShardIterator> allSatisfyingPredicateShardsGrouped(String[] indices, boolean includeEmpty,
-        Predicate<ShardRouting> predicate) {
+                                                                                   Predicate<ShardRouting> predicate) {
         // use list here since we need to maintain identity across shards
         ArrayList<ShardIterator> set = new ArrayList<>();
         for (String index : indices) {

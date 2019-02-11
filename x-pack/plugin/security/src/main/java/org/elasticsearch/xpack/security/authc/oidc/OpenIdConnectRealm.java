@@ -186,7 +186,6 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
         final Map<String, Object> tokenMetadata = new HashMap<>();
         tokenMetadata.put("id_token_hint", claims.getClaim("id_token_hint"));
-        tokenMetadata.put("oidc_realm", this.name());
         ActionListener<AuthenticationResult> wrappedAuthResultListener = ActionListener.wrap(auth -> {
             if (auth.isAuthenticated()) {
                 // Add the ID Token as metadata on the authentication, so that it can be used for logout requests

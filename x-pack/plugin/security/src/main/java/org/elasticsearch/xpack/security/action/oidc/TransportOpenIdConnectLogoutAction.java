@@ -60,6 +60,7 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
                     tuple -> {
                         final Authentication authentication = tuple.v1();
                         final Map<String, Object> tokenMetadata = tuple.v2();
+                        validateAuthenticationAndMetadata(authentication, tokenMetadata);
                         tokenService.invalidateAccessToken(token, ActionListener.wrap(
                             result -> {
                                 if (logger.isTraceEnabled()) {
@@ -81,7 +82,6 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
     }
 
     private OpenIdConnectLogoutResponse buildResponse(Authentication authentication, Map<String, Object> tokenMetadata) {
-        validateAuthenticationAndMetadata(authentication, tokenMetadata);
         final String idTokenHint = (String) getFromMetadata(tokenMetadata, "id_token_hint");
         final Realm realm = this.realms.realm(authentication.getAuthenticatedBy().getName());
         final JWT idToken;
@@ -117,10 +117,6 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
         if (realm instanceof OpenIdConnectRealm == false) {
             throw new ElasticsearchSecurityException("Authenticating realm {} is not an OpenID Connect realm",
                 realm);
-        }
-        final Object tokenRealm = getFromMetadata(tokenMetadata, "oidc_realm");
-        if (realm.name().equals(tokenRealm) == false) {
-            throw new ElasticsearchSecurityException("Authenticating realm [{}] does not match token realm [{}]", realm, tokenRealm);
         }
     }
 

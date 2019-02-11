@@ -224,14 +224,19 @@ public class OpenIdConnectAuthenticator {
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace("Received and validated the Id Token for the user: [{}]", verifiedIdTokenClaims);
             }
+            // Add the Id Token string as a synthetic claim
+            final JSONObject verifiedIdTokenClaimsObject = verifiedIdTokenClaims.toJSONObject();
+            final JWTClaimsSet idTokenClaim = new JWTClaimsSet.Builder().claim("id_token_hint", idToken.serialize()).build();
+            verifiedIdTokenClaimsObject.merge(idTokenClaim.toJSONObject());
+            final JWTClaimsSet enrichedVerifiedIdTokenClaims = JWTClaimsSet.parse(verifiedIdTokenClaimsObject);
             if (accessToken != null && opConfig.getUserinfoEndpoint() != null) {
-                getAndCombineUserInfoClaims(accessToken, verifiedIdTokenClaims, claimsListener);
+                getAndCombineUserInfoClaims(accessToken, enrichedVerifiedIdTokenClaims, claimsListener);
             } else if (accessToken == null && opConfig.getUserinfoEndpoint() != null) {
                 LOGGER.debug("UserInfo endpoint is configured but the OP didn't return an access token so we can't query it");
             } else if (accessToken != null && opConfig.getUserinfoEndpoint() == null) {
                 LOGGER.debug("OP returned an access token but the UserInfo endpoint is not configured.");
             }
-            claimsListener.onResponse(verifiedIdTokenClaims);
+            claimsListener.onResponse(enrichedVerifiedIdTokenClaims);
         } catch (BadJOSEException e) {
             // We only try to update the cached JWK set once if a remote source is used and
             // RSA or ECDSA is used for signatures
@@ -248,7 +253,7 @@ public class OpenIdConnectAuthenticator {
             } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
-        } catch (com.nimbusds.oauth2.sdk.ParseException | JOSEException e) {
+        } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
         }
     }

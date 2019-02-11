@@ -341,18 +341,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final DiscoveryNodes nodes = clusterState.nodes();
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(searchRequest.getLocalClusterAlias(),
             nodes::get, remoteConnections, searchTransportService::getConnection);
+        assert nodeCount > 0 || shardIterators.size() == 0;
+        setMaxConcurrentShardRequests(searchRequest, nodeCount);
+        boolean preFilterSearchShards = shouldPreFilterSearchShards(searchRequest, shardIterators);
+        searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),
+            Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, routingMap, listener, preFilterSearchShards, clusters).start();
+    }
+
+    static void setMaxConcurrentShardRequests(SearchRequest searchRequest, int nodeCount) {
         if (searchRequest.isMaxConcurrentShardRequestsSet() == false) {
             // we try to set a default of max concurrent shard requests based on
             // the node count but upper-bound it by 256 by default to keep it sane. A single
             // search request that fans out lots of shards should hit a cluster too hard while 256 is already a lot.
             // we multiply it by the default number of shards such that a single request in a cluster of 1 would hit all shards of a
             // default index.
-            searchRequest.setMaxConcurrentShardRequests(Math.min(256, nodeCount
+            searchRequest.setMaxConcurrentShardRequests(Math.min(256, Math.max(nodeCount, 1)
                 * IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY)));
         }
-        boolean preFilterSearchShards = shouldPreFilterSearchShards(searchRequest, shardIterators);
-        searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),
-            Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, routingMap, listener, preFilterSearchShards, clusters).start();
     }
 
     static BiFunction<String, String, Transport.Connection> buildConnectionLookup(String requestClusterAlias,

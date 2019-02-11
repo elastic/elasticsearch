@@ -266,6 +266,13 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * Check the consistency of the given global checkpoint with the engine before closing it
+     *
+     * @param globalCheckpoint the value of the global checkpoint
+     */
+    public abstract void checkGlobalCheckpointBeforeClose(long globalCheckpoint);
+
+    /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
      * is enabled

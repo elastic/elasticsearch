@@ -640,4 +640,23 @@ public class FollowingEngineTests extends ESTestCase {
             }
         }
     }
+
+    /**
+     * Test that {@link FollowingEngine#checkGlobalCheckpointBeforeClose(long)} never fails
+     * whatever the value of the global checkpoint to check is.
+     */
+    public void testCheckGlobalCheckpointBeforeCloseIsNoOp() throws IOException {
+        final long seqNo = randomIntBetween(0, Integer.MAX_VALUE);
+        runIndexTest(
+            seqNo,
+            Engine.Operation.Origin.PRIMARY,
+            (followingEngine, index) -> {
+                final long globalCheckpoint = randomNonNegativeLong();
+                try {
+                    followingEngine.checkGlobalCheckpointBeforeClose(globalCheckpoint);
+                } catch (final IllegalStateException e) {
+                    fail("Following engine failed when checking the global checkpoint value [" + globalCheckpoint + "] before close");
+                }
+            });
+    }
 }

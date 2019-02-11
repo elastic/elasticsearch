@@ -36,7 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -52,9 +52,9 @@ import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_DNS;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.PUBLIC_IP;
 import static org.elasticsearch.discovery.ec2.AwsEc2Service.HostType.TAG_PREFIX;
 
-class AwsEc2UnicastHostsProvider implements UnicastHostsProvider {
+class AwsEc2SeedHostsProvider implements SeedHostsProvider {
     
-    private static final Logger logger = LogManager.getLogger(AwsEc2UnicastHostsProvider.class);
+    private static final Logger logger = LogManager.getLogger(AwsEc2SeedHostsProvider.class);
 
     private final TransportService transportService;
 
@@ -72,7 +72,7 @@ class AwsEc2UnicastHostsProvider implements UnicastHostsProvider {
 
     private final TransportAddressesCache dynamicHosts;
 
-    AwsEc2UnicastHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
+    AwsEc2SeedHostsProvider(Settings settings, TransportService transportService, AwsEc2Service awsEc2Service) {
         this.transportService = transportService;
         this.awsEc2Service = awsEc2Service;
 
@@ -95,7 +95,7 @@ class AwsEc2UnicastHostsProvider implements UnicastHostsProvider {
     }
 
     @Override
-    public List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver) {
+    public List<TransportAddress> getSeedAddresses(HostsResolver hostsResolver) {
         return dynamicHosts.getOrRefresh();
     }
 
@@ -117,7 +117,7 @@ class AwsEc2UnicastHostsProvider implements UnicastHostsProvider {
             return dynamicHosts;
         }
 
-        logger.trace("building dynamic unicast discovery nodes...");
+        logger.trace("finding seed nodes...");
         for (final Reservation reservation : descInstances.getReservations()) {
             for (final Instance instance : reservation.getInstances()) {
                 // lets see if we can filter based on groups

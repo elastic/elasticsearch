@@ -29,7 +29,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.PeerFinder.ConfiguredHostsResolver;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,24 +40,24 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver {
-    private static final Logger logger = LogManager.getLogger(UnicastConfiguredHostsResolver.class);
+public class SeedHostsResolver extends AbstractLifecycleComponent implements ConfiguredHostsResolver {
+    private static final Logger logger = LogManager.getLogger(SeedHostsResolver.class);
 
     private final Settings settings;
     private final AtomicBoolean resolveInProgress = new AtomicBoolean();
     private final TransportService transportService;
-    private final UnicastHostsProvider hostsProvider;
+    private final SeedHostsProvider hostsProvider;
     private final SetOnce<ExecutorService> executorService = new SetOnce<>();
     private final TimeValue resolveTimeout;
     private final String nodeName;
     private final int concurrentConnects;
 
-    public UnicastConfiguredHostsResolver(String nodeName, Settings settings, TransportService transportService,
-                                          UnicastHostsProvider hostsProvider) {
+    public SeedHostsResolver(String nodeName, Settings settings, TransportService transportService,
+                             SeedHostsProvider seedProvider) {
         this.settings = settings;
         this.nodeName = nodeName;
         this.transportService = transportService;
-        this.hostsProvider = hostsProvider;
+        this.hostsProvider = seedProvider;
         resolveTimeout = UnicastZenPing.getResolveTimeout(settings);
         concurrentConnects = UnicastZenPing.getMaxConcurrentResolvers(settings);
     }
@@ -102,7 +101,7 @@ public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent i
                     }
 
                     List<TransportAddress> providedAddresses
-                        = hostsProvider.buildDynamicHosts((hosts, limitPortCounts)
+                        = hostsProvider.getSeedAddresses((hosts, limitPortCounts)
                         -> UnicastZenPing.resolveHostsLists(executorService.get(), logger, hosts, limitPortCounts,
                         transportService, resolveTimeout));
 
@@ -116,7 +115,7 @@ public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent i
 
                 @Override
                 public String toString() {
-                    return "UnicastConfiguredHostsResolver resolving unicast hosts list";
+                    return "SeedHostsResolver resolving unicast hosts list";
                 }
             });
         }

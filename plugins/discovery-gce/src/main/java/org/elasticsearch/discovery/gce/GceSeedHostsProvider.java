@@ -36,7 +36,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -48,9 +48,9 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 
-public class GceUnicastHostsProvider implements UnicastHostsProvider {
+public class GceSeedHostsProvider implements SeedHostsProvider {
     
-    private static final Logger logger = LogManager.getLogger(GceUnicastHostsProvider.class);
+    private static final Logger logger = LogManager.getLogger(GceSeedHostsProvider.class);
 
     /**
      * discovery.gce.tags: The gce discovery can filter machines to include in the cluster based on tags.
@@ -75,9 +75,9 @@ public class GceUnicastHostsProvider implements UnicastHostsProvider {
     private long lastRefresh;
     private List<TransportAddress> cachedDynamicHosts;
 
-    public GceUnicastHostsProvider(Settings settings, GceInstancesService gceInstancesService,
-            TransportService transportService,
-            NetworkService networkService) {
+    public GceSeedHostsProvider(Settings settings, GceInstancesService gceInstancesService,
+                                TransportService transportService,
+                                NetworkService networkService) {
         this.settings = settings;
         this.gceInstancesService = gceInstancesService;
         this.transportService = transportService;
@@ -98,7 +98,7 @@ public class GceUnicastHostsProvider implements UnicastHostsProvider {
      * Information can be cached using `cloud.gce.refresh_interval` property if needed.
      */
     @Override
-    public List<TransportAddress> buildDynamicHosts(HostsResolver hostsResolver) {
+    public List<TransportAddress> getSeedAddresses(HostsResolver hostsResolver) {
         // We check that needed properties have been set
         if (this.project == null || this.project.isEmpty() || this.zones == null || this.zones.isEmpty()) {
             throw new IllegalArgumentException("one or more gce discovery settings are missing. " +

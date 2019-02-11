@@ -57,7 +57,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -275,7 +275,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         enableLicensing(mode);
         ensureGreen();
 
-        final List<String> unicastHostsList = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()
+        final List<String> seedHosts = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()
             .getNodes().stream().map(n -> n.getTransport().getAddress().publishAddress().toString()).distinct()
             .collect(Collectors.toList());
 
@@ -289,7 +289,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             .put("cluster.name", internalCluster().getClusterName())
             .put("path.home", home)
             .putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey())
-            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), unicastHostsList);
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), seedHosts);
 
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, MockHttpTransport.TestPlugin.class);
         try (Node node = new MockNode(nodeSettings.build(), mockPlugins)) {

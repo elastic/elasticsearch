@@ -152,7 +152,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
             assertThat(
-                e.getCause().getMessage(),
+                e.getMessage(),
                 Matchers.containsString("add voting config exclusions request for [invalid] matched no master-eligible nodes")
             );
         }

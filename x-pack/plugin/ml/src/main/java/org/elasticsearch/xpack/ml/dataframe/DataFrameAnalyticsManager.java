@@ -108,9 +108,8 @@ public class DataFrameAnalyticsManager {
             createIndexResponse -> {
                 ReindexRequest reindexRequest = new ReindexRequest();
                 reindexRequest.setSourceIndices(config.getSource());
-                if (config.getParsedQuery() != null) {
-                    reindexRequest.setSourceQuery(config.getParsedQuery());
-                }
+                // we default to match_all
+                reindexRequest.setSourceQuery(config.getParsedQuery());
                 reindexRequest.setDestIndex(config.getDest());
                 reindexRequest.setScript(new Script("ctx._source." + DataFrameAnalyticsFields.ID + " = ctx._id"));
                 client.execute(ReindexAction.INSTANCE, reindexRequest, reindexCompletedListener);

@@ -26,6 +26,25 @@
   - match: { data_frame_analytics: [] }
 
 ---
+"Test put valid config with default outlier detection and query":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection-with-query"
+        body: >
+          {
+            "source": "source_index",
+            "dest": "dest_index",
+            "analyses": [{"outlier_detection":{}}],
+            "query": {"term" : { "user" : "Kimchy" }}
+          }
+  - match: { id: "simple-outlier-detection-with-query" }
+  - match: { source: "source_index" }
+  - match: { dest: "dest_index" }
+  - match: { analyses: [{"outlier_detection":{}}] }
+  - match: { query: {"term" : { "user" : "Kimchy"} } }
+
+---
 "Test put valid config with default outlier detection":
 
   - do:
@@ -35,14 +54,13 @@
           {
             "source": "source_index",
             "dest": "dest_index",
-            "analyses": [{"outlier_detection":{}}],
-            "query": {"term" : { "user" : "Kimchy" }}
+            "analyses": [{"outlier_detection":{}}]
           }
   - match: { id: "simple-outlier-detection" }
   - match: { source: "source_index" }
   - match: { dest: "dest_index" }
   - match: { analyses: [{"outlier_detection":{}}] }
-  - match: { query: {"term" : { "user" : { "value" : "Kimchy", "boost" : 1.0 }}}}
+  - match: { query: {"match_all" : {} } }
 
 ---
 "Test put config with inconsistent body/param ids":

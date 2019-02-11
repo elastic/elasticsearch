@@ -206,7 +206,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     }
 
     private static class StatsAndCount {
-        int count;
+        volatile int count;
         final Stats stats;
 
         StatsAndCount(Stats stats) {

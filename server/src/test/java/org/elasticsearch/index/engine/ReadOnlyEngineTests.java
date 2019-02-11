@@ -189,4 +189,25 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
         }
     }
+
+    /**
+     * Test that {@link ReadOnlyEngine#verifyEngineBeforeIndexClosing()} never fails
+     * whatever the value of the global checkpoint to check is.
+     */
+    public void testVerifyShardBeforeIndexClosingIsNoOp() throws IOException {
+        IOUtils.close(engine, store);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            store.createEmpty(Version.CURRENT.luceneVersion);
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity())) {
+                globalCheckpoint.set(randomNonNegativeLong());
+                try {
+                    readOnlyEngine.verifyEngineBeforeIndexClosing();
+                } catch (final IllegalStateException e) {
+                    fail("Read-only engine pre-closing verifications failed");
+                }
+            }
+        }
+    }
 }

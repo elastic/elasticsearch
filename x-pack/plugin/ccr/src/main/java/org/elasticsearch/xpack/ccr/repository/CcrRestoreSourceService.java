@@ -42,8 +42,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 public class CcrRestoreSourceService extends AbstractLifecycleComponent implements IndexEventListener {
@@ -52,7 +50,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     private final Map<String, RestoreSession> onGoingRestores = ConcurrentCollections.newConcurrentMap();
     private final Map<IndexShard, HashSet<String>> sessionsForShard = new HashMap<>();
-    private final CopyOnWriteArrayList<Consumer<String>> closeSessionListeners = new CopyOnWriteArrayList<>();
     private final ThreadPool threadPool;
     private final CcrSettings ccrSettings;
     private final CounterMetric throttleTime = new CounterMetric();
@@ -91,12 +88,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         sessionsForShard.clear();
         onGoingRestores.values().forEach(AbstractRefCounted::decRef);
         onGoingRestores.clear();
-    }
-
-    // TODO: The listeners are for testing. Once end-to-end file restore is implemented and can be tested,
-    //  these should be removed.
-    public void addCloseSessionListener(Consumer<String> listener) {
-        closeSessionListeners.add(listener);
     }
 
     public synchronized Store.MetadataSnapshot openSession(String sessionUUID, IndexShard indexShard) throws IOException {
@@ -165,9 +156,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 }
             }
         }
-        closeSessionListeners.forEach(c -> c.accept(sessionUUID));
         restore.decRef();
-
     }
 
     private Scheduler.Cancellable scheduleTimeout(String sessionUUID) {
@@ -235,8 +224,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 BytesRefIterator refIterator = reference.iterator();
                 BytesRef ref;
                 while ((ref = refIterator.next()) != null) {
-                    byte[] refBytes = ref.bytes;
-                    indexInput.readBytes(refBytes, 0, refBytes.length);
+                    indexInput.readBytes(ref.bytes, ref.offset, ref.length);
                 }
 
                 long offsetAfterRead = indexInput.getFilePointer();
@@ -256,6 +244,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             assert keyedLock.hasLockedKeys() == false : "Should not hold any file locks when closing";
             timeoutTask.cancel();
             IOUtils.closeWhileHandlingException(cachedInputs.values());
+            IOUtils.closeWhileHandlingException(commitRef);
         }
     }
 

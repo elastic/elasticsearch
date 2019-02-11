@@ -114,8 +114,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public Boolean allowPartialSearchResults() {
-                    return null;
+                public boolean allowPartialSearchResults() {
+                    return true;
                 }
 
                 @Override
@@ -134,17 +134,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public void setProfile(boolean profile) {
-
-                }
-
-                @Override
-                public boolean isProfile() {
-                    return false;
-                }
-
-                @Override
-                public BytesReference cacheKey() throws IOException {
+                public BytesReference cacheKey() {
                     return null;
                 }
 

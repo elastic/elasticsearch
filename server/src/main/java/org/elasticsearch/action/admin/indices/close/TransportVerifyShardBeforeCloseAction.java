@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.indices.close;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -50,6 +52,7 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     TransportVerifyShardBeforeCloseAction.ShardRequest, TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> {
 
     public static final String NAME = CloseIndexAction.NAME + "[s]";
+    protected Logger logger = LogManager.getLogger(getClass());
 
     @Inject
     public TransportVerifyShardBeforeCloseAction(final Settings settings, final TransportService transportService,
@@ -105,14 +108,9 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         if (clusterBlocks.hasIndexBlock(shardId.getIndexName(), request.clusterBlock()) == false) {
             throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + request.clusterBlock() + " before closing");
         }
-
-        final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
-        if (indexShard.getGlobalCheckpoint() != maxSeqNo) {
-            throw new IllegalStateException("Global checkpoint [" + indexShard.getGlobalCheckpoint()
-                + "] mismatches maximum sequence number [" + maxSeqNo + "] on index shard " + shardId);
-        }
-        indexShard.flush(new FlushRequest());
-        logger.debug("{} shard is ready for closing", shardId);
+        indexShard.verifyShardBeforeIndexClosing();
+        indexShard.flush(new FlushRequest().force(true));
+        logger.trace("{} shard is ready for closing", shardId);
     }
 
     @Override

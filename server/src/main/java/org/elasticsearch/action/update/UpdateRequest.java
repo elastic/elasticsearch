@@ -54,6 +54,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
@@ -66,6 +68,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private static final ParseField DOC_AS_UPSERT_FIELD = new ParseField("doc_as_upsert");
     private static final ParseField DETECT_NOOP_FIELD = new ParseField("detect_noop");
     private static final ParseField SOURCE_FIELD = new ParseField("_source");
+    private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
+    private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
 
     static {
         PARSER = new ObjectParser<>(UpdateRequest.class.getSimpleName());
@@ -89,6 +93,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         PARSER.declareField(UpdateRequest::fetchSource,
             (parser, context) -> FetchSourceContext.fromXContent(parser), SOURCE_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
+        PARSER.declareLong(UpdateRequest::setIfSeqNo, IF_SEQ_NO);
+        PARSER.declareLong(UpdateRequest::setIfPrimaryTerm, IF_PRIMARY_TERM);
     }
 
     // Set to null initially so we can know to override in bulk requests that have a default type.
@@ -102,9 +108,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private FetchSourceContext fetchSourceContext;
 
-    private long version = Versions.MATCH_ANY;
-    private VersionType versionType = VersionType.INTERNAL;
     private int retryOnConflict = 0;
+    private long ifSeqNo = UNASSIGNED_SEQ_NO;
+    private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
+
 
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
@@ -141,9 +148,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (version != Versions.MATCH_ANY && upsertRequest != null) {
-            validationException = addValidationError("can't provide both upsert request and a version", validationException);
-        }
         if(upsertRequest != null && upsertRequest.version() != Versions.MATCH_ANY) {
             validationException = addValidationError("can't provide version in upsert request", validationException);
         }
@@ -154,19 +158,19 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             validationException = addValidationError("id is missing", validationException);
         }
 
-        if (versionType != VersionType.INTERNAL) {
-            validationException = addValidationError("version type [" + versionType + "] is not supported by the update API",
-                    validationException);
-        } else {
+        validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
-            if (version != Versions.MATCH_ANY && retryOnConflict > 0) {
-                validationException = addValidationError("can't provide both retry_on_conflict and a specific version",
-                    validationException);
+        if (ifSeqNo != UNASSIGNED_SEQ_NO) {
+            if (retryOnConflict > 0) {
+                validationException = addValidationError("compare and write operations can not be retried", validationException);
             }
 
-            if (!versionType.validateVersionForWrites(version)) {
-                validationException = addValidationError("illegal version value [" + version + "] for version type [" +
-                    versionType.name() + "]", validationException);
+            if (docAsUpsert) {
+                validationException = addValidationError("compare and write operations can not be used with upsert", validationException);
+            }
+            if (upsertRequest != null) {
+                validationException =
+                    addValidationError("upsert requests don't support `if_seq_no` and `if_primary_term`", validationException);
             }
         }
 
@@ -511,24 +515,71 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     @Override
     public UpdateRequest version(long version) {
-        this.version = version;
-        return this;
+        throw new UnsupportedOperationException("update requests do not support versioning");
     }
 
     @Override
     public long version() {
-        return this.version;
+        return Versions.MATCH_ANY;
     }
 
     @Override
     public UpdateRequest versionType(VersionType versionType) {
-        this.versionType = versionType;
-        return this;
+        throw new UnsupportedOperationException("update requests do not support versioning");
     }
 
     @Override
     public VersionType versionType() {
-        return this.versionType;
+        return VersionType.INTERNAL;
+    }
+
+    /**
+     * only perform this update request if the document's modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public UpdateRequest setIfSeqNo(long seqNo) {
+        if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+        }
+        ifSeqNo = seqNo;
+        return this;
+    }
+
+    /**
+     * only performs this update request if the document's last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public UpdateRequest setIfPrimaryTerm(long term) {
+        if (term < 0) {
+            throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
+        }
+        ifPrimaryTerm = term;
+        return this;
+    }
+
+    /**
+     * If set, only perform this update request if the document was last modification was assigned this sequence number.
+     * If the document last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long ifSeqNo() {
+        return ifSeqNo;
+    }
+
+    /**
+     * If set, only perform this update request if the document was last modification was assigned this primary term.
+     *
+     * If the document last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long ifPrimaryTerm() {
+        return ifPrimaryTerm;
     }
 
     @Override
@@ -809,8 +860,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             upsertRequest.readFrom(in);
         }
         docAsUpsert = in.readBoolean();
-        version = in.readLong();
-        versionType = VersionType.fromValue(in.readByte());
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            long version = in.readLong();
+            VersionType versionType = VersionType.readFromStream(in);
+            if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
+                throw new UnsupportedOperationException(
+                    "versioned update requests have been removed in 7.0. Use if_seq_no and if_primary_term");
+            }
+        }
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
     }
@@ -860,8 +919,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             upsertRequest.writeTo(out);
         }
         out.writeBoolean(docAsUpsert);
-        out.writeLong(version);
-        out.writeByte(versionType.getValue());
+        if (out.getVersion().before(Version.V_7_0_0)) {
+            out.writeLong(Versions.MATCH_ANY);
+            out.writeByte(VersionType.INTERNAL.getValue());
+        }
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
     }
@@ -880,6 +943,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 builder.copyCurrentStructure(parser);
             }
         }
+
+        if (ifSeqNo != UNASSIGNED_SEQ_NO) {
+            builder.field(IF_SEQ_NO.getPreferredName(), ifSeqNo);
+            builder.field(IF_PRIMARY_TERM.getPreferredName(), ifPrimaryTerm);
+        }
+
         if (script != null) {
             builder.field("script", script);
         }

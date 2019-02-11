@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -59,13 +60,16 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -342,7 +346,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertPathHasBeenCleared(endDir.toAbsolutePath());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37896")
     public void testMaybeFlush() throws Exception {
         createIndex("test", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
             .build());
@@ -381,8 +384,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]",
             translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
         assertBusy(() -> { // this is async
-            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]",
-                translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
+            final TranslogStats translogStats = translog.stats();
+            final CommitStats commitStats = shard.commitStats();
+            final FlushStats flushStats = shard.flushStats();
+            logger.info("--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
+                Strings.toString(translogStats), translog.getGeneration().translogFileGeneration,
+                commitStats.getUserData(), flushStats.getPeriodic(), flushStats.getTotal());
             assertFalse(shard.shouldPeriodicallyFlush());
         });
         assertEquals(0, translog.stats().getUncommittedOperations());
@@ -663,6 +670,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 Collections.emptyList(),
                 Arrays.asList(listeners),
                 () -> {},
+                RetentionLeaseSyncer.EMPTY,
                 cbs);
     }
 

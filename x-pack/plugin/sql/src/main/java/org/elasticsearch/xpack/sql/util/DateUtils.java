@@ -6,27 +6,34 @@
 
 package org.elasticsearch.xpack.sql.util;
 
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
-import org.joda.time.DateTime;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
+import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
 
 public final class DateUtils {
 
-    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
-
-    // TODO: do we have a java.time based parser we can use instead?
-    private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateOptionalTimeParser().withZoneUTC();
-
     public static final ZoneId UTC = ZoneId.of("Z");
+    public static final String DATE_PARSE_FORMAT = "epoch_millis";
+
+    private static final DateTimeFormatter DATE_TIME_ESCAPED_LITERAL_FORMATTER = new DateTimeFormatterBuilder()
+        .append(ISO_LOCAL_DATE)
+        .appendLiteral(" ")
+        .append(ISO_LOCAL_TIME)
+        .toFormatter().withZone(UTC);
+
+    private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(UTC);
+
+    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
 
     private DateUtils() {}
 
@@ -55,22 +62,7 @@ public final class DateUtils {
      * Parses the given string into a Date (SQL DATE type) using UTC as a default timezone.
      */
     public static ZonedDateTime asDateOnly(String dateFormat) {
-        return asDateOnly(UTC_DATE_FORMATTER.parseDateTime(dateFormat));
-    }
-
-    public static ZonedDateTime asDateOnly(DateTime dateTime) {
-        LocalDateTime ldt = LocalDateTime.of(
-            dateTime.getYear(),
-            dateTime.getMonthOfYear(),
-            dateTime.getDayOfMonth(),
-            0,
-            0,
-            0,
-            0);
-
-        return ZonedDateTime.ofStrict(ldt,
-            ZoneOffset.ofTotalSeconds(dateTime.getZone().getOffset(dateTime) / 1000),
-            org.elasticsearch.common.time.DateUtils.dateTimeZoneToZoneId(dateTime.getZone()));
+        return LocalDate.parse(dateFormat, ISO_LOCAL_DATE).atStartOfDay(UTC);
     }
 
     public static ZonedDateTime asDateOnly(ZonedDateTime zdt) {
@@ -81,25 +73,13 @@ public final class DateUtils {
      * Parses the given string into a DateTime using UTC as a default timezone.
      */
     public static ZonedDateTime asDateTime(String dateFormat) {
-        return asDateTime(UTC_DATE_FORMATTER.parseDateTime(dateFormat));
+        return DateFormatters.from(UTC_DATE_TIME_FORMATTER.parse(dateFormat)).withZoneSameInstant(UTC);
     }
 
-    public static ZonedDateTime asDateTime(DateTime dateTime) {
-        LocalDateTime ldt = LocalDateTime.of(
-                dateTime.getYear(),
-                dateTime.getMonthOfYear(),
-                dateTime.getDayOfMonth(),
-                dateTime.getHourOfDay(),
-                dateTime.getMinuteOfHour(),
-                dateTime.getSecondOfMinute(),
-                dateTime.getMillisOfSecond() * 1_000_000);
-        
-        return ZonedDateTime.ofStrict(ldt,
-                ZoneOffset.ofTotalSeconds(dateTime.getZone().getOffset(dateTime) / 1000),
-                org.elasticsearch.common.time.DateUtils.dateTimeZoneToZoneId(dateTime.getZone()));
+    public static ZonedDateTime ofEscapedLiteral(String dateFormat) {
+        return ZonedDateTime.parse(dateFormat, DATE_TIME_ESCAPED_LITERAL_FORMATTER.withZone(UTC));
     }
 
-    
     public static String toString(ZonedDateTime dateTime) {
         return StringUtils.toString(dateTime);
     }

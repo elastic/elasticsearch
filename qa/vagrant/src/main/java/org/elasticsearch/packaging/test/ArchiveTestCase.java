@@ -50,6 +50,7 @@ import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.isEmptyString;
 import static org.junit.Assume.assumeThat;
@@ -285,18 +286,20 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         final Shell sh = new Shell();
 
-        if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {
+        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
             assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
-            Platforms.onLinux(() -> {
-                final Result result = sh.run(bin.elasticsearchCertutil + " help");
+            final Platforms.PlatformAction action = () -> {
+                Result result = sh.run(bin.elasticsearchCertutil + " --help");
                 assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
-            });
 
-            Platforms.onWindows(() -> {
-                final Result result = sh.run(bin.elasticsearchCertutil + " help");
-                assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
-            });
-        } else if (distribution().equals(Distribution.OSS_TAR) || distribution().equals(Distribution.OSS_ZIP)) {
+                // Ensure that the exit code from the java command is passed back up through the shell script
+                result = sh.runIgnoreExitCode(bin.elasticsearchCertutil + " invalid-command");
+                assertThat(result.exitCode, is(not(0)));
+                assertThat(result.stdout, containsString("Unknown command [invalid-command]"));
+            };
+            Platforms.onLinux(action);
+            Platforms.onWindows(action);
+        } else if (distribution().equals(Distribution.OSS_LINUX) || distribution().equals(Distribution.OSS_WINDOWS)) {
             assertFalse(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
         }
     }
@@ -312,7 +315,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
 
-        if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {
+        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         }
@@ -330,7 +333,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                     containsString("A CLI tool to unsafely recover a cluster after the permanent loss of too many master-eligible nodes"));
         };
 
-        if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {
+        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         }

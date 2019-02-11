@@ -10,7 +10,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.InputStream;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -20,7 +19,6 @@ import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.sql.type.DataType.NESTED;
 import static org.elasticsearch.xpack.sql.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.sql.type.DataType.TEXT;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -84,10 +82,6 @@ public class TypesTests extends ESTestCase {
         assertThat(field.getDataType(), is(DATETIME));
         assertThat(field.isAggregatable(), is(true));
         assertThat(field.getPrecision(), is(24));
-
-        DateEsField dfield = (DateEsField) field;
-        List<String> formats = dfield.getFormats();
-        assertThat(formats, hasSize(3));
     }
 
     public void testDateNoFormat() {
@@ -98,8 +92,6 @@ public class TypesTests extends ESTestCase {
         assertThat(field.getDataType(), is(DATETIME));
         assertThat(field.isAggregatable(), is(true));
         DateEsField dfield = (DateEsField) field;
-        // default types
-        assertThat(dfield.getFormats(), hasSize(2));
     }
 
     public void testDateMulti() {
@@ -110,8 +102,6 @@ public class TypesTests extends ESTestCase {
         assertThat(field.getDataType(), is(DATETIME));
         assertThat(field.isAggregatable(), is(true));
         DateEsField dfield = (DateEsField) field;
-        // default types
-        assertThat(dfield.getFormats(), hasSize(1));
     }
 
     public void testDocValueField() {
@@ -181,20 +171,20 @@ public class TypesTests extends ESTestCase {
     public void testGeoField() {
         Map<String, EsField> mapping = loadMapping("mapping-geo.json");
         EsField dt = mapping.get("location");
-        assertThat(dt.getDataType().esType, is("unsupported"));
+        assertThat(dt.getDataType().typeName, is("unsupported"));
     }
 
     public void testIpField() {
         Map<String, EsField> mapping = loadMapping("mapping-ip.json");
         assertThat(mapping.size(), is(1));
         EsField dt = mapping.get("ip_addr");
-        assertThat(dt.getDataType().esType, is("ip"));
+        assertThat(dt.getDataType().typeName, is("ip"));
     }
 
     public void testUnsupportedTypes() {
         Map<String, EsField> mapping = loadMapping("mapping-unsupported.json");
         EsField dt = mapping.get("range");
-        assertThat(dt.getDataType().esType, is("unsupported"));
+        assertThat(dt.getDataType().typeName, is("unsupported"));
     }
 
     public static Map<String, EsField> loadMapping(String name) {

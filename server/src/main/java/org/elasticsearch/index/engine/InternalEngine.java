@@ -75,7 +75,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
-import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
@@ -476,6 +476,11 @@ public class InternalEngine extends Engine {
         return translog;
     }
 
+    // Package private for testing purposes only
+    boolean hasSnapshottedCommits() {
+        return combinedDeletionPolicy.hasSnapshottedCommits();
+    }
+
     @Override
     public boolean isTranslogSyncNeeded() {
         return getTranslog().syncNeeded();
@@ -623,6 +628,12 @@ public class InternalEngine extends Engine {
                     if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                             get.versionType().explainConflictForReads(versionValue.version, get.version()));
+                    }
+                    if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+                        get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term
+                        )) {
+                        throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                            get.getIfSeqNo(), get.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
                     }
                     if (get.isReadFromTranslog()) {
                         // this is only used for updates - API _GET calls will always read form a reader for consistency
@@ -2342,9 +2353,9 @@ public class InternalEngine extends Engine {
                      * We sample these from the policy (which occurs under a lock) to ensure that we have a consistent view of the minimum
                      * retained sequence number, and the retention leases.
                      */
-                    final Tuple<Long, Collection<RetentionLease>> retentionPolicy = softDeletesPolicy.getRetentionPolicy();
+                    final Tuple<Long, RetentionLeases> retentionPolicy = softDeletesPolicy.getRetentionPolicy();
                     commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(retentionPolicy.v1()));
-                    commitData.put(Engine.RETENTION_LEASES, RetentionLease.encodeRetentionLeases(retentionPolicy.v2()));
+                    commitData.put(Engine.RETENTION_LEASES, RetentionLeases.encodeRetentionLeases(retentionPolicy.v2()));
                 }
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();

@@ -231,7 +231,7 @@ public class SysTablesTests extends ESTestCase {
     }
 
     private SqlTypedParamValue param(Object value) {
-        return new SqlTypedParamValue(DataTypes.fromJava(value).esType, value);
+        return new SqlTypedParamValue(DataTypes.fromJava(value).typeName, value);
     }
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params) {
@@ -243,7 +243,7 @@ public class SysTablesTests extends ESTestCase {
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
 
-        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null, null);
+        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 

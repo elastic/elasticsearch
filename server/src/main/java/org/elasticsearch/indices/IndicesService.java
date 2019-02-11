@@ -29,6 +29,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -82,6 +83,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -94,6 +96,8 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.seqno.RetentionLeaseStats;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -195,7 +199,7 @@ public class IndicesService extends AbstractLifecycleComponent
     @Override
     protected void doStart() {
         // Start thread that will manage cleaning the field data cache periodically
-        threadPool.schedule(this.cleanInterval, ThreadPool.Names.SAME, this.cacheCleaner);
+        threadPool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
     }
 
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
@@ -365,23 +369,29 @@ public class IndicesService extends AbstractLifecycleComponent
 
         CommitStats commitStats;
         SeqNoStats seqNoStats;
+        RetentionLeaseStats retentionLeaseStats;
         try {
             commitStats = indexShard.commitStats();
             seqNoStats = indexShard.seqNoStats();
+            retentionLeaseStats = indexShard.getRetentionLeaseStats();
         } catch (AlreadyClosedException e) {
             // shard is closed - no stats is fine
             commitStats = null;
             seqNoStats = null;
+            retentionLeaseStats = null;
         }
 
-        return new IndexShardStats(indexShard.shardId(),
-                                   new ShardStats[] {
-                                       new ShardStats(indexShard.routingEntry(),
-                                                      indexShard.shardPath(),
-                                                      new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
-                                                      commitStats,
-                                                      seqNoStats)
-                                   });
+        return new IndexShardStats(
+                indexShard.shardId(),
+                new ShardStats[]{
+                        new ShardStats(
+                                indexShard.routingEntry(),
+                                indexShard.shardPath(),
+                                new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                                commitStats,
+                                seqNoStats,
+                                retentionLeaseStats)
+                });
     }
 
     /**
@@ -484,6 +494,11 @@ public class IndicesService extends AbstractLifecycleComponent
                                                          List<IndexEventListener> builtInListeners,
                                                          IndexingOperationListener... indexingOperationListeners) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, settings, indexScopedSettings);
+        if (idxSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)
+            && EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.exists(idxSettings.getSettings())) {
+            throw new IllegalArgumentException(
+                "Setting [" + EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey() + "] was removed in version 7.0.0");
+        }
         // we ignore private settings since they are not registered settings
         indexScopedSettings.validate(indexMetaData.getSettings(), true, true, true);
         logger.debug("creating Index [{}], shards [{}]/[{}] - reason [{}]",
@@ -592,10 +607,12 @@ public class IndicesService extends AbstractLifecycleComponent
             final PeerRecoveryTargetService.RecoveryListener recoveryListener,
             final RepositoriesService repositoriesService,
             final Consumer<IndexShard.ShardFailure> onShardFailure,
-            final Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+            final Consumer<ShardId> globalCheckpointSyncer,
+            final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
+        Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer);
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService,
             (type, mapping) -> {
@@ -1153,7 +1170,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             // Reschedule itself to run again if not closed
             if (closed.get() == false) {
-                threadPool.schedule(interval, ThreadPool.Names.SAME, this);
+                threadPool.schedule(this, interval, ThreadPool.Names.SAME);
             }
         }
 
@@ -1379,8 +1396,8 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns true if the provided field is a registered metadata field (including ones registered via plugins), false otherwise.
      */
-    public boolean isMetaDataField(String field) {
-        return mapperRegistry.isMetaDataField(field);
+    public boolean isMetaDataField(Version indexCreatedVersion, String field) {
+        return mapperRegistry.isMetaDataField(indexCreatedVersion, field);
     }
 
     /**

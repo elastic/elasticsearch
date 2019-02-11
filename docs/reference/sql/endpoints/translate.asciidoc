@@ -3,8 +3,6 @@
 [[sql-translate]]
 == SQL Translate API
 
-beta[]
-
 The SQL Translate API accepts SQL in a JSON document and translates it
 into native Elasticsearch queries. For example:
 
@@ -27,8 +25,7 @@ Which returns:
     "size" : 10,
     "docvalue_fields" : [
         {
-            "field": "page_count",
-            "format": "use_field_mapping"
+            "field": "page_count"
         },
         {
             "field": "release_date",

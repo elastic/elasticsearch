@@ -13,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -30,6 +31,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
@@ -131,21 +133,21 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
 
         // updates follower mapping, this gets us the leader mapping version and makes sure that leader and follower mapping are identical
-        updateMapping(0L, followerMappingVersion -> {
+        updateMapping(0L, leaderMappingVersion -> {
             synchronized (ShardFollowNodeTask.this) {
-                currentMappingVersion = followerMappingVersion;
+                currentMappingVersion = leaderMappingVersion;
             }
-            updateSettings(followerSettingsVersion -> {
+            updateSettings(leaderSettingsVersion -> {
                 synchronized (ShardFollowNodeTask.this) {
-                    currentSettingsVersion = followerSettingsVersion;
+                    currentSettingsVersion = leaderSettingsVersion;
                 }
                 LOGGER.info(
                         "{} following leader shard {}, follower global checkpoint=[{}], mapping version=[{}], settings version=[{}]",
                         params.getFollowShardId(),
                         params.getLeaderShardId(),
                         followerGlobalCheckpoint,
-                        followerMappingVersion,
-                        followerSettingsVersion);
+                        leaderMappingVersion,
+                        leaderSettingsVersion);
                 coordinateReads();
             });
         });
@@ -275,6 +277,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                         failedReadRequests++;
                         fetchExceptions.put(from, Tuple.tuple(retryCounter, ExceptionsHelper.convertToElastic(e)));
                     }
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof ResourceNotFoundException) {
+                        ResourceNotFoundException resourceNotFoundException = (ResourceNotFoundException) cause;
+                        if (resourceNotFoundException.getMetadataKeys().contains(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY)) {
+                            handleFallenBehindLeaderShard(e, from, maxOperationCount, maxRequiredSeqNo, retryCounter);
+                            return;
+                        }
+                    }
                     handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
                 });
     }
@@ -289,6 +299,18 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         Runnable updateMappingsTask = () -> maybeUpdateMapping(response.getMappingVersion(), handleResponseTask);
         // 1) update follow index settings:
         maybeUpdateSettings(response.getSettingsVersion(), updateMappingsTask);
+    }
+
+    void handleFallenBehindLeaderShard(Exception e, long from, int maxOperationCount, long maxRequiredSeqNo, AtomicInteger retryCounter) {
+        // Do restore from repository here and after that
+        // start() should be invoked and stats should be reset
+
+        // For now handle like any other failure:
+        // need a more robust approach to avoid the scenario where an outstanding request
+        // can trigger another restore while the shard was restored already.
+        // https://github.com/elastic/elasticsearch/pull/37562#discussion_r250009367
+
+        handleFailure(e, retryCounter, () -> sendShardChangesRequest(from, maxOperationCount, maxRequiredSeqNo, retryCounter));
     }
 
     /** Called when some operations are fetched from the leading */

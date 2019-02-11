@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
@@ -61,7 +62,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         action = new TransportAckWatchAction(transportService, new ActionFilters(Collections.emptySet()),
-            Clock.systemUTC(), new XPackLicenseState(Settings.EMPTY), watchParser, client);
+            Clock.systemUTC(), new XPackLicenseState(Settings.EMPTY), watchParser, client, createClusterService(threadPool));
     }
 
     public void testWatchNotFound() {

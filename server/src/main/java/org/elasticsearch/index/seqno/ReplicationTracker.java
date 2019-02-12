@@ -156,10 +156,10 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private final LongSupplier currentTimeMillisSupplier;
 
     /**
-     * A callback when a new retention lease is created. In practice, this callback invokes the retention lease sync action, to sync
-     * retention leases to replicas.
+     * A callback when a new retention lease is created or an existing retention lease is removed. In practice, this callback invokes the
+     * retention lease sync action, to sync retention leases to replicas.
      */
-    private final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onAddRetentionLease;
+    private final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases;
 
     /**
      * This set contains allocation IDs for which there is a thread actively waiting for the local checkpoint to advance to at least the
@@ -246,7 +246,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                     Stream.concat(retentionLeases.leases().stream(), Stream.of(retentionLease)).collect(Collectors.toList()));
             currentRetentionLeases = retentionLeases;
         }
-        onAddRetentionLease.accept(currentRetentionLeases, listener);
+        onSyncRetentionLeases.accept(currentRetentionLeases, listener);
         return retentionLease;
     }
 
@@ -281,6 +281,29 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                         Stream.of(retentionLease))
                         .collect(Collectors.toList()));
         return retentionLease;
+    }
+
+    /**
+     * Removes an existing retention lease.
+     *
+     * @param id       the identifier of the retention lease
+     * @param listener the callback when the retention lease is successfully removed and synced to replicas
+     */
+    public void removeRetentionLease(final String id, final ActionListener<ReplicationResponse> listener) {
+        Objects.requireNonNull(listener);
+        final RetentionLeases currentRetentionLeases;
+        synchronized (this) {
+            assert primaryMode;
+            if (retentionLeases.contains(id) == false) {
+                throw new IllegalArgumentException("retention lease with ID [" + id + "] does not exist");
+            }
+            retentionLeases = new RetentionLeases(
+                    operationPrimaryTerm,
+                    retentionLeases.version() + 1,
+                    retentionLeases.leases().stream().filter(lease -> lease.id().equals(id) == false).collect(Collectors.toList()));
+            currentRetentionLeases = retentionLeases;
+        }
+        onSyncRetentionLeases.accept(currentRetentionLeases, listener);
     }
 
     /**
@@ -563,7 +586,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param indexSettings         the index settings
      * @param operationPrimaryTerm  the current primary term
      * @param globalCheckpoint      the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
-     * @param onAddRetentionLease a callback when a new retention lease is created or an existing retention lease expires
+     * @param onSyncRetentionLeases a callback when a new retention lease is created or an existing retention lease expires
      */
     public ReplicationTracker(
             final ShardId shardId,
@@ -573,7 +596,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final long globalCheckpoint,
             final LongConsumer onGlobalCheckpointUpdated,
             final LongSupplier currentTimeMillisSupplier,
-            final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onAddRetentionLease) {
+            final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases) {
         super(shardId, indexSettings);
         assert globalCheckpoint >= SequenceNumbers.UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         this.shardAllocationId = allocationId;
@@ -585,7 +608,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         checkpoints.put(allocationId, new CheckpointState(SequenceNumbers.UNASSIGNED_SEQ_NO, globalCheckpoint, false, false));
         this.onGlobalCheckpointUpdated = Objects.requireNonNull(onGlobalCheckpointUpdated);
         this.currentTimeMillisSupplier = Objects.requireNonNull(currentTimeMillisSupplier);
-        this.onAddRetentionLease = Objects.requireNonNull(onAddRetentionLease);
+        this.onSyncRetentionLeases = Objects.requireNonNull(onSyncRetentionLeases);
         this.pendingInSync = new HashSet<>();
         this.routingTable = null;
         this.replicationGroup = null;

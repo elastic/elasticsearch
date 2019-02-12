@@ -843,10 +843,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * old and new versions. All of the snapshots include an index, a template,
      * and some routing configuration.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38603")
     public void testSnapshotRestore() throws IOException {
         int count;
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().major < 8) {
+        Version oldClusterVersion = getOldClusterVersion();
+        if (isRunningAgainstOldCluster() && oldClusterVersion.major < 8) {
             // Create the index
             count = between(200, 300);
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
@@ -866,11 +866,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // Stick a routing attribute into to cluster settings so we can see it after the restore
         Request addRoutingSettings = new Request("PUT", "/_cluster/settings");
         addRoutingSettings.setJsonEntity(
-                    "{\"persistent\": {\"cluster.routing.allocation.exclude.test_attr\": \"" + getOldClusterVersion() + "\"}}");
+                    "{\"persistent\": {\"cluster.routing.allocation.exclude.test_attr\": \"" + oldClusterVersion + "\"}}");
         client().performRequest(addRoutingSettings);
 
         // Stick a template into the cluster so we can see it after the restore
         XContentBuilder templateBuilder = JsonXContent.contentBuilder().startObject();
+        boolean templateUsesTypes = false;
         templateBuilder.field("index_patterns", "evil_*"); // Don't confuse other tests by applying the template
         templateBuilder.startObject("settings"); {
             templateBuilder.field("number_of_shards", 1);
@@ -879,6 +880,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         templateBuilder.startObject("mappings"); {
             if (isRunningAgainstAncientCluster()) {
                 templateBuilder.startObject(type);
+                templateUsesTypes = true;
             }
             {
                 templateBuilder.startObject("_source");
@@ -897,7 +899,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             templateBuilder.startObject("alias2"); {
                 templateBuilder.startObject("filter"); {
                     templateBuilder.startObject("term"); {
-                        templateBuilder.field("version", isRunningAgainstOldCluster() ? getOldClusterVersion() : Version.CURRENT);
+                        templateBuilder.field("version", isRunningAgainstOldCluster() ? oldClusterVersion : Version.CURRENT);
                     }
                     templateBuilder.endObject();
                 }
@@ -911,7 +913,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // In 7.0, type names are no longer expected by default in put index template requests.
         // We therefore use the deprecated typed APIs when running against the current version, but testing with a pre-7 version
-        if (isRunningAgainstOldCluster() == false && getOldClusterVersion().major < 7) {
+        if (isRunningAgainstOldCluster() == false && templateUsesTypes) {
             createTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
         }
         createTemplateRequest.setOptions(allowTypeRemovalWarnings());
@@ -939,9 +941,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         createSnapshot.setJsonEntity("{\"indices\": \"" + index + "\"}");
         client().performRequest(createSnapshot);
 
-        checkSnapshot("old_snap", count, getOldClusterVersion());
+        checkSnapshot("old_snap", count, oldClusterVersion, type);
         if (false == isRunningAgainstOldCluster()) {
-            checkSnapshot("new_snap", count, Version.CURRENT);
+            // we always expect the "_doc" type on 7.x clusters, even if the original pre-6.7 clusters type was "doc"
+            checkSnapshot("new_snap", count, Version.CURRENT, "_doc");
         }
     }
 
@@ -1036,7 +1039,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion) throws IOException {
+    private void checkSnapshot(final String snapshotName, final int count, final Version tookOnVersion, String expectedType)
+            throws IOException {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
         Map<String, Object> listSnapshotResponse = entityAsMap(client().performRequest(listSnapshotRequest));
@@ -1138,7 +1142,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // We don't have the type in the response starting with 7.0, but we won't have it on old cluster after upgrade
         // either so look at the response to figure out the correct assertions
         if (isTypeInTemplateResponse(getTemplateResponse)) {
-            expectedTemplate.put("mappings", singletonMap(type, singletonMap("_source", singletonMap("enabled", true))));
+            expectedTemplate.put("mappings", singletonMap(expectedType, singletonMap("_source", singletonMap("enabled", true))));
         } else {
             expectedTemplate.put("mappings", singletonMap("_source", singletonMap("enabled", true)));
         }

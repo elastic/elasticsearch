@@ -98,7 +98,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             // simulate a peer recovery which locks the soft deletes policy on the primary
-            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLockForPeerRecovery() : () -> {};
+            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLock() : () -> {};
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
             retentionLock.close();
@@ -149,7 +149,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             // simulate a peer recovery which locks the soft deletes policy on the primary
-            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLockForPeerRecovery() : () -> {};
+            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLock() : () -> {};
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
             retentionLock.close();
@@ -160,7 +160,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final CountDownLatch latch = new CountDownLatch(1);
             primary.removeRetentionLease(id, ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString())));
             // simulate a peer recovery which locks the soft deletes policy on the primary
-            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLockForPeerRecovery() : () -> {};
+            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLock() : () -> {};
             currentRetentionLeases.remove(id);
             latch.await();
             retentionLock.close();

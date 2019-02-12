@@ -300,7 +300,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param logger The logger to use for status messages.
      * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
      * @param resourceName The name of the resource (e.g., "template123").
-     * @param parameters Map of query string parametrs, if any.
+     * @param parameters Map of query string parameters, if any.
      * @param body The {@link HttpEntity} that makes up the body of the request.
      * @param resourceType The type of resource (e.g., "monitoring template").
      * @param resourceOwnerName The user-recognizeable resource owner.

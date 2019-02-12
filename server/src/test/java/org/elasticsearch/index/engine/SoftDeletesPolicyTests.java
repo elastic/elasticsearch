@@ -222,7 +222,6 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
                         Collections.unmodifiableCollection(new ArrayList<>(leases)));
         final SoftDeletesPolicy policy =
                 new SoftDeletesPolicy(globalCheckpoint::get, 0, retentionOperations, leasesSupplier);
-        // set the local checkpoint of the safe commit to more than the global checkpoint
         policy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
         assertThat(policy.getMinRetainedSeqNo(), equalTo(minimumRetainingSequenceNumber.getAsLong()));
     }

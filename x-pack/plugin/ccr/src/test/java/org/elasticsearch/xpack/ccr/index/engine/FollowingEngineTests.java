@@ -640,4 +640,23 @@ public class FollowingEngineTests extends ESTestCase {
             }
         }
     }
+
+    /**
+     * Test that {@link FollowingEngine#verifyEngineBeforeIndexClosing()} never fails
+     * whatever the value of the global checkpoint to check is.
+     */
+    public void testVerifyShardBeforeIndexClosingIsNoOp() throws IOException {
+        final long seqNo = randomIntBetween(0, Integer.MAX_VALUE);
+        runIndexTest(
+            seqNo,
+            Engine.Operation.Origin.PRIMARY,
+            (followingEngine, index) -> {
+                globalCheckpoint.set(randomNonNegativeLong());
+                try {
+                    followingEngine.verifyEngineBeforeIndexClosing();
+                } catch (final IllegalStateException e) {
+                    fail("Following engine pre-closing verifications failed");
+                }
+            });
+    }
 }

@@ -295,7 +295,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         synchronized (this) {
             assert primaryMode;
             if (retentionLeases.contains(id) == false) {
-                throw new IllegalArgumentException("retention lease with ID [" + id + "] does not exist");
+                throw new RetentionLeaseNotFoundException(id);
             }
             retentionLeases = new RetentionLeases(
                     operationPrimaryTerm,

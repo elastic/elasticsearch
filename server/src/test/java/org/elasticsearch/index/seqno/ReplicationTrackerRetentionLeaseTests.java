@@ -244,6 +244,31 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         }
     }
 
+    public void testRemoveNotFound() {
+        final AllocationId allocationId = AllocationId.newInitializing();
+        long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final ReplicationTracker replicationTracker = new ReplicationTracker(
+                new ShardId("test", "_na", 0),
+                allocationId.getId(),
+                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                primaryTerm,
+                UNASSIGNED_SEQ_NO,
+                value -> {},
+                () -> 0L,
+                (leases, listener) -> {});
+        replicationTracker.updateFromMaster(
+                randomNonNegativeLong(),
+                Collections.singleton(allocationId.getId()),
+                routingTable(Collections.emptySet(), allocationId),
+                Collections.emptySet());
+        replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
+        final String id = randomAlphaOfLength(8);
+        final RetentionLeaseNotFoundException e = expectThrows(
+                RetentionLeaseNotFoundException.class,
+                () -> replicationTracker.removeRetentionLease(id, ActionListener.wrap(() -> {})));
+        assertThat(e, hasToString(containsString("retention lease with ID [" + id + "] not found")));
+    }
+
     public void testRemoveRetentionLeaseCausesRetentionLeaseSync() {
         final AllocationId allocationId = AllocationId.newInitializing();
         final Map<String, Long> retainingSequenceNumbers = new HashMap<>();

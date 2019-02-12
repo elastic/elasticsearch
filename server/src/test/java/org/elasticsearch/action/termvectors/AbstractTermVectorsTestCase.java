@@ -272,8 +272,10 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
             configs.add(config);
         }
         // always adds a test that fails
-        configs.add(new TestConfig(new TestDoc("doesnt_exist", new TestFieldSetting[]{}, new String[]{}).index("doesn't_exist").alias("doesn't_exist"),
-                new String[]{"doesnt_exist"}, true, true, true).expectedException(org.elasticsearch.index.IndexNotFoundException.class));
+        configs.add(new TestConfig(new TestDoc("doesnt_exist", new TestFieldSetting[]{}, new String[]{})
+            .index("doesn't_exist").alias("doesn't_exist"),
+                new String[]{"doesnt_exist"}, true, true, true)
+            .expectedException(org.elasticsearch.index.IndexNotFoundException.class));
 
         refresh();
 
@@ -401,9 +403,10 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     }
 
     protected TermVectorsRequestBuilder getRequestForConfig(TestConfig config) {
-        return client().prepareTermVectors(randomBoolean() ? config.doc.index : config.doc.alias, config.doc.type, config.doc.id).setPayloads(config.requestPayloads)
-                .setOffsets(config.requestOffsets).setPositions(config.requestPositions).setFieldStatistics(true).setTermStatistics(true)
-                .setSelectedFields(config.selectedFields).setRealtime(false);
+        return client().prepareTermVectors(randomBoolean() ? config.doc.index : config.doc.alias, config.doc.type, config.doc.id)
+            .setPayloads(config.requestPayloads)
+            .setOffsets(config.requestOffsets).setPositions(config.requestPositions).setFieldStatistics(true).setTermStatistics(true)
+            .setSelectedFields(config.selectedFields).setRealtime(false);
     }
 
     protected Fields getTermVectorsFromLucene(DirectoryReader directoryReader, TestDoc doc) throws IOException {

@@ -42,11 +42,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * This class holds the configuration details of a rollup job, such as the groupings, metrics, what
  * index to rollup and where to roll them to.
- *
- * When the configuration is stored server side, if there is no {@link MetricConfig} for the fields referenced in the
- * {@link HistogramGroupConfig} and {@link DateHistogramGroupConfig} in the passed {@link GroupConfig},
- * then default metrics of {@code ["min", "max"]} are provided
- *
  */
 public class RollupJobConfig implements Validatable, ToXContentObject {
 

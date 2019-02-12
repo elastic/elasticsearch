@@ -63,7 +63,7 @@ public abstract class FieldScript {
         this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         params = new HashMap<>(params);
         params.putAll(leafLookup.asMap());
-        this.params = new ParameterMap(params, DEPRECATIONS);
+        this.params = new DeprecationMap(params, DEPRECATIONS, "field-script");
     }
 
     // for expression engine
@@ -94,7 +94,7 @@ public abstract class FieldScript {
         leafLookup.setDocument(docid);
     }
 
-    /** A factory to construct {@link SearchScript} instances. */
+    /** A factory to construct {@link FieldScript} instances. */
     public interface LeafFactory {
         FieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }

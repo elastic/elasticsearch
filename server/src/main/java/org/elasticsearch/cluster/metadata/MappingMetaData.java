@@ -85,7 +85,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         this.routing = new Routing(docMapper.routingFieldMapper().required());
     }
 
-    public MappingMetaData(CompressedXContent mapping) throws IOException {
+    public MappingMetaData(CompressedXContent mapping) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
         if (mappingMap.size() != 1) {
@@ -174,11 +174,11 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             // timestamp
             out.writeBoolean(false); // enabled
-            out.writeString(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format());
+            out.writeString(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern());
             out.writeOptionalString("now"); // 5.x default
             out.writeOptionalBoolean(null);
         }
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(false); // hasParentField
         }
     }
@@ -220,7 +220,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             in.readOptionalString(); // defaultTimestamp
             in.readOptionalBoolean(); // ignoreMissing
         }
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readBoolean(); // hasParentField
         }
     }

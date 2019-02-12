@@ -29,8 +29,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.rounding.Rounding;
+import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -58,12 +58,14 @@ import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -116,8 +118,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.interval", "1ms",
                             "the_histo.date_histogram._count", 2,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
-                            "the_histo.min.value", 3.0,
-                            "the_histo.max.value", 3.0,
                             "_rollup.id", job.getId()
                     )
             ));
@@ -131,8 +131,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.interval", "1ms",
                             "the_histo.date_histogram._count", 1,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
-                            "the_histo.min.value", 7.0,
-                            "the_histo.max.value", 7.0,
                             "_rollup.id", job.getId()
                     )
             ));
@@ -148,22 +146,22 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         final List<Map<String, Object>> dataset = new ArrayList<>();
         dataset.addAll(
                 Arrays.asList(
-                        asMap("the_histo", asLong("2015-03-31T03:00:00"), "counter", 10),
-                        asMap("the_histo", asLong("2015-03-31T03:20:00"), "counter", 20),
-                        asMap("the_histo", asLong("2015-03-31T03:40:00"), "counter", 20),
-                        asMap("the_histo", asLong("2015-03-31T04:00:00"), "counter", 32),
-                        asMap("the_histo", asLong("2015-03-31T04:20:00"), "counter", 54),
-                        asMap("the_histo", asLong("2015-03-31T04:40:00"), "counter", 55),
-                        asMap("the_histo", asLong("2015-03-31T05:00:00"), "counter", 55),
-                        asMap("the_histo", asLong("2015-03-31T05:00:00"), "counter", 70),
-                        asMap("the_histo", asLong("2015-03-31T05:20:00"), "counter", 70),
-                        asMap("the_histo", asLong("2015-03-31T05:40:00"), "counter", 80),
-                        asMap("the_histo", asLong("2015-03-31T06:00:00"), "counter", 80),
-                        asMap("the_histo", asLong("2015-03-31T06:20:00"), "counter", 90),
-                        asMap("the_histo", asLong("2015-03-31T06:40:00"), "counter", 100),
-                        asMap("the_histo", asLong("2015-03-31T07:00:00"), "counter", 120),
-                        asMap("the_histo", asLong("2015-03-31T07:20:00"), "counter", 120),
-                        asMap("the_histo", asLong("2015-03-31T07:40:00"), "counter", 200)
+                        asMap("the_histo", asLong("2015-03-31T03:00:00.000Z"), "counter", 10),
+                        asMap("the_histo", asLong("2015-03-31T03:20:00.000Z"), "counter", 20),
+                        asMap("the_histo", asLong("2015-03-31T03:40:00.000Z"), "counter", 20),
+                        asMap("the_histo", asLong("2015-03-31T04:00:00.000Z"), "counter", 32),
+                        asMap("the_histo", asLong("2015-03-31T04:20:00.000Z"), "counter", 54),
+                        asMap("the_histo", asLong("2015-03-31T04:40:00.000Z"), "counter", 55),
+                        asMap("the_histo", asLong("2015-03-31T05:00:00.000Z"), "counter", 55),
+                        asMap("the_histo", asLong("2015-03-31T05:00:00.000Z"), "counter", 70),
+                        asMap("the_histo", asLong("2015-03-31T05:20:00.000Z"), "counter", 70),
+                        asMap("the_histo", asLong("2015-03-31T05:40:00.000Z"), "counter", 80),
+                        asMap("the_histo", asLong("2015-03-31T06:00:00.000Z"), "counter", 80),
+                        asMap("the_histo", asLong("2015-03-31T06:20:00.000Z"), "counter", 90),
+                        asMap("the_histo", asLong("2015-03-31T06:40:00.000Z"), "counter", 100),
+                        asMap("the_histo", asLong("2015-03-31T07:00:00.000Z"), "counter", 120),
+                        asMap("the_histo", asLong("2015-03-31T07:20:00.000Z"), "counter", 120),
+                        asMap("the_histo", asLong("2015-03-31T07:40:00.000Z"), "counter", 200)
                 )
         );
         executeTestCase(dataset, job, System.currentTimeMillis(), (resp) -> {
@@ -174,7 +172,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", newIDScheme ? 2 : 1,
-                            "the_histo.date_histogram.timestamp", asLong("2015-03-31T03:00:00"),
+                            "the_histo.date_histogram.timestamp", asLong("2015-03-31T03:00:00.000Z"),
                             "the_histo.date_histogram.interval", "1h",
                             "the_histo.date_histogram._count", 3,
                             "counter.avg._count", 3.0,
@@ -183,8 +181,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.max.value", 20.0,
                             "counter.sum.value", 50.0,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
-                            "the_histo.min.value", (double) asLong("2015-03-31T03:00:00"),
-                            "the_histo.max.value", (double) asLong("2015-03-31T03:40:00"),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -194,7 +190,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", newIDScheme ? 2 : 1,
-                            "the_histo.date_histogram.timestamp", asLong("2015-03-31T04:00:00"),
+                            "the_histo.date_histogram.timestamp", asLong("2015-03-31T04:00:00.000Z"),
                             "the_histo.date_histogram.interval", "1h",
                             "the_histo.date_histogram._count", 3,
                             "counter.avg._count", 3.0,
@@ -203,8 +199,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.max.value", 55.0,
                             "counter.sum.value", 141.0,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
-                            "the_histo.min.value", (double) asLong("2015-03-31T04:00:00"),
-                            "the_histo.max.value", (double) asLong("2015-03-31T04:40:00"),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -214,7 +208,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", newIDScheme ? 2 : 1,
-                            "the_histo.date_histogram.timestamp", asLong("2015-03-31T05:00:00"),
+                            "the_histo.date_histogram.timestamp", asLong("2015-03-31T05:00:00.000Z"),
                             "the_histo.date_histogram.interval", "1h",
                             "the_histo.date_histogram._count", 4,
                             "counter.avg._count", 4.0,
@@ -223,8 +217,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.max.value", 80.0,
                             "counter.sum.value", 275.0,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
-                            "the_histo.min.value", (double) asLong("2015-03-31T05:00:00"),
-                            "the_histo.max.value", (double) asLong("2015-03-31T05:40:00"),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -234,7 +226,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", newIDScheme ? 2 : 1,
-                            "the_histo.date_histogram.timestamp", asLong("2015-03-31T06:00:00"),
+                            "the_histo.date_histogram.timestamp", asLong("2015-03-31T06:00:00.000Z"),
                             "the_histo.date_histogram.interval", "1h",
                             "the_histo.date_histogram._count", 3,
                             "counter.avg._count", 3.0,
@@ -243,8 +235,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.max.value", 100.0,
                             "counter.sum.value", 270.0,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
-                            "the_histo.min.value", (double) asLong("2015-03-31T06:00:00"),
-                            "the_histo.max.value", (double) asLong("2015-03-31T06:40:00"),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -254,7 +244,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", newIDScheme ? 2 : 1,
-                            "the_histo.date_histogram.timestamp", asLong("2015-03-31T07:00:00"),
+                            "the_histo.date_histogram.timestamp", asLong("2015-03-31T07:00:00.000Z"),
                             "the_histo.date_histogram.interval", "1h",
                             "the_histo.date_histogram._count", 3,
                             "counter.avg._count", 3.0,
@@ -263,8 +253,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.max.value", 200.0,
                             "counter.sum.value", 440.0,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
-                            "the_histo.min.value", (double) asLong("2015-03-31T07:00:00"),
-                            "the_histo.max.value", (double) asLong("2015-03-31T07:40:00"),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -306,8 +294,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.interval", "1m",
                             "the_histo.date_histogram._count", 2,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
-                            "the_histo.min.value", (double) (now - TimeValue.timeValueHours(5).getMillis()),
-                            "the_histo.max.value", (double) (now - TimeValue.timeValueHours(5).getMillis()),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -321,8 +307,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.interval", "1m",
                             "the_histo.date_histogram._count", 2,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
-                            "the_histo.min.value", (double) (now - TimeValue.timeValueMinutes(75).getMillis()),
-                            "the_histo.max.value", (double) (now - TimeValue.timeValueMinutes(75).getMillis()),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -336,8 +320,6 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.interval", "1m",
                             "the_histo.date_histogram._count", 1,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
-                            "the_histo.min.value", (double) (now - TimeValue.timeValueMinutes(61).getMillis()),
-                            "the_histo.max.value", (double) (now - TimeValue.timeValueMinutes(61).getMillis()),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -346,7 +328,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
     public void testSimpleDateHistoWithTimeZone() throws Exception {
         final List<Map<String, Object>> dataset = new ArrayList<>();
-        long now = asLong("2015-04-01T10:00:00");
+        long now = asLong("2015-04-01T10:00:00.000Z");
         dataset.addAll(
                 Arrays.asList(
                         asMap("the_histo", now - TimeValue.timeValueHours(10).getMillis()),
@@ -373,12 +355,10 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     assertThat(request.sourceAsMap(), equalTo(
                             asMap(
                                     "_rollup.version", newIDScheme ? 2 : 1,
-                                    "the_histo.date_histogram.timestamp", asLong("2015-03-31T03:00:00"),
+                                    "the_histo.date_histogram.timestamp", asLong("2015-03-31T03:00:00.000Z"),
                                     "the_histo.date_histogram.interval", "1d",
                                     "the_histo.date_histogram._count", 2,
                                     "the_histo.date_histogram.time_zone", timeZone.toString(),
-                                    "the_histo.min.value", (double) (now - TimeValue.timeValueHours(10).getMillis()),
-                                    "the_histo.max.value", (double) (now - TimeValue.timeValueHours(8).getMillis()),
                                     "_rollup.id", job.getId()
                             )
                     ));
@@ -394,12 +374,10 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", newIDScheme ? 2 : 1,
-                            "the_histo.date_histogram.timestamp", asLong("2015-03-31T03:00:00"),
+                            "the_histo.date_histogram.timestamp", asLong("2015-03-31T03:00:00.000Z"),
                             "the_histo.date_histogram.interval", "1d",
                             "the_histo.date_histogram._count", 2,
                             "the_histo.date_histogram.time_zone", timeZone.toString(),
-                            "the_histo.min.value", (double) (now - TimeValue.timeValueHours(10).getMillis()),
-                            "the_histo.max.value", (double) (now - TimeValue.timeValueHours(8).getMillis()),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -409,18 +387,17 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             assertThat(request.sourceAsMap(), equalTo(
                     asMap(
                             "_rollup.version", newIDScheme ? 2 : 1,
-                            "the_histo.date_histogram.timestamp", asLong("2015-04-01T03:00:00"),
+                            "the_histo.date_histogram.timestamp", asLong("2015-04-01T03:00:00.000Z"),
                             "the_histo.date_histogram.interval", "1d",
                             "the_histo.date_histogram._count", 5,
                             "the_histo.date_histogram.time_zone", timeZone.toString(),
-                            "the_histo.min.value", (double) (now - TimeValue.timeValueHours(6).getMillis()),
-                            "the_histo.max.value", (double) now,
                             "_rollup.id", job.getId()
                     )
             ));
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34762")
     public void testRandomizedDateHisto() throws Exception {
         String rollupIndex = randomAlphaOfLengthBetween(5, 10);
 
@@ -474,7 +451,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(dateTime).getMillis();
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateTime);
     }
 
     /**
@@ -513,7 +490,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     private Map<String, MappedFieldType> createFieldTypes(RollupJobConfig job) {
         Map<String, MappedFieldType> fieldTypes = new HashMap<>();
         MappedFieldType fieldType = new DateFieldMapper.Builder(job.getGroupConfig().getDateHistogram().getField())
-                .dateTimeFormatter(Joda.forPattern(randomFrom("basic_date", "date_optional_time", "epoch_second")))
+                .format(randomFrom("basic_date", "date_optional_time", "epoch_second"))
+                .locale(Locale.ROOT)
                 .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
                 .fieldType();
         fieldTypes.put(fieldType.name(), fieldType);
@@ -624,9 +602,9 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             // extract query
             assertThat(request.source().query(), instanceOf(RangeQueryBuilder.class));
             RangeQueryBuilder range = (RangeQueryBuilder) request.source().query();
-            final DateTimeZone timeZone = range.timeZone() != null ? DateTimeZone.forID(range.timeZone()) : null;
+            final ZoneId timeZone = range.timeZone() != null ? ZoneId.of(range.timeZone()) : null;
             Query query = timestampField.rangeQuery(range.from(), range.to(), range.includeLower(), range.includeUpper(),
-                    null, timeZone, Joda.forPattern(range.format()).toDateMathParser(), queryShardContext);
+                    null, timeZone, DateFormatter.forPattern(range.format()).toDateMathParser(), queryShardContext);
 
             // extract composite agg
             assertThat(request.source().aggregations().getAggregatorFactories().size(), equalTo(1));

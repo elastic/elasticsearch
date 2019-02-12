@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -18,8 +20,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -64,12 +64,13 @@ import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappi
  *
  * @see ElasticsearchMappings
  */
-public class JobResultsPersister extends AbstractComponent {
+public class JobResultsPersister {
+
+    private static final Logger logger = LogManager.getLogger(JobResultsPersister.class);
 
     private final Client client;
 
-    public JobResultsPersister(Settings settings, Client client) {
-        super(settings);
+    public JobResultsPersister(Client client) {
         this.client = client;
     }
 
@@ -227,7 +228,7 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistQuantiles(Quantiles quantiles) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
-        persistable.persist(AnomalyDetectorsIndex.jobStateIndexName()).actionGet();
+        persistable.persist(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).actionGet();
     }
 
     /**
@@ -236,16 +237,16 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistQuantiles(Quantiles quantiles, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<IndexResponse> listener) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
         persistable.setRefreshPolicy(refreshPolicy);
-        persistable.persist(AnomalyDetectorsIndex.jobStateIndexName(), listener);
+        persistable.persist(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), listener);
     }
 
     /**
      * Persist a model snapshot description
      */
-    public void persistModelSnapshot(ModelSnapshot modelSnapshot, WriteRequest.RefreshPolicy refreshPolicy) {
+    public IndexResponse persistModelSnapshot(ModelSnapshot modelSnapshot, WriteRequest.RefreshPolicy refreshPolicy) {
         Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.documentId(modelSnapshot));
         persistable.setRefreshPolicy(refreshPolicy);
-        persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(modelSnapshot.getJobId())).actionGet();
+        return persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(modelSnapshot.getJobId())).actionGet();
     }
 
     /**
@@ -304,7 +305,7 @@ public class JobResultsPersister extends AbstractComponent {
      * @param jobId The job Id
      * */
     public void commitStateWrites(String jobId) {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
+        String indexName = AnomalyDetectorsIndex.jobStateIndexPattern();
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);

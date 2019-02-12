@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,15 +13,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
-import java.util.TimeZone;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -32,23 +30,19 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class SqlQueryRequest extends AbstractSqlQueryRequest {
     private static final ObjectParser<SqlQueryRequest, Void> PARSER = objectParser(SqlQueryRequest::new);
 
-    public static final ParseField CURSOR = new ParseField("cursor");
-    public static final ParseField FILTER = new ParseField("filter");
-
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
-        PARSER.declareObject(SqlQueryRequest::filter,
-            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
     }
 
     private String cursor = "";
 
     public SqlQueryRequest() {
+        super();
     }
 
-    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
-                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, String cursor) {
-        super(mode, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
+    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, ZoneId zoneId,
+                           int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, String cursor, RequestInfo requestInfo) {
+        super(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
         this.cursor = cursor;
     }
 
@@ -110,14 +104,11 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // This is needed just to test round-trip compatibility with proto.SqlQueryRequest
-        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(mode(), query(), params(), timeZone(), fetchSize(),
-            requestTimeout(), pageTimeout(), filter(), cursor()).toXContent(builder, params);
+        return new org.elasticsearch.xpack.sql.proto.SqlQueryRequest(query(), params(), zoneId(), fetchSize(), requestTimeout(),
+            pageTimeout(), filter(), cursor(), requestInfo()).toXContent(builder, params);
     }
 
-    public static SqlQueryRequest fromXContent(XContentParser parser, Mode mode) {
-        SqlQueryRequest request = PARSER.apply(parser, null);
-        request.mode(mode);
-        return request;
+    public static SqlQueryRequest fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
-
 }

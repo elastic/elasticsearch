@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.handler.ssl.SslHandler;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -25,6 +27,7 @@ import javax.net.ssl.SSLEngine;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 
 public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport {
+    private static final Logger logger = LogManager.getLogger(SecurityNetty4HttpServerTransport.class);
 
     private final SecurityHttpExceptionHandler securityExceptionHandler;
     private final IPFilter ipFilter;

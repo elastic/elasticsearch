@@ -26,8 +26,8 @@ public class BinaryLogicProcessor extends FunctionalBinaryProcessor<Boolean, Boo
             if (l == null || r == null) {
                 return null;
             }
-            return l.booleanValue() && r.booleanValue();
-        }, "&&"),
+            return Boolean.logicalAnd(l.booleanValue(), r.booleanValue());
+        }, "AND"),
         OR((l, r) -> {
             if (Boolean.TRUE.equals(l) || Boolean.TRUE.equals(r)) {
                 return Boolean.TRUE;
@@ -35,8 +35,8 @@ public class BinaryLogicProcessor extends FunctionalBinaryProcessor<Boolean, Boo
             if (l == null || r == null) {
                 return null;
             }
-            return l.booleanValue() || r.booleanValue();
-        }, "||");
+            return Boolean.logicalOr(l.booleanValue(), r.booleanValue());
+        }, "OR");
 
         private final BiFunction<Boolean, Boolean, Boolean> process;
         private final String symbol;
@@ -84,8 +84,18 @@ public class BinaryLogicProcessor extends FunctionalBinaryProcessor<Boolean, Boo
 
     @Override
     protected void checkParameter(Object param) {
-        if (!(param instanceof Boolean)) {
+        if (param != null && !(param instanceof Boolean)) {
             throw new SqlIllegalArgumentException("A boolean is required; received {}", param);
         }
+    }
+
+    @Override
+    public Object process(Object input) {
+        Object l = left().process(input);
+        checkParameter(l);
+        Object r = right().process(input);
+        checkParameter(r);
+
+        return doProcess(l, r);
     }
 }

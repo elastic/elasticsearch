@@ -15,6 +15,8 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
@@ -24,32 +26,44 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DateEsField;
 import org.elasticsearch.xpack.sql.type.EsField;
+import org.elasticsearch.xpack.sql.type.InvalidMappedField;
+import org.elasticsearch.xpack.sql.type.KeywordEsField;
+import org.elasticsearch.xpack.sql.type.TextEsField;
 import org.elasticsearch.xpack.sql.type.Types;
+import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
-import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 public class IndexResolver {
 
     public enum IndexType {
 
         INDEX("BASE TABLE"),
-        ALIAS("ALIAS"),
+        ALIAS("VIEW"),
         // value for user types unrecognized
-        UNKNOWN("UKNOWN");
+        UNKNOWN("UNKNOWN");
 
         public static final EnumSet<IndexType> VALID = EnumSet.of(INDEX, ALIAS);
 
@@ -121,7 +135,7 @@ public class IndexResolver {
 
     private static final IndicesOptions INDICES_ONLY_OPTIONS = new IndicesOptions(
             EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.IGNORE_ALIASES), EnumSet.of(WildcardStates.OPEN));
-
+    private static final List<String> FIELD_NAMES_BLACKLIST = Arrays.asList("_size");
 
     private final Client client;
     private final String clusterName;
@@ -222,64 +236,178 @@ public class IndexResolver {
         listener.onResponse(result);
     }
 
-
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveWithSameMapping(String indexWildcard, String javaRegex, ActionListener<IndexResolution> listener) {
-        GetIndexRequest getIndexRequest = createGetIndexRequest(indexWildcard);
-        client.admin().indices().getIndex(getIndexRequest, ActionListener.wrap(response -> {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = response.getMappings();
+    public void resolveAsMergedMapping(String indexWildcard, String javaRegex, ActionListener<IndexResolution> listener) {
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard);
+        client.fieldCaps(fieldRequest,
+                ActionListener.wrap(response -> listener.onResponse(mergedMapping(indexWildcard, response.get())), listener::onFailure));
+    }
 
-            List<IndexResolution> resolutions;
-            if (mappings.size() > 0) {
-                resolutions = new ArrayList<>(mappings.size());
-                Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
-                for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings : mappings) {
-                    String concreteIndex = indexMappings.key;
-                    if (pattern == null || pattern.matcher(concreteIndex).matches()) {
-                        resolutions.add(buildGetIndexResult(concreteIndex, concreteIndex, indexMappings.value));
+    static IndexResolution mergedMapping(String indexPattern, Map<String, Map<String, FieldCapabilities>> fieldCaps) {
+        if (fieldCaps == null || fieldCaps.isEmpty()) {
+            return IndexResolution.notFound(indexPattern);
+        }
+
+        StringBuilder errorMessage = new StringBuilder();
+
+        NavigableSet<Entry<String, Map<String, FieldCapabilities>>> sortedFields = new TreeSet<>(
+                // for some reason .reversed doesn't work (prolly due to inference)
+                Collections.reverseOrder(Comparator.comparing(Entry::getKey)));
+        sortedFields.addAll(fieldCaps.entrySet());
+
+        Map<String, EsField> hierarchicalMapping = new TreeMap<>();
+        Map<String, EsField> flattedMapping = new LinkedHashMap<>();
+        
+        // sort keys descending in order to easily detect multi-fields (a.b.c multi-field of a.b)
+        // without sorting, they can still be detected however without the emptyMap optimization
+        // (fields without multi-fields have no children)
+        for (Entry<String, Map<String, FieldCapabilities>> entry : sortedFields) {
+
+            InvalidMappedField invalidField = null;
+            FieldCapabilities fieldCap = null;
+            errorMessage.setLength(0);
+
+            String name = entry.getKey();
+
+            // Skip any of the blacklisted field names.
+            if (!FIELD_NAMES_BLACKLIST.contains(name)) {
+                Map<String, FieldCapabilities> types = entry.getValue();
+                // field is mapped differently across indices
+                if (types.size() > 1) {
+                    // build the error message
+                    // and create a MultiTypeField
+                    
+                    for (Entry<String, FieldCapabilities> type : types.entrySet()) {
+                        if (errorMessage.length() > 0) {
+                            errorMessage.append(", ");
+                        }
+                        errorMessage.append("[");
+                        errorMessage.append(type.getKey());
+                        errorMessage.append("] in ");
+                        errorMessage.append(Arrays.toString(type.getValue().indices()));
+                    }
+
+                    errorMessage.insert(0, "mapped as [" + types.size() + "] incompatible types: ");
+                    
+                    invalidField = new InvalidMappedField(name, errorMessage.toString());
+                }
+                // type is okay, check aggregation
+                else {
+                    fieldCap = types.values().iterator().next();
+                    
+                    // Skip internal fields (name starting with underscore and its type reported by field_caps starts with underscore
+                    // as well). A meta field named "_version", for example, has the type named "_version".
+                    if (name.startsWith("_") && fieldCap.getType().startsWith("_")) {
+                        continue;
+                    }
+                    // validate search/agg-able
+                    if (fieldCap.isAggregatable() && fieldCap.nonAggregatableIndices() != null) {
+                        errorMessage.append("mapped as aggregatable except in ");
+                        errorMessage.append(Arrays.toString(fieldCap.nonAggregatableIndices()));
+                    }
+                    if (fieldCap.isSearchable() && fieldCap.nonSearchableIndices() != null) {
+                        if (errorMessage.length() > 0) {
+                            errorMessage.append(",");
+                        }
+                        errorMessage.append("mapped as searchable except in ");
+                        errorMessage.append(Arrays.toString(fieldCap.nonSearchableIndices()));
+                    }
+
+                    if (errorMessage.length() > 0) {
+                        invalidField = new InvalidMappedField(name, errorMessage.toString());
                     }
                 }
-            } else {
-                resolutions = emptyList();
-            }
-
-            listener.onResponse(merge(resolutions, indexWildcard));
-        }, listener::onFailure));
-    }
-
-    static IndexResolution merge(List<IndexResolution> resolutions, String indexWildcard) {
-        IndexResolution merged = null;
-        for (IndexResolution resolution : resolutions) {
-            // everything that follows gets compared
-            if (!resolution.isValid()) {
-                return resolution;
-            }
-            // initialize resolution on first run
-            if (merged == null) {
-                merged = resolution;
-            }
-            // need the same mapping across all resolutions
-            if (!merged.get().mapping().equals(resolution.get().mapping())) {
-                return IndexResolution.invalid(
-                        "[" + indexWildcard + "] points to indices [" + merged.get().name() + "] "
-                                + "and [" + resolution.get().name() + "] which have different mappings. "
-                                + "When using multiple indices, the mappings must be identical.");
+                
+                // validation passes - create the field
+                // if the name wasn't added before
+                final InvalidMappedField invalidF = invalidField;
+                final FieldCapabilities fieldCapab = fieldCap;
+                if (!flattedMapping.containsKey(name)) {
+                    createField(name, fieldCaps, hierarchicalMapping, flattedMapping, s -> {
+                        return invalidF != null ? invalidF : createField(s, fieldCapab.getType(), emptyMap(), fieldCapab.isAggregatable());
+                    });
+                }
             }
         }
-        if (merged != null) {
-            // at this point, we are sure there's the same mapping across all (if that's the case) indices
-            // to keep things simple, use the given pattern as index name
-            merged = IndexResolution.valid(new EsIndex(indexWildcard, merged.get().mapping()));
-        } else {
-            merged = IndexResolution.notFound(indexWildcard);
-        }
-        return merged;
+
+        return IndexResolution.valid(new EsIndex(indexPattern, hierarchicalMapping));
     }
 
+    private static EsField createField(String fieldName, Map<String, Map<String, FieldCapabilities>> globalCaps,
+            Map<String, EsField> hierarchicalMapping, Map<String, EsField> flattedMapping,
+            Function<String, EsField> field) {
+
+        Map<String, EsField> parentProps = hierarchicalMapping;
+
+        int dot = fieldName.lastIndexOf('.');
+        String fullFieldName = fieldName;
+
+        if (dot >= 0) {
+            String parentName = fieldName.substring(0, dot);
+            fieldName = fieldName.substring(dot + 1);
+            EsField parent = flattedMapping.get(parentName);
+            if (parent == null) {
+                Map<String, FieldCapabilities> map = globalCaps.get(parentName);
+                Function<String, EsField> fieldFunction;
+
+                // lack of parent implies the field is an alias
+                if (map == null) {
+                    // as such, create the field manually
+                    fieldFunction = s -> createField(s, DataType.OBJECT.name(), new TreeMap<>(), false);
+                } else {
+                    FieldCapabilities parentCap = map.values().iterator().next();
+                    fieldFunction = s -> createField(s, parentCap.getType(), new TreeMap<>(), parentCap.isAggregatable());
+                }
+                
+                parent = createField(parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction);
+            }
+            parentProps = parent.getProperties();
+        }
+
+        EsField esField = field.apply(fieldName);
+        
+        parentProps.put(fieldName, esField);
+        flattedMapping.put(fullFieldName, esField);
+
+        return esField;
+    }
+
+    private static EsField createField(String fieldName, String typeName, Map<String, EsField> props, boolean isAggregateable) {
+        DataType esType = DataType.fromTypeName(typeName);
+        switch (esType) {
+            case TEXT:
+                return new TextEsField(fieldName, props, false);
+            case KEYWORD:
+                int length = DataType.KEYWORD.defaultPrecision;
+                // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
+                boolean normalized = false;
+                return new KeywordEsField(fieldName, props, isAggregateable, length, normalized);
+            case DATETIME:
+                return new DateEsField(fieldName, props, isAggregateable);
+            case UNSUPPORTED:
+                return new UnsupportedEsField(fieldName, typeName);
+            default:
+                return new EsField(fieldName, esType, props, isAggregateable);
+        }
+    }
+    
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String index) {
+        return new FieldCapabilitiesRequest()
+                .indices(Strings.commaDelimitedListToStringArray(index))
+                .fields("*")
+                //lenient because we throw our own errors looking at the response e.g. if something was not resolved
+                //also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
+                .indicesOptions(IndicesOptions.lenientExpandOpen());
+    }
+
+    // TODO: Concrete indices still uses get mapping
+    // waiting on https://github.com/elastic/elasticsearch/pull/34071
+    //
+    
     /**
-     * Resolves a pattern to multiple, separate indices.
+     * Resolves a pattern to multiple, separate indices. Doesn't perform validation.
      */
     public void resolveAsSeparateMappings(String indexWildcard, String javaRegex, ActionListener<List<EsIndex>> listener) {
         GetIndexRequest getIndexRequest = createGetIndexRequest(indexWildcard);
@@ -306,7 +434,7 @@ public class IndexResolver {
             listener.onResponse(results);
         }, listener::onFailure));
     }
-
+    
     private static GetIndexRequest createGetIndexRequest(String index) {
         return new GetIndexRequest()
                 .local(true)

@@ -77,11 +77,14 @@ opening spend more time in the `opening` state. Defaults to `2`.
 These settings are for advanced use cases; the default values are generally 
 sufficient:
 
-`xpack.ml.max_anomaly_records`:: (<<cluster-update-settings,Dynamic>>) 
+`xpack.ml.enable_config_migration` (<<cluster-update-settings,Dynamic>>)::
+Reserved.
+
+`xpack.ml.max_anomaly_records` (<<cluster-update-settings,Dynamic>>)::
 The maximum number of records that are output per bucket. The default value is 
 `500`.
 
-`xpack.ml.max_lazy_ml_nodes`:: (<<cluster-update-settings,Dynamic>>)
+`xpack.ml.max_lazy_ml_nodes` (<<cluster-update-settings,Dynamic>>)::
 The number of lazily spun up Machine Learning nodes. Useful in situations
 where ML nodes are not desired until the first Machine Learning Job
 is opened. It defaults to `0` and has a maximum acceptable value of `3`.

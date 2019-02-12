@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
@@ -41,9 +41,9 @@ public final class TransportSamlLogoutAction
     private final TokenService tokenService;
 
     @Inject
-    public TransportSamlLogoutAction(Settings settings, TransportService transportService,
-                                     ActionFilters actionFilters, Realms realms, TokenService tokenService) {
-        super(settings, SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new);
+    public TransportSamlLogoutAction(TransportService transportService, ActionFilters actionFilters, Realms realms,
+                                     TokenService tokenService) {
+        super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new);
         this.realms = realms;
         this.tokenService = tokenService;
     }
@@ -80,7 +80,7 @@ public final class TransportSamlLogoutAction
         }, listener::onFailure));
     }
 
-    private void invalidateRefreshToken(String refreshToken, ActionListener<Boolean> listener) {
+    private void invalidateRefreshToken(String refreshToken, ActionListener<TokensInvalidationResult> listener) {
         if (refreshToken == null) {
             listener.onResponse(null);
         } else {

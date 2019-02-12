@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.component.AbstractComponent;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.AbstractRecyclerC;
@@ -39,7 +39,7 @@ import static org.elasticsearch.common.recycler.Recyclers.dequeFactory;
 import static org.elasticsearch.common.recycler.Recyclers.none;
 
 /** A recycler of fixed-size pages. */
-public class PageCacheRecycler extends AbstractComponent implements Releasable {
+public class PageCacheRecycler implements Releasable {
 
     public static final Setting<Type> TYPE_SETTING =
         new Setting<>("cache.recycler.page.type", Type.CONCURRENT.name(), Type::parse, Property.NodeScope);
@@ -55,10 +55,23 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
     public static final Setting<Double> WEIGHT_OBJECTS_SETTING  =
         Setting.doubleSetting("cache.recycler.page.weight.objects", 0.1d, 0d, Property.NodeScope);
 
+    /** Page size in bytes: 16KB */
+    public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
+    public static final int OBJECT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+    public static final int LONG_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Long.BYTES;
+    public static final int INT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Integer.BYTES;
+    public static final int BYTE_PAGE_SIZE = PAGE_SIZE_IN_BYTES;
+
     private final Recycler<byte[]> bytePage;
     private final Recycler<int[]> intPage;
     private final Recycler<long[]> longPage;
     private final Recycler<Object[]> objectPage;
+
+    public static final PageCacheRecycler NON_RECYCLING_INSTANCE;
+
+    static {
+        NON_RECYCLING_INSTANCE = new PageCacheRecycler(Settings.builder().put(LIMIT_HEAP_SETTING.getKey(), "0%").build());
+    }
 
     @Override
     public void close() {
@@ -66,7 +79,6 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
     }
 
     public PageCacheRecycler(Settings settings) {
-        super(settings);
         final Type type = TYPE_SETTING.get(settings);
         final long limit = LIMIT_HEAP_SETTING.get(settings).getBytes();
         final int availableProcessors = EsExecutors.numberOfProcessors(settings);
@@ -90,13 +102,13 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         final double objectsWeight = WEIGHT_OBJECTS_SETTING .get(settings);
 
         final double totalWeight = bytesWeight + intsWeight + longsWeight + objectsWeight;
-        final int maxPageCount = (int) Math.min(Integer.MAX_VALUE, limit / BigArrays.PAGE_SIZE_IN_BYTES);
+        final int maxPageCount = (int) Math.min(Integer.MAX_VALUE, limit / PAGE_SIZE_IN_BYTES);
 
         final int maxBytePageCount = (int) (bytesWeight * maxPageCount / totalWeight);
         bytePage = build(type, maxBytePageCount, availableProcessors, new AbstractRecyclerC<byte[]>() {
             @Override
             public byte[] newInstance(int sizing) {
-                return new byte[BigArrays.BYTE_PAGE_SIZE];
+                return new byte[BYTE_PAGE_SIZE];
             }
             @Override
             public void recycle(byte[] value) {
@@ -108,7 +120,7 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         intPage = build(type, maxIntPageCount, availableProcessors, new AbstractRecyclerC<int[]>() {
             @Override
             public int[] newInstance(int sizing) {
-                return new int[BigArrays.INT_PAGE_SIZE];
+                return new int[INT_PAGE_SIZE];
             }
             @Override
             public void recycle(int[] value) {
@@ -120,7 +132,7 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         longPage = build(type, maxLongPageCount, availableProcessors, new AbstractRecyclerC<long[]>() {
             @Override
             public long[] newInstance(int sizing) {
-                return new long[BigArrays.LONG_PAGE_SIZE];
+                return new long[LONG_PAGE_SIZE];
             }
             @Override
             public void recycle(long[] value) {
@@ -132,7 +144,7 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
         objectPage = build(type, maxObjectPageCount, availableProcessors, new AbstractRecyclerC<Object[]>() {
             @Override
             public Object[] newInstance(int sizing) {
-                return new Object[BigArrays.OBJECT_PAGE_SIZE];
+                return new Object[OBJECT_PAGE_SIZE];
             }
             @Override
             public void recycle(Object[] value) {
@@ -140,7 +152,7 @@ public class PageCacheRecycler extends AbstractComponent implements Releasable {
             }
         });
 
-        assert BigArrays.PAGE_SIZE_IN_BYTES * (maxBytePageCount + maxIntPageCount + maxLongPageCount + maxObjectPageCount) <= limit;
+        assert PAGE_SIZE_IN_BYTES * (maxBytePageCount + maxIntPageCount + maxLongPageCount + maxObjectPageCount) <= limit;
     }
 
     public Recycler.V<byte[]> bytePage(boolean clear) {

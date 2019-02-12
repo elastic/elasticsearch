@@ -33,10 +33,6 @@ public class SnapshotMissingException extends SnapshotException {
         super(repositoryName, snapshotId, "is missing", cause);
     }
 
-    public SnapshotMissingException(final String repositoryName, final SnapshotId snapshotId) {
-        super(repositoryName, snapshotId, "is missing");
-    }
-
     public SnapshotMissingException(final String repositoryName, final String snapshotName) {
         super(repositoryName, snapshotName, "is missing");
     }
@@ -49,5 +45,4 @@ public class SnapshotMissingException extends SnapshotException {
     public RestStatus status() {
         return RestStatus.NOT_FOUND;
     }
-
 }

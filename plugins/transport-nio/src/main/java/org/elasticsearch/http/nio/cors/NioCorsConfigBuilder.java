@@ -50,19 +50,6 @@ public final class NioCorsConfigBuilder {
     }
 
     /**
-     * Creates a {@link NioCorsConfigBuilder} instance with the specified origin.
-     *
-     * @return {@link NioCorsConfigBuilder} to support method chaining.
-     */
-    public static NioCorsConfigBuilder forOrigin(final String origin) {
-        if ("*".equals(origin)) {
-            return new NioCorsConfigBuilder();
-        }
-        return new NioCorsConfigBuilder(origin);
-    }
-
-
-    /**
      * Create a {@link NioCorsConfigBuilder} instance with the specified pattern origin.
      *
      * @param pattern the regular expression pattern to match incoming origins on.
@@ -87,14 +74,12 @@ public final class NioCorsConfigBuilder {
     Optional<Set<String>> origins;
     Optional<Pattern> pattern;
     final boolean anyOrigin;
-    boolean allowNullOrigin;
     boolean enabled = true;
     boolean allowCredentials;
     long maxAge;
     final Set<HttpMethod> requestMethods = new HashSet<>();
     final Set<String> requestHeaders = new HashSet<>();
     final Map<CharSequence, Callable<?>> preflightHeaders = new HashMap<>();
-    private boolean noPreflightHeaders;
     boolean shortCircuit;
 
     /**
@@ -128,18 +113,6 @@ public final class NioCorsConfigBuilder {
         this.pattern = Optional.of(pattern);
         origins = Optional.empty();
         anyOrigin = false;
-    }
-
-    /**
-     * Web browsers may set the 'Origin' request header to 'null' if a resource is loaded
-     * from the local file system. Calling this method will enable a successful CORS response
-     * with a wildcard for the CORS response header 'Access-Control-Allow-Origin'.
-     *
-     * @return {@link NioCorsConfigBuilder} to support method chaining.
-     */
-    NioCorsConfigBuilder allowNullOrigin() {
-        allowNullOrigin = true;
-        return this;
     }
 
     /**
@@ -220,71 +193,6 @@ public final class NioCorsConfigBuilder {
     }
 
     /**
-     * Returns HTTP response headers that should be added to a CORS preflight response.
-     *
-     * An intermediary like a load balancer might require that a CORS preflight request
-     * have certain headers set. This enables such headers to be added.
-     *
-     * @param name the name of the HTTP header.
-     * @param values the values for the HTTP header.
-     * @return {@link NioCorsConfigBuilder} to support method chaining.
-     */
-    public NioCorsConfigBuilder preflightResponseHeader(final CharSequence name, final Object... values) {
-        if (values.length == 1) {
-            preflightHeaders.put(name, new ConstantValueGenerator(values[0]));
-        } else {
-            preflightResponseHeader(name, Arrays.asList(values));
-        }
-        return this;
-    }
-
-    /**
-     * Returns HTTP response headers that should be added to a CORS preflight response.
-     *
-     * An intermediary like a load balancer might require that a CORS preflight request
-     * have certain headers set. This enables such headers to be added.
-     *
-     * @param name the name of the HTTP header.
-     * @param value the values for the HTTP header.
-     * @param <T> the type of values that the Iterable contains.
-     * @return {@link NioCorsConfigBuilder} to support method chaining.
-     */
-    public <T> NioCorsConfigBuilder preflightResponseHeader(final CharSequence name, final Iterable<T> value) {
-        preflightHeaders.put(name, new ConstantValueGenerator(value));
-        return this;
-    }
-
-    /**
-     * Returns HTTP response headers that should be added to a CORS preflight response.
-     *
-     * An intermediary like a load balancer might require that a CORS preflight request
-     * have certain headers set. This enables such headers to be added.
-     *
-     * Some values must be dynamically created when the HTTP response is created, for
-     * example the 'Date' response header. This can be accomplished by using a Callable
-     * which will have its 'call' method invoked when the HTTP response is created.
-     *
-     * @param name the name of the HTTP header.
-     * @param valueGenerator a Callable which will be invoked at HTTP response creation.
-     * @param <T> the type of the value that the Callable can return.
-     * @return {@link NioCorsConfigBuilder} to support method chaining.
-     */
-    public <T> NioCorsConfigBuilder preflightResponseHeader(final CharSequence name, final Callable<T> valueGenerator) {
-        preflightHeaders.put(name, valueGenerator);
-        return this;
-    }
-
-    /**
-     * Specifies that no preflight response headers should be added to a preflight response.
-     *
-     * @return {@link NioCorsConfigBuilder} to support method chaining.
-     */
-    public NioCorsConfigBuilder noPreflightResponseHeaders() {
-        noPreflightHeaders = true;
-        return this;
-    }
-
-    /**
      * Specifies that a CORS request should be rejected if it's invalid before being
      * further processing.
      *
@@ -305,7 +213,7 @@ public final class NioCorsConfigBuilder {
      * @return {@link NioCorsConfig} the configured CorsConfig instance.
      */
     public NioCorsConfig build() {
-        if (preflightHeaders.isEmpty() && !noPreflightHeaders) {
+        if (preflightHeaders.isEmpty()) {
             preflightHeaders.put("date", DateValueGenerator.INSTANCE);
             preflightHeaders.put("content-length", new ConstantValueGenerator("0"));
         }

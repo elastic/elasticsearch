@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -242,6 +243,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeInfo.getSettings()).thenReturn(Settings.builder()
                                                             .put(NetworkModule.TRANSPORT_TYPE_KEY, "_transport")
                                                             .put(NetworkModule.HTTP_TYPE_KEY, "_http")
+                                                            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "_disco")
                                                             .build());
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
@@ -255,6 +257,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockOsInfo.getAvailableProcessors()).thenReturn(32);
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
+        when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
         when(mockNodeInfo.getJvm()).thenReturn(mockJvmInfo);
@@ -446,6 +449,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                             + "\"count\":1"
                           + "}"
                         + "],"
+                        + "\"pretty_names\":["
+                          + "{"
+                            + "\"pretty_name\":\"_pretty_os_name\","
+                            + "\"count\":1"
+                          + "}"
+                        + "],"
                         + "\"mem\":{"
                           + "\"total_in_bytes\":100,"
                           + "\"free_in_bytes\":79,"
@@ -505,6 +514,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"http_types\":{"
                           + "\"_http\":1"
                         + "}"
+                      + "},"
+                      + "\"discovery_types\":{"
+                        + "\"_disco\":1"
                       + "}"
                     + "}"
                   + "},"

@@ -59,7 +59,8 @@ public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEv
         }
         RankEvalRequest rankEvalRequest = new RankEvalRequest(RankEvalSpecTests.createTestItem(), indices);
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+            randomBoolean());
         rankEvalRequest.indicesOptions(indicesOptions);
         return rankEvalRequest;
     }

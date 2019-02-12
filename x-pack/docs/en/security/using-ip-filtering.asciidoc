@@ -5,19 +5,19 @@
 You can apply IP filtering to application clients, node clients, or transport
 clients, in addition to other nodes that are attempting to join the cluster.
 
-If a node's IP address is on the blacklist, {security} will still allow the
-connection to Elasticsearch, but it will be dropped immediately, and no requests
-will be processed.
+If a node's IP address is on the blacklist, the {es} {security-features} allow
+the connection to {es} but it is be dropped immediately and no requests are
+processed.
 
 NOTE: Elasticsearch installations are not designed to be publicly accessible
-      over the Internet. IP Filtering and the other security capabilities of
-      {security} do not change this condition.
+      over the Internet. IP Filtering and the other capabilities of the
+      {es} {security-features} do not change this condition.
 
 [float]
 === Enabling IP filtering
 
-{security} features an access control feature that allows or rejects hosts,
-domains, or subnets.
+The {es} {security-features} contain an access control feature that allows or
+rejects hosts, domains, or subnets.
 
 You configure IP filtering by specifying the `xpack.security.transport.filter.allow` and
 `xpack.security.transport.filter.deny` settings in in `elasticsearch.yml`. Allow rules
@@ -78,8 +78,8 @@ xpack.security.http.filter.enabled: true
 [float]
 === Specifying TCP transport profiles
 
-{ref}/modules-transport.html#_tcp_transport_profiles[TCP transport profiles]
-enable Elasticsearch to bind on multiple hosts. {security} enables you to apply
+{ref}/modules-transport.html[TCP transport profiles]
+enable Elasticsearch to bind on multiple hosts. The {es} {security-features} enable you to apply
 different IP filtering on different profiles.
 
 [source,yaml]

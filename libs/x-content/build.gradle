@@ -71,10 +71,10 @@ if (isEclipse) {
     }
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
     // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
     'com.fasterxml.jackson.databind.ObjectMapper',
-]
+)
 
 dependencyLicenses {
   mapping from: /jackson-.*/, to: 'jackson'

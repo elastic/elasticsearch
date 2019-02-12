@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.security.authc.ldap.support;
 
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
+import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
+import com.unboundid.ldap.listener.InMemoryListenerConfig;
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
@@ -13,7 +15,6 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -26,29 +27,40 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapSessionFactorySettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapLoadBalancingSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
 import java.security.AccessController;
+import java.security.KeyStore;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
 
 public abstract class LdapTestCase extends ESTestCase {
 
-    private static final String USER_DN_TEMPLATES_SETTING_KEY = LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING.getKey();
+    protected static final RealmConfig.RealmIdentifier REALM_IDENTIFIER = new RealmConfig.RealmIdentifier("ldap", "ldap1");
 
     static int numberOfLdapServers;
     protected InMemoryDirectoryServer[] ldapServers;
@@ -62,7 +74,25 @@ public abstract class LdapTestCase extends ESTestCase {
     public void startLdap() throws Exception {
         ldapServers = new InMemoryDirectoryServer[numberOfLdapServers];
         for (int i = 0; i < numberOfLdapServers; i++) {
-            InMemoryDirectoryServer ldapServer = new InMemoryDirectoryServer("o=sevenSeas");
+            InMemoryDirectoryServerConfig serverConfig = new InMemoryDirectoryServerConfig("o=sevenSeas");
+            List<InMemoryListenerConfig> listeners = new ArrayList<>(2);
+            listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap"));
+            if (openLdapsPort()) {
+                final char[] ldapPassword = "ldap-password".toCharArray();
+                final KeyStore ks = CertParsingUtils.getKeyStoreFromPEM(
+                    getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-test-case.crt"),
+                    getDataPath("/org/elasticsearch/xpack/security/authc/ldap/support/ldap-test-case.key"),
+                    ldapPassword
+                );
+                X509ExtendedKeyManager keyManager = CertParsingUtils.keyManager(ks, ldapPassword, KeyManagerFactory.getDefaultAlgorithm());
+                final SSLContext context = SSLContext.getInstance("TLSv1.2");
+                context.init(new KeyManager[] { keyManager }, null, null);
+                SSLServerSocketFactory serverSocketFactory = context.getServerSocketFactory();
+                SSLSocketFactory clientSocketFactory = context.getSocketFactory();
+                listeners.add(InMemoryListenerConfig.createLDAPSConfig("ldaps", null, 0, serverSocketFactory, clientSocketFactory));
+            }
+            serverConfig.setListenerConfigs(listeners);
+            InMemoryDirectoryServer ldapServer = new InMemoryDirectoryServer(serverConfig);
             ldapServer.add("o=sevenSeas", new Attribute("dc", "UnboundID"),
                     new Attribute("objectClass", "top", "domain", "extensibleObject"));
             ldapServer.importFromLDIF(false,
@@ -74,6 +104,10 @@ public abstract class LdapTestCase extends ESTestCase {
             });
             ldapServers[i] = ldapServer;
         }
+    }
+
+    protected boolean openLdapsPort() {
+        return false;
     }
 
     @After
@@ -93,11 +127,11 @@ public abstract class LdapTestCase extends ESTestCase {
     }
 
     public static Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, LdapSearchScope scope) {
-        return buildLdapSettings(new String[] { ldapUrl }, new String[] { userTemplate }, groupSearchBase, scope);
+        return buildLdapSettings(new String[]{ldapUrl}, new String[]{userTemplate}, groupSearchBase, scope);
     }
 
     public static Settings buildLdapSettings(String[] ldapUrl, String userTemplate, String groupSearchBase, LdapSearchScope scope) {
-        return buildLdapSettings(ldapUrl, new String[] { userTemplate }, groupSearchBase, scope);
+        return buildLdapSettings(ldapUrl, new String[]{userTemplate}, groupSearchBase, scope);
     }
 
     public static Settings buildLdapSettings(String[] ldapUrl, String[] userTemplate, String groupSearchBase, LdapSearchScope scope) {
@@ -115,39 +149,45 @@ public abstract class LdapTestCase extends ESTestCase {
                                              String groupSearchBase, LdapSearchScope scope,
                                              LdapLoadBalancing serverSetType,
                                              boolean ignoreReferralErrors) {
+        return buildLdapSettings(REALM_IDENTIFIER, ldapUrl, userTemplate, groupSearchBase, scope, serverSetType, ignoreReferralErrors);
+    }
+
+    public static Settings buildLdapSettings(RealmConfig.RealmIdentifier realmId, String[] ldapUrl, String[] userTemplate,
+                                             String groupSearchBase, LdapSearchScope scope, LdapLoadBalancing serverSetType,
+                                             boolean ignoreReferralErrors) {
         Settings.Builder builder = Settings.builder()
-                .putList(URLS_SETTING, ldapUrl)
-                .putList(USER_DN_TEMPLATES_SETTING_KEY, userTemplate)
-                .put(SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING, TimeValue.timeValueSeconds(1L))
-                .put(SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING.getKey(), ignoreReferralErrors)
-                .put("group_search.base_dn", groupSearchBase)
-                .put("group_search.scope", scope);
+                .putList(getFullSettingKey(realmId, URLS_SETTING), ldapUrl)
+                .putList(getFullSettingKey(realmId.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), userTemplate)
+                .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING), TimeValue.timeValueSeconds(1L))
+                .put(getFullSettingKey(realmId, SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING), ignoreReferralErrors)
+                .put(getFullSettingKey(realmId, SearchGroupsResolverSettings.BASE_DN), groupSearchBase)
+                .put(getFullSettingKey(realmId, SearchGroupsResolverSettings.SCOPE), scope);
         if (serverSetType != null) {
-            builder.put(LdapLoadBalancingSettings.LOAD_BALANCE_SETTINGS + "." +
-                            LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING, serverSetType.toString());
+            builder.put(getFullSettingKey(realmId, LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING), serverSetType.toString());
         }
         return builder.build();
     }
 
     public static Settings buildLdapSettings(String[] ldapUrl, String userTemplate, boolean hostnameVerification) {
         Settings.Builder builder = Settings.builder()
-                .putList(URLS_SETTING, ldapUrl)
-                .putList(USER_DN_TEMPLATES_SETTING_KEY, userTemplate);
+                .putList(getFullSettingKey(REALM_IDENTIFIER, URLS_SETTING), ldapUrl)
+                .putList(getFullSettingKey(REALM_IDENTIFIER.getName(), LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING), userTemplate);
         if (randomBoolean()) {
-            builder.put("ssl.verification_mode", hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
+            builder.put(getFullSettingKey(REALM_IDENTIFIER, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
+                    hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
         } else {
-            builder.put(HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
+            builder.put(getFullSettingKey(REALM_IDENTIFIER, HOSTNAME_VERIFICATION_SETTING), hostnameVerification);
         }
         return builder.build();
     }
 
     protected DnRoleMapper buildGroupAsRoleMapper(ResourceWatcherService resourceWatcherService) {
         Settings settings = Settings.builder()
-                .put(DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.getKey(), true)
+                .put(getFullSettingKey(REALM_IDENTIFIER, DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING), true)
+                .put("path.home", createTempDir())
                 .build();
-        Settings global = Settings.builder().put("path.home", createTempDir()).build();
-        RealmConfig config = new RealmConfig("ldap1", settings, global, TestEnvironment.newEnvironment(global),
-                new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, settings,
+                TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
 
         return new DnRoleMapper(config, resourceWatcherService);
     }
@@ -179,12 +219,12 @@ public abstract class LdapTestCase extends ESTestCase {
                     if (conn instanceof LDAPConnection) {
                         assertTrue(((LDAPConnection) conn).isConnected());
                         assertEquals(bindRequest.getBindDN(),
-                                ((SimpleBindRequest)((LDAPConnection) conn).getLastBindRequest()).getBindDN());
+                                ((SimpleBindRequest) ((LDAPConnection) conn).getLastBindRequest()).getBindDN());
                         ((LDAPConnection) conn).reconnect();
                     } else if (conn instanceof LDAPConnectionPool) {
                         try (LDAPConnection c = ((LDAPConnectionPool) conn).getConnection()) {
                             assertTrue(c.isConnected());
-                            assertEquals(bindRequest.getBindDN(), ((SimpleBindRequest)c.getLastBindRequest()).getBindDN());
+                            assertEquals(bindRequest.getBindDN(), ((SimpleBindRequest) c.getLastBindRequest()).getBindDN());
                             c.reconnect();
                         }
                     }

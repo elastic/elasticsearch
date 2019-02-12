@@ -56,6 +56,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -174,7 +175,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             fail();
         } catch (ElasticsearchException e) {
             if (corruptSegments) {
-                assertThat(e.getMessage(), is("Index is unrecoverable"));
+                assertThat(e.getMessage(), either(is("Index is unrecoverable")).or(startsWith("unable to list commits")));
             } else {
                 assertThat(e.getMessage(), containsString("aborted by user"));
             }
@@ -225,7 +226,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final Throwable cause = exception.getCause() instanceof EngineException ? exception.getCause().getCause() : exception.getCause();
         assertThat(cause, instanceOf(TranslogCorruptedException.class));
 
-        closeShards(corruptedShard);
+        closeShard(corruptedShard, false); // translog is corrupted already - do not check consistency
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         final MockTerminal t = new MockTerminal();
@@ -401,7 +402,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // create _state of IndexMetaData
         try(NodeEnvironment nodeEnvironment = new NodeEnvironment(environment.settings(), environment)) {
             final Path[] paths = nodeEnvironment.indexPaths(indexMetaData.getIndex());
-            IndexMetaData.FORMAT.write(indexMetaData, paths);
+            IndexMetaData.FORMAT.writeAndCleanup(indexMetaData, paths);
             logger.info("--> index metadata persisted to {} ", Arrays.toString(paths));
         }
     }

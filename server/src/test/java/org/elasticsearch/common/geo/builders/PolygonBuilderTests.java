@@ -128,7 +128,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
         InvalidShapeException e = expectThrows(InvalidShapeException.class, () -> {
             PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinate(4, 3).coordinate(3, 2).coordinate(3, 3).close());
             pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(4, 2).coordinate(3, 1).coordinate(4, 1).close()));
-            pb.build();
+            pb.buildS4J();
         });
 
         assertEquals("Hole lies outside shell at or near point (4.0, 1.0, NaN)", e.getMessage());
@@ -138,7 +138,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
         InvalidShapeException e = expectThrows(InvalidShapeException.class, () -> {
             PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder().coordinate(3, 2).coordinate(4, 1).coordinate(3, 1).close());
             pb.hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(3, 3).coordinate(4, 2).coordinate(4, 3).close()));
-            pb.build();
+            pb.buildS4J();
         });
 
         assertEquals("Hole lies outside shell at or near point (4.0, 3.0, NaN)", e.getMessage());
@@ -152,13 +152,13 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
 
         PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder()
             .coordinate(10, -20).coordinate(100, 0).coordinate(-100, 0).coordinate(20, -45).coordinate(40, -60).close());
-        pb.build(); // Should not throw an exception
+        pb.buildS4J(); // Should not throw an exception
     }
 
     public void testPolygonWithUndefinedOrientationDueToCollinearPoints() {
         PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder()
             .coordinate(0.0, 0.0).coordinate(1.0, 1.0).coordinate(-1.0, -1.0).close());
-        InvalidShapeException e = expectThrows(InvalidShapeException.class, pb::build);
+        InvalidShapeException e = expectThrows(InvalidShapeException.class, pb::buildS4J);
         assertEquals("Cannot determine orientation: edges adjacent to (-1.0,-1.0) coincide", e.getMessage());
     }
 }

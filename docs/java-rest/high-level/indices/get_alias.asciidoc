@@ -1,16 +1,22 @@
-[[java-rest-high-get-alias]]
+--
+:api: get-alias
+:request: GetAliasesRequest
+:response: GetAliasesResponse
+--
+
+[id="{upid}-{api}"]
 === Get Alias API
 
-[[java-rest-high-get-alias-request]]
+[id="{upid}-{api}-request"]
 ==== Get Alias Request
 
-The Get Alias API uses `GetAliasesRequest` as its request object.
+The Get Alias API uses +{request}+ as its request object.
 One or more aliases can be optionally provided either at construction
 time or later on through the relevant setter method.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-alias-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 
 ==== Optional arguments
@@ -18,19 +24,19 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-alias-request-alias]
+include-tagged::{doc-tests-file}[{api}-request-alias]
 --------------------------------------------------
 <1> One or more aliases to retrieve
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-alias-request-indices]
+include-tagged::{doc-tests-file}[{api}-request-indices]
 --------------------------------------------------
 <1> The index or indices that the alias is associated with
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-alias-request-indicesOptions]
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded when looking for aliases that belong to
@@ -38,57 +44,22 @@ specified indices.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-alias-request-local]
+include-tagged::{doc-tests-file}[{api}-request-local]
 --------------------------------------------------
 <1> The `local` flag (defaults to `false`) controls whether the aliases need
 to be looked up in the local cluster state or in the cluster state held by
 the elected master node
 
-[[java-rest-high-get-alias-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-alias-execute]
---------------------------------------------------
-
-[[java-rest-high-get-alias-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a get alias request requires both a `GetAliasesRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-alias-execute-async]
---------------------------------------------------
-<1> The `GetAliasesRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for the `Boolean` response looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-alias-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-get-alias-response]]
+[id="{upid}-{api}-response"]
 ==== Get Alias Response
 
-The returned `GetAliasesResponse` allows to retrieve information about the
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-alias-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Retrieves a map of indices and their aliases

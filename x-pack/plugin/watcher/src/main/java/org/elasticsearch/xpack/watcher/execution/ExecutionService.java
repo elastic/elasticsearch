@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.watcher.execution;
 
 import com.google.common.collect.Iterables;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
@@ -22,7 +24,6 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -52,10 +53,11 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -71,13 +73,14 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.joda.time.DateTimeZone.UTC;
 
-public class ExecutionService extends AbstractComponent {
+public class ExecutionService {
 
     public static final Setting<TimeValue> DEFAULT_THROTTLE_PERIOD_SETTING =
         Setting.positiveTimeSetting("xpack.watcher.execution.default_throttle_period",
             TimeValue.timeValueSeconds(5), Setting.Property.NodeScope);
+
+    private static final Logger logger = LogManager.getLogger(ExecutionService.class);
 
     private final MeanMetric totalExecutionsTime = new MeanMetric();
     private final Map<String, MeanMetric> actionByTypeExecutionTime = new HashMap<>();
@@ -101,7 +104,6 @@ public class ExecutionService extends AbstractComponent {
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
                             Clock clock, WatchParser parser, ClusterService clusterService, Client client,
                             ExecutorService genericExecutor) {
-        super(settings);
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
         this.executor = executor;
@@ -231,7 +233,7 @@ public class ExecutionService extends AbstractComponent {
         final LinkedList<TriggeredWatch> triggeredWatches = new LinkedList<>();
         final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
 
-        DateTime now = new DateTime(clock.millis(), UTC);
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         for (TriggerEvent event : events) {
             GetResponse response = getWatch(event.jobName());
             if (response.isExists() == false) {
@@ -280,7 +282,8 @@ public class ExecutionService extends AbstractComponent {
                         if (resp.isExists() == false) {
                             throw new ResourceNotFoundException("watch [{}] does not exist", watchId);
                         }
-                        return parser.parseWithSecrets(watchId, true, resp.getSourceAsBytesRef(), ctx.executionTime(), XContentType.JSON);
+                        return parser.parseWithSecrets(watchId, true, resp.getSourceAsBytesRef(), ctx.executionTime(), XContentType.JSON,
+                            resp.getSeqNo(), resp.getPrimaryTerm());
                     });
                 } catch (ResourceNotFoundException e) {
                     String message = "unable to find watch for record [" + ctx.id() + "]";
@@ -351,7 +354,8 @@ public class ExecutionService extends AbstractComponent {
 
         UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, watch.id());
         updateRequest.doc(source);
-        updateRequest.version(watch.version());
+        updateRequest.setIfSeqNo(watch.getSourceSeqNo());
+        updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
             client.update(updateRequest).actionGet(indexDefaultTimeout);
         } catch (DocumentMissingException e) {
@@ -480,7 +484,7 @@ public class ExecutionService extends AbstractComponent {
                 historyStore.forcePut(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
-                DateTime now = new DateTime(clock.millis(), UTC);
+                ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
                 TriggeredExecutionContext ctx = new TriggeredExecutionContext(triggeredWatch.id().watchId(), now,
                     triggeredWatch.triggerEvent(), defaultThrottlePeriod, true);
                 executeAsync(ctx, triggeredWatch);

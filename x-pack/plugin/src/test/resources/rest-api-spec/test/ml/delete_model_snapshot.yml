@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: delete-model-snapshot
         body:  >
           {
@@ -22,13 +24,13 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: delete-model-snapshot
 
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.close_job:
+      ml.close_job:
         job_id: delete-model-snapshot
 
   - do:
@@ -125,7 +127,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.revert_model_snapshot:
+      ml.revert_model_snapshot:
         job_id: delete-model-snapshot
         snapshot_id: "active-snapshot"
 
@@ -134,20 +136,20 @@ setup:
 "Test delete snapshot missing snapshotId":
   - do:
       catch: param
-      xpack.ml.delete_model_snapshot:
+      ml.delete_model_snapshot:
         job_id: "delete-model-snapshot"
 
 ---
 "Test delete snapshot missing job_id":
   - do:
       catch: param
-      xpack.ml.delete_model_snapshot:
+      ml.delete_model_snapshot:
         snapshot_id: "inactive-snapshot"
 
 ---
 "Test valid delete snapshot":
   - do:
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "delete-model-snapshot"
   - match: { count: 2 }
 
@@ -161,7 +163,7 @@ setup:
   - match: { count: 3 }
 
   - do:
-      xpack.ml.delete_model_snapshot:
+      ml.delete_model_snapshot:
         job_id: "delete-model-snapshot"
         snapshot_id: "inactive-snapshot"
   - match: { acknowledged: true }
@@ -179,7 +181,7 @@ setup:
         index: .ml-state
 
   - do:
-      xpack.ml.get_model_snapshots:
+      ml.get_model_snapshots:
         job_id: "delete-model-snapshot"
   - match: { count: 1 }
   - match: { model_snapshots.0.snapshot_id: "active-snapshot"}
@@ -198,7 +200,7 @@ setup:
 
   - do:
       catch: bad_request
-      xpack.ml.delete_model_snapshot:
+      ml.delete_model_snapshot:
         job_id: "delete-model-snapshot"
         snapshot_id: "active-snapshot"
 
@@ -206,6 +208,6 @@ setup:
 "Test with unknown job id":
   - do:
       catch: missing
-      xpack.ml.delete_model_snapshot:
+      ml.delete_model_snapshot:
         job_id: "non-existent-job"
         snapshot_id: "delete-model-snapshot"

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpChannel;
@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import java.io.IOException;
 
@@ -57,7 +56,7 @@ public interface ServerTransportFilter {
      * request is properly authenticated and authorized
      */
     class NodeProfile implements ServerTransportFilter {
-        private static final Logger logger = Loggers.getLogger(NodeProfile.class);
+        private static final Logger logger = LogManager.getLogger(NodeProfile.class);
 
         private final AuthenticationService authcService;
         private final AuthorizationService authzService;
@@ -121,20 +120,10 @@ public interface ServerTransportFilter {
                     SystemUser.is(authentication.getUser()) == false) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
                         final Authentication replaced = Authentication.getAuthentication(threadContext);
-                        final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                            new AuthorizationUtils.AsyncAuthorizer(replaced, listener, (userRoles, runAsRoles) -> {
-                                authzService.authorize(replaced, securityAction, request, userRoles, runAsRoles);
-                                listener.onResponse(null);
-                            });
-                        asyncAuthorizer.authorize(authzService);
+                        authzService.authorize(replaced, securityAction, request, listener);
                     }, version);
                 } else {
-                    final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                        new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {
-                            authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
-                            listener.onResponse(null);
-                        });
-                    asyncAuthorizer.authorize(authzService);
+                    authzService.authorize(authentication, securityAction, request, listener);
                 }
             }, listener::onFailure));
         }

@@ -1,15 +1,16 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: foo
         body:
           mappings:
-            _doc:
-              properties:
-                the_field:
-                  type: date
-                value_field:
-                  type: integer
+            properties:
+              the_field:
+                type: date
+              value_field:
+                type: integer
 
   - do:
       headers:
@@ -20,7 +21,7 @@ setup:
           {
             "index_pattern": "foo",
             "rollup_index": "foo_rollup",
-            "cron": "*/30 * * * * ?",
+            "cron": "*/30 * * * * ? 2017",
             "page_size" :10,
             "groups" : {
               "date_histogram": {
@@ -49,7 +50,7 @@ setup:
             id: "foo"
             index_pattern: "foo"
             rollup_index: "foo_rollup"
-            cron: "*/30 * * * * ?"
+            cron: "*/30 * * * * ? 2017"
             page_size: 10
             groups :
               date_histogram:
@@ -62,16 +63,18 @@ setup:
                  - "min"
                  - "max"
                  - "sum"
-              - field: "the_field"
-                metrics:
-                 - "max"
-                 - "min"
             timeout: "20s"
           stats:
             pages_processed: 0
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true
@@ -100,7 +103,7 @@ setup:
             id: "foo"
             index_pattern: "foo"
             rollup_index: "foo_rollup"
-            cron: "*/30 * * * * ?"
+            cron: "*/30 * * * * ? 2017"
             page_size: 10
             groups :
               date_histogram:
@@ -113,16 +116,18 @@ setup:
                  - "min"
                  - "max"
                  - "sum"
-              - field: "the_field"
-                metrics:
-                 - "max"
-                 - "min"
             timeout: "20s"
           stats:
             pages_processed: 0
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true
@@ -151,7 +156,7 @@ setup:
             id: "foo"
             index_pattern: "foo"
             rollup_index: "foo_rollup"
-            cron: "*/30 * * * * ?"
+            cron: "*/30 * * * * ? 2017"
             page_size: 10
             groups :
               date_histogram:
@@ -164,16 +169,18 @@ setup:
                  - "min"
                  - "max"
                  - "sum"
-              - field: "the_field"
-                metrics:
-                 - "max"
-                 - "min"
             timeout: "20s"
           stats:
             pages_processed: 0
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true
@@ -184,15 +191,18 @@ setup:
   - is_true: started
 
   - do:
+      catch: request
       xpack.rollup.delete_job:
         id: foo
-  - is_true: acknowledged
+  - is_false: acknowledged
+  - match: { task_failures.0.reason.type: "illegal_state_exception" }
+  - match: { task_failures.0.reason.reason: "Could not delete job [foo] because indexer state is [STARTED].  Job must be [STOPPED] before deletion." }
 
 ---
 "Test delete non-existent job":
 
   - do:
-      catch: /the task with id does_not_exist doesn't exist/
+      catch: /the task with id \[does_not_exist\] doesn't exist/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       xpack.rollup.delete_job:

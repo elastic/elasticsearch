@@ -92,7 +92,7 @@ public final class MinDocQuery extends Query {
                 }
                 final int segmentMinDoc = Math.max(0, minDoc - context.docBase);
                 final DocIdSetIterator disi = new MinDocIterator(segmentMinDoc, maxDoc);
-                return new ConstantScoreScorer(this, score(), disi);
+                return new ConstantScoreScorer(this, score(), scoreMode, disi);
             }
 
             @Override

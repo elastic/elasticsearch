@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.authc.ldap.support;
 
 import com.unboundid.ldap.sdk.SearchScope;
+import org.elasticsearch.common.Strings;
 
 import java.util.Locale;
 
@@ -26,7 +27,7 @@ public enum LdapSearchScope {
     }
 
     public static LdapSearchScope resolve(String scope, LdapSearchScope defaultScope) {
-        if (scope == null) {
+        if (Strings.isNullOrEmpty(scope)) {
             return defaultScope;
         }
         switch (scope.toLowerCase(Locale.ENGLISH)) {

@@ -31,3 +31,12 @@ integTestCluster {
     return tmpFile.exists()
   }
 }
+
+testingConventions {
+  naming.clear()
+  naming {
+    IT {
+      baseClass 'org.elasticsearch.xpack.security.MigrateToolTestCase'
+    }
+  }
+}

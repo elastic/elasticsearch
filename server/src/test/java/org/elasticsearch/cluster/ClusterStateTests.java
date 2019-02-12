@@ -55,6 +55,5 @@ public class ClusterStateTests extends ESTestCase {
 
         // state from the same master compare by version
         assertThat(withMaster1a.supersedes(withMaster1b), equalTo(withMaster1a.version() > withMaster1b.version()));
-
     }
 }

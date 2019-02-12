@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.engine;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
@@ -28,7 +29,6 @@ import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -66,7 +66,7 @@ public final class MockEngineSupport {
 
 
     private final AtomicBoolean closing = new AtomicBoolean(false);
-    private final Logger logger = Loggers.getLogger(Engine.class);
+    private final Logger logger = LogManager.getLogger(Engine.class);
     private final ShardId shardId;
     private final QueryCache filterCache;
     private final QueryCachingPolicy filterCachingPolicy;

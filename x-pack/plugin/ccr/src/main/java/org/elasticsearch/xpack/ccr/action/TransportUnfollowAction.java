@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -30,10 +31,10 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowAction.Request, AcknowledgedResponse> {
 
     @Inject
-    public TransportUnfollowAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportUnfollowAction(TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, UnfollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(UnfollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
             UnfollowAction.Request::new, indexNameExpressionResolver);
     }
 
@@ -78,6 +79,18 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
 
     static ClusterState unfollow(String followerIndex, ClusterState current) {
         IndexMetaData followerIMD = current.metaData().index(followerIndex);
+        if (followerIMD == null) {
+            throw new IndexNotFoundException(followerIndex);
+        }
+
+        if (followerIMD.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY) == null) {
+            throw new IllegalArgumentException("index [" + followerIndex + "] is not a follower index");
+        }
+
+        if (followerIMD.getState() != IndexMetaData.State.CLOSE) {
+            throw new IllegalArgumentException("cannot convert the follower index [" + followerIndex +
+                "] to a non-follower, because it has not been closed");
+        }
 
         PersistentTasksCustomMetaData persistentTasks = current.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (persistentTasks != null) {
@@ -92,23 +105,19 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
             }
         }
 
-        if (followerIMD.getState() != IndexMetaData.State.CLOSE) {
-            throw new IllegalArgumentException("cannot convert the follower index [" + followerIndex +
-                "] to a non-follower, because it has not been closed");
-        }
-
-        IndexMetaData.Builder newIMD = IndexMetaData.builder(followerIMD);
         // Remove index.xpack.ccr.following_index setting
         Settings.Builder builder = Settings.builder();
         builder.put(followerIMD.getSettings());
         builder.remove(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey());
 
-        newIMD.settings(builder);
+        final IndexMetaData.Builder newIndexMetaData = IndexMetaData.builder(followerIMD);
+        newIndexMetaData.settings(builder);
+        newIndexMetaData.settingsVersion(followerIMD.getSettingsVersion() + 1);
         // Remove ccr custom metadata
-        newIMD.removeCustom(Ccr.CCR_CUSTOM_METADATA_KEY);
+        newIndexMetaData.removeCustom(Ccr.CCR_CUSTOM_METADATA_KEY);
 
         MetaData newMetaData = MetaData.builder(current.metaData())
-            .put(newIMD)
+            .put(newIndexMetaData)
             .build();
         return ClusterState.builder(current)
             .metaData(newMetaData)

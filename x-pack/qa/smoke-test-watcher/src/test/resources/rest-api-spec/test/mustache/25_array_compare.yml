@@ -49,6 +49,7 @@
                 "search": {
                   "request": {
                     "indices": [ "test_1" ],
+                    "rest_total_hits_as_int": true,
                     "body": {
                       "aggs": {
                         "top_levels": {

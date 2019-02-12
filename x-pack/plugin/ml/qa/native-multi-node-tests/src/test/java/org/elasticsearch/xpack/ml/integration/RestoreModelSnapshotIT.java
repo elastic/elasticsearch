@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.junit.After;
 
@@ -82,15 +80,6 @@ public class RestoreModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         });
 
         closeJob(job.getId());
-
-        // Since these jobs ran for 72 buckets, it's a good place to assert
-        // that established model memory matches model memory in the job stats
-        assertBusy(() -> {
-            GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
-            ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-            Job updatedJob = getJob(job.getId()).get(0);
-            assertThat(updatedJob.getEstablishedModelMemory(), equalTo(modelSizeStats.getModelBytes()));
-        });
     }
 
     private Job.Builder buildAndRegisterJob(String jobId, TimeValue bucketSpan) throws Exception {

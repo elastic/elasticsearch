@@ -26,7 +26,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Builder for unregister repository request
  */
-public class DeleteRepositoryRequestBuilder extends AcknowledgedRequestBuilder<DeleteRepositoryRequest, AcknowledgedResponse, DeleteRepositoryRequestBuilder> {
+public class DeleteRepositoryRequestBuilder
+        extends AcknowledgedRequestBuilder<DeleteRepositoryRequest, AcknowledgedResponse, DeleteRepositoryRequestBuilder> {
 
     /**
      * Constructs unregister repository request builder

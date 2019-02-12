@@ -7,12 +7,13 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Arrays;
@@ -31,9 +32,9 @@ public class Insert extends ScalarFunction {
 
     private final Expression source, start, length, replacement;
     
-    public Insert(Location location, Expression source, Expression start, Expression length, Expression replacement) {
-        super(location, Arrays.asList(source, start, length, replacement));
-        this.source = source;
+    public Insert(Source source, Expression src, Expression start, Expression length, Expression replacement) {
+        super(source, Arrays.asList(src, start, length, replacement));
+        this.source = src;
         this.start = start;
         this.length = length;
         this.replacement = replacement;
@@ -45,22 +46,22 @@ public class Insert extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = StringFunctionUtils.resolveStringInputType(source.dataType(), functionName());
-        if (sourceResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, sourceText(), ParamOrdinal.FIRST);
+        if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
         
-        TypeResolution startResolution = StringFunctionUtils.resolveNumericInputType(start.dataType(), functionName());
-        if (startResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution startResolution = Expressions.typeMustBeNumeric(start, sourceText(), ParamOrdinal.SECOND);
+        if (startResolution.unresolved()) {
             return startResolution;
         }
         
-        TypeResolution lengthResolution = StringFunctionUtils.resolveNumericInputType(length.dataType(), functionName());
-        if (lengthResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution lengthResolution = Expressions.typeMustBeNumeric(length, sourceText(), ParamOrdinal.THIRD);
+        if (lengthResolution.unresolved()) {
             return lengthResolution;
         }
         
-        return StringFunctionUtils.resolveStringInputType(replacement.dataType(), functionName());
+        return Expressions.typeMustBeString(replacement, sourceText(), ParamOrdinal.FOURTH);
     }
 
     @Override
@@ -78,7 +79,7 @@ public class Insert extends ScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new InsertFunctionPipe(location(), this,
+        return new InsertFunctionPipe(source(), this,
                 Expressions.pipe(source),
                 Expressions.pipe(start),
                 Expressions.pipe(length),
@@ -133,6 +134,6 @@ public class Insert extends ScalarFunction {
             throw new IllegalArgumentException("expected [4] children but received [" + newChildren.size() + "]");
         }
 
-        return new Insert(location(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Insert(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 }

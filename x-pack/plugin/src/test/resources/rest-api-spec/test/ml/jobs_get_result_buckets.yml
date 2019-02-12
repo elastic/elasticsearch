@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-get-result-buckets
         body:  >
           {
@@ -75,7 +77,7 @@ setup:
 ---
 "Test result buckets api with time range":
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         start: "2016-05-01T00:00:00Z"
         end: "2016-07-01T00:00:00Z"
@@ -88,7 +90,7 @@ setup:
 ---
 "Test result buckets api":
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
 
   - match: { count: 3 }
@@ -108,7 +110,7 @@ setup:
 ---
 "Test get buckets with paging":
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         from: 1
         size: 2
@@ -123,7 +125,7 @@ setup:
 ---
 "Test get buckets with paging in body":
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         body:  >
           {
@@ -143,7 +145,7 @@ setup:
 ---
 "Test get buckets given exclude_interim is false":
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         exclude_interim: false
 
@@ -152,7 +154,7 @@ setup:
 ---
 "Test get buckets given exclude_interim is true":
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         exclude_interim: true
 
@@ -165,7 +167,7 @@ setup:
 ---
 "Test result single bucket api":
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
 
@@ -176,7 +178,7 @@ setup:
 ---
 "Test result single bucket api with empty body":
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         body: {}
@@ -189,35 +191,35 @@ setup:
 "Test mutually-exclusive params":
   - do:
       catch: bad_request
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         start: "2016-05-01T00:00:00Z"
 
   - do:
       catch: bad_request
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         end: "2016-05-01T00:00:00Z"
 
   - do:
       catch: bad_request
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         from: "2016-05-01T00:00:00Z"
 
   - do:
       catch: bad_request
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         end: "2016-05-01T00:00:00Z"
 
   - do:
       catch: bad_request
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         timestamp: "2016-06-01T00:00:00Z"
         anomaly_score: "80.0"
@@ -226,7 +228,7 @@ setup:
 "Test mutually-exclusive params via body":
   - do:
       catch: bad_request
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         body:
           timestamp: "2016-06-01T00:00:00Z"
@@ -234,7 +236,7 @@ setup:
 
   - do:
       catch: bad_request
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         body:
           timestamp: "2016-06-01T00:00:00Z"
@@ -242,7 +244,7 @@ setup:
 
   - do:
       catch: bad_request
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         body:
           timestamp: "2016-06-01T00:00:00Z"
@@ -250,7 +252,7 @@ setup:
 
   - do:
       catch: bad_request
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         body:
           timestamp: "2016-06-01T00:00:00Z"
@@ -258,7 +260,7 @@ setup:
 
   - do:
       catch: bad_request
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         body:
           timestamp: "2016-06-01T00:00:00Z"
@@ -268,13 +270,13 @@ setup:
 "Test with unknown job id":
   - do:
       catch: missing
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "non-existent-job"
 
 ---
 "Test get buckets with sort field and secondary sort by time":
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         sort: anomaly_score
 
@@ -287,7 +289,7 @@ setup:
   - match: { buckets.2.timestamp: 1464739200000 }
 
   - do:
-      xpack.ml.get_buckets:
+      ml.get_buckets:
         job_id: "jobs-get-result-buckets"
         sort: anomaly_score
         desc: true

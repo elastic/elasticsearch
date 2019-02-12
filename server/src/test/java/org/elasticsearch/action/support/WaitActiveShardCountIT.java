@@ -54,7 +54,8 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
             fail("can't index, does not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            assertThat(e.getMessage(), startsWith("[test][0] Not enough active copies to meet shard count of [2] (have 1, needed 2). Timeout: [100ms], request:"));
+            assertThat(e.getMessage(),
+                startsWith("[test][0] Not enough active copies to meet shard count of [2] (have 1, needed 2). Timeout: [100ms], request:"));
             // but really, all is well
         }
 
@@ -83,12 +84,14 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
             fail("can't index, not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            assertThat(e.getMessage(), startsWith("[test][0] Not enough active copies to meet shard count of [" + ActiveShardCount.ALL + "] (have 2, needed 3). Timeout: [100ms], request:"));
+            assertThat(e.getMessage(), startsWith("[test][0] Not enough active copies to meet shard count of ["
+                + ActiveShardCount.ALL + "] (have 2, needed 3). Timeout: [100ms], request:"));
             // but really, all is well
         }
 
         allowNodes("test", 3);
-        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(3).setWaitForGreenStatus().execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(3)
+            .setWaitForGreenStatus().execute().actionGet();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

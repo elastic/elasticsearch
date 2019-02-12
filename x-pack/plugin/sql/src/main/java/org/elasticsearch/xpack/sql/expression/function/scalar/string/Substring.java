@@ -7,12 +7,13 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Arrays;
@@ -31,9 +32,9 @@ public class Substring extends ScalarFunction {
 
     private final Expression source, start, length;
 
-    public Substring(Location location, Expression source, Expression start, Expression length) {
-        super(location, Arrays.asList(source, start, length));
-        this.source = source;
+    public Substring(Source source, Expression src, Expression start, Expression length) {
+        super(source, Arrays.asList(src, start, length));
+        this.source = src;
         this.start = start;
         this.length = length;
     }
@@ -44,22 +45,22 @@ public class Substring extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = StringFunctionUtils.resolveStringInputType(source.dataType(), functionName());
-        if (sourceResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, sourceText(), ParamOrdinal.FIRST);
+        if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        TypeResolution startResolution = StringFunctionUtils.resolveNumericInputType(start.dataType(), functionName());
-        if (startResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution startResolution = Expressions.typeMustBeNumeric(start, sourceText(), ParamOrdinal.SECOND);
+        if (startResolution.unresolved()) {
             return startResolution;
         }
 
-        return StringFunctionUtils.resolveNumericInputType(length.dataType(), functionName());
+        return Expressions.typeMustBeNumeric(length, sourceText(), ParamOrdinal.THIRD);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new SubstringFunctionPipe(location(), this,
+        return new SubstringFunctionPipe(source(), this,
                 Expressions.pipe(source),
                 Expressions.pipe(start),
                 Expressions.pipe(length));
@@ -121,6 +122,6 @@ public class Substring extends ScalarFunction {
             throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
         }
 
-        return new Substring(location(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Substring(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }

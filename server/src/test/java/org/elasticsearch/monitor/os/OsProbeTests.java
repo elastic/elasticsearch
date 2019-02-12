@@ -22,9 +22,12 @@ package org.elasticsearch.monitor.os;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -38,23 +41,51 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class OsProbeTests extends ESTestCase {
 
-    private final OsProbe probe = OsProbe.getInstance();
+    public void testOsInfo() throws IOException {
+        final int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
+        final long refreshInterval = randomBoolean() ? -1 : randomNonNegativeLong();
+        final String prettyName;
+        if (Constants.LINUX) {
+            prettyName = randomFrom("Fedora 28 (Workstation Edition)", "Linux", null);
+        } else {
+            prettyName = Constants.OS_NAME;
+        }
+        final OsProbe osProbe = new OsProbe() {
 
-    public void testOsInfo() {
-        int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
-        long refreshInterval = randomBoolean() ? -1 : randomNonNegativeLong();
-        OsInfo info = probe.osInfo(refreshInterval, allocatedProcessors);
+            @Override
+            List<String> readOsRelease() throws IOException {
+                assert Constants.LINUX : Constants.OS_NAME;
+                if (prettyName != null) {
+                    final String quote = randomFrom("\"", "'", "");
+                    final String space = randomFrom(" ", "");
+                    final String prettyNameLine = String.format(Locale.ROOT, "PRETTY_NAME=%s%s%s%s", quote, prettyName, quote, space);
+                    return Arrays.asList("NAME=" + randomAlphaOfLength(16), prettyNameLine);
+                } else {
+                    return Collections.singletonList("NAME=" + randomAlphaOfLength(16));
+                }
+            }
+
+        };
+        final OsInfo info = osProbe.osInfo(refreshInterval, allocatedProcessors);
         assertNotNull(info);
-        assertEquals(refreshInterval, info.getRefreshInterval());
-        assertEquals(Constants.OS_NAME, info.getName());
-        assertEquals(Constants.OS_ARCH, info.getArch());
-        assertEquals(Constants.OS_VERSION, info.getVersion());
-        assertEquals(allocatedProcessors, info.getAllocatedProcessors());
-        assertEquals(Runtime.getRuntime().availableProcessors(), info.getAvailableProcessors());
+        assertThat(info.getRefreshInterval(), equalTo(refreshInterval));
+        assertThat(info.getName(), equalTo(Constants.OS_NAME));
+        if (Constants.LINUX) {
+            if (prettyName != null) {
+                assertThat(info.getPrettyName(), equalTo(prettyName));
+            } else {
+                assertThat(info.getPrettyName(), equalTo(Constants.OS_NAME));
+            }
+        }
+        assertThat(info.getArch(), equalTo(Constants.OS_ARCH));
+        assertThat(info.getVersion(), equalTo(Constants.OS_VERSION));
+        assertThat(info.getAllocatedProcessors(), equalTo(allocatedProcessors));
+        assertThat(info.getAvailableProcessors(), equalTo(Runtime.getRuntime().availableProcessors()));
     }
 
     public void testOsStats() {
-        OsStats stats = probe.osStats();
+        final OsProbe osProbe = new OsProbe();
+        OsStats stats = osProbe.osStats();
         assertNotNull(stats);
         assertThat(stats.getTimestamp(), greaterThan(0L));
         assertThat(stats.getCpu().getPercent(), anyOf(equalTo((short) -1),

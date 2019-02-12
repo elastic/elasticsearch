@@ -29,8 +29,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.shards.ClusterShardLimitIT;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -64,6 +68,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
@@ -80,6 +85,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.cluster.shards.ClusterShardLimitIT.ShardCounts.forDataNodeCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -226,12 +232,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
-        MetaData meta = gwMetaState.loadMetaState();
+        MetaData meta = gwMetaState.getMetaData();
         assertNotNull(meta);
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
 
-        meta = gwMetaState.loadMetaState();
+        meta = gwMetaState.getMetaData();
         assertNotNull(meta);
         assertNull(meta.index("test"));
 
@@ -510,9 +516,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     public void testIsMetaDataField() {
         IndicesService indicesService = getIndicesService();
-        assertFalse(indicesService.isMetaDataField(randomAlphaOfLengthBetween(10, 15)));
+        final Version randVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        assertFalse(indicesService.isMetaDataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
         for (String builtIn : IndicesModule.getBuiltInMetaDataFields()) {
-            assertTrue(indicesService.isMetaDataField(builtIn));
+            assertTrue(indicesService.isMetaDataField(randVersion, builtIn));
         }
     }
 
@@ -565,6 +572,118 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         final String pattern =
                 ".*multiple engine factories provided for \\[foobar/.*\\]: \\[.*FooEngineFactory\\],\\[.*BarEngineFactory\\].*";
         assertThat(e, hasToString(new RegexMatcher(pattern)));
+    }
+
+    public void testOverShardLimit() {
+        int nodesInCluster = randomIntBetween(1,100);
+        ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
+
+        Settings clusterSettings = Settings.builder()
+            .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
+            .build();
+
+        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
+            clusterSettings);
+
+        int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
+        Optional<String> errorMessage = IndicesService.checkShardLimit(shardsToAdd, state);
+
+        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
+        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
+        int maxShards = counts.getShardsPerNode() * nodesInCluster;
+        assertTrue(errorMessage.isPresent());
+        assertEquals("this action would add [" + totalShards + "] total shards, but this cluster currently has [" + currentShards
+            + "]/[" + maxShards + "] maximum shards open", errorMessage.get());
+    }
+
+    public void testUnderShardLimit() {
+        int nodesInCluster = randomIntBetween(2,100);
+        // Calculate the counts for a cluster 1 node smaller than we have to ensure we have headroom
+        ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster - 1);
+
+        Settings clusterSettings = Settings.builder()
+            .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())
+            .build();
+
+        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas(),
+            clusterSettings);
+
+        int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
+        int shardsToAdd = randomIntBetween(1, (counts.getShardsPerNode() * nodesInCluster) - existingShards);
+        Optional<String> errorMessage = IndicesService.checkShardLimit(shardsToAdd, state);
+
+        assertFalse(errorMessage.isPresent());
+    }
+
+    public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int shardsInIndex, int replicas,
+                                                              Settings clusterSettings) {
+        ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodes = ImmutableOpenMap.builder();
+        for (int i = 0; i < nodesInCluster; i++) {
+            dataNodes.put(randomAlphaOfLengthBetween(5,15), mock(DiscoveryNode.class));
+        }
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(nodes.getDataNodes()).thenReturn(dataNodes.build());
+
+        IndexMetaData.Builder indexMetaData = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 15))
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .creationDate(randomLong())
+            .numberOfShards(shardsInIndex)
+            .numberOfReplicas(replicas);
+        MetaData.Builder metaData = MetaData.builder().put(indexMetaData);
+        if (randomBoolean()) {
+            metaData.transientSettings(clusterSettings);
+        } else {
+            metaData.persistentSettings(clusterSettings);
+        }
+
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(metaData)
+            .nodes(nodes)
+            .build();
+    }
+
+    public void testOptimizeAutoGeneratedIdsSettingRemoval() throws Exception {
+        final IndicesService indicesService = getIndicesService();
+
+        final Index index = new Index("foo-index", UUIDs.randomBase64UUID());
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_7_0_0)
+            .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
+        IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
+            .settings(builder.build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexService indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
+        assertNotNull(indexService);
+
+        final Index index2 = new Index("bar-index", UUIDs.randomBase64UUID());
+        Settings.Builder builder2 = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_7_0_0)
+            .put(IndexMetaData.SETTING_INDEX_UUID, index2.getUUID())
+            .put(EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey(), randomBoolean());
+        IndexMetaData indexMetaData2 = new IndexMetaData.Builder(index2.getName())
+            .settings(builder2.build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> indicesService.createIndex(indexMetaData2, Collections.emptyList()));
+        assertEquals("Setting [" + EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey() + "] was removed in version 7.0.0",
+            ex.getMessage());
+
+        Version version = randomFrom(Version.V_6_0_0_rc1, Version.V_6_0_0, Version.V_6_2_0, Version.V_6_3_0, Version.V_6_4_0);
+        builder = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .put(IndexMetaData.SETTING_INDEX_UUID, index2.getUUID())
+            .put(EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey(), randomBoolean());
+        IndexMetaData indexMetaData3 = new IndexMetaData.Builder(index2.getName())
+            .settings(builder.build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexService indexService2 = indicesService.createIndex(indexMetaData3, Collections.emptyList());
+        assertNotNull(indexService2);
     }
 
 }

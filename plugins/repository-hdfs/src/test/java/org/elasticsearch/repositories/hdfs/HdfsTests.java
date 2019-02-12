@@ -212,6 +212,6 @@ public class HdfsTests extends ESSingleNodeTestCase {
     }
 
     private long count(Client client, String index) {
-        return client.prepareSearch(index).setSize(0).get().getHits().getTotalHits();
+        return client.prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
     }
 }

@@ -25,16 +25,20 @@ import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 /**
- * A request to get a document (its source) from an index based on its type (optional) and id. Best created using
+ * A request to get a document (its source) from an index based on its id. Best created using
  * {@link org.elasticsearch.client.Requests#getRequest(String)}.
  * <p>
  * The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)}
@@ -63,16 +67,15 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private long version = Versions.MATCH_ANY;
 
     public GetRequest() {
-        type = "_all";
+        type = MapperService.SINGLE_MAPPING_NAME;
     }
 
     /**
-     * Constructs a new get request against the specified index. The {@link #type(String)} and {@link #id(String)}
-     * must be set.
+     * Constructs a new get request against the specified index. The {@link #id(String)} must also be set.
      */
     public GetRequest(String index) {
         super(index);
-        this.type = "_all";
+        this.type = MapperService.SINGLE_MAPPING_NAME;
     }
 
     /**
@@ -81,25 +84,39 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
      * @param index The index to get the document from
      * @param type  The type of the document
      * @param id    The id of the document
+     * @deprecated Types are in the process of being removed, use {@link GetRequest(String, String)} instead.
      */
+    @Deprecated
     public GetRequest(String index, String type, String id) {
         super(index);
         this.type = type;
         this.id = id;
     }
 
+    /**
+     * Constructs a new get request against the specified index and document ID.
+     *
+     * @param index The index to get the document from
+     * @param id    The id of the document
+     */
+    public GetRequest(String index, String id) {
+        super(index);
+        this.id = id;
+        this.type = MapperService.SINGLE_MAPPING_NAME;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
-        if (type == null) {
-            validationException = ValidateActions.addValidationError("type is missing", validationException);
+        if (Strings.isEmpty(type)) {
+            validationException = addValidationError("type is missing", validationException);
         }
-        if (id == null) {
-            validationException = ValidateActions.addValidationError("id is missing", validationException);
+        if (Strings.isEmpty(id)) {
+            validationException = addValidationError("id is missing", validationException);
         }
-        if (!versionType.validateVersionForReads(version)) {
-            validationException = ValidateActions.addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]",
-                    validationException);
+        if (versionType.validateVersionForReads(version) == false) {
+            validationException = ValidateActions.addValidationError("illegal version value [" + version + "] for version type ["
+                    + versionType.name() + "]", validationException);
         }
         if (versionType == VersionType.FORCE) {
             validationException = ValidateActions.addValidationError("version type [force] may no longer be used", validationException);
@@ -109,10 +126,12 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     /**
      * Sets the type of the document to fetch.
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     public GetRequest type(@Nullable String type) {
         if (type == null) {
-            type = "_all";
+            type = MapperService.SINGLE_MAPPING_NAME;
         }
         this.type = type;
         return this;
@@ -145,6 +164,10 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         return this;
     }
 
+    /**
+     * @deprecated Types are in the process of being removed.
+     */
+    @Deprecated
     public String type() {
         return type;
     }
@@ -245,7 +268,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString();
         }
         preference = in.readOptionalString();
@@ -264,7 +287,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null);
         }
         out.writeOptionalString(preference);

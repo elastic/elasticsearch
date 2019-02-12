@@ -20,21 +20,20 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.client.graph.GraphExploreRequest;
+import org.elasticsearch.client.graph.Hop;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
-import org.elasticsearch.protocol.xpack.graph.Hop;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Assert;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class GrapRequestConvertersTests extends ESTestCase{
+public class GrapRequestConvertersTests extends ESTestCase {
 
     public void testGraphExplore() throws Exception {
         Map<String, String> expectedParams = new HashMap<>();
@@ -43,14 +42,14 @@ public class GrapRequestConvertersTests extends ESTestCase{
         graphExploreRequest.sampleDiversityField("diversity");
         graphExploreRequest.indices("index1", "index2");
         graphExploreRequest.types("type1", "type2");
-        int timeout = ESTestCase.randomIntBetween(10000, 20000);
+        int timeout = randomIntBetween(10000, 20000);
         graphExploreRequest.timeout(TimeValue.timeValueMillis(timeout));
-        graphExploreRequest.useSignificance(ESTestCase.randomBoolean());
-        int numHops = ESTestCase.randomIntBetween(1, 5);
+        graphExploreRequest.useSignificance(randomBoolean());
+        int numHops = randomIntBetween(1, 5);
         for (int i = 0; i < numHops; i++) {
             int hopNumber = i + 1;
             QueryBuilder guidingQuery = null;
-            if (ESTestCase.randomBoolean()) {
+            if (randomBoolean()) {
                 guidingQuery = new TermQueryBuilder("field" + hopNumber, "value" + hopNumber);
             }
             Hop hop = graphExploreRequest.createNextHop(guidingQuery);
@@ -58,10 +57,10 @@ public class GrapRequestConvertersTests extends ESTestCase{
             hop.getVertexRequest(0).addInclude("value" + hopNumber, hopNumber);
         }
         Request request = GraphRequestConverters.explore(graphExploreRequest);
-        Assert.assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        Assert.assertEquals("/index1,index2/type1,type2/_xpack/graph/_explore", request.getEndpoint());
-        Assert.assertEquals(expectedParams, request.getParameters());
-        Assert.assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/index1,index2/type1,type2/_graph/explore", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
         RequestConvertersTests.assertToXContentBody(graphExploreRequest, request.getEntity());
     }
 }

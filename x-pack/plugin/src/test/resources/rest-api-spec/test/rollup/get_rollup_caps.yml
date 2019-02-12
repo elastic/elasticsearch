@@ -1,8 +1,9 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: foo
-        include_type_name: false
         body:
           mappings:
             properties:
@@ -14,7 +15,6 @@ setup:
   - do:
       indices.create:
         index: foo2
-        include_type_name: false
         body:
           mappings:
             properties:
@@ -26,7 +26,6 @@ setup:
   - do:
       indices.create:
         index: foo3
-        include_type_name: false
         body:
           mappings:
             properties:
@@ -77,8 +76,6 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
-                - agg: "max"
-                - agg: "min"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -126,8 +123,6 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
-                - agg: "max"
-                - agg: "min"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -140,8 +135,6 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
-                - agg: "max"
-                - agg: "min"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -215,8 +208,6 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
-                - agg: "max"
-                - agg: "min"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -229,8 +220,6 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
-                - agg: "max"
-                - agg: "min"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -246,8 +235,6 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
-                - agg: "max"
-                - agg: "min"
               value_field:
                 - agg: "min"
                 - agg: "max"

@@ -22,7 +22,6 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -38,6 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 
 @ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 public class QuorumGatewayIT extends ESIntegTestCase {
+
     @Override
     protected int numberOfReplicas() {
         return 2;
@@ -66,21 +66,18 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         logger.info("--> restart all nodes");
         internalCluster().fullRestart(new RestartCallback() {
             @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                return null;
-            }
-
-            @Override
             public void doAfterNodes(int numNodes, final Client activeClient) throws Exception {
                 if (numNodes == 1) {
                     assertTrue(awaitBusy(() -> {
                         logger.info("--> running cluster_health (wait for the shards to startup)");
-                        ClusterHealthResponse clusterHealth = activeClient.admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)).actionGet();
+                        ClusterHealthResponse clusterHealth = activeClient.admin().cluster().health(clusterHealthRequest()
+                            .waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)).actionGet();
                         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
                         return (!clusterHealth.isTimedOut()) && clusterHealth.getStatus() == ClusterHealthStatus.YELLOW;
                     }, 30, TimeUnit.SECONDS));
                     logger.info("--> one node is closed -- index 1 document into the remaining nodes");
-                    activeClient.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).get();
+                    activeClient.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3")
+                        .endObject()).get();
                     assertNoFailures(activeClient.admin().indices().prepareRefresh().get());
                     for (int i = 0; i < 10; i++) {
                         assertHitCount(activeClient.prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 3L);

@@ -6,16 +6,17 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.xpack.sql.expression.Expressions.typeMustBeString;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
@@ -24,8 +25,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
 
-    protected BinaryStringFunction(Location location, Expression left, Expression right) {
-        super(location, left, right);
+    protected BinaryStringFunction(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     /*
@@ -41,14 +42,15 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        if (!left().dataType().isString()) {
-            return new TypeResolution("'%s' requires first parameter to be a string type, received %s", functionName(), left().dataType());
+        TypeResolution resolution = typeMustBeString(left(), sourceText(), ParamOrdinal.FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
         }
-                
-        return resolveSecondParameterInputType(right().dataType());
+
+        return resolveSecondParameterInputType(right());
     }
 
-    protected abstract TypeResolution resolveSecondParameterInputType(DataType inputType);
+    protected abstract TypeResolution resolveSecondParameterInputType(Expression e);
 
     @Override
     public Object fold() {

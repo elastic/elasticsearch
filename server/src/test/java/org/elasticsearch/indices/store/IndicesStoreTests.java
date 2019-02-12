@@ -79,7 +79,8 @@ public class IndicesStoreTests extends ESTestCase {
                 }
                 String currentNodeId = state == ShardRoutingState.UNASSIGNED ? null : randomAlphaOfLength(10);
                 String relocatingNodeId = state == ShardRoutingState.RELOCATING ? randomAlphaOfLength(10) : null;
-                routingTable.addShard(TestShardRouting.newShardRouting("test", i, currentNodeId, relocatingNodeId, j == 0, state, unassignedInfo));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, currentNodeId, relocatingNodeId, j == 0, state,
+                    unassignedInfo));
             }
         }
 
@@ -95,10 +96,12 @@ public class IndicesStoreTests extends ESTestCase {
         for (int i = 0; i < numShards; i++) {
             int localNodeIndex = randomInt(numReplicas);
             boolean primaryOnLocalNode = i == localShardId && localNodeIndex == numReplicas;
-            routingTable.addShard(TestShardRouting.newShardRouting("test", i, primaryOnLocalNode ? localNode.getId() : randomAlphaOfLength(10), true, ShardRoutingState.STARTED));
+            routingTable.addShard(TestShardRouting.newShardRouting("test", i, primaryOnLocalNode ? localNode.getId() :
+                randomAlphaOfLength(10), true, ShardRoutingState.STARTED));
             for (int j = 0; j < numReplicas; j++) {
                 boolean replicaOnLocalNode = i == localShardId && localNodeIndex == j;
-                routingTable.addShard(TestShardRouting.newShardRouting("test", i, replicaOnLocalNode ? localNode.getId() : randomAlphaOfLength(10), false, ShardRoutingState.STARTED));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, replicaOnLocalNode ? localNode.getId() :
+                    randomAlphaOfLength(10), false, ShardRoutingState.STARTED));
             }
         }
 

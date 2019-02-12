@@ -20,6 +20,8 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -57,6 +59,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class MockRepository extends FsRepository {
+    private static final Logger logger = LogManager.getLogger(MockRepository.class);
 
     public static class Plugin extends org.elasticsearch.plugins.Plugin implements RepositoryPlugin {
 
@@ -107,8 +110,6 @@ public class MockRepository extends FsRepository {
     /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
     private volatile boolean blockAndFailOnWriteSnapFile;
 
-    private volatile boolean allowAtomicOperations;
-
     private volatile boolean blocked = false;
 
     public MockRepository(RepositoryMetaData metadata, Environment environment,
@@ -124,7 +125,6 @@ public class MockRepository extends FsRepository {
         blockAndFailOnWriteSnapFile = metadata.settings().getAsBoolean("block_on_snap", false);
         randomPrefix = metadata.settings().get("random", "default");
         waitAfterUnblock = metadata.settings().getAsLong("wait_after_unblock", 0L);
-        allowAtomicOperations = metadata.settings().getAsBoolean("allow_atomic_operations", true);
         logger.info("starting mock repository with random prefix {}", randomPrefix);
     }
 
@@ -343,7 +343,8 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+                throws IOException {
                 maybeIOExceptionOrBlock(blobName);
                 super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
@@ -357,25 +358,18 @@ public class MockRepository extends FsRepository {
             public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
                                         final boolean failIfAlreadyExists) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
-                if (allowAtomicOperations && random.nextBoolean()) {
-                    if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
-                        // Simulate a failure between the write and move operation in FsBlobContainer
-                        final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
-                        super.writeBlob(tempBlobName, inputStream, blobSize, failIfAlreadyExists);
-                        maybeIOExceptionOrBlock(blobName);
-                        final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
-                        fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
-                    } else {
-                        // Atomic write since it is potentially supported
-                        // by the delegating blob container
-                        maybeIOExceptionOrBlock(blobName);
-                        super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
-                    }
-                } else {
-                    // Simulate a non-atomic write since many blob container
-                    // implementations does not support atomic write
+                if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
+                    // Simulate a failure between the write and move operation in FsBlobContainer
+                    final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
+                    super.writeBlob(tempBlobName, inputStream, blobSize, failIfAlreadyExists);
                     maybeIOExceptionOrBlock(blobName);
-                    super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+                    final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
+                    fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
+                } else {
+                    // Atomic write since it is potentially supported
+                    // by the delegating blob container
+                    maybeIOExceptionOrBlock(blobName);
+                    super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
                 }
             }
         }

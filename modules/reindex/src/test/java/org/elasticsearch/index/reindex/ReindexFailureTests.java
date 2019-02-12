@@ -46,7 +46,7 @@ public class ReindexFailureTests extends ReindexTestCase {
          * conflict on every request.
          */
         indexRandom(true,
-                client().prepareIndex("dest", "test", "test").setSource("test", 10) /* Its a string in the source! */);
+                client().prepareIndex("dest", "_doc", "test").setSource("test", 10) /* Its a string in the source! */);
 
         indexDocs(100);
 
@@ -70,7 +70,7 @@ public class ReindexFailureTests extends ReindexTestCase {
     public void testAbortOnVersionConflict() throws Exception {
         // Just put something in the way of the copy.
         indexRandom(true,
-                client().prepareIndex("dest", "test", "1").setSource("test", "test"));
+                client().prepareIndex("dest", "_doc", "1").setSource("test", "test"));
 
         indexDocs(100);
 
@@ -81,7 +81,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         BulkByScrollResponse response = copy.get();
         assertThat(response, matcher().batches(1).versionConflicts(1).failures(1).created(99));
         for (Failure failure: response.getBulkFailures()) {
-            assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[test]["));
+            assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[_doc]["));
         }
     }
 
@@ -120,7 +120,7 @@ public class ReindexFailureTests extends ReindexTestCase {
                 assertThat(e.getMessage(),
                         either(containsString("all shards failed"))
                         .or(containsString("No search context found"))
-                        .or(containsString("no such index"))
+                        .or(containsString("no such index [source]"))
                         );
                 return;
             }
@@ -131,7 +131,7 @@ public class ReindexFailureTests extends ReindexTestCase {
     private void indexDocs(int count) throws Exception {
         List<IndexRequestBuilder> docs = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            docs.add(client().prepareIndex("source", "test", Integer.toString(i)).setSource("test", "words words"));
+            docs.add(client().prepareIndex("source", "_doc", Integer.toString(i)).setSource("test", "words words"));
         }
         indexRandom(true, docs);
     }

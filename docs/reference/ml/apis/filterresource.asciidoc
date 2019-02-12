@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-filter-resource]]
-=== Filter Resources
+=== Filter resources
 
 A filter resource has the following properties:
 

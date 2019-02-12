@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -27,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -40,9 +40,8 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
     private final Client client;
 
     @Inject
-    public TransportPutFilterAction(Settings settings, TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(settings, PutFilterAction.NAME, transportService, actionFilters,
-                (Supplier<PutFilterAction.Request>) PutFilterAction.Request::new);
+    public TransportPutFilterAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+        super(PutFilterAction.NAME, transportService, actionFilters, (Supplier<PutFilterAction.Request>) PutFilterAction.Request::new);
         this.client = client;
     }
 
@@ -53,7 +52,7 @@ public class TransportPutFilterAction extends HandledTransportAction<PutFilterAc
         indexRequest.opType(DocWriteRequest.OpType.CREATE);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+            ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
             indexRequest.source(filter.toXContent(builder, params));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise filter with id [" + filter.getId() + "]", e);

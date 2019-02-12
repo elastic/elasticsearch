@@ -24,11 +24,9 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.io.IOException;
@@ -43,14 +41,13 @@ import java.util.concurrent.ConcurrentMap;
  * tasks executed on each node, making the EWMA of the values available to the
  * coordinating node.
  */
-public final class ResponseCollectorService extends AbstractComponent implements ClusterStateListener {
+public final class ResponseCollectorService implements ClusterStateListener {
 
     private static final double ALPHA = 0.3;
 
     private final ConcurrentMap<String, NodeStatistics> nodeIdToStats = ConcurrentCollections.newConcurrentMap();
 
-    public ResponseCollectorService(Settings settings, ClusterService clusterService) {
-        super(settings);
+    public ResponseCollectorService(ClusterService clusterService) {
         clusterService.addListener(this);
     }
 

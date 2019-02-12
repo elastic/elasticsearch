@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.gen.script;
 
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,11 @@ public class ParamsBuilder {
 
     public ParamsBuilder agg(AggregateFunctionAttribute agg) {
         params.add(new Agg(agg));
+        return this;
+    }
+
+    public ParamsBuilder grouping(GroupingFunctionAttribute grouping) {
+        params.add(new Grouping(grouping));
         return this;
     }
 

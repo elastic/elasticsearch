@@ -176,6 +176,10 @@ public class ModelSnapshot implements ToXContentObject {
         return quantiles;
     }
 
+    public boolean getRetain() {
+        return retain;
+    }
+
     public Date getLatestRecordTimeStamp() {
         return latestRecordTimeStamp;
     }

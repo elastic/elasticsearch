@@ -333,7 +333,8 @@ public class RangeAggregator extends BucketsAggregator {
             Range range = ranges[i];
             final long bucketOrd = subBucketOrdinal(owningBucketOrdinal, i);
             org.elasticsearch.search.aggregations.bucket.range.Range.Bucket bucket =
-                    rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed, format);
+                    rangeFactory.createBucket(range.key, range.from, range.to, bucketDocCount(bucketOrd),
+                            bucketAggregations(bucketOrd), keyed, format);
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
@@ -361,9 +362,8 @@ public class RangeAggregator extends BucketsAggregator {
         private final InternalRange.Factory factory;
         private final DocValueFormat format;
 
-        public Unmapped(String name, R[] ranges, boolean keyed, DocValueFormat format,
-                SearchContext context,
-                Aggregator parent, InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+        public Unmapped(String name, R[] ranges, boolean keyed, DocValueFormat format, SearchContext context, Aggregator parent,
+                InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
 
             super(name, context, parent, pipelineAggregators, metaData);

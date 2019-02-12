@@ -64,22 +64,6 @@ framework. As the Jepsen tests evolve, we will continue porting new scenarios th
 all new scenarios and will report issues that we find on this page and in our GitHub repository.
 
 [float]
-=== Repeated network partitions can cause cluster state updates to be lost (STATUS: ONGOING)
-
-During a networking partition, cluster state updates (like mapping changes or shard assignments)
-are committed if a majority of the master-eligible nodes received the update correctly. This means that the current master has access
-to enough nodes in the cluster to continue to operate correctly. When the network partition heals, the isolated nodes catch
-up with the current state and receive the previously missed changes. However, if a second partition happens while the cluster
-is still recovering from the previous one *and* the old master falls on the minority side, it may be that a new master is elected
-which has not yet catch up. If that happens, cluster state updates can be lost.
-
-This problem is mostly fixed by {GIT}20384[#20384] (v5.0.0), which takes committed cluster state updates into account during master
-election. This considerably reduces the chance of this rare problem occurring but does not fully mitigate it. If the second partition
-happens concurrently with a cluster state update and blocks the cluster state commit message from reaching a majority of nodes, it may be
-that the in flight update will be lost. If the now-isolated master can still acknowledge the cluster state update to the client this
-will amount to the loss of an acknowledged change. Fixing that last scenario needs considerable work. We are currently working on it but have no ETA yet.
-
-[float]
 === Better request retry mechanism when nodes are disconnected (STATUS: ONGOING)
 
 If the node holding a primary shard is disconnected for whatever reason, the
@@ -169,6 +153,73 @@ for syncing the remaining replicas with the newly-promoted primary
 shard.
 
 == Completed
+
+[float]
+=== Repeated network partitions can cause cluster state updates to be lost (STATUS: DONE, v7.0.0)
+
+During a networking partition, cluster state updates (like mapping changes or
+shard assignments) are committed if a majority of the master-eligible nodes
+received the update correctly. This means that the current master has access to
+enough nodes in the cluster to continue to operate correctly. When the network
+partition heals, the isolated nodes catch up with the current state and receive
+the previously missed changes. However, if a second partition happens while the
+cluster is still recovering from the previous one *and* the old master falls on
+the minority side, it may be that a new master is elected which has not yet
+catch up. If that happens, cluster state updates can be lost.
+
+This problem is mostly fixed by {GIT}20384[#20384] (v5.0.0), which takes
+committed cluster state updates into account during master election. This
+considerably reduces the chance of this rare problem occurring but does not
+fully mitigate it. If the second partition happens concurrently with a cluster
+state update and blocks the cluster state commit message from reaching a
+majority of nodes, it may be that the in flight update will be lost. If the
+now-isolated master can still acknowledge the cluster state update to the client
+this will amount to the loss of an acknowledged change.
+
+Fixing this last scenario was one of the goals of {GIT}32006[#32006] and its
+sub-issues. See particularly {GIT}32171[#32171] and
+https://github.com/elastic/elasticsearch-formal-models/blob/master/ZenWithTerms/tla/ZenWithTerms.tla[the
+TLA+ formal model] used to verify these changes.
+
+[float]
+=== Divergence between primary and replica shard copies when documents deleted (STATUS: DONE, V6.3.0)
+
+Certain combinations of delays in performing activities related to the deletion
+of a document could result in the operations on that document being interpreted
+differently on different shard copies. This could lead to a divergence in the
+number of documents held in each copy.
+
+Deleting an unacknowledged document that was concurrently being inserted using
+an auto-generated ID was erroneously sensitive to the order in which those
+operations were processed on each shard copy. Thanks to the introduction of
+sequence numbers ({GIT}10708[#10708]) it is now possible to detect these
+out-of-order operations, and this issue was fixed in {GIT}28787[#28787].
+
+Re-creating a document a specific interval after it was deleted could result in
+that document's tombstone having being cleaned up on some, but not all, copies
+when processing the indexing operation that re-creates it. This resulted in
+varying behaviour across the shard copies. The problematic interval was set by
+the `index.gc_deletes` setting, which is 60 seconds by default. Again, sequence
+numbers ({GIT}10708[#10708]) gives us the machinery to detect these conflicting
+activities, and this issue was fixed in {GIT}28790[#28790].
+
+Under certain rare circumstances a replica might erroneously interpret a stale
+tombstone for a document as fresh, resulting in a concurrent indexing operation
+for that same document behaving differently on this replica than on the
+primary. This is fixed in {GIT}29619[#29619]. Triggering this issue required
+the following activities all to occur in a short time window, in a specific
+order on the primary and a different specific order on the replica:
+
+* a document is deleted twice
+* another document is indexed with the same ID as this first document
+* another document is indexed with a completely different, auto-generated, ID
+* two refreshes
+
+We found the first two of these issues by empirical testing, and then we built
+https://github.com/elastic/elasticsearch-formal-models/blob/master/ReplicaEngine/tla/ReplicaEngine.tla[a
+formal model of the replica's behaviour] using TLA+. Running the TLC model
+checker on this model found all three issues. We then applied the proposed
+fixes to the model and validated that the fixed design behaved as expected.
 
 [float]
 === Port Jepsen tests dealing with loss of acknowledged writes to our testing framework (STATUS: DONE, V5.0.0)
@@ -556,7 +607,7 @@ Currently, the circuit breaker protects against loading too much field data by e
 
 Elasticsearch has moved from an object-based cache to a page-based cache recycler as described in issue {GIT}4557[#4557]. This change makes garbage collection easier by limiting fragmentation, since all pages have the same size and are recycled. It also allows managing the size of the cache not based on the number of objects it contains, but on the memory that it uses.
 
-These pages are used for two main purposes: implementing higher level data structures such as hash tables that are used internally by aggregations to eg. map terms to counts, as well as reusing memory in the translog/transport layer as detailed in issue {GIT}5691[#5691].
+These pages are used for two main purposes: implementing higher level data structures such as hash tables that are used internally by aggregations to e.g. map terms to counts, as well as reusing memory in the translog/transport layer as detailed in issue {GIT}5691[#5691].
 
 [float]
 === Dedicated Master Nodes Resiliency (STATUS: DONE, v1.0.0)

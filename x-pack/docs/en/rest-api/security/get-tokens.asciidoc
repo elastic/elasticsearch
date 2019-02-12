@@ -1,12 +1,15 @@
 [role="xpack"]
 [[security-api-get-token]]
 === Get token API
+++++
+<titleabbrev>Get token</titleabbrev>
+++++
 
 Creates a bearer token for access without requiring basic authentication.
 
 ==== Request
 
-`POST /_xpack/security/oauth2/token` 
+`POST /_security/oauth2/token` 
 
 ==== Description
 
@@ -29,7 +32,7 @@ period is defined by the `xpack.security.authc.token.timeout` setting. For more
 information, see <<token-service-settings>>.
 
 If you want to invalidate a token immediately, you can do so by using the 
-<<security-api-invalidate-token,delete token API>>.
+<<security-api-invalidate-token,invalidate token API>>.
 
 
 ==== Request Body
@@ -68,7 +71,7 @@ which simply creates a token as the authenticated user:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/security/oauth2/token
+POST /_security/oauth2/token
 {
   "grant_type" : "client_credentials"
 }
@@ -103,7 +106,7 @@ The following example obtains a token for the `test_admin` user using the
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/security/oauth2/token
+POST /_security/oauth2/token
 {
   "grant_type" : "password",
   "username" : "test_admin",
@@ -134,7 +137,7 @@ creation. For example:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/security/oauth2/token
+POST /_security/oauth2/token
 {
     "grant_type": "refresh_token",
     "refresh_token": "vLBPvmAB6KvwvJZr27cS"

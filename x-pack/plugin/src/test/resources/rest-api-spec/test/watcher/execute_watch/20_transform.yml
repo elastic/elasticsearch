@@ -9,7 +9,6 @@ setup:
   - do:
       index:
         index: my_test_index
-        type: doc
         id: my_id
         refresh: true
         body: >
@@ -49,7 +48,6 @@ setup:
                 "indexme" : {
                   "index" : {
                     "index" : "my_test_index",
-                    "doc_type" : "doc",
                     "doc_id": "my-id"
                   }
                 }
@@ -64,7 +62,6 @@ setup:
   - do:
       get:
         index: my_test_index
-        type: doc
         id: my_id
 
   - match: { _source.key: "value" }
@@ -82,7 +79,6 @@ setup:
   - do:
       index:
         index: my_test_index
-        type: doc
         id: my_id
         refresh: true
         body: >
@@ -123,7 +119,6 @@ setup:
                 "indexme" : {
                   "index" : {
                     "index" : "my_test_index",
-                    "doc_type" : "doc",
                     "doc_id": "my-id"
                   }
                 }
@@ -138,7 +133,6 @@ setup:
   - do:
       get:
         index: my_test_index
-        type: doc
         id: my_id
 
   - match: { _source.key: "value" }
@@ -183,7 +177,6 @@ setup:
                 "indexme" : {
                   "index" : {
                     "index" : "my_test_index",
-                    "doc_type" : "doc",
                     "doc_id": "my-id"
                   }
                 }

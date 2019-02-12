@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesAction;
@@ -30,11 +29,9 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
     private final ReservedRolesStore reservedRolesStore;
 
     @Inject
-    public TransportGetRolesAction(Settings settings, ActionFilters actionFilters,
-                                   NativeRolesStore nativeRolesStore, TransportService transportService,
+    public TransportGetRolesAction(ActionFilters actionFilters, NativeRolesStore nativeRolesStore, TransportService transportService,
                                    ReservedRolesStore reservedRolesStore) {
-        super(settings, GetRolesAction.NAME, transportService, actionFilters,
-            GetRolesRequest::new);
+        super(GetRolesAction.NAME, transportService, actionFilters, GetRolesRequest::new);
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;
     }

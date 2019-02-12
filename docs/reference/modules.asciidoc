@@ -18,13 +18,13 @@ These settings can be dynamically updated on a live cluster with the
 
 The modules in this section are:
 
-<<modules-cluster,Cluster-level routing and shard allocation>>::
+<<modules-discovery,Discovery and cluster formation>>::
+
+    How nodes discover each other, elect a master and form a cluster.
+
+<<modules-cluster,Shard allocation and cluster-level routing>>::
 
     Settings to control where, when, and how shards are allocated to nodes.
-
-<<modules-discovery,Discovery>>::
-
-    How nodes discover each other to form a cluster.
 
 <<modules-gateway,Gateway>>::
 
@@ -85,9 +85,9 @@ The modules in this section are:
 --
 
 
-include::modules/cluster.asciidoc[]
-
 include::modules/discovery.asciidoc[]
+
+include::modules/cluster.asciidoc[]
 
 include::modules/gateway.asciidoc[]
 

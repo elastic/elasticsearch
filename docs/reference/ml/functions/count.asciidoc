@@ -14,7 +14,7 @@ in one field is unusual, as opposed to the total count.
 Use high-sided functions if you want to monitor unusually high event rates.
 Use low-sided functions if you want to look at drops in event rate.
 
-The {xpackml} features include the following count functions:
+The {ml-features} include the following count functions:
 
 * xref:ml-count[`count`, `high_count`, `low_count`]
 * xref:ml-nonzero-count[`non_zero_count`, `high_non_zero_count`, `low_non_zero_count`]
@@ -45,7 +45,7 @@ see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects]
 .Example 1: Analyzing events with the count function
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/example1
+PUT _ml/anomaly_detectors/example1
 {
   "analysis_config": {
     "detectors": [{
@@ -71,7 +71,7 @@ and detects when the event rate is unusual compared to its past behavior.
 .Example 2: Analyzing errors with the high_count function
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/example2
+PUT _ml/anomaly_detectors/example2
 {
   "analysis_config": {
     "detectors": [{
@@ -97,7 +97,7 @@ unusually high count of error codes compared to other users.
 .Example 3: Analyzing status codes with the low_count function
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/example3
+PUT _ml/anomaly_detectors/example3
 {
   "analysis_config": {
     "detectors": [{
@@ -124,7 +124,7 @@ compared to its past behavior.
 .Example 4: Analyzing aggregated data with the count function
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/example4
+PUT _ml/anomaly_detectors/example4
 {
   "analysis_config": {
     "summary_count_field_name" : "events_per_min",
@@ -189,7 +189,7 @@ The `non_zero_count` function models only the following data:
 .Example 5: Analyzing signatures with the high_non_zero_count function
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/example5
+PUT _ml/anomaly_detectors/example5
 {
   "analysis_config": {
     "detectors": [{
@@ -243,7 +243,7 @@ see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects]
 .Example 6: Analyzing users with the distinct_count function
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/example6
+PUT _ml/anomaly_detectors/example6
 {
   "analysis_config": {
     "detectors": [{
@@ -268,7 +268,7 @@ users is unusual compared to the past.
 .Example 7: Analyzing ports with the high_distinct_count function
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/example7
+PUT _ml/anomaly_detectors/example7
 {
   "analysis_config": {
     "detectors": [{

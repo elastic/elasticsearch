@@ -28,17 +28,17 @@
               soft_deletes:
                 enabled: true
           mappings:
-            doc:
-              properties:
-                field:
-                  type: keyword
+            properties:
+              field:
+                type: keyword
   - is_true: acknowledged
 
   - do:
       ccr.follow:
         index: bar
+        wait_for_active_shards: 1
         body:
-          leader_cluster: local
+          remote_cluster: local
           leader_index: foo
   - is_true: follow_index_created
   - is_true: follow_index_shards_acked
@@ -52,9 +52,6 @@
   - do:
       ccr.resume_follow:
         index: bar
-        body:
-          leader_cluster: local
-          leader_index: foo
   - is_true: acknowledged
 
   - do:

@@ -119,68 +119,6 @@ include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-
 <2> Adds the metrics to compute on the `temperature` field
 <3> Adds the metrics to compute on the `voltage` field
 
-By default, metrics `min`/`max` for the fields in `DateHistogramGroupConfig` and
-`HistogramGroupConfig` are added to the configuration unless the user already provided
-metrics for those fields.
-
-So, for the following configuration:
-
-[source,js]
---------------------------------------------------
-"groups" : {
-  "date_histogram": {
-    "field": "timestamp",
-    "interval": "1h",
-    "delay": "7d",
-    "time_zone": "UTC"
-  },
-  "terms": {
-    "fields": ["hostname", "datacenter"]
-  },
-  "histogram": {
-    "fields": ["load", "net_in", "net_out"],
-    "interval": 5
-  },
-},
-"metrics": [
-    {
-        "field": "load",
-        "metrics": ["max"]
-    },
-    {
-        "field": "net_in",
-        "metrics": ["max"]
-    }
-]
---------------------------------------------------
-// NOTCONSOLE
-
-The following will be the metrics in the configuration after
-the defaults are added server side. Note the default metrics
-provided for the fields `timestamp` and `net_out`
-
-[source,js]
---------------------------------------------------
-"metrics": [
-    {
-        "field": "load",
-        "metrics": ["max"]
-    },
-    {
-        "field": "net_in",
-        "metrics": ["max"]
-    },
-    {
-        "field": "timestamp",
-        "metrics": ["min", "max"]
-    },
-    {
-        "field": "net_out",
-        "metrics": ["min", "max"]
-    }
-]
---------------------------------------------------
-// NOTCONSOLE
 
 [[java-rest-high-x-pack-rollup-put-rollup-job-execution]]
 ==== Execution

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.allocation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -29,7 +30,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class FilteringAllocationIT extends ESIntegTestCase {
 
-    private final Logger logger = Loggers.getLogger(FilteringAllocationIT.class);
+    private final Logger logger = LogManager.getLogger(FilteringAllocationIT.class);
 
     public void testDecommissionNodeNoReplicas() throws Exception {
         logger.info("--> starting 2 nodes");
@@ -65,7 +65,8 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(100L));
+        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet()
+            .getHits().getTotalHits().value, equalTo(100L));
 
         logger.info("--> decommission the second node");
         client().admin().cluster().prepareUpdateSettings()
@@ -84,7 +85,8 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(100L));
+        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery())
+            .execute().actionGet().getHits().getTotalHits().value, equalTo(100L));
     }
 
     public void testDisablingAllocationFiltering() throws Exception {
@@ -106,7 +108,8 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(100L));
+        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery())
+            .execute().actionGet().getHits().getTotalHits().value, equalTo(100L));
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index("test");
         int numShardsOnNode1 = 0;
@@ -120,9 +123,10 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         if (numShardsOnNode1 > ThrottlingAllocationDecider.DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES) {
             client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", numShardsOnNode1)).execute().actionGet();
-            // make sure we can recover all the nodes at once otherwise we might run into a state where one of the shards has not yet started relocating
-            // but we already fired up the request to wait for 0 relocating shards.
+            .setTransientSettings(Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", numShardsOnNode1)).execute().actionGet();
+            // make sure we can recover all the nodes at once otherwise we might run into a state where
+            // one of the shards has not yet started relocating but we already fired up the request to wait for 0 relocating shards.
         }
         logger.info("--> remove index from the first node");
         client().admin().indices().prepareUpdateSettings("test")

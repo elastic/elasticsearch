@@ -61,9 +61,6 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             builder.setIndices(DatafeedConfigTests.randomStringList(1, 10));
         }
         if (randomBoolean()) {
-            builder.setTypes(DatafeedConfigTests.randomStringList(1, 10));
-        }
-        if (randomBoolean()) {
             builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
         if (randomBoolean()) {
@@ -88,6 +85,9 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         }
         if (randomBoolean()) {
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
+        }
+        if (randomBoolean()) {
+            builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(randomLongBetween(300_001, 400_000)));
         }
         return builder.build();
     }
@@ -142,39 +142,38 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     public void testApply_givenFullUpdateNoAggregations() {
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("foo", "foo-feed");
         datafeedBuilder.setIndices(Collections.singletonList("i_1"));
-        datafeedBuilder.setTypes(Collections.singletonList("t_1"));
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
         update.setJobId("bar");
         update.setIndices(Collections.singletonList("i_2"));
-        update.setTypes(Collections.singletonList("t_2"));
         update.setQueryDelay(TimeValue.timeValueSeconds(42));
         update.setFrequency(TimeValue.timeValueSeconds(142));
         update.setQuery(QueryBuilders.termQuery("a", "b"));
         update.setScriptFields(Collections.singletonList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false)));
         update.setScrollSize(8000);
         update.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
+        update.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1)));
 
         DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
 
         assertThat(updatedDatafeed.getJobId(), equalTo("bar"));
         assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_2")));
-        assertThat(updatedDatafeed.getTypes(), equalTo(Collections.singletonList("t_2")));
         assertThat(updatedDatafeed.getQueryDelay(), equalTo(TimeValue.timeValueSeconds(42)));
         assertThat(updatedDatafeed.getFrequency(), equalTo(TimeValue.timeValueSeconds(142)));
-        assertThat(updatedDatafeed.getQuery(), equalTo(QueryBuilders.termQuery("a", "b")));
+        assertThat(updatedDatafeed.getParsedQuery(), equalTo(QueryBuilders.termQuery("a", "b")));
         assertThat(updatedDatafeed.hasAggregations(), is(false));
         assertThat(updatedDatafeed.getScriptFields(),
                 equalTo(Collections.singletonList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false))));
         assertThat(updatedDatafeed.getScrollSize(), equalTo(8000));
         assertThat(updatedDatafeed.getChunkingConfig(), equalTo(ChunkingConfig.newManual(TimeValue.timeValueHours(1))));
+        assertThat(updatedDatafeed.getDelayedDataCheckConfig().isEnabled(), equalTo(true));
+        assertThat(updatedDatafeed.getDelayedDataCheckConfig().getCheckWindow(), equalTo(TimeValue.timeValueHours(1)));
     }
 
     public void testApply_givenAggregations() {
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("foo", "foo-feed");
         datafeedBuilder.setIndices(Collections.singletonList("i_1"));
-        datafeedBuilder.setTypes(Collections.singletonList("t_1"));
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
@@ -185,8 +184,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         DatafeedConfig updatedDatafeed = update.build().apply(datafeed, Collections.emptyMap());
 
         assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_1")));
-        assertThat(updatedDatafeed.getTypes(), equalTo(Collections.singletonList("t_1")));
-        assertThat(updatedDatafeed.getAggregations(),
+        assertThat(updatedDatafeed.getParsedAggregations(),
                 equalTo(new AggregatorFactories.Builder().addAggregator(
                         AggregationBuilders.histogram("a").interval(300000).field("time").subAggregation(maxTime))));
     }
@@ -213,7 +211,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     @Override
     protected DatafeedUpdate mutateInstance(DatafeedUpdate instance) {
         DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder(instance);
-        switch (between(0, 10)) {
+        switch (between(0, 9)) {
         case 0:
             builder.setId(instance.getId() + DatafeedConfigTests.randomValidDatafeedId());
             break;
@@ -245,16 +243,6 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             builder.setIndices(indices);
             break;
         case 5:
-            List<String> types;
-            if (instance.getTypes() == null) {
-                types = new ArrayList<>();
-            } else {
-                types = new ArrayList<>(instance.getTypes());
-            }
-            types.add(randomAlphaOfLengthBetween(1, 20));
-            builder.setTypes(types);
-            break;
-        case 6:
             BoolQueryBuilder query = new BoolQueryBuilder();
             if (instance.getQuery() != null) {
                 query.must(instance.getQuery());
@@ -262,7 +250,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             query.filter(new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
             builder.setQuery(query);
             break;
-        case 7:
+        case 6:
             if (instance.hasAggregations()) {
                 builder.setAggregations(null);
             } else {
@@ -276,20 +264,20 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
                 }
             }
             break;
-        case 8:
+        case 7:
             ArrayList<ScriptField> scriptFields = new ArrayList<>(instance.getScriptFields());
             scriptFields.add(new ScriptField(randomAlphaOfLengthBetween(1, 10), new Script("foo"), true));
             builder.setScriptFields(scriptFields);
             builder.setAggregations(null);
             break;
-        case 9:
+        case 8:
             if (instance.getScrollSize() == null) {
                 builder.setScrollSize(between(1, 100));
             } else {
                 builder.setScrollSize(instance.getScrollSize() + between(1, 100));
             }
             break;
-        case 10:
+        case 9:
             if (instance.getChunkingConfig() == null || instance.getChunkingConfig().getMode() == Mode.AUTO) {
                 ChunkingConfig newChunkingConfig = ChunkingConfig.newManual(new TimeValue(randomNonNegativeLong()));
                 builder.setChunkingConfig(newChunkingConfig);

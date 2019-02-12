@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -14,7 +16,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -74,8 +75,9 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
  * is done by this class. Modification operations make a best effort attempt to clear the cache
  * on all nodes for the user that was modified.
  */
-public class NativeRoleMappingStore extends AbstractComponent implements UserRoleMapper {
+public class NativeRoleMappingStore implements UserRoleMapper {
 
+    private static final Logger logger = LogManager.getLogger(NativeRoleMappingStore.class);
     static final String DOC_TYPE_FIELD = "doc_type";
     static final String DOC_TYPE_ROLE_MAPPING = "role-mapping";
 
@@ -95,12 +97,13 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
         }
     };
 
+    private final Settings settings;
     private final Client client;
     private final SecurityIndexManager securityIndex;
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
-        super(settings);
+        this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
     }

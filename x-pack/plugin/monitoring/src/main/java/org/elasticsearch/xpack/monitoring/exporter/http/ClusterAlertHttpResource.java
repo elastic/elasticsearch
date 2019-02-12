@@ -11,12 +11,13 @@ import java.util.Map;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -33,7 +34,7 @@ import static org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil.LAST
  */
 public class ClusterAlertHttpResource extends PublishableHttpResource {
 
-    private static final Logger logger = Loggers.getLogger(ClusterAlertHttpResource.class);
+    private static final Logger logger = LogManager.getLogger(ClusterAlertHttpResource.class);
 
     /**
      * Use this to retrieve the version of Cluster Alert in the Watch's JSON response from a request.
@@ -79,34 +80,33 @@ public class ClusterAlertHttpResource extends PublishableHttpResource {
      * Determine if the current {@linkplain #watchId Watch} exists.
      */
     @Override
-    protected CheckResponse doCheck(final RestClient client) {
+    protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
         // if we should be adding, then we need to check for existence
         if (isWatchDefined() && licenseState.isMonitoringClusterAlertsAllowed()) {
             final CheckedFunction<Response, Boolean, IOException> watchChecker =
                     (response) -> shouldReplaceClusterAlert(response, XContentType.JSON.xContent(), LAST_UPDATED_VERSION);
 
-            return versionCheckForResource(client, logger,
-                                           "/_xpack/watcher/watch", watchId.get(), "monitoring cluster alert",
-                                           resourceOwnerName, "monitoring cluster",
-                                           watchChecker);
+            checkForResource(client, listener, logger,
+                             "/_watcher/watch", watchId.get(), "monitoring cluster alert",
+                             resourceOwnerName, "monitoring cluster",
+                             GET_EXISTS, GET_DOES_NOT_EXIST,
+                             watchChecker, this::alwaysReplaceResource);
+        } else {
+            // if we should be deleting, then just try to delete it (same level of effort as checking)
+            deleteResource(client, listener, logger, "/_watcher/watch", watchId.get(),
+                           "monitoring cluster alert",
+                           resourceOwnerName, "monitoring cluster");
         }
-
-        // if we should be deleting, then just try to delete it (same level of effort as checking)
-        final boolean deleted = deleteResource(client, logger, "/_xpack/watcher/watch", watchId.get(),
-                                               "monitoring cluster alert",
-                                               resourceOwnerName, "monitoring cluster");
-
-        return deleted ? CheckResponse.EXISTS : CheckResponse.ERROR;
     }
 
     /**
      * Publish the missing {@linkplain #watchId Watch}.
      */
     @Override
-    protected boolean doPublish(final RestClient client) {
-        return putResource(client, logger,
-                           "/_xpack/watcher/watch", watchId.get(), this::watchToHttpEntity, "monitoring cluster alert",
-                           resourceOwnerName, "monitoring cluster");
+    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+        putResource(client, listener, logger,
+                    "/_watcher/watch", watchId.get(), this::watchToHttpEntity, "monitoring cluster alert",
+                    resourceOwnerName, "monitoring cluster");
     }
 
     /**

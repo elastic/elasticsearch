@@ -221,10 +221,21 @@ public class Analysis {
      *          If the word list cannot be found at either key.
      */
     public static List<String> getWordList(Environment env, Settings settings, String settingPrefix) {
-        String wordListPath = settings.get(settingPrefix + "_path", null);
+        return getWordList(env, settings, settingPrefix + "_path", settingPrefix);
+    }
+
+    /**
+     * Fetches a list of words from the specified settings file. The list should either be available at the key
+     * specified by <code>settingList</code> or in a file specified by <code>settingPath</code>.
+     *
+     * @throws IllegalArgumentException
+     *          If the word list cannot be found at either key.
+     */
+    public static List<String> getWordList(Environment env, Settings settings, String settingPath, String settingList) {
+        String wordListPath = settings.get(settingPath, null);
 
         if (wordListPath == null) {
-            List<String> explicitWordList = settings.getAsList(settingPrefix, null);
+            List<String> explicitWordList = settings.getAsList(settingList, null);
             if (explicitWordList == null) {
                 return null;
             } else {
@@ -238,11 +249,11 @@ public class Analysis {
             return loadWordList(path, "#");
         } catch (CharacterCodingException ex) {
             String message = String.format(Locale.ROOT,
-                "Unsupported character encoding detected while reading %s_path: %s - files must be UTF-8 encoded",
-                settingPrefix, path.toString());
+                "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
+                settingPath, path.toString());
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
+            String message = String.format(Locale.ROOT, "IOException while reading %s: %s", settingPath, path.toString());
             throw new IllegalArgumentException(message, ioe);
         }
     }

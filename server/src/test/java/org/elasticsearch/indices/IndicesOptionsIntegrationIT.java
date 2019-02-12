@@ -171,7 +171,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getMapping("test1").setIndicesOptions(options), true);
         verify(getSettings("test1").setIndicesOptions(options), true);
 
-        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
+        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(),
+            options.expandWildcardsClosed(), options);
         verify(search("test1").setIndicesOptions(options), false);
         verify(msearch(options, "test1"), false);
         verify(clearCache("test1").setIndicesOptions(options), false);
@@ -227,7 +228,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getMapping("test1").setIndicesOptions(options), true);
         verify(getSettings("test1").setIndicesOptions(options), true);
 
-        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(), options.expandWildcardsClosed(), options);
+        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(),
+            options.expandWildcardsClosed(), options);
         verify(search("test1").setIndicesOptions(options), false);
         verify(msearch(options, "test1"), false);
         verify(clearCache("test1").setIndicesOptions(options), false);

@@ -54,23 +54,6 @@ import java.io.IOException;
  */
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
-    class CommonSettings {
-        public static final String SETTING_MEMORY_STORAGE_HINT = "memory_storage_hint";
-
-        public enum MemoryStorageFormat {
-            ORDINALS, PACKED, PAGED;
-
-            public static MemoryStorageFormat fromString(String string) {
-                for (MemoryStorageFormat e : MemoryStorageFormat.values()) {
-                    if (e.name().equalsIgnoreCase(string)) {
-                        return e;
-                    }
-                }
-                return null;
-            }
-        }
-    }
-
     /**
      * The field name.
      */

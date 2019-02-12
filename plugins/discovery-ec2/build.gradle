@@ -48,9 +48,30 @@ bundlePlugin {
   }
 }
 
-test {
+task writeTestJavaPolicy {
+  doLast {
+    final File tmp = file("${buildDir}/tmp")
+    if (tmp.exists() == false && tmp.mkdirs() == false) {
+      throw new GradleException("failed to create temporary directory [${tmp}]")
+    }
+    final File javaPolicy = file("${tmp}/java.policy")
+    javaPolicy.write(
+    [
+            "grant {",
+            "  permission java.util.PropertyPermission \"com.amazonaws.sdk.ec2MetadataServiceEndpointOverride\", \"write\";",
+            "};"
+    ].join("\n"))
+  }
+}
+
+unitTest {
+  dependsOn writeTestJavaPolicy
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
+  
+  // this is needed to manipulate com.amazonaws.sdk.ec2MetadataServiceEndpointOverride system property
+  // it is better rather disable security manager at all with `systemProperty 'tests.security.manager', 'false'`
+  systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
 }
 
 check {
@@ -58,7 +79,7 @@ check {
   dependsOn 'qa:amazon-ec2:check'
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   // classes are missing
   'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
   'com.amazonaws.jmespath.JmesPathExpression',
@@ -84,12 +105,12 @@ thirdPartyAudit.excludes = [
   'javax.servlet.ServletContextListener', 
   'org.apache.avalon.framework.logger.Logger', 
   'org.apache.log.Hierarchy', 
-  'org.apache.log.Logger',
-]
+  'org.apache.log.Logger'
+)
 
 if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += [
+  thirdPartyAudit.ignoreMissingClasses (
     'javax.xml.bind.DatatypeConverter',
     'javax.xml.bind.JAXBContext'
-  ]
+  )
 }

@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -29,17 +29,17 @@ public class FieldAttribute extends TypedAttribute {
     private final String path;
     private final EsField field;
 
-    public FieldAttribute(Location location, String name, EsField field) {
-        this(location, null, name, field);
+    public FieldAttribute(Source source, String name, EsField field) {
+        this(source, null, name, field);
     }
 
-    public FieldAttribute(Location location, FieldAttribute parent, String name, EsField field) {
-        this(location, parent, name, field, null, true, null, false);
+    public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field) {
+        this(source, parent, name, field, null, Nullability.TRUE, null, false);
     }
 
-    public FieldAttribute(Location location, FieldAttribute parent, String name, EsField field, String qualifier,
-                          boolean nullable, ExpressionId id, boolean synthetic) {
-        super(location, name, field.getDataType(), qualifier, nullable, id, synthetic);
+    public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field, String qualifier,
+                          Nullability nullability, ExpressionId id, boolean synthetic) {
+        super(source, name, field.getDataType(), qualifier, nullability, id, synthetic);
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
@@ -93,18 +93,19 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     private FieldAttribute innerField(EsField type) {
-        return new FieldAttribute(location(), this, name() + "." + type.getName(), type, qualifier(), nullable(), id(), synthetic());
+        return new FieldAttribute(source(), this, name() + "." + type.getName(), type, qualifier(), nullable(), id(), synthetic());
     }
 
     @Override
     protected Expression canonicalize() {
-        return new FieldAttribute(location(), null, "<none>", field, null, true, id(), false);
+        return new FieldAttribute(source(), null, "<none>", field, null, Nullability.TRUE, id(), false);
     }
 
     @Override
-    protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Source source, String name, String qualifier, Nullability nullability,
+                              ExpressionId id, boolean synthetic) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
-        return new FieldAttribute(location, qualifiedParent, name, field, qualifier, nullable, id, synthetic);
+        return new FieldAttribute(source, qualifiedParent, name, field, qualifier, nullability, id, synthetic);
     }
 
     @Override

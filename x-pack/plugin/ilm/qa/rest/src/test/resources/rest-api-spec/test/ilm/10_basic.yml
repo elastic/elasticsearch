@@ -1,0 +1,218 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+"Test Basic Policy CRUD":
+  - do:
+      catch: missing
+      ilm.get_lifecycle:
+        policy: "my_timeseries_lifecycle"
+
+  - do:
+      catch: missing
+      ilm.delete_lifecycle:
+        policy: "my_timeseries_lifecycle"
+
+  - do:
+      ilm.put_lifecycle:
+        policy: "my_timeseries_lifecycle"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "warm": {
+                   "min_age": "10s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 },
+                 "delete": {
+                   "min_age": "30s",
+                   "actions": {
+                     "delete": {}
+                   }
+                 }
+               }
+             }
+           }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "my_timeseries_lifecycle"
+  - match: { my_timeseries_lifecycle.version: 1 }
+  - is_true: my_timeseries_lifecycle.modified_date
+  - match: { my_timeseries_lifecycle.policy.phases.warm.min_age: "10s" }
+  - match: { my_timeseries_lifecycle.policy.phases.delete.min_age: "30s" }
+
+  - do:
+      ilm.delete_lifecycle:
+        policy: "my_timeseries_lifecycle"
+
+  - do:
+      catch: missing
+      ilm.get_lifecycle:
+        policy: "my_timeseries_lifecycle"
+
+---
+"Test Policy Update":
+  - do:
+      ilm.put_lifecycle:
+        policy: "my_timeseries_lifecycle"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "warm": {
+                   "min_age": "10s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 },
+                 "delete": {
+                   "min_age": "30s",
+                   "actions": {
+                     "delete": {}
+                   }
+                 }
+               }
+             }
+           }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "my_timeseries_lifecycle"
+  - match: { my_timeseries_lifecycle.version: 1 }
+  - is_true: my_timeseries_lifecycle.modified_date
+  - match: { my_timeseries_lifecycle.policy.phases.warm.min_age: "10s" }
+  - match: { my_timeseries_lifecycle.policy.phases.delete.min_age: "30s" }
+
+
+  - do:
+      indices.create:
+        index: my_index
+        body:
+          settings:
+            index.lifecycle.name: "my_moveable_timeseries_lifecycle"
+
+  - do:
+      indices.create:
+        index: my_index2
+        body:
+          settings:
+            index.lifecycle.name: "my_moveable_timeseries_lifecycle"
+  
+  - do:
+      ilm.put_lifecycle:
+        policy: "my_timeseries_lifecycle"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "warm": {
+                   "min_age": "300s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 },
+                 "delete": {
+                   "min_age": "600s",
+                   "actions": {
+                     "delete": {}
+                   }
+                 }
+               }
+             }
+           }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "my_timeseries_lifecycle"
+  - match: { my_timeseries_lifecycle.version: 2 }
+  - is_true: my_timeseries_lifecycle.modified_date
+  - match: { my_timeseries_lifecycle.policy.phases.warm.min_age: "300s" }
+  - match: { my_timeseries_lifecycle.policy.phases.delete.min_age: "600s" }
+
+  - do:
+      indices.delete:
+        index: my_index
+  - do:
+      indices.delete:
+        index: my_index2
+
+  - do:
+      ilm.delete_lifecycle:
+        policy: "my_timeseries_lifecycle"
+
+  - do:
+      catch: missing
+      ilm.get_lifecycle:
+        policy: "my_timeseries_lifecycle"
+
+---
+"Test Undeletable Policy In Use":
+  - do:
+      ilm.put_lifecycle:
+        policy: "my_timeseries_lifecycle"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "warm": {
+                   "min_age": "10s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 },
+                 "delete": {
+                   "min_age": "30s",
+                   "actions": {
+                     "delete": {}
+                   }
+                 }
+               }
+             }
+           }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "my_timeseries_lifecycle"
+  - match: { my_timeseries_lifecycle.policy.phases.warm.min_age: "10s" }
+  - match: { my_timeseries_lifecycle.policy.phases.delete.min_age: "30s" }
+
+  - do:
+      indices.create:
+        index: my_timeseries_index
+        body:
+          settings:
+            index.lifecycle.name: "my_timeseries_lifecycle"
+
+  - do:
+      catch: bad_request
+      ilm.delete_lifecycle:
+        policy: "my_timeseries_lifecycle"
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Cannot delete policy [my_timeseries_lifecycle]. It is in use by one or more indices: [my_timeseries_index]" }
+
+  - do:
+      ilm.remove_policy:
+        index: my_timeseries_index
+
+  - do:
+      ilm.delete_lifecycle:
+        policy: "my_timeseries_lifecycle"
+
+  - do:
+      catch: missing
+      ilm.get_lifecycle:
+        policy: "my_timeseries_lifecycle"

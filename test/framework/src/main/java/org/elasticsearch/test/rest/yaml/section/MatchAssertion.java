@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -48,7 +48,7 @@ public class MatchAssertion extends Assertion {
         return new MatchAssertion(location, stringObjectTuple.v1(), stringObjectTuple.v2());
     }
 
-    private static final Logger logger = Loggers.getLogger(MatchAssertion.class);
+    private static final Logger logger = LogManager.getLogger(MatchAssertion.class);
 
     public MatchAssertion(XContentLocation location, String field, Object expectedValue) {
         super(location, field, expectedValue);

@@ -7,7 +7,7 @@
 # snapshots. In order to do that it uses a URLFixture that exposes
 # the content of the shared directory over HTTP. A second URL
 # repository is used to test the snapshot restore but this time
-# with a "file://" prefix. 
+# with a "file://" prefix.
 setup:
 
   # Ensure that the FS repository is registered, so we can create
@@ -23,17 +23,14 @@ setup:
         body:
           - index:
               _index: docs
-              _type:  doc
               _id:    1
           - snapshot: one
           - index:
               _index: docs
-              _type:  doc
               _id:    2
           - snapshot: one
           - index:
               _index: docs
-              _type:  doc
               _id:    3
           - snapshot: one
 
@@ -51,22 +48,18 @@ setup:
         body:
           - index:
               _index: docs
-              _type:  doc
               _id:    4
           - snapshot: two
           - index:
               _index: docs
-              _type:  doc
               _id:    5
           - snapshot: two
           - index:
               _index: docs
-              _type:  doc
               _id:    6
           - snapshot: two
           - index:
               _index: docs
-              _type:  doc
               _id:    7
           - snapshot: two
 
@@ -103,6 +96,9 @@ teardown:
 
 ---
 "Module repository-url is loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 

@@ -10,17 +10,14 @@
   - do:
       index:
         index:   test
-        type:    foo
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -50,17 +47,14 @@
   - do:
       index:
         index:   test
-        type:    foo
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -91,17 +85,14 @@
   - do:
       index:
         index:   test
-        type:    foo
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -151,17 +142,14 @@
   - do:
       index:
         index:   test
-        type:    foo
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
         body:    { "text": "test" }
   - do:
       index:
         index:   test
-        type:    foo
         body:    { "text": "test" }
   - do:
       indices.refresh: {}

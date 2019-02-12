@@ -5,30 +5,31 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 public class JobDataDeleter {
 
-    private static final Logger LOGGER = Loggers.getLogger(JobDataDeleter.class);
+    private static final Logger LOGGER = LogManager.getLogger(JobDataDeleter.class);
 
     private final Client client;
     private final String jobId;
@@ -51,66 +52,34 @@ public class JobDataDeleter {
      *
      * @param modelSnapshots the model snapshots to delete
      */
-    public void deleteModelSnapshots(List<ModelSnapshot> modelSnapshots, ActionListener<BulkResponse> listener) {
+    public void deleteModelSnapshots(List<ModelSnapshot> modelSnapshots, ActionListener<BulkByScrollResponse> listener) {
         if (modelSnapshots.isEmpty()) {
-            listener.onResponse(new BulkResponse(new BulkItemResponse[0], 0L));
+            listener.onResponse(new BulkByScrollResponse(TimeValue.ZERO,
+                new BulkByScrollTask.Status(Collections.emptyList(), null),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                false));
             return;
         }
 
-        String stateIndexName = AnomalyDetectorsIndex.jobStateIndexName();
+        String stateIndexName = AnomalyDetectorsIndex.jobStateIndexPattern();
 
-        // TODO: remove in 7.0
-        ActionListener<BulkResponse> docDeleteListener = ActionListener.wrap(
-                response -> {
-                    // if the doc delete worked then don't bother trying the old types
-                    if (response.hasFailures() == false) {
-                        listener.onResponse(response);
-                        return;
-                    }
-                    BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-                    for (ModelSnapshot modelSnapshot : modelSnapshots) {
-                        for (String stateDocId : modelSnapshot.legacyStateDocumentIds()) {
-                            bulkRequestBuilder.add(client.prepareDelete(stateIndexName, ModelState.TYPE, stateDocId));
-                        }
-
-                        bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()),
-                                ModelSnapshot.TYPE.getPreferredName(), ModelSnapshot.v54DocumentId(modelSnapshot)));
-                    }
-
-                    bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                    try {
-                        bulkRequestBuilder.execute(ActionListener.wrap(
-                                listener::onResponse,
-                                // ignore problems relating to single type indices - if we're running against a single type
-                                // index then it must be type doc, so just return the response from deleting that type
-                                e -> {
-                                    if (e instanceof IllegalArgumentException
-                                            && e.getMessage().contains("as the final mapping would have more than 1 type")) {
-                                        listener.onResponse(response);
-                                    }
-                                    listener.onFailure(e);
-                                }
-                        ));
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                    }
-                },
-                listener::onFailure
-        );
-
-        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+        List<String> idsToDelete = new ArrayList<>();
+        Set<String> indices = new HashSet<>();
+        indices.add(stateIndexName);
         for (ModelSnapshot modelSnapshot : modelSnapshots) {
-            for (String stateDocId : modelSnapshot.stateDocumentIds()) {
-                bulkRequestBuilder.add(client.prepareDelete(stateIndexName, ElasticsearchMappings.DOC_TYPE, stateDocId));
-            }
-
-            bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()),
-                    ElasticsearchMappings.DOC_TYPE, ModelSnapshot.documentId(modelSnapshot)));
+            idsToDelete.addAll(modelSnapshot.stateDocumentIds());
+            idsToDelete.add(ModelSnapshot.documentId(modelSnapshot));
+            indices.add(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()));
         }
 
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indices.toArray(new String[0]))
+            .setRefresh(true)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(new IdsQueryBuilder().addIds(idsToDelete.toArray(new String[0])));
+
         try {
-            executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(), docDeleteListener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
         } catch (Exception e) {
             listener.onFailure(e);
         }

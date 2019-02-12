@@ -141,8 +141,8 @@ public class NodeJoinControllerTests extends ESTestCase {
             throw new IllegalStateException("method setupMasterServiceAndNodeJoinController can only be called once");
         }
         masterService = ClusterServiceUtils.createMasterService(threadPool, initialState);
-        nodeJoinController = new NodeJoinController(masterService, createAllocationService(Settings.EMPTY),
-            new ElectMasterService(Settings.EMPTY), Settings.EMPTY);
+        nodeJoinController = new NodeJoinController(Settings.EMPTY, masterService, createAllocationService(Settings.EMPTY),
+            new ElectMasterService(Settings.EMPTY));
     }
 
     public void testSimpleJoinAccumulation() throws InterruptedException, ExecutionException {

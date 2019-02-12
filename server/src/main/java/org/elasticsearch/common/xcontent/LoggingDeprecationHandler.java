@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 
 /**
  * Logs deprecations to the {@link DeprecationLogger}.
@@ -42,7 +42,7 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
      * Changing that will require some research to make super duper
      * sure it is safe.
      */
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ParseField.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ParseField.class));
 
     private LoggingDeprecationHandler() {
         // Singleton
@@ -50,11 +50,11 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
 
     @Override
     public void usedDeprecatedName(String usedName, String modernName) {
-        DEPRECATION_LOGGER.deprecated("Deprecated field [{}] used, expected [{}] instead", usedName, modernName);
+        deprecationLogger.deprecated("Deprecated field [{}] used, expected [{}] instead", usedName, modernName);
     }
 
     @Override
     public void usedDeprecatedField(String usedName, String replacedWith) {
-        DEPRECATION_LOGGER.deprecated("Deprecated field [{}] used, replaced by [{}]", usedName, replacedWith);
+        deprecationLogger.deprecated("Deprecated field [{}] used, replaced by [{}]", usedName, replacedWith);
     }
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.spell.DirectSpellChecker;
@@ -69,7 +69,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     @Override
     public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion,
             IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
-        double realWordErrorLikelihood = suggestion.realworldErrorLikelyhood();
+        double realWordErrorLikelihood = suggestion.realworldErrorLikelihood();
         final PhraseSuggestion response = new PhraseSuggestion(name, suggestion.getSize());
         final IndexReader indexReader = searcher.getIndexReader();
         List<PhraseSuggestionContext.DirectCandidateGenerator>  generators = suggestion.generators();
@@ -78,14 +78,14 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         for (int i = 0; i < numGenerators; i++) {
             PhraseSuggestionContext.DirectCandidateGenerator generator = generators.get(i);
             DirectSpellChecker directSpellChecker = generator.createDirectSpellChecker();
-            Terms terms = MultiFields.getTerms(indexReader, generator.field());
+            Terms terms = MultiTerms.getTerms(indexReader, generator.field());
             if (terms !=  null) {
                 gens.add(new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(),
                         indexReader, realWordErrorLikelihood, generator.size(), generator.preFilter(), generator.postFilter(), terms));
             }
         }
         final String suggestField = suggestion.getField();
-        final Terms suggestTerms = MultiFields.getTerms(indexReader, suggestField);
+        final Terms suggestTerms = MultiTerms.getTerms(indexReader, suggestField);
         if (gens.size() > 0 && suggestTerms != null) {
             final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram(),
                     suggestion.getTokenLimit());

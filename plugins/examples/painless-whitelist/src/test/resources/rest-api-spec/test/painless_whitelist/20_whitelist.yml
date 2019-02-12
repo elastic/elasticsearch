@@ -4,15 +4,15 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "num1": 1.0 }
     - do:
         indices.refresh: {}
 
     - do:
-        index: test
         search:
+            rest_total_hits_as_int: true
+            index: test
             body:
                 query:
                     match_all: {}

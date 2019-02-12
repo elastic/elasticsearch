@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-filter]]
-=== Create Filter API
+=== Create filter API
 ++++
-<titleabbrev>Create Filter</titleabbrev>
+<titleabbrev>Create filter</titleabbrev>
 ++++
 
 Instantiates a filter.
 
 ==== Request
 
-`PUT _xpack/ml/filters/<filter_id>`
+`PUT _ml/filters/<filter_id>`
 
 ===== Description
 
@@ -49,7 +49,7 @@ The following example creates the `safe_domains` filter:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/filters/safe_domains
+PUT _ml/filters/safe_domains
 {
   "description": "A list of safe domains",
   "items": ["*.google.com", "wikipedia.org"]

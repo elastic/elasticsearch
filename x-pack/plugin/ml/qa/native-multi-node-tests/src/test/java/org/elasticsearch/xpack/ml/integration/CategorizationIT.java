@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -92,7 +92,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
         datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
-        datafeedConfig.setTypes(Collections.singletonList(DATA_TYPE));
         DatafeedConfig datafeed = datafeedConfig.build();
         registerDatafeed(datafeed);
         putDatafeed(datafeed);
@@ -138,7 +137,6 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, job.getId());
         datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
-        datafeedConfig.setTypes(Collections.singletonList(DATA_TYPE));
         DatafeedConfig datafeed = datafeedConfig.build();
         registerDatafeed(datafeed);
         putDatafeed(datafeed);
@@ -204,7 +202,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         flushJob(jobId, false);
 
         long duration = System.currentTimeMillis() - startTime;
-        Loggers.getLogger(CategorizationIT.class).info("Performance test with tokenization in " +
+        LogManager.getLogger(CategorizationIT.class).info("Performance test with tokenization in " +
                 (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA ? "Java" : "C++") + " took " + duration + "ms");
     }
 

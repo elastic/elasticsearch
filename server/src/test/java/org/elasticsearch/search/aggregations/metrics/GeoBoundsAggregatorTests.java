@@ -30,6 +30,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import static org.elasticsearch.search.aggregations.metrics.InternalGeoBoundsTests.GEOHASH_TOLERANCE;
@@ -55,6 +56,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 assertTrue(Double.isInfinite(bounds.posRight));
                 assertTrue(Double.isInfinite(bounds.negLeft));
                 assertTrue(Double.isInfinite(bounds.negRight));
+                assertFalse(AggregationInspectionHelper.hasValue(bounds));
             }
         }
     }
@@ -112,6 +114,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 assertThat(bounds.posRight, closeTo(posRight, GEOHASH_TOLERANCE));
                 assertThat(bounds.negRight, closeTo(negRight, GEOHASH_TOLERANCE));
                 assertThat(bounds.negLeft, closeTo(negLeft, GEOHASH_TOLERANCE));
+                assertTrue(AggregationInspectionHelper.hasValue(bounds));
             }
         }
     }

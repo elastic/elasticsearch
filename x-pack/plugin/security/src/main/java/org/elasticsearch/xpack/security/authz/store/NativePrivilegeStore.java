@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -21,7 +23,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -66,7 +67,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  * {@code NativePrivilegeStore} is a store that reads/writes {@link ApplicationPrivilegeDescriptor} objects,
  * from an Elasticsearch index.
  */
-public class NativePrivilegeStore extends AbstractComponent {
+public class NativePrivilegeStore {
 
     private static final Collector<Tuple<String, String>, ?, Map<String, List<String>>> TUPLES_TO_MAP = Collectors.toMap(
         Tuple::v1,
@@ -74,13 +75,15 @@ public class NativePrivilegeStore extends AbstractComponent {
             a.addAll(b);
             return a;
         });
+    private static final Logger logger = LogManager.getLogger(NativePrivilegeStore.class);
 
+    private final Settings settings;
     private final Client client;
     private final SecurityClient securityClient;
     private final SecurityIndexManager securityIndexManager;
 
     public NativePrivilegeStore(Settings settings, Client client, SecurityIndexManager securityIndexManager) {
-        super(settings);
+        this.settings = settings;
         this.client = client;
         this.securityClient = new SecurityClient(client);
         this.securityIndexManager = securityIndexManager;

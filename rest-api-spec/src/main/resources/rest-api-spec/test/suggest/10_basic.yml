@@ -2,7 +2,6 @@ setup:
   - do:
       index:
         index: test
-        type:  test
         id:    testing_document
         body:
           body: Amsterdam meetup
@@ -14,6 +13,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           suggest:
             test_suggestion:
@@ -23,4 +23,3 @@ setup:
 
   - match: {suggest.test_suggestion.1.options.0.text: amsterdam}
   - match: {suggest.test_suggestion.2.options.0.text: meetup}
-

@@ -56,11 +56,11 @@ public class ExampleSecurityExtension implements SecurityExtension {
     @Override
     public List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
     getRolesProviders(Settings settings, ResourceWatcherService resourceWatcherService) {
-        CustomInMemoryRolesProvider rp1 = new CustomInMemoryRolesProvider(settings, Collections.singletonMap(ROLE_A, "read"));
+        CustomInMemoryRolesProvider rp1 = new CustomInMemoryRolesProvider(Collections.singletonMap(ROLE_A, "read"));
         Map<String, String> roles = new HashMap<>();
         roles.put(ROLE_A, "all");
         roles.put(ROLE_B, "all");
-        CustomInMemoryRolesProvider rp2 = new CustomInMemoryRolesProvider(settings, roles);
+        CustomInMemoryRolesProvider rp2 = new CustomInMemoryRolesProvider(roles);
         return Arrays.asList(rp1, rp2);
     }
 }

@@ -33,7 +33,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -46,7 +45,6 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -78,10 +76,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
-    private Suggest() {
-        this(Collections.emptyList());
-    }
-
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
         // we sort suggestions by their names to ensure iteration over suggestions are consistent
         // this is needed as we need to fill in suggestion docs in SearchPhaseController#sortDocs
@@ -93,7 +87,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     public Suggest(StreamInput in) throws IOException {
         // in older versions, Suggestion types were serialized as Streamable
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             final int size = in.readVInt();
             suggestions = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
@@ -161,7 +155,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // in older versions, Suggestion types were serialized as Streamable
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeVInt(suggestions.size());
             for (Suggestion<?> command : suggestions) {
                 out.writeVInt(command.getWriteableType());
@@ -259,15 +253,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
      */
     public abstract static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, NamedWriteable, ToXContentFragment {
 
-        private static final String NAME = "suggestion";
-
         public static final int TYPE = 0;
-        protected String name;
-        protected int size;
+        protected final String name;
+        protected final int size;
         protected final List<T> entries = new ArrayList<>(5);
-
-        protected Suggestion() {
-        }
 
         public Suggestion(String name, int size) {
             this.name = name;
@@ -279,7 +268,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             size = in.readVInt();
 
             // this is a hack to work around slightly different serialization order of earlier versions of TermSuggestion
-            if (in.getVersion().before(Version.V_7_0_0_alpha1) && this instanceof TermSuggestion) {
+            if (in.getVersion().before(Version.V_7_0_0) && this instanceof TermSuggestion) {
                 TermSuggestion t = (TermSuggestion) this;
                 t.setSort(SortBy.readFromStream(in));
             }
@@ -380,7 +369,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             }
         }
 
-        protected abstract T newEntry();
         protected abstract T newEntry(StreamInput in) throws IOException;
 
         @Override
@@ -389,7 +377,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             out.writeVInt(size);
 
             // this is a hack to work around slightly different serialization order in older versions of TermSuggestion
-            if (out.getVersion().before(Version.V_7_0_0_alpha1) && this instanceof TermSuggestion) {
+            if (out.getVersion().before(Version.V_7_0_0) && this instanceof TermSuggestion) {
                 TermSuggestion termSuggestion = (TermSuggestion) this;
                 termSuggestion.getSort().writeTo(out);
             }
@@ -608,7 +596,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 return Objects.hash(text, offset, length, options);
             }
 
-            protected abstract O newOption();
             protected abstract O newOption(StreamInput in) throws IOException;
 
             @Override
@@ -653,8 +640,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 public static final ParseField SCORE = new ParseField("score");
                 public static final ParseField COLLATE_MATCH = new ParseField("collate_match");
 
-                private Text text;
-                private Text highlighted;
+                private final Text text;
+                private final Text highlighted;
                 private float score;
                 private Boolean collateMatch;
 
@@ -672,8 +659,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 public Option(Text text, float score) {
                     this(text, null, score);
                 }
-
-                public Option() {}
 
                 public Option(StreamInput in) throws IOException {
                     text = in.readText();
@@ -776,14 +761,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this, true, true);
     }
 }

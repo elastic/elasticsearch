@@ -57,7 +57,7 @@ import java.util.Locale;
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class AnnotatedTextHighlighterTests  extends ESTestCase {
+public class AnnotatedTextHighlighterTests extends ESTestCase {
     
     private void assertHighlightOneDoc(String fieldName, String []markedUpInputs,
             Query query, Locale locale, BreakIterator breakIterator,

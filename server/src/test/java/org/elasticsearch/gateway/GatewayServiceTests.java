@@ -26,19 +26,17 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
-
 public class GatewayServiceTests extends ESTestCase {
 
-    private GatewayService createService(Settings.Builder settings) {
-        ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
+    private GatewayService createService(final Settings.Builder settings) {
+        final ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 null);
         return new GatewayService(settings.build(),
                 null, clusterService, null, null, null, null);
     }
 
-    public void testDefaultRecoverAfterTime() throws IOException {
+    public void testDefaultRecoverAfterTime() {
         // check that the default is not set
         GatewayService service = createService(Settings.builder());
         assertNull(service.recoverAfterTime());
@@ -56,9 +54,11 @@ public class GatewayServiceTests extends ESTestCase {
         assertThat(service.recoverAfterTime(), Matchers.equalTo(GatewayService.DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET));
 
         // ensure settings override default
-        TimeValue timeValue = TimeValue.timeValueHours(3);
+        final TimeValue timeValue = TimeValue.timeValueHours(3);
         // ensure default is set when setting expected_nodes
-        service = createService(Settings.builder().put("gateway.expected_nodes", 1).put("gateway.recover_after_time", timeValue.toString()));
+        service = createService(Settings.builder().put("gateway.expected_nodes", 1).put("gateway.recover_after_time",
+            timeValue.toString()));
         assertThat(service.recoverAfterTime().millis(), Matchers.equalTo(timeValue.millis()));
     }
+
 }

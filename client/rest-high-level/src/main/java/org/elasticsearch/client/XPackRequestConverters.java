@@ -27,7 +27,9 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-public class XPackRequestConverters {
+final class XPackRequestConverters {
+
+    private XPackRequestConverters() {}
 
     static Request info(XPackInfoRequest infoRequest) {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");

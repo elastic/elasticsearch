@@ -19,7 +19,7 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
@@ -29,9 +29,9 @@ import java.util.function.Supplier;
 
 public class InboundChannelBufferTests extends ESTestCase {
 
-    private static final int PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES;
+    private static final int PAGE_SIZE = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
     private final Supplier<InboundChannelBuffer.Page> defaultPageSupplier = () ->
-        new InboundChannelBuffer.Page(ByteBuffer.allocate(BigArrays.BYTE_PAGE_SIZE), () -> {
+        new InboundChannelBuffer.Page(ByteBuffer.allocate(PageCacheRecycler.BYTE_PAGE_SIZE), () -> {
         });
 
     public void testNewBufferNoPages() {

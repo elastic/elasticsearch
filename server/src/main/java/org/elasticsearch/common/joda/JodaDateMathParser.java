@@ -26,6 +26,7 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 import org.joda.time.format.DateTimeFormatter;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Objects;
 import java.util.function.LongSupplier;
@@ -39,9 +40,9 @@ import java.util.function.LongSupplier;
  */
 public class JodaDateMathParser implements DateMathParser {
 
-    private final FormatDateTimeFormatter dateTimeFormatter;
+    private final JodaDateFormatter dateTimeFormatter;
 
-    public JodaDateMathParser(FormatDateTimeFormatter dateTimeFormatter) {
+    public JodaDateMathParser(JodaDateFormatter dateTimeFormatter) {
         Objects.requireNonNull(dateTimeFormatter);
         this.dateTimeFormatter = dateTimeFormatter;
     }
@@ -50,7 +51,7 @@ public class JodaDateMathParser implements DateMathParser {
     // if it has been used. For instance, the request cache does not cache requests that make
     // use of `now`.
     @Override
-    public long parse(String text, LongSupplier now, boolean roundUp, ZoneId tz) {
+    public Instant parse(String text, LongSupplier now, boolean roundUp, ZoneId tz) {
         final DateTimeZone timeZone = tz == null ? null : DateUtils.zoneIdToDateTimeZone(tz);
         long time;
         String mathString;
@@ -64,13 +65,13 @@ public class JodaDateMathParser implements DateMathParser {
         } else {
             int index = text.indexOf("||");
             if (index == -1) {
-                return parseDateTime(text, timeZone, roundUp);
+                return Instant.ofEpochMilli(parseDateTime(text, timeZone, roundUp));
             }
             time = parseDateTime(text.substring(0, index), timeZone, false);
             mathString = text.substring(index + 2);
         }
 
-        return parseMath(mathString, time, roundUp, timeZone);
+        return Instant.ofEpochMilli(parseMath(mathString, time, roundUp, timeZone));
     }
 
     private long parseMath(String mathString, long time, boolean roundUp, DateTimeZone timeZone) throws ElasticsearchParseException {
@@ -189,7 +190,7 @@ public class JodaDateMathParser implements DateMathParser {
     }
 
     private long parseDateTime(String value, DateTimeZone timeZone, boolean roundUpIfNoTime) {
-        DateTimeFormatter parser = dateTimeFormatter.parser();
+        DateTimeFormatter parser = dateTimeFormatter.parser;
         if (timeZone != null) {
             parser = parser.withZone(timeZone);
         }
@@ -211,7 +212,8 @@ public class JodaDateMathParser implements DateMathParser {
             }
             return date.getMillis();
         } catch (IllegalArgumentException e) {
-            throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]", e, value, dateTimeFormatter.format());
+            throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]", e, value,
+                dateTimeFormatter.pattern());
         }
     }
 

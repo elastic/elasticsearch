@@ -217,4 +217,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public DirectoryReader getDirectoryReader() {
         return engineSearcher.getDirectoryReader();
     }
+
+    public Engine.Searcher getEngineSearcher() {
+        return engineSearcher;
+    }
 }

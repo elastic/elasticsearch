@@ -28,6 +28,7 @@ import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
@@ -56,9 +57,9 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -76,7 +77,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
- * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
+ * or more nodes directly by adding their respective addresses using
+ * {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
  * <p>
  * The transport client important modules used is the {@link org.elasticsearch.common.network.NetworkModule} which is
  * started in client mode (only connects, no bind).
@@ -100,7 +102,7 @@ public abstract class TransportClient extends AbstractClient {
 
     private static PluginsService newPluginService(final Settings settings, Collection<Class<? extends Plugin>> plugins) {
         final Settings.Builder settingsBuilder = Settings.builder()
-                .put(TcpTransport.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
+                .put(TransportSettings.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
                 .put(InternalSettingsPreparer.prepareSettings(settings))
                 .put(NetworkService.NETWORK_SERVER.getKey(), false)
                 .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
@@ -134,7 +136,7 @@ public abstract class TransportClient extends AbstractClient {
                 Settings.builder()
                         .put(defaultSettings)
                         .put(pluginsService.updatedSettings())
-                        .put(TcpTransport.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
+                        .put(TransportSettings.FEATURE_PREFIX + "." + TRANSPORT_CLIENT_FEATURE, true)
                         .build();
         final List<Closeable> resourcesToClose = new ArrayList<>();
         final ThreadPool threadPool = new ThreadPool(settings);
@@ -181,8 +183,8 @@ public abstract class TransportClient extends AbstractClient {
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
             PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
-            BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService);
-            resourcesToClose.add(bigArrays);
+            BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
+            resourcesToClose.add(pageCacheRecycler);
             modules.add(settingsModule);
             NetworkModule networkModule = new NetworkModule(settings, true, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
                 bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, null);
@@ -193,6 +195,7 @@ public abstract class TransportClient extends AbstractClient {
                     UUIDs.randomBase64UUID()), null, Collections.emptySet());
             modules.add((b -> {
                 b.bind(BigArrays.class).toInstance(bigArrays);
+                b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
                 b.bind(PluginsService.class).toInstance(pluginsService);
                 b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
@@ -223,7 +226,8 @@ public abstract class TransportClient extends AbstractClient {
             transportService.start();
             transportService.acceptIncomingRequests();
 
-            ClientTemplate transportClient = new ClientTemplate(injector, pluginLifecycleComponents, nodesService, proxy, namedWriteableRegistry);
+            ClientTemplate transportClient = new ClientTemplate(injector, pluginLifecycleComponents, nodesService, proxy,
+                namedWriteableRegistry);
             resourcesToClose.clear();
             return transportClient;
         } finally {
@@ -372,7 +376,7 @@ public abstract class TransportClient extends AbstractClient {
             closeables.add(plugin);
         }
         closeables.add(() -> ThreadPool.terminate(injector.getInstance(ThreadPool.class), 10, TimeUnit.SECONDS));
-        closeables.add(injector.getInstance(BigArrays.class));
+        closeables.add(injector.getInstance(PageCacheRecycler.class));
         IOUtils.closeWhileHandlingException(closeables);
     }
 

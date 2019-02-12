@@ -114,6 +114,36 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
         }
     }
 
+    public void testRemoveRetentionLease() throws IOException {
+        final IndexShard indexShard = newStartedShard(true);
+        final long primaryTerm = indexShard.getOperationPrimaryTerm();
+        try {
+            final int length = randomIntBetween(0, 8);
+            final long[] minimumRetainingSequenceNumbers = new long[length];
+            for (int i = 0; i < length; i++) {
+                minimumRetainingSequenceNumbers[i] = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+                indexShard.addRetentionLease(
+                        Integer.toString(i), minimumRetainingSequenceNumbers[i], "test-" + i, ActionListener.wrap(() -> {}));
+                assertRetentionLeases(
+                        indexShard, i + 1, minimumRetainingSequenceNumbers, primaryTerm, 1 + i, true, false);
+            }
+
+            for (int i = 0; i < length; i++) {
+                indexShard.removeRetentionLease(Integer.toString(length - i - 1), ActionListener.wrap(() -> {}));
+                assertRetentionLeases(
+                        indexShard,
+                        length - i - 1,
+                        minimumRetainingSequenceNumbers,
+                        primaryTerm,
+                        1 + length + i,
+                        true,
+                        false);
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
     public void testExpirationOnPrimary() throws IOException {
         runExpirationTest(true);
     }

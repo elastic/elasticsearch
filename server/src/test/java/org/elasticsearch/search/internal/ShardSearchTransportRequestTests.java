@@ -64,7 +64,6 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         assertArrayEquals(deserializedRequest.indices(), shardSearchTransportRequest.indices());
         assertArrayEquals(deserializedRequest.types(), shardSearchTransportRequest.types());
         assertEquals(deserializedRequest.indicesOptions(), shardSearchTransportRequest.indicesOptions());
-        assertEquals(deserializedRequest.isProfile(), shardSearchTransportRequest.isProfile());
         assertEquals(deserializedRequest.nowInMillis(), shardSearchTransportRequest.nowInMillis());
         assertEquals(deserializedRequest.source(), shardSearchTransportRequest.source());
         assertEquals(deserializedRequest.searchType(), shardSearchTransportRequest.searchType());

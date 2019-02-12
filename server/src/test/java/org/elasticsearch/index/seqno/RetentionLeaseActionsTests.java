@@ -102,8 +102,8 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
                 retainingSequenceNumber == RETAIN_ALL && randomBoolean() ? RETAIN_ALL
                         : randomLongBetween(Math.max(retainingSequenceNumber, 0L), Long.MAX_VALUE);
 
-        final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
+        final RetentionLeaseAlreadyExistsException e = expectThrows(
+                RetentionLeaseAlreadyExistsException.class,
                 () -> client()
                         .execute(
                                 RetentionLeaseActions.Add.INSTANCE,
@@ -219,8 +219,8 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         final long retainingSequenceNumber = randomBoolean() ? RETAIN_ALL : randomNonNegativeLong();
         final String source = randomAlphaOfLength(8);
 
-        final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
+        final RetentionLeaseNotFoundException e = expectThrows(
+                RetentionLeaseNotFoundException.class,
                 () -> client()
                         .execute(
                                 RetentionLeaseActions.Renew.INSTANCE,
@@ -279,8 +279,8 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
 
         final String id = randomAlphaOfLength(8);
 
-        final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
+        final RetentionLeaseNotFoundException e = expectThrows(
+                RetentionLeaseNotFoundException.class,
                 () -> client()
                         .execute(
                                 RetentionLeaseActions.Remove.INSTANCE,

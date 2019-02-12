@@ -229,16 +229,6 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setParsedQuery(QueryBuilder query) {
-            try {
-                setQuery(QUERY_TRANSFORMER.toMap(ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName())));
-                return this;
-            } catch (IOException exception) { // This exception should never really throw as we are simply transforming the object to a map
-                    throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT, id), exception);
-            }
-        }
-
         public Builder setQuery(Map<String, Object> query) {
             return setQuery(query, true);
         }

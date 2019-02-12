@@ -18,7 +18,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
@@ -70,7 +70,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
             .setSource(source)
             .setDest(dest);
         if (randomBoolean()) {
-            builder.setParsedQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            builder.setQuery(
+                Collections.singletonMap(TermQueryBuilder.NAME,
+                    Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10))), true);
         }
         return builder.build();
     }

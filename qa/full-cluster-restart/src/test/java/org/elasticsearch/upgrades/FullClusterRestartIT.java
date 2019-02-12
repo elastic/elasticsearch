@@ -26,7 +26,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
@@ -70,7 +69,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -80,19 +78,12 @@ import static org.hamcrest.Matchers.startsWith;
  * with {@code tests.is_old_cluster} set to {@code false}.
  */
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
-    private final boolean supportsLenientBooleans = getOldClusterVersion().before(Version.V_6_0_0_alpha1);
 
     private String index;
-    private String type;
 
     @Before
     public void setIndex() throws IOException {
         index = getTestName().toLowerCase(Locale.ROOT);
-    }
-
-    @Before
-    public void setType() {
-        type = getOldClusterVersion().before(Version.V_6_7_0) ? "doc" : "_doc";
     }
 
     public void testSearch() throws Exception {
@@ -108,9 +99,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
             {
                 mappingsAndSettings.startObject("mappings");
-                if (isRunningAgainstAncientCluster()) {
-                    mappingsAndSettings.startObject(type);
-                }
                 mappingsAndSettings.startObject("properties");
                 {
                     mappingsAndSettings.startObject("string");
@@ -129,9 +117,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     mappingsAndSettings.endObject();
                 }
                 mappingsAndSettings.endObject();
-                if (isRunningAgainstAncientCluster()) {
-                    mappingsAndSettings.endObject();
-                }
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
@@ -154,7 +139,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                             .field("int", randomInt(100))
                             .field("float", randomFloat())
                             // be sure to create a "proper" boolean (True, False) for the first document so that automapping is correct
-                            .field("bool", i > 0 && supportsLenientBooleans ? randomLenientBoolean() : randomBoolean())
+                            .field("bool", i > 0 &&  randomBoolean())
                             .field("field.with.dots", randomAlphaOfLength(10))
                             .field("binary", Base64.getEncoder().encodeToString(randomByteArray))
                             .endObject()
@@ -168,7 +153,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertBasicSearchWorks(count);
         assertAllSearchWorks(count);
         assertBasicAggregationWorks();
-        assertRealtimeGetWorks(type);
+        assertRealtimeGetWorks("_doc");
         assertStoredBinaryFields(count);
     }
 
@@ -184,9 +169,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             }
             {
                 mappingsAndSettings.startObject("mappings");
-                if (isRunningAgainstAncientCluster()) {
-                    mappingsAndSettings.startObject(type);
-                }
                 mappingsAndSettings.startObject("properties");
                 {
                     mappingsAndSettings.startObject("field");
@@ -194,9 +176,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     mappingsAndSettings.endObject();
                 }
                 mappingsAndSettings.endObject();
-                if (isRunningAgainstAncientCluster()) {
-                    mappingsAndSettings.endObject();
-                }
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
@@ -293,9 +272,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             {
                 mappingsAndSettings.startObject("mappings");
                 {
-                    if (isRunningAgainstAncientCluster()) {
-                        mappingsAndSettings.startObject(type);
-                    }
                     mappingsAndSettings.startObject("properties");
                     {
                         mappingsAndSettings.startObject("field");
@@ -305,19 +281,15 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         mappingsAndSettings.endObject();
                     }
                     mappingsAndSettings.endObject();
-                    if (isRunningAgainstAncientCluster()) {
-                        mappingsAndSettings.endObject();
-                    }
                 }
                 mappingsAndSettings.endObject();
-                if (isRunningAgainstAncientCluster() == false) {
-                    // the default number of shards is now one so we have to set the number of shards to be more than one explicitly
-                    mappingsAndSettings.startObject("settings");
-                    {
-                        mappingsAndSettings.field("index.number_of_shards", 5);
-                    }
-                    mappingsAndSettings.endObject();
+
+                // the default number of shards is now one so we have to set the number of shards to be more than one explicitly
+                mappingsAndSettings.startObject("settings");
+                {
+                    mappingsAndSettings.field("index.number_of_shards", 5);
                 }
+                mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
@@ -376,9 +348,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             {
                 mappingsAndSettings.startObject("mappings");
                 {
-                    if (isRunningAgainstAncientCluster()) {
-                        mappingsAndSettings.startObject(type);
-                    }
                     mappingsAndSettings.startObject("properties");
                     {
                         mappingsAndSettings.startObject("field");
@@ -388,17 +357,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         mappingsAndSettings.endObject();
                     }
                     mappingsAndSettings.endObject();
-                    if (isRunningAgainstAncientCluster()) {
-                        mappingsAndSettings.endObject();
-                    }
                 }
                 mappingsAndSettings.endObject();
-                if (isRunningAgainstAncientCluster() == false) {
-                    // the default number of shards is now one so we have to set the number of shards to be more than one explicitly
-                    mappingsAndSettings.startObject("settings");
-                    mappingsAndSettings.field("index.number_of_shards", 5);
-                    mappingsAndSettings.endObject();
-                }
+                // the default number of shards is now one so we have to set the number of shards to be more than one explicitly
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("index.number_of_shards", 5);
+                mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
             Request createIndex = new Request("PUT", "/" + index);
@@ -481,7 +445,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"test\":\"test\"}\n");
         }
-        Request bulkRequest = new Request("POST", "/" + index + "_write/" + type + "/_bulk");
+        Request bulkRequest = new Request("POST", "/" + index + "_write/_doc/_bulk");
         bulkRequest.setJsonEntity(bulk.toString());
         bulkRequest.addParameter("refresh", "");
         bulkRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
@@ -621,9 +585,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         client().performRequest(updateRequest);
 
         Request getRequest = new Request("GET", "/" + index + "/" + typeName + "/" + docId);
-        if (getOldClusterVersion().before(Version.V_6_7_0)) {
-            getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
-        }
         Map<String, Object> getRsp = entityAsMap(client().performRequest(getRequest));
         Map<?, ?> source = (Map<?, ?>) getRsp.get("_source");
         assertTrue("doc does not contain 'foo' key: " + source, source.containsKey("foo"));
@@ -666,18 +627,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     int extractTotalHits(Map<?, ?> response) {
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_0_0)) {
-            return (Integer) XContentMapValues.extractValue("hits.total", response);
-        } else {
-            return (Integer) XContentMapValues.extractValue("hits.total.value", response);
-        }
+        return (Integer) XContentMapValues.extractValue("hits.total.value", response);
     }
 
     /**
      * Tests that a single document survives. Super basic smoke test.
      */
     public void testSingleDoc() throws IOException {
-        String docLocation = "/" + index + "/" + type + "/1";
+        String docLocation = "/" + index + "/_doc/1";
         String doc = "{\"test\": \"test\"}";
 
         if (isRunningAgainstOldCluster()) {
@@ -688,9 +645,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
 
         Request request = new Request("GET", docLocation);
-        if (getOldClusterVersion().before(Version.V_6_7_0)) {
-            request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
-        }
         assertThat(toStr(client().performRequest(request)), containsString(doc));
     }
 
@@ -874,17 +828,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
         templateBuilder.endObject();
         templateBuilder.startObject("mappings"); {
-            if (isRunningAgainstAncientCluster()) {
-                templateBuilder.startObject(type);
-            }
             {
                 templateBuilder.startObject("_source");
                 {
                     templateBuilder.field("enabled", true);
                 }
-                templateBuilder.endObject();
-            }
-            if (isRunningAgainstAncientCluster()) {
                 templateBuilder.endObject();
             }
         }
@@ -1002,10 +950,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             int numDocs = between(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v1").endObject());
-                Request request = new Request("POST", "/" + index + "/" + type + "/" + i);
-                if (isRunningAgainstAncientCluster() == false) {
-                    request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
-                }
+                Request request = new Request("POST", "/" + index + "/_doc/" + i);
+                request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
                 request.setJsonEntity(doc);
                 client().performRequest(request);
                 refresh();
@@ -1016,11 +962,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             for (int i = 0; i < numDocs; i++) {
                 if (randomBoolean()) {
                     String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v2").endObject());
-                    Request request = new Request("POST", "/" + index + "/" + type + "/" + i);
+                    Request request = new Request("POST", "/" + index + "/_doc/" + i);
                     request.setJsonEntity(doc);
                     client().performRequest(request);
                 } else if (randomBoolean()) {
-                    client().performRequest(new Request("DELETE", "/" + index + "/" + type + "/" + i));
+                    client().performRequest(new Request("DELETE", "/" + index + "/_doc/" + i));
                     liveDocs--;
                 }
             }
@@ -1042,27 +988,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", listSnapshotResponse));
 
         // Remove the routing setting and template so we can test restoring them.
-        try {
-            Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
-            clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
-            client().performRequest(clearRoutingFromSettings);
-        } catch (WarningFailureException e) {
-            /*
-             * If this test is executed on the upgraded mode before testRemoteClusterSettingsUpgraded,
-             * we will hit a warning exception because we put some deprecated settings in that test.
-             */
-            if (isRunningAgainstOldCluster() == false
-                && getOldClusterVersion().onOrAfter(Version.V_6_1_0) && getOldClusterVersion().before(Version.V_6_5_0)) {
-                for (String warning : e.getResponse().getWarnings()) {
-                    assertThat(warning, containsString(
-                        "setting was deprecated in Elasticsearch and will be removed in a future release! "
-                            + "See the breaking changes documentation for the next major version."));
-                    assertThat(warning, startsWith("[search.remote."));
-                }
-            } else {
-                throw e;
-            }
-        }
+        Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
+        clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
+        client().performRequest(clearRoutingFromSettings);
+
         client().performRequest(new Request("DELETE", "/_template/test_template"));
 
         // Restore
@@ -1090,7 +1019,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             bulk.append("{\"index\":{\"_id\":\"").append(count + i).append("\"}}\n");
             bulk.append("{\"test\":\"test\"}\n");
         }
-        Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/" + type + "/_bulk");
+        Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/_doc/_bulk");
         writeToRestoredRequest.addParameter("refresh", "true");
         writeToRestoredRequest.setJsonEntity(bulk.toString());
         writeToRestoredRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
@@ -1119,23 +1048,18 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // In 7.0, type names are no longer returned by default in get index template requests.
         // We therefore use the deprecated typed APIs when running against the current version.
-        if (isRunningAgainstAncientCluster() == false) {
-            getTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        }
+        getTemplateRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
         getTemplateRequest.setOptions(allowTypeRemovalWarnings());
 
         Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(getTemplateRequest));
         Map<String, Object> expectedTemplate = new HashMap<>();
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_0_0_beta1)) {
-            expectedTemplate.put("template", "evil_*");
-        } else {
-            expectedTemplate.put("index_patterns", singletonList("evil_*"));
-        }
+        expectedTemplate.put("index_patterns", singletonList("evil_*"));
+
         expectedTemplate.put("settings", singletonMap("index", singletonMap("number_of_shards", "1")));
         // We don't have the type in the response starting with 7.0, but we won't have it on old cluster after upgrade
         // either so look at the response to figure out the correct assertions
         if (isTypeInTemplateResponse(getTemplateResponse)) {
-            expectedTemplate.put("mappings", singletonMap(type, singletonMap("_source", singletonMap("enabled", true))));
+            expectedTemplate.put("mappings", singletonMap("_doc", singletonMap("_source", singletonMap("enabled", true))));
         } else {
             expectedTemplate.put("mappings", singletonMap("_source", singletonMap("enabled", true)));
         }
@@ -1172,10 +1096,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         logger.info("Indexing {} random documents", count);
         for (int i = 0; i < count; i++) {
             logger.debug("Indexing document [{}]", i);
-            Request createDocument = new Request("POST", "/" + index + "/" + type + "/" + i);
-            if (isRunningAgainstAncientCluster() == false) {
-                createDocument.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
-            }
+            Request createDocument = new Request("POST", "/" + index + "/_doc/" + i);
+            createDocument.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
             createDocument.setJsonEntity(Strings.toString(docSupplier.apply(i)));
             client().performRequest(createDocument);
             if (rarely()) {
@@ -1200,21 +1122,17 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         infoDoc.field("value", value);
         infoDoc.endObject();
         // Only create the first version so we know how many documents are created when the index is first created
-        Request request = new Request("PUT", "/info/" + this.type + "/" + index + "_" + type);
+        Request request = new Request("PUT", "/info/_doc/" + index + "_" + type);
         request.addParameter("op_type", "create");
         request.setJsonEntity(Strings.toString(infoDoc));
-        if (isRunningAgainstAncientCluster() == false) {
-            request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
-        }
+        request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
         client().performRequest(request);
     }
 
     private String loadInfoDocument(String type) throws IOException {
-        Request request = new Request("GET", "/info/" + this.type + "/" + index + "_" + type);
+        Request request = new Request("GET", "/info/_doc/" + index + "_" + type);
         request.addParameter("filter_path", "_source");
-        if (isRunningAgainstAncientCluster()) {
-            request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
-        }
+        request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         String doc = toStr(client().performRequest(request));
         Matcher m = Pattern.compile("\"value\":\"(.+)\"").matcher(doc);
         assertTrue(doc, m.find());

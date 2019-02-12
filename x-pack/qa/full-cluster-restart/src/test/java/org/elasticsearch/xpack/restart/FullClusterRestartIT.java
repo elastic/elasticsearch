@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -27,11 +26,9 @@ import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
-import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -57,13 +54,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
-    private String type;
-
-    @Before
-    public void setType() {
-        type = getOldClusterVersion().before(Version.V_6_7_0) ? "doc" : "_doc";
-    }
-
     @Override
     protected Settings restClientSettings() {
         String token = "Basic " + Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8));
@@ -80,7 +70,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * Tests that a single document survives. Super basic smoke test.
      */
     public void testSingleDoc() throws IOException {
-        String docLocation = "/testsingledoc/" + type + "/1";
+        String docLocation = "/testsingledoc/_doc/1";
         String doc = "{\"test\": \"test\"}";
 
         if (isRunningAgainstOldCluster()) {
@@ -91,9 +81,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
 
         Request getRequest = new Request("GET", docLocation);
-        if (getOldClusterVersion().before(Version.V_6_7_0)) {
-            getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
-        }
         assertThat(toStr(client().performRequest(getRequest)), containsString(doc));
     }
 
@@ -328,20 +315,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private void assertWatchIndexContentsWork() throws Exception {
         // Fetch a basic watch
         Request getRequest = new Request("GET", "_watcher/watch/bwc_watch");
-        if (getOldClusterVersion().before(Version.V_7_0_0)) {
-            getRequest.setOptions(
-                expectWarnings(
-                    IndexAction.TYPES_DEPRECATION_MESSAGE,
-                    WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE
-                )
-            );
-        } else {
-            getRequest.setOptions(
-                expectWarnings(
-                    IndexAction.TYPES_DEPRECATION_MESSAGE
-                )
-            );
-        }
+        getRequest.setOptions(
+            expectWarnings(
+                IndexAction.TYPES_DEPRECATION_MESSAGE
+            )
+        );
 
         Map<String, Object> bwcWatch = entityAsMap(client().performRequest(getRequest));
 
@@ -358,20 +336,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Fetch a watch with "fun" throttle periods
         getRequest = new Request("GET", "_watcher/watch/bwc_throttle_period");
-        if (getOldClusterVersion().before(Version.V_7_0_0)) {
-            getRequest.setOptions(
-                expectWarnings(
-                    IndexAction.TYPES_DEPRECATION_MESSAGE,
-                    WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE
-                )
-            );
-        } else {
-            getRequest.setOptions(
-                expectWarnings(
-                    IndexAction.TYPES_DEPRECATION_MESSAGE
-                )
-            );
-        }
+        getRequest.setOptions(
+            expectWarnings(
+                IndexAction.TYPES_DEPRECATION_MESSAGE
+            )
+        );
+
         bwcWatch = entityAsMap(client().performRequest(getRequest));
         assertThat(bwcWatch.get("found"), equalTo(true));
         source = (Map<String, Object>) bwcWatch.get("watch");
@@ -606,12 +576,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         for (Map<String, Object> task : rollupJobTasks) {
             if (ObjectPath.eval("id", task).equals(rollupJob)) {
                 hasRollupTask = true;
-
-                // Persistent task state field has been renamed in 6.4.0 from "status" to "state"
-                final String stateFieldName
-                    = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_4_0)) ? "status" : "state";
-
-                final String jobStateField = "task.xpack/rollup/job." + stateFieldName + ".job_state";
+                final String jobStateField = "task.xpack/rollup/job.state.job_state";
                 assertThat("Expected field [" + jobStateField + "] to be started or indexing in " + task.get("id"),
                     ObjectPath.eval(jobStateField, task), expectedStates);
                 break;
@@ -620,7 +585,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (hasRollupTask == false) {
             fail("Expected persistent task for [" + rollupJob + "] but none found.");
         }
-
     }
 
     private void waitForRollUpJob(final String rollupJob, final Matcher<?> expectedStates) throws Exception {

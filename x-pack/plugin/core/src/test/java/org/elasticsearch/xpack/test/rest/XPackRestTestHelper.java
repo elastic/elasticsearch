@@ -29,12 +29,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class XPackRestTestHelper {
 
-    public static final List<String> ML_PRE_V660_TEMPLATES = Collections.unmodifiableList(
-            Arrays.asList(AuditorField.NOTIFICATIONS_INDEX,
-                    MlMetaIndex.INDEX_NAME,
-                    AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-                    AnomalyDetectorsIndex.jobResultsIndexPrefix()));
-
     public static final List<String> ML_POST_V660_TEMPLATES = Collections.unmodifiableList(
             Arrays.asList(AuditorField.NOTIFICATIONS_INDEX,
                     MlMetaIndex.INDEX_NAME,

@@ -43,7 +43,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         realmsUsage = in.readMap();
         rolesStoreUsage = in.readMap();
         sslUsage = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (in.getVersion().onOrAfter(Version.CURRENT)) { // TODO change the version to V_7_1_0 on backporting
             tokenServiceUsage = in.readMap();
             apiKeyServiceUsage = in.readMap();
         }

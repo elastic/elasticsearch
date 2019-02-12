@@ -304,13 +304,15 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final ShardStats shardStats = filteredShardStats.get();
                 final CommitStats commitStats = shardStats.getCommitStats();
                 if (commitStats == null) {
-                    // UnavailableShardsException will be retried byShardFollowNodeTask.shouldRetry(...)
+                    // If commitStats is null then AlreadyClosedException has been thrown: TransportIndicesStatsAction#shardOperation(...)
+                    // AlreadyClosedException will be retried byShardFollowNodeTask.shouldRetry(...)
                     errorHandler.accept(new AlreadyClosedException(shardId + " commit_stats are missing"));
                     return;
                 }
                 final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
                 if (seqNoStats == null) {
-                    // UnavailableShardsException will be retried byShardFollowNodeTask.shouldRetry(...)
+                    // If seqNoStats is null then AlreadyClosedException has been thrown at TransportIndicesStatsAction#shardOperation(...)
+                    // AlreadyClosedException will be retried byShardFollowNodeTask.shouldRetry(...)
                     errorHandler.accept(new AlreadyClosedException(shardId + " seq_no_stats are missing"));
                     return;
                 }

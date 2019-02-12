@@ -88,6 +88,14 @@ buildRestTests.docs = fileTree(projectDir) {
   exclude 'reference/rollup/apis/get-job.asciidoc'
   exclude 'reference/rollup/apis/rollup-caps.asciidoc'
   exclude 'reference/graph/explore.asciidoc'
+  exclude 'reference/rollup/rollup-search-limitations.asciidoc'
+  exclude 'reference/rest-api/info.asciidoc'
+  exclude 'reference/sql/endpoints/translate.asciidoc'
+  exclude 'reference/sql/endpoints/rest.asciidoc'
+  exclude 'reference/licensing/get-basic-status.asciidoc'
+  exclude 'reference/licensing/get-trial-status.asciidoc'
+  exclude 'reference/ml/apis/jobresource.asciidoc'
+  exclude 'reference/licensing/get-license.asciidoc'
 }
 
 Closure setupTwitter = { String name, int count ->

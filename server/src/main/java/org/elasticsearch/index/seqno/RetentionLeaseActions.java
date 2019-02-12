@@ -45,6 +45,13 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+/**
+ * This class holds all actions related to retention leases. Note carefully that these actions are executed under a primary permit. Care is
+ * taken to thread the listener through the invocations so that for the sync APIs we do not notify the listener until these APIs have
+ * responded with success. Additionally, note the use of
+ * {@link TransportSingleShardAction#asyncShardOperation(SingleShardRequest, ShardId, ActionListener)} to handle the case when acquiring
+ * permits goes asynchronous because acquiring permits is blocked
+ */
 public class RetentionLeaseActions {
 
     public static final long RETAIN_ALL = -1;

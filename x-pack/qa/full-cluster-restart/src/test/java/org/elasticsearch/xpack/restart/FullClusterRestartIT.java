@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestGetAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -36,7 +35,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -45,9 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -316,149 +312,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             assertRollUpJob("rollup-job-test");
         }
-    }
-
-    public void testRollupIDSchemeAfterRestart() throws Exception {
-        assumeTrue("Rollup can be tested with 6.3.0 and onwards", getOldClusterVersion().onOrAfter(Version.V_6_3_0));
-        assumeTrue("Rollup ID scheme changed in 6.4", getOldClusterVersion().before(Version.V_6_4_0));
-        if (isRunningAgainstOldCluster()) {
-
-            final Request indexRequest = new Request("POST", "/id-test-rollup" + type + "/1");
-            indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-01T00:00:01\",\"value\":123}");
-            client().performRequest(indexRequest);
-
-            // create the rollup job
-            final Request createRollupJobRequest = new Request("PUT", getRollupEndpoint() + "/job/rollup-id-test");
-            createRollupJobRequest.setJsonEntity("{"
-                + "\"index_pattern\":\"id-test-rollup\","
-                + "\"rollup_index\":\"id-test-results-rollup\","
-                + "\"cron\":\"*/1 * * * * ?\","
-                + "\"page_size\":100,"
-                + "\"groups\":{"
-                + "    \"date_histogram\":{"
-                + "        \"field\":\"timestamp\","
-                + "        \"interval\":\"5m\""
-                + "      },"
-                +       "\"histogram\":{"
-                + "        \"fields\": [\"value\"],"
-                + "        \"interval\":1"
-                + "      },"
-                +       "\"terms\":{"
-                + "        \"fields\": [\"value\"]"
-                + "      }"
-                + "},"
-                + "\"metrics\":["
-                + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
-                + "]"
-                + "}");
-
-            Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
-            assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-
-            // start the rollup job
-            final Request startRollupJobRequest = new Request("POST", getRollupEndpoint() + "/job/rollup-id-test/_start");
-            Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
-            assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
-
-            assertRollUpJob("rollup-id-test");
-
-            assertBusy(() -> {
-                client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
-                final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
-                if (isRunningAgainstOldCluster() == false) {
-                    searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-                }
-                try {
-                    Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
-                    assertNotNull(ObjectPath.eval("hits.total", searchResponse));
-                    assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(1));
-                    assertThat(ObjectPath.eval("hits.hits.0._id", searchResponse), equalTo("3310683722"));
-                } catch (IOException e) {
-                    fail();
-                }
-            });
-
-            // After we've confirmed the doc, wait until we move back to STARTED so that we know the
-            // state was saved at the end
-            waitForRollUpJob("rollup-id-test", equalTo("started"));
-
-        } else {
-
-            final Request indexRequest = new Request("POST", "/id-test-rollup/" + type + "/2");
-            indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-02T00:00:01\",\"value\":345}");
-            if (getOldClusterVersion().before(Version.V_6_7_0)) {
-                indexRequest.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
-            }
-            client().performRequest(indexRequest);
-
-            assertRollUpJob("rollup-id-test");
-
-            // stop the rollup job to force a state save, which will upgrade the ID
-            final Request stopRollupJobRequest = new Request("POST", "/_rollup/job/rollup-id-test/_stop");
-            Map<String, Object> stopRollupJobResponse = entityAsMap(client().performRequest(stopRollupJobRequest));
-            assertThat(stopRollupJobResponse.get("stopped"), equalTo(Boolean.TRUE));
-
-            waitForRollUpJob("rollup-id-test", equalTo("stopped"));
-
-            // start the rollup job again
-            final Request startRollupJobRequest = new Request("POST", "/_rollup/job/rollup-id-test/_start");
-            Map<String, Object> startRollupJobResponse = entityAsMap(client().performRequest(startRollupJobRequest));
-            assertThat(startRollupJobResponse.get("started"), equalTo(Boolean.TRUE));
-
-            waitForRollUpJob("rollup-id-test", anyOf(equalTo("indexing"), equalTo("started")));
-
-            assertBusy(() -> {
-                client().performRequest(new Request("POST", "id-test-results-rollup/_refresh"));
-                final Request searchRequest = new Request("GET", "id-test-results-rollup/_search");
-                if (isRunningAgainstOldCluster() == false) {
-                    searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-                }
-                try {
-                    Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
-                    assertNotNull(ObjectPath.eval("hits.total", searchResponse));
-                    assertThat(ObjectPath.eval("hits.total", searchResponse), equalTo(2));
-                    List<String> ids = new ArrayList<>(2);
-                    ids.add(ObjectPath.eval("hits.hits.0._id", searchResponse));
-                    ids.add(ObjectPath.eval("hits.hits.1._id", searchResponse));
-
-                    // should have both old and new ID formats
-                    assertThat(ids, containsInAnyOrder("3310683722", "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA"));
-
-                    List<Double> values = new ArrayList<>(2);
-                    Map<String, Object> doc = ObjectPath.eval("hits.hits.0._source", searchResponse);
-                    values.add((Double)doc.get("value.min.value"));
-                    doc = ObjectPath.eval("hits.hits.1._source", searchResponse);
-                    values.add((Double)doc.get("value.min.value"));
-
-                    assertThat(values, containsInAnyOrder(123.0, 345.0));
-                } catch (IOException e) {
-                    fail();
-                }
-            });
-        }
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34774")
-    public void testSqlFailsOnIndexWithTwoTypes() throws IOException {
-        // TODO this isn't going to trigger until we backport to 6.1
-        assumeTrue("It is only possible to build an index that sql doesn't like before 6.0.0",
-                getOldClusterVersion().before(Version.V_6_0_0_alpha1));
-        if (isRunningAgainstOldCluster()) {
-            Request doc1 = new Request("POST", "/testsqlfailsonindexwithtwotypes/type1");
-            doc1.setJsonEntity("{}");
-            client().performRequest(doc1);
-            Request doc2 = new Request("POST", "/testsqlfailsonindexwithtwotypes/type2");
-            doc2.setJsonEntity("{}");
-            client().performRequest(doc2);
-            return;
-        }
-        final Request sqlRequest = new Request("POST", getSQLEndpoint());
-
-        sqlRequest.setJsonEntity("{\"query\":\"SELECT * FROM testsqlfailsonindexwithtwotypes\"}");
-        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(sqlRequest));
-        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString(
-            "[testsqlfailsonindexwithtwotypes] contains more than one type [type1, type2] so it is incompatible with sql"));
     }
 
     private String loadWatch(String watch) throws IOException {

@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -305,13 +305,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final CommitStats commitStats = shardStats.getCommitStats();
                 if (commitStats == null) {
                     // UnavailableShardsException will be retried byShardFollowNodeTask.shouldRetry(...)
-                    errorHandler.accept(new UnavailableShardsException(shardId, "commit_stats are missing"));
+                    errorHandler.accept(new AlreadyClosedException(shardId + " commit_stats are missing"));
                     return;
                 }
                 final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
                 if (seqNoStats == null) {
                     // UnavailableShardsException will be retried byShardFollowNodeTask.shouldRetry(...)
-                    errorHandler.accept(new UnavailableShardsException(shardId, "seq_no_stats are missing"));
+                    errorHandler.accept(new AlreadyClosedException(shardId + " seq_no_stats are missing"));
                     return;
                 }
 

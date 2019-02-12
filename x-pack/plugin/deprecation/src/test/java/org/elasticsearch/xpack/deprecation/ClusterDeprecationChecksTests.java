@@ -67,10 +67,10 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(finalState));
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "User-Agent ingest plugin will use ECS-formatted output",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+            "User-Agent ingest plugin will always use ECS-formatted output",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                 "#ingest-user-agent-ecs-always",
-            "Ingest pipelines [ecs_false, ecs_null] will change to using ECS output format in 7.0");
+            "Ingest pipelines [ecs_false, ecs_true] uses the [ecs] option which needs to be removed to work in 8.0");
         assertEquals(singletonList(expected), issues);
     }
 }

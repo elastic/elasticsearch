@@ -83,14 +83,12 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("ecs", true);
 
         String processorTag = randomAlphaOfLength(10);
 
         UserAgentProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("user_agent"));
         assertThat(processor.getUaParser().getUaPatterns().size(), greaterThan(0));
         assertThat(processor.getUaParser().getOsPatterns().size(), greaterThan(0));
         assertThat(processor.getUaParser().getDevicePatterns().size(), greaterThan(0));

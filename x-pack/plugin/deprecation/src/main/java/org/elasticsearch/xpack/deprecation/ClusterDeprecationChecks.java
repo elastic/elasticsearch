@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -34,18 +33,17 @@ public class ClusterDeprecationChecks {
                     .filter(Objects::nonNull)
                     .filter(processor -> processor.containsKey("user_agent"))
                     .map(processor -> processor.get("user_agent"))
-                    .anyMatch(processorConfig ->
-                        false == ConfigurationUtils.readBooleanProperty(null, null, processorConfig, "ecs", false));
+                    .anyMatch(processorConfig -> processorConfig.containsKey("ecs"));
             })
             .map(PipelineConfiguration::getId)
             .sorted() // Make the warning consistent for testing purposes
             .collect(Collectors.toList());
         if (pipelinesWithDeprecatedEcsConfig.isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "User-Agent ingest plugin will use ECS-formatted output",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html" +
+                "User-Agent ingest plugin will always use ECS-formatted output",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                     "#ingest-user-agent-ecs-always",
-                "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig + " will change to using ECS output format in 7.0");
+                "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig + " uses the [ecs] option which needs to be removed to work in 8.0");
         }
         return null;
 

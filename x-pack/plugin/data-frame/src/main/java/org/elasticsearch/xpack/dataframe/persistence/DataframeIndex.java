@@ -77,6 +77,7 @@ public final class DataframeIndex {
         builder.startObject(META);
         builder.startObject(DataFrameField.META_FIELDNAME);
         builder.field(DataFrameField.CREATION_DATE_MILLIS, System.currentTimeMillis());
+        builder.field(DataFrameField.CREATED_BY, DataFrameField.DATA_FRAME_SIGNATURE);
         builder.startObject(DataFrameField.VERSION);
         builder.field(DataFrameField.CREATED, Version.CURRENT);
         builder.endObject();

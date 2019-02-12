@@ -57,21 +57,20 @@ results.
 
 [source,js]
 --------------------------------------------------
-POST <1> /_search/scroll <2>
+POST /_search/scroll <1>
 {
-    "scroll" : "1m", <3>
-    "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==" <4>
+    "scroll" : "1m", <2>
+    "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==" <3>
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[continued s/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==/$body._scroll_id/]
 
-<1> `GET` or `POST` can be used.
-<2> The URL should not include the `index` name -- this
-    is specified in the original `search` request instead.
-<3> The `scroll` parameter tells Elasticsearch to keep the search context open
+<1> `GET` or `POST` can be used and the URL should not include the `index`
+    name -- this is specified in the original `search` request instead.
+<2> The `scroll` parameter tells Elasticsearch to keep the search context open
     for another `1m`.
-<4> The `scroll_id` parameter
+<3> The `scroll_id` parameter
 
 The `size` parameter allows you to configure the maximum number of hits to be 
 returned with each batch of results.  Each call to the `scroll` API returns the 

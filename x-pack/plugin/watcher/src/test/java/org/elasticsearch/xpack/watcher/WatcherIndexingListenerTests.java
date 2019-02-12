@@ -126,6 +126,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         verifyZeroInteractions(parser);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38581")
     public void testPreIndex() throws Exception {
         when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(operation.id()).thenReturn(randomAlphaOfLength(10));

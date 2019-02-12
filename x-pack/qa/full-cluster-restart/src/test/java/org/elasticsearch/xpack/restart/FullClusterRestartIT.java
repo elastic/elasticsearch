@@ -323,7 +323,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assumeTrue("Rollup ID scheme changed in 6.4", getOldClusterVersion().before(Version.V_6_4_0));
         if (isRunningAgainstOldCluster()) {
 
-            final Request indexRequest = new Request("POST", "/id-test-rollup" + type + "/1");
+            final Request indexRequest = new Request("POST", "/id-test-rollup/" + type + "/1");
             indexRequest.setJsonEntity("{\"timestamp\":\"2018-01-01T00:00:01\",\"value\":123}");
             client().performRequest(indexRequest);
 

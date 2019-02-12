@@ -70,7 +70,7 @@ public abstract class PublishableHttpResource extends HttpResource {
     /**
      * The default parameters to use for any request.
      */
-    protected final Map<String, String> parameters;
+    protected final Map<String, String> defaultParameters;
 
     /**
      * Create a new {@link PublishableHttpResource} that {@linkplain #isDirty() is dirty}.
@@ -102,9 +102,9 @@ public abstract class PublishableHttpResource extends HttpResource {
             parameters.putAll(baseParameters);
             parameters.put("master_timeout", masterTimeout.toString());
 
-            this.parameters = Collections.unmodifiableMap(parameters);
+            this.defaultParameters = Collections.unmodifiableMap(parameters);
         } else {
-            this.parameters = baseParameters;
+            this.defaultParameters = baseParameters;
         }
     }
 
@@ -114,7 +114,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @return Never {@code null}.
      */
     public Map<String, String> getParameters() {
-        return parameters;
+        return defaultParameters;
     }
 
     /**
@@ -382,7 +382,7 @@ public abstract class PublishableHttpResource extends HttpResource {
         final Request request = new Request("DELETE", resourceBasePath + "/" + resourceName);
         addDefaultParameters(request);
 
-        if (false == parameters.containsKey("ignore")) {
+        if (false == defaultParameters.containsKey("ignore")) {
             // avoid 404 being an exception by default
             request.addParameter("ignore", Integer.toString(RestStatus.NOT_FOUND.getStatus()));
         }
@@ -468,7 +468,7 @@ public abstract class PublishableHttpResource extends HttpResource {
     }
 
     private void addDefaultParameters(final Request request) {
-        this.addParameters(request, this.parameters);
+        this.addParameters(request, defaultParameters);
     }
 
     private void addParameters(final Request request, final Map<String, String> parameters) {

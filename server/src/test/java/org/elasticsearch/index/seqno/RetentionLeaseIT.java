@@ -126,6 +126,68 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         }
     }
 
+    public void testRetentionLeaseSyncedOnRemove() throws Exception {
+        final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
+        internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
+        final Settings settings = Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", numberOfReplicas)
+                .build();
+        createIndex("index", settings);
+        ensureGreen("index");
+        final String primaryShardNodeId = clusterService().state().routingTable().index("index").shard(0).primaryShard().currentNodeId();
+        final String primaryShardNodeName = clusterService().state().nodes().get(primaryShardNodeId).getName();
+        final IndexShard primary = internalCluster()
+                .getInstance(IndicesService.class, primaryShardNodeName)
+                .getShardOrNull(new ShardId(resolveIndex("index"), 0));
+        final int length = randomIntBetween(1, 8);
+        final Map<String, RetentionLease> currentRetentionLeases = new HashMap<>();
+        for (int i = 0; i < length; i++) {
+            final String id = randomValueOtherThanMany(currentRetentionLeases.keySet()::contains, () -> randomAlphaOfLength(8));
+            final long retainingSequenceNumber = randomLongBetween(0, Long.MAX_VALUE);
+            final String source = randomAlphaOfLength(8);
+            final CountDownLatch latch = new CountDownLatch(1);
+            final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
+            // simulate a peer recovery which locks the soft deletes policy on the primary
+            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLockForPeerRecovery() : () -> {};
+            currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
+            latch.await();
+            retentionLock.close();
+        }
+
+        for (int i = 0; i < length; i++) {
+            final String id = randomFrom(currentRetentionLeases.keySet());
+            final CountDownLatch latch = new CountDownLatch(1);
+            primary.removeRetentionLease(id, ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString())));
+            // simulate a peer recovery which locks the soft deletes policy on the primary
+            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLockForPeerRecovery() : () -> {};
+            currentRetentionLeases.remove(id);
+            latch.await();
+            retentionLock.close();
+
+            // check retention leases have been committed on the primary
+            final RetentionLeases primaryCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
+                    primary.commitStats().getUserData().get(Engine.RETENTION_LEASES));
+            assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(primaryCommittedRetentionLeases)));
+
+            // check current retention leases have been synced to all replicas
+            for (final ShardRouting replicaShard : clusterService().state().routingTable().index("index").shard(0).replicaShards()) {
+                final String replicaShardNodeId = replicaShard.currentNodeId();
+                final String replicaShardNodeName = clusterService().state().nodes().get(replicaShardNodeId).getName();
+                final IndexShard replica = internalCluster()
+                        .getInstance(IndicesService.class, replicaShardNodeName)
+                        .getShardOrNull(new ShardId(resolveIndex("index"), 0));
+                final Map<String, RetentionLease> retentionLeasesOnReplica = RetentionLeases.toMap(replica.getRetentionLeases());
+                assertThat(retentionLeasesOnReplica, equalTo(currentRetentionLeases));
+
+                // check retention leases have been committed on the replica
+                final RetentionLeases replicaCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
+                        replica.commitStats().getUserData().get(Engine.RETENTION_LEASES));
+                assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(replicaCommittedRetentionLeases)));
+            }
+        }
+    }
+
     public void testRetentionLeasesSyncOnExpiration() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);

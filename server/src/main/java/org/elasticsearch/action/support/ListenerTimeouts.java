@@ -29,6 +29,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ListenerTimeouts {
 
+    /**
+     * Wraps a listener with a listener that can timeout. After the timeout period the
+     * {@link ActionListener#onFailure(Exception)} will be called with a
+     * {@link ElasticsearchTimeoutException} if the listener has not already been completed.
+     *
+     * @param threadPool used to schedule the timeout
+     * @param listener to that can timeout
+     * @param timeout period before listener failed
+     * @param listenerName name of the listener for timeout exception
+     * @return the wrapped listener that will timeout
+     */
     public static <Response> ActionListener<Response> wrapWithTimeout(ThreadPool threadPool, ActionListener<Response> listener,
                                                                       TimeValue timeout, String listenerName) {
         TimeoutableListener<Response> wrappedListener = new TimeoutableListener<>(listener, timeout, listenerName);

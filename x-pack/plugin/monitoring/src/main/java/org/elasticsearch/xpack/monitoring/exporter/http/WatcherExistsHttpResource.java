@@ -104,7 +104,7 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
         final CheckedFunction<Response, Boolean, IOException> doesNotExistChecker = (response) -> false;
 
         checkForResource(client, listener, logger,
-                         "", "_xpack", "watcher check",
+                         "", "_xpack","watcher check",
                          resourceOwnerName, "monitoring cluster",
                          GET_EXISTS, Sets.newHashSet(RestStatus.NOT_FOUND.getStatus(), RestStatus.BAD_REQUEST.getStatus()),
                          responseChecker, doesNotExistChecker);

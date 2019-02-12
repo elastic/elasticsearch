@@ -78,7 +78,7 @@ public class TemplateHttpResource extends PublishableHttpResource {
     @Override
     protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
         versionCheckForResource(client, listener, logger,
-                                "/_template", templateName, "monitoring template",
+                                "/_template", templateName,  "monitoring template",
                                 resourceOwnerName, "monitoring cluster",
                                 XContentType.JSON.xContent(), MonitoringTemplateUtils.LAST_UPDATED_VERSION);
     }
@@ -88,8 +88,11 @@ public class TemplateHttpResource extends PublishableHttpResource {
      */
     @Override
     protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+        Map<String, String> parameters = new TreeMap<>();
+        parameters.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+
         putResource(client, listener, logger,
-                    "/_template", templateName, this::templateToHttpEntity, "monitoring template",
+                    "/_template", templateName, parameters, this::templateToHttpEntity, "monitoring template",
                     resourceOwnerName, "monitoring cluster");
     }
 

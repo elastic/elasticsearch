@@ -221,7 +221,8 @@ public abstract class PublishableHttpResource extends HttpResource {
         logger.trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
         final Request request = new Request("GET", resourceBasePath + "/" + resourceName);
-        addParameters(request);
+        addDefaultParameters(request);
+
         // avoid exists and DNE parameters from being an exception by default
         final Set<Integer> expectedResponseCodes = Sets.union(exists, doesNotExist);
         request.addParameter("ignore", expectedResponseCodes.stream().map(i -> i.toString()).collect(Collectors.joining(",")));
@@ -299,6 +300,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param logger The logger to use for status messages.
      * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
      * @param resourceName The name of the resource (e.g., "template123").
+     * @param parameters Map of query string parametrs, if any.
      * @param body The {@link HttpEntity} that makes up the body of the request.
      * @param resourceType The type of resource (e.g., "monitoring template").
      * @param resourceOwnerName The user-recognizeable resource owner.
@@ -309,6 +311,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                                final Logger logger,
                                final String resourceBasePath,
                                final String resourceName,
+                               final Map<String, String> parameters,
                                final java.util.function.Supplier<HttpEntity> body,
                                final String resourceType,
                                final String resourceOwnerName,
@@ -317,7 +320,10 @@ public abstract class PublishableHttpResource extends HttpResource {
 
 
         final Request request = new Request("PUT", resourceBasePath + "/" + resourceName);
-        addParameters(request);
+        addDefaultParameters(request);
+        if (parameters != null) {
+            addParameters(request, parameters);
+        }
         request.setEntity(body.get());
 
         client.performRequestAsync(request, new ResponseListener() {
@@ -376,7 +382,7 @@ public abstract class PublishableHttpResource extends HttpResource {
         logger.trace("deleting {} [{}] from the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
         final Request request = new Request("DELETE", resourceBasePath + "/" + resourceName);
-        addParameters(request);
+        addDefaultParameters(request);
 
         if (false == parameters.containsKey("ignore")) {
             // avoid 404 being an exception by default
@@ -463,7 +469,11 @@ public abstract class PublishableHttpResource extends HttpResource {
         return true;
     }
 
-    private void addParameters(final Request request) {
+    private void addDefaultParameters(final Request request) {
+        this.addParameters(request, this.parameters);
+    }
+
+    private void addParameters(final Request request, final Map<String, String> parameters) {
         for (final Map.Entry<String, String> param : parameters.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());
         }

@@ -70,7 +70,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         whenPerformRequestAsyncWith(client, request, response);
 
-        assertCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, null, response);
+        assertCheckForResource(client, logger, resourceBasePath, resourceName, null, resourceType, null, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
@@ -155,7 +155,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         whenPerformRequestAsyncWith(client, request, e);
 
-        assertCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, null, response);
+        assertCheckForResource(client, logger, resourceBasePath, resourceName, null, resourceType, null, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
@@ -181,7 +181,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         whenPerformRequestAsyncWith(client, request, e);
 
-        resource.putResource(client, listener, logger, resourceBasePath, resourceName, body, resourceType, owner, ownerType);
+        resource.putResource(client, listener, logger, resourceBasePath, resourceName, null, body, resourceType, owner, ownerType);
 
         verifyListener(null);
 
@@ -308,7 +308,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         whenPerformRequestAsyncWith(client, request, response);
 
-        assertCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, expected, response);
+        assertCheckForResource(client, logger, resourceBasePath, resourceName, null, resourceType, expected, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
@@ -375,7 +375,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         whenPerformRequestAsyncWith(client, request, response);
 
-        resource.putResource(client, listener, logger, resourceBasePath, resourceName, body, resourceType, owner, ownerType);
+        resource.putResource(client, listener, logger, resourceBasePath, resourceName, null, body, resourceType, owner, ownerType);
 
         verifyListener(errorFree ? true : null);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
@@ -399,7 +399,8 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
     @SuppressWarnings("unchecked")
     private void assertCheckForResource(final RestClient client, final Logger logger,
-                                        final String resourceBasePath, final String resourceName, final String resourceType,
+                                        final String resourceBasePath, final String resourceName,
+                                        final String resourceType,
                                         final Boolean expected, final Response response)
             throws IOException {
         final CheckedFunction<Response, Boolean, IOException> responseChecker = mock(CheckedFunction.class);

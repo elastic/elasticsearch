@@ -72,7 +72,7 @@ public class PipelineHttpResource extends PublishableHttpResource {
     @Override
     protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
         putResource(client, listener, logger,
-                    "/_ingest/pipeline", pipelineName, this::pipelineToHttpEntity, "monitoring pipeline",
+                    "/_ingest/pipeline", pipelineName, null, this::pipelineToHttpEntity, "monitoring pipeline",
                     resourceOwnerName, "monitoring cluster");
     }
 

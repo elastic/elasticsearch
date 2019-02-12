@@ -1031,7 +1031,7 @@ public class IndicesService extends AbstractLifecycleComponent
             throws IOException, InterruptedException, ShardLockObtainFailedException {
         logger.debug("{} processing pending deletes", index);
         final long startTimeNS = System.nanoTime();
-        final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());
+        final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis(), "process pending deletes");
         int numRemoved = 0;
         try {
             Map<ShardId, ShardLock> locks = new HashMap<>();

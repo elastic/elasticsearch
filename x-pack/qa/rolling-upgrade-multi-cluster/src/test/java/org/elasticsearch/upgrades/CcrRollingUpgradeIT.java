@@ -40,7 +40,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                     createLeaderIndex(leaderClient(), "leader_index4");
                     followIndex(followerClient(), "leader", "leader_index4", "follower_index4");
                     index(leaderClient(), "leader_index4", 64);
-                    assertBusy(() -> verifyTotalHitCount("follower_index4", 64, followerClient()));
+                    assertTotalHitCount("follower_index4", 64, followerClient());
                     break;
                 default:
                     throw new AssertionError("unexpected upgrade_state [" + upgradeState + "]");
@@ -49,36 +49,36 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
             switch (upgradeState) {
                 case NONE:
                     followIndex(followerClient(), "leader", "leader_index1", "follower_index1");
-                    assertBusy(() -> verifyTotalHitCount("follower_index1", 64, followerClient()));
+                    assertTotalHitCount("follower_index1", 64, followerClient());
                     break;
                 case ONE_THIRD:
                     index(leaderClient(), "leader_index1", 64);
-                    assertBusy(() -> verifyTotalHitCount("follower_index1", 128, followerClient()));
+                    assertTotalHitCount("follower_index1", 128, followerClient());
 
                     followIndex(followerClient(), "leader", "leader_index2", "follower_index2");
-                    assertBusy(() -> verifyTotalHitCount("follower_index2", 64, followerClient()));
+                    assertTotalHitCount("follower_index2", 64, followerClient());
                     break;
                 case TWO_THIRD:
                     index(leaderClient(), "leader_index1", 64);
-                    assertBusy(() -> verifyTotalHitCount("follower_index1", 192, followerClient()));
+                    assertTotalHitCount("follower_index1", 192, followerClient());
 
                     index(leaderClient(), "leader_index2", 64);
-                    assertBusy(() -> verifyTotalHitCount("follower_index2", 128, followerClient()));
+                    assertTotalHitCount("follower_index2", 128, followerClient());
 
                     createLeaderIndex(leaderClient(), "leader_index3");
                     index(leaderClient(), "leader_index3", 64);
                     followIndex(followerClient(), "leader", "leader_index3", "follower_index3");
-                    assertBusy(() -> verifyTotalHitCount("follower_index3", 64, followerClient()));
+                    assertTotalHitCount("follower_index3", 64, followerClient());
                     break;
                 case ALL:
                     index(leaderClient(), "leader_index1", 64);
-                    assertBusy(() -> verifyTotalHitCount("follower_index1", 256, followerClient()));
+                    assertTotalHitCount("follower_index1", 256, followerClient());
 
                     index(leaderClient(), "leader_index2", 64);
-                    assertBusy(() -> verifyTotalHitCount("follower_index2", 192, followerClient()));
+                    assertTotalHitCount("follower_index2", 192, followerClient());
 
                     index(leaderClient(), "leader_index3", 64);
-                    assertBusy(() -> verifyTotalHitCount("follower_index3", 128, followerClient()));
+                    assertTotalHitCount("follower_index3", 128, followerClient());
                     break;
                 default:
                     throw new AssertionError("unexpected upgrade_state [" + upgradeState + "]");
@@ -106,7 +106,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
             // At this point all nodes in both clusters have been updated and
             // the leader cluster can now follow leader_index4 in the follower cluster:
             followIndex(leaderClient(), "follower", "not_supported", "not_supported");
-            assertBusy(() -> verifyTotalHitCount("not_supported", 64, leaderClient()));
+            assertTotalHitCount("not_supported", 64, leaderClient());
         } else {
             throw new AssertionError("unexpected cluster_name [" + clusterName + "]");
         }
@@ -143,6 +143,13 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                 assertOK(client.performRequest(new Request("POST", "/" + index + "/_refresh")));
             }
         }
+    }
+
+    private static void assertTotalHitCount(final String index,
+                                            final int expectedTotalHits,
+                                            final RestClient client) throws Exception {
+        assertOK(client.performRequest(new Request("POST", "/" + index + "/_refresh")));
+        assertBusy(() -> verifyTotalHitCount(index, expectedTotalHits, client));
     }
 
     private static void verifyTotalHitCount(final String index,

@@ -9,8 +9,7 @@
             "processors": [
               {
                 "user_agent" : {
-                  "field" : "field1",
-                  "ecs": true
+                  "field" : "field1"
                 }
               }
             ]
@@ -86,7 +85,7 @@
 
   - do:
       warnings:
-        - "setting [ecs] to false for non-common schema format is deprecated and will be removed in 7.0, set to true to use the non-deprecated format"
+        - "setting [ecs] to false for non-common schema format is deprecated and will be removed in 8.0, set to true or remove to use the non-deprecated format"
         - "the [os_major] property is deprecated for the user-agent processor"
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -97,6 +96,7 @@
               {
                 "user_agent" : {
                   "field" : "field1",
+                  "ecs": false,
                   "target_field": "field2",
                   "properties": ["os", "os_major"]
                 }

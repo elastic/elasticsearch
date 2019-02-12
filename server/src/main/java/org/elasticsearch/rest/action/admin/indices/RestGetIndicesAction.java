@@ -47,9 +47,9 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestGetIndicesAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetIndicesAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of get indices requests " +
-        "will change in 7.0. Please start using the include_type_name parameter set to false to move to the new, " +
-        "typeless response format that will become the default.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The parameter include_type_name " +
+        "should be explicitly specified in get indices requests to prepare for 7.0. In 7.0 include_type_name " +
+        "will default to 'false', which means responses will omit the type name in mapping definitions.";
 
     private static final Set<String> allowedResponseParameters = Collections
             .unmodifiableSet(Stream.concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream())
@@ -71,7 +71,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        if (request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) == false) {
             deprecationLogger.deprecatedAndMaybeLog("get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         final GetIndexRequest getIndexRequest = new GetIndexRequest();

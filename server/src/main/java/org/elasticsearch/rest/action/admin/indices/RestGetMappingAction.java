@@ -59,9 +59,9 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 public class RestGetMappingAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of get mapping " +
-        "requests will change in 7.0. Please start using the include_type_name parameter set to false to " +
-        "move to the new, typeless response format that will become the default.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The parameter include_type_name " +
+        "should be explicitly specified in get mapping requests to prepare for 7.0. In 7.0 include_type_name " +
+        "will default to 'false', which means responses will omit the type name in mapping definitions.";
 
     public RestGetMappingAction(final Settings settings, final RestController controller) {
         super(settings);
@@ -87,9 +87,11 @@ public class RestGetMappingAction extends BaseRestHandler {
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
-        if (includeTypeName) {
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) == false) {
             deprecationLogger.deprecatedAndMaybeLog("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
-        } else if (types.length > 0) {
+        }
+
+        if (includeTypeName == false && types.length > 0) {
             throw new IllegalArgumentException("Types cannot be provided in get mapping requests, unless" +
                 " include_type_name is set to true.");
         }

@@ -111,7 +111,6 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         assertThat(e, hasToString(containsString("retention lease with ID [" + id + "] already exists")));
     }
 
-
     public void testRenewAction() throws InterruptedException {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)

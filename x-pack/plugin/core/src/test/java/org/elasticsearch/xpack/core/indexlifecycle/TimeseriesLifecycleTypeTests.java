@@ -152,6 +152,32 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertTrue(isSorted(TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap), Phase::getName, VALID_PHASES));
     }
 
+    public void testUnfollowInjections() {
+        assertTrue(isUnfollowInjected("hot", RolloverAction.NAME));
+        assertTrue(isUnfollowInjected("warm", ShrinkAction.NAME));
+
+        assertFalse(isUnfollowInjected("hot", SetPriorityAction.NAME));
+        assertFalse(isUnfollowInjected("warm", SetPriorityAction.NAME));
+        assertFalse(isUnfollowInjected("warm", AllocateAction.NAME));
+        assertFalse(isUnfollowInjected("warm", ReadOnlyAction.NAME));
+        assertFalse(isUnfollowInjected("warm", ForceMergeAction.NAME));
+        assertFalse(isUnfollowInjected("cold", SetPriorityAction.NAME));
+        assertFalse(isUnfollowInjected("cold", AllocateAction.NAME));
+        assertFalse(isUnfollowInjected("cold", FreezeAction.NAME));
+        assertFalse(isUnfollowInjected("delete", DeleteAction.NAME));
+
+    }
+
+    private boolean isUnfollowInjected(String phaseName, String actionName) {
+        Map<String, Phase> phaseMap = new HashMap<>();
+        Map<String, LifecycleAction> actionsMap = new HashMap<>();
+        actionsMap.put(actionName, getTestAction(actionName));
+        Phase warmPhase = new Phase(phaseName, TimeValue.ZERO, actionsMap);
+        phaseMap.put(phaseName, warmPhase);
+        List<Phase> phases = TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap);
+        Phase processedWarmPhase = phases.stream().filter(phase -> phase.getName().equals(phaseName)).findFirst().get();
+        return processedWarmPhase.getActions().containsKey("unfollow");
+    }
 
     public void testGetOrderedActionsInvalidPhase() {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> TimeseriesLifecycleType.INSTANCE

@@ -40,7 +40,7 @@ public class PhaseExecutionInfo implements ToXContentObject {
     private static final ParseField MODIFIED_DATE_IN_MILLIS_FIELD = new ParseField("modified_date_in_millis");
 
     private static final ConstructingObjectParser<PhaseExecutionInfo, String> PARSER = new ConstructingObjectParser<>(
-        "phase_execution_info", false,
+        "phase_execution_info", true,
         (a, name) -> new PhaseExecutionInfo((String) a[0], (Phase) a[1], (long) a[2], (long) a[3]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY_NAME_FIELD);

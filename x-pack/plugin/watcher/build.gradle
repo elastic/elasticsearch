@@ -31,6 +31,7 @@ dependencies {
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile "org.elasticsearch.plugin:x-pack-ilm:${version}"
 
     // watcher deps
     compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'

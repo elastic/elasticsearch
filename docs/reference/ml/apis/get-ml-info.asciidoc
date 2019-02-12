@@ -54,6 +54,7 @@ This is a possible response:
       "scroll_size" : 1000
     }
   },
+  "upgrade_mode": false,
   "limits" : { }
 }
 ----

@@ -91,7 +91,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private ZonedDateTime date(String date) {
-        return DateFormatters.toZonedDateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));
+        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date));
     }
 
     private static String format(ZonedDateTime date, String pattern) {
@@ -1191,10 +1191,10 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         DateFormatter formatter = DateFormatter.forPattern("date_optional_time");
-        builders.add(indexDoc(index, DateFormatters.toZonedDateTime(formatter.parse("2016-01-03T08:00:00.000Z")), 1));
-        builders.add(indexDoc(index, DateFormatters.toZonedDateTime(formatter.parse("2016-01-03T08:00:00.000Z")), 2));
-        builders.add(indexDoc(index, DateFormatters.toZonedDateTime(formatter.parse("2016-01-06T08:00:00.000Z")), 3));
-        builders.add(indexDoc(index, DateFormatters.toZonedDateTime(formatter.parse("2016-01-06T08:00:00.000Z")), 4));
+        builders.add(indexDoc(index, DateFormatters.from(formatter.parse("2016-01-03T08:00:00.000Z")), 1));
+        builders.add(indexDoc(index, DateFormatters.from(formatter.parse("2016-01-03T08:00:00.000Z")), 2));
+        builders.add(indexDoc(index, DateFormatters.from(formatter.parse("2016-01-06T08:00:00.000Z")), 3));
+        builders.add(indexDoc(index, DateFormatters.from(formatter.parse("2016-01-06T08:00:00.000Z")), 4));
         indexRandom(true, builders);
         ensureSearchable(index);
 

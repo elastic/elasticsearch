@@ -124,8 +124,8 @@ public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTes
     }
 
     /**
-     * For now, we only unit test the legacy typed responses. This will soon no longer be the case,
-     * as we introduce support for typeless xContent parsing in {@link GetFieldMappingsResponse}.
+     * For xContent roundtrip testing we force the xContent output to still contain types because the parser
+     * still expects them. The new typeless parsing is implemented in the client side GetFieldMappingsResponse.
      */
     @Override
     protected ToXContent.Params getToXContentParams() {

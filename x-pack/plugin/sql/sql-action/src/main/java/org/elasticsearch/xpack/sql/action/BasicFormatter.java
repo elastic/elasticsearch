@@ -36,7 +36,7 @@ public class BasicFormatter implements Writeable {
         private final Function<Object, String> apply;
 
         FormatOption(Function<Object, String> apply) {
-            this.apply = l -> l == null ? null : apply.apply(l);
+            this.apply = apply;
         }
 
         public final String apply(Object l) {

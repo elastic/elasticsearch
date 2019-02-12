@@ -4,6 +4,8 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
     testCompile project(':x-pack:plugin:ccr:qa')
+    testCompile project(':x-pack:plugin:core')
+    testCompile project(':x-pack:plugin:ilm')
 }
 
 task leaderClusterTest(type: RestIntegTestTask) {
@@ -25,6 +27,8 @@ leaderClusterTestCluster {
 
 leaderClusterTestRunner {
     systemProperty 'tests.target_cluster', 'leader'
+    /* To support taking index snapshots, we have to set path.repo setting */
+    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
 }
 
 task followClusterTest(type: RestIntegTestTask) {}
@@ -47,6 +51,8 @@ followClusterTestCluster {
 followClusterTestRunner {
     systemProperty 'tests.target_cluster', 'follow'
     systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+    /* To support taking index snapshots, we have to set path.repo setting */
+    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
     finalizedBy 'leaderClusterTestCluster#stop'
 }
 

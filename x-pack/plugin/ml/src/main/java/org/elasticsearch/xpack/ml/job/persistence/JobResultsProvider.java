@@ -166,7 +166,7 @@ public class JobResultsProvider {
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
                 .setIndicesOptions(IndicesOptions.strictExpand());
 
-        String resultsIndexName = job.getResultsIndexName();
+        String resultsIndexName = job.getInitialResultsIndexName();
         SearchRequestBuilder resultDocSearch = client.prepareSearch(resultsIndexName)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
@@ -252,7 +252,7 @@ public class JobResultsProvider {
 
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
-        String indexName = job.getResultsIndexName();
+        String indexName = job.getInitialResultsIndexName();
 
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
             final IndicesAliasesRequest request = client.admin().indices().prepareAliases()

@@ -42,7 +42,9 @@ public class AuthenticateResponseTests extends ESTestCase {
             this::createTestInstance,
             this::toXContent,
             AuthenticateResponse::fromXContent)
-            .supportsUnknownFields(false)
+            .supportsUnknownFields(true)
+            //metadata is a series of kv pairs, so we dont want to add random fields here for test equality
+            .randomFieldsExcludeFilter(f -> f.startsWith("metadata"))
             .test();
     }
 

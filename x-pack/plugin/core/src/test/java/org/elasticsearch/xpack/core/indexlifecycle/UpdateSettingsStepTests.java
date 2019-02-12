@@ -100,7 +100,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
-        step.performAction(indexMetaData, null, new Listener() {
+        step.performAction(indexMetaData, null, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -147,7 +147,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, new Listener() {
+        step.performAction(indexMetaData, null, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {

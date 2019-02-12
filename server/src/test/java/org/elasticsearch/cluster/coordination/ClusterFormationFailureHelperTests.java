@@ -201,6 +201,42 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 .lastCommittedConfiguration(config(committedConfig)).build())).build();
     }
 
+
+    public void testDescriptionAfterDetachCluster() {
+        final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final ClusterState clusterState = state(localNode,
+                VotingConfiguration.MUST_JOIN_ELECTED_MASTER.getNodeIds().toArray(new String[0]));
+
+        assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 0L).getDescription(),
+                is("master not discovered yet and this node was detached from its previous cluster, " +
+                        "have discovered []; " +
+                        "discovery will continue using [] from hosts providers and [" + localNode +
+                        "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
+
+        final TransportAddress otherAddress = buildNewFakeTransportAddress();
+        assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, singletonList(otherAddress), emptyList(), 0L).getDescription(),
+                is("master not discovered yet and this node was detached from its previous cluster, " +
+                        "have discovered []; " +
+                        "discovery will continue using [" + otherAddress + "] from hosts providers and [" + localNode +
+                        "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
+
+        final DiscoveryNode otherNode = new DiscoveryNode("otherNode", buildNewFakeTransportAddress(), Version.CURRENT);
+        assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(otherNode), 0L).getDescription(),
+                is("master not discovered yet and this node was detached from its previous cluster, " +
+                        "have discovered [" + otherNode + "]; " +
+                        "discovery will continue using [] from hosts providers and [" + localNode +
+                        "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
+
+        final DiscoveryNode yetAnotherNode = new DiscoveryNode("yetAnotherNode", buildNewFakeTransportAddress(), Version.CURRENT);
+        assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(yetAnotherNode), 0L).getDescription(),
+                is("master not discovered yet and this node was detached from its previous cluster, " +
+                        "have discovered [" + yetAnotherNode + "]; " +
+                        "discovery will continue using [] from hosts providers and [" + localNode +
+                        "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
+
+    }
+
     public void testDescriptionAfterBootstrapping() {
         final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.allocation;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -31,7 +30,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -105,7 +103,6 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         Settings commonSettings = Settings.builder()
                 .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a,b")
                 .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
-                .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "10s")
                 .build();
 
         logger.info("--> starting 4 nodes on different zones");

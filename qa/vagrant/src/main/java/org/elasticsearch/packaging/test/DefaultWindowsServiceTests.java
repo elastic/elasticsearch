@@ -25,6 +25,6 @@ public class DefaultWindowsServiceTests extends WindowsServiceTestCase {
 
     @Override
     protected Distribution distribution() {
-        return Distribution.DEFAULT_ZIP;
+        return Distribution.DEFAULT_WINDOWS;
     }
 }

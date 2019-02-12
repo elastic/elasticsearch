@@ -34,7 +34,6 @@ import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.Transport;
@@ -58,7 +57,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -129,13 +128,6 @@ public class LicensingTests extends SecurityIntegTestCase {
     @Override
     protected int maxNumberOfNodes() {
         return super.maxNumberOfNodes() + 1;
-    }
-
-    @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
-            .build();
     }
 
     @Before
@@ -283,30 +275,24 @@ public class LicensingTests extends SecurityIntegTestCase {
         enableLicensing(mode);
         ensureGreen();
 
-        final List<String> unicastHostsList = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()
+        final List<String> seedHosts = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()
             .getNodes().stream().map(n -> n.getTransport().getAddress().publishAddress().toString()).distinct()
             .collect(Collectors.toList());
 
         Path home = createTempDir();
         Path conf = home.resolve("config");
         Files.createDirectories(conf);
-        Settings nodeSettings = Settings.builder()
+        Settings.Builder nodeSettings = Settings.builder()
             .put(nodeSettings(maxNumberOfNodes() - 1).filter(s -> "xpack.security.enabled".equals(s) == false))
             .put("node.name", "my-test-node")
             .put("network.host", "localhost")
             .put("cluster.name", internalCluster().getClusterName())
-            .put("discovery.zen.minimum_master_nodes",
-                internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
             .put("path.home", home)
-            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
-            .put(TestZenDiscovery.USE_ZEN2.getKey(), getUseZen2())
-            .putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey())
-            .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), unicastHostsList)
-            .build();
-        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class,
-            MockHttpTransport.TestPlugin.class);
-        try (Node node = new MockNode(nodeSettings, mockPlugins)) {
+            .putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey())
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), seedHosts);
+
+        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, MockHttpTransport.TestPlugin.class);
+        try (Node node = new MockNode(nodeSettings.build(), mockPlugins)) {
             node.start();
             ensureStableCluster(cluster().size() + 1);
         }

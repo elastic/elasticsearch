@@ -861,6 +861,6 @@ public class FunctionScoreTests extends ESTestCase {
         @Override
         protected int doHashCode() {
             return 0;
-        };
+        }
     }
 }

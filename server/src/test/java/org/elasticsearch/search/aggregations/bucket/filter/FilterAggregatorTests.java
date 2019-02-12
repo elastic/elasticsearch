@@ -63,7 +63,6 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37743")
     public void testRandom() throws Exception {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -86,26 +85,31 @@ public class FilterAggregatorTests extends AggregatorTestCase {
 
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-        int value = randomInt(maxTerm - 1);
-        QueryBuilder filter = QueryBuilders.termQuery("field", Integer.toString(value));
-        FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
+        try {
 
-        for (boolean doReduce : new boolean[] {true, false}) {
-            final InternalFilter response;
-            if (doReduce) {
-                response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder,
+            int value = randomInt(maxTerm - 1);
+            QueryBuilder filter = QueryBuilders.termQuery("field", Integer.toString(value));
+            FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
+
+            for (boolean doReduce : new boolean[]{true, false}) {
+                final InternalFilter response;
+                if (doReduce) {
+                    response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder,
                         fieldType);
-            } else {
-                response = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+                } else {
+                    response = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+                }
+                assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
+                if (expectedBucketCount[value] > 0) {
+                    assertTrue(AggregationInspectionHelper.hasValue(response));
+                } else {
+                    assertFalse(AggregationInspectionHelper.hasValue(response));
+                }
             }
-            assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
-            if (expectedBucketCount[expectedBucketCount[value]] > 0) {
-                assertTrue(AggregationInspectionHelper.hasValue(response));
-            } else {
-                assertFalse(AggregationInspectionHelper.hasValue(response));
-            }
+        } finally {
+            indexReader.close();
+            directory.close();
         }
-        indexReader.close();
-        directory.close();
+
     }
 }

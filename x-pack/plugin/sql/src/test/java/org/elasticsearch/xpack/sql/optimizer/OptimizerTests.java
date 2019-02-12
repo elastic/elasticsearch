@@ -20,6 +20,10 @@ import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
@@ -75,7 +79,9 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer.FoldNull;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PropagateEquals;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceMinMaxWithTopHits;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyConditional;
+import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -1205,5 +1211,52 @@ public class OptimizerTests extends ESTestCase {
         PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq1, r));
         assertEquals(Literal.FALSE, rule.rule(exp));
+    }
+
+    public void testTranslateMinToFirst() {
+        Min min1 =  new Min(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
+        Min min2 =  new Min(EMPTY, getFieldAttribute());
+
+        OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(min1, min2)),
+            Arrays.asList(
+                new Order(EMPTY, min1, OrderDirection.ASC, Order.NullsPosition.LAST),
+                new Order(EMPTY, min2, OrderDirection.ASC, Order.NullsPosition.LAST)));
+        LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(plan);
+        assertTrue(result instanceof OrderBy);
+        List<Order> order = ((OrderBy) result).order();
+        assertEquals(2, order.size());
+        assertEquals(First.class, order.get(0).child().getClass());
+        assertEquals(min2, order.get(1).child());;
+        First first = (First) order.get(0).child();
+
+        assertTrue(((OrderBy) result).child() instanceof Aggregate);
+        List<? extends NamedExpression> aggregates = ((Aggregate) ((OrderBy) result).child()).aggregates();
+        assertEquals(2, aggregates.size());
+        assertEquals(First.class, aggregates.get(0).getClass());
+        assertSame(first, aggregates.get(0));
+        assertEquals(min2, aggregates.get(1));
+    }
+
+    public void testTranslateMaxToLast() {
+        Max max1 =  new Max(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
+        Max max2 =  new Max(EMPTY, getFieldAttribute());
+
+        OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(max1, max2)),
+            Arrays.asList(
+                new Order(EMPTY, max1, OrderDirection.ASC, Order.NullsPosition.LAST),
+                new Order(EMPTY, max2, OrderDirection.ASC, Order.NullsPosition.LAST)));
+        LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(plan);
+        assertTrue(result instanceof OrderBy);
+        List<Order> order = ((OrderBy) result).order();
+        assertEquals(Last.class, order.get(0).child().getClass());
+        assertEquals(max2, order.get(1).child());;
+        Last last = (Last) order.get(0).child();
+
+        assertTrue(((OrderBy) result).child() instanceof Aggregate);
+        List<? extends NamedExpression> aggregates = ((Aggregate) ((OrderBy) result).child()).aggregates();
+        assertEquals(2, aggregates.size());
+        assertEquals(Last.class, aggregates.get(0).getClass());
+        assertSame(last, aggregates.get(0));
+        assertEquals(max2, aggregates.get(1));
     }
 }

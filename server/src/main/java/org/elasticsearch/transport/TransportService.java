@@ -42,14 +42,15 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -65,7 +66,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -622,7 +622,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             }
             if (timeoutHandler != null) {
                 assert options.timeout() != null;
-                timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
+                timeoutHandler.scheduleTimeout(options.timeout());
             }
             connection.sendRequest(requestId, action, request, options); // local node optimization happens upstream
         } catch (final Exception e) {
@@ -953,9 +953,18 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 responseHandlers.prune(h -> h.connection().getCacheKey().equals(connection.getCacheKey()));
             // callback that an exception happened, but on a different thread since we don't
             // want handlers to worry about stack overflows
-            getExecutorService().execute(() -> {
-                for (Transport.ResponseContext holderToNotify : pruned) {
-                    holderToNotify.handler().handleException(new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
+            getExecutorService().execute(new Runnable() {
+                @Override
+                public void run() {
+                    for (Transport.ResponseContext holderToNotify : pruned) {
+                        holderToNotify.handler().handleException(
+                            new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "onConnectionClosed(" + connection.getNode() + ")";
                 }
             });
         } catch (EsRejectedExecutionException ex) {
@@ -989,7 +998,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         private final long sentTime = threadPool.relativeTimeInMillis();
         private final String action;
         private final DiscoveryNode node;
-        volatile ScheduledFuture future;
+        volatile Scheduler.Cancellable cancellable;
 
         TimeoutHandler(long requestId, DiscoveryNode node, String action) {
             this.requestId = requestId;
@@ -1024,12 +1033,18 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         public void cancel() {
             assert responseHandlers.contains(requestId) == false :
                 "cancel must be called after the requestId [" + requestId + "] has been removed from clientHandlers";
-            FutureUtils.cancel(future);
+            if (cancellable != null) {
+                cancellable.cancel();
+            }
         }
 
         @Override
         public String toString() {
             return "timeout handler for [" + requestId + "][" + action + "]";
+        }
+
+        private void scheduleTimeout(TimeValue timeout) {
+            this.cancellable = threadPool.schedule(this, timeout, ThreadPool.Names.GENERIC);
         }
     }
 

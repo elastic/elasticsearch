@@ -221,6 +221,32 @@ The following settings are supported:
     currently supported by the plugin. For more information about the
     different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]
 
+NOTE: The option of defining client settings in the repository settings as documented below is considered deprecated:
+
+In addition to the above settings, you may also specify all non-secure client settings in the repository settings.
+In this case, the client settings found in the repository settings will be merged with those of the named client used by the repository.
+Conflicts between client and repository settings are resolved by the repository settings taking precedence over client settings.
+
+For example:
+
+[source,js]
+----
+PUT _snapshot/my_s3_repository
+{
+  "type": "s3",
+  "settings": {
+    "client": "my_client_name",
+    "bucket": "my_bucket_name",
+    "endpoint": "my.s3.endpoint"
+  }
+}
+----
+// CONSOLE
+// TEST[skip:we don't have s3 set up while testing this]
+
+This sets up a repository that uses all client settings from the client `my_client_named` except for the `endpoint` that is overridden
+to `my.s3.endpoint` by the repository settings.
+
 [[repository-s3-permissions]]
 ===== Recommended S3 Permissions
 

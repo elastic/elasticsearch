@@ -133,7 +133,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
                 execution = ExecutionMode.MAP;
             }
-            final long maxOrd = getMaxOrd(valuesSource, context.searcher());
+            final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
             if (execution == null) {
                 execution = ExecutionMode.GLOBAL_ORDINALS;
             }

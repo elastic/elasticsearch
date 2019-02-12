@@ -11,8 +11,9 @@ endif::server[]
 
 +{ssl-prefix}.ssl.supported_protocols+::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
-`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`. Defaults to `TLSv1.2`, `TLSv1.1`,
-`TLSv1`.
+`SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
+the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
+
 
 ifdef::server[]
 +{ssl-prefix}.ssl.client_authentication+::

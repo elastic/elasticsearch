@@ -5,6 +5,11 @@ dependencies {
     testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
+integTestRunner {
+    /* To support taking index snapshots, we have to set path.repo setting */
+    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+}
+
 integTestCluster {
     numNodes = 4
     clusterName = 'ilm'
@@ -16,5 +21,4 @@ integTestCluster {
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.poll_interval', '1000ms'
-
 }

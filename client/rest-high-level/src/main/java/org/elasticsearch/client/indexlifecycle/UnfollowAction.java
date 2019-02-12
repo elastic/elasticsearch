@@ -31,7 +31,7 @@ import java.io.IOException;
 public class UnfollowAction implements LifecycleAction, ToXContentObject {
     public static final String NAME = "unfollow";
 
-    private static final ObjectParser<UnfollowAction, Void> PARSER = new ObjectParser<>(NAME, UnfollowAction::new);
+    private static final ObjectParser<UnfollowAction, Void> PARSER = new ObjectParser<>(NAME, true, UnfollowAction::new);
 
     public UnfollowAction() {}
 

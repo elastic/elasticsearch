@@ -17,23 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing;
+package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.util.Objects;
 
-/**
- * A base {@link Exception}s for all exceptions thrown by routing related operations.
- */
-public class RoutingException extends ElasticsearchException {
+public class RetentionLeaseAlreadyExistsException extends ResourceAlreadyExistsException {
 
-    public RoutingException(String message, Throwable cause) {
-        super(message, cause);
+    RetentionLeaseAlreadyExistsException(final String id) {
+        super("retention lease with ID [" + Objects.requireNonNull(id) + "] already exists");
     }
 
-    public RoutingException(StreamInput in) throws IOException{
+    public RetentionLeaseAlreadyExistsException(final StreamInput in) throws IOException {
         super(in);
     }
+
 }

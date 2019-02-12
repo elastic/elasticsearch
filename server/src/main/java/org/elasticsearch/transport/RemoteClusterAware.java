@@ -57,7 +57,8 @@ public abstract class RemoteClusterAware {
 
     static {
         // remove search.remote.* settings in 8.0.0
-        assert Version.CURRENT.major < 8;
+        // TODO https://github.com/elastic/elasticsearch/issues/38556
+        // assert Version.CURRENT.major < 8;
     }
 
     public static final Setting.AffixSetting<List<String>> SEARCH_REMOTE_CLUSTERS_SEEDS =

@@ -3,8 +3,6 @@
 [[sql-client-apps-qlik]]
 === Qlik Sense Desktop
 
-experimental[]
-
 [quote, https://help.qlik.com/en-US/sense/February2018/Subsystems/Hub/Content/Introduction/at-a-glance.htm]
 ____
 https://www.qlik.com/us/try-or-buy/download-qlik-sense[Qlik Sense Desktop] is a Windows application that gives individuals the opportunity
@@ -20,7 +18,7 @@ ____
 
 ==== Data loading
 
-To use the {product} to load data into Qlik Sense Desktop perform the following steps in sequence.
+To use the {odbc} to load data into Qlik Sense Desktop perform the following steps in sequence.
 
 . Create new app
 +

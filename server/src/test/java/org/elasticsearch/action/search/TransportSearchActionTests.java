@@ -39,6 +39,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -74,6 +75,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -102,91 +104,105 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testMergeShardsIterators() {
-        List<ShardIterator> localShardIterators = new ArrayList<>();
-        {
-            ShardId shardId = new ShardId("local_index", "local_index_uuid", 0);
-            ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "local_node", true, STARTED);
-            ShardIterator shardIterator = new PlainShardIterator(shardId, Collections.singletonList(shardRouting));
-            localShardIterators.add(shardIterator);
-        }
-        {
-            ShardId shardId2 = new ShardId("shared_index", "shared_index", 0);
-            ShardRouting shardRouting2 = TestShardRouting.newShardRouting(shardId2, "local_node", true, STARTED);
-            ShardIterator shardIterator2 = new PlainShardIterator(shardId2, Collections.singletonList(shardRouting2));
-            localShardIterators.add(shardIterator2);
-        }
-        GroupShardsIterator<ShardIterator> localShardsIterator = new GroupShardsIterator<>(localShardIterators);
-
-        OriginalIndices localIndices = new OriginalIndices(new String[]{"local_alias", "local_index_2"},
-            SearchRequest.DEFAULT_INDICES_OPTIONS);
-
-        OriginalIndices remoteIndices = new OriginalIndices(new String[]{"remote_alias", "remote_index_2"},
-            IndicesOptions.strictExpandOpen());
-        List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
-        {
-            ShardId remoteShardId = new ShardId("remote_index", "remote_index_uuid", 2);
-            ShardRouting remoteShardRouting = TestShardRouting.newShardRouting(remoteShardId, "remote_node", true, STARTED);
-            SearchShardIterator remoteShardIterator = new SearchShardIterator("remote", remoteShardId,
-                    Collections.singletonList(remoteShardRouting), remoteIndices);
-            remoteShardIterators.add(remoteShardIterator);
-        }
-
-        OriginalIndices sharedIndex = new OriginalIndices(new String[]{"shared_index"}, IndicesOptions.strictExpand());
-        {
-            ShardId remoteShardId2 = new ShardId("shared_index", "shared_index", 0);
-            ShardRouting remoteShardRouting2 = TestShardRouting.newShardRouting(remoteShardId2, "remote_node", true, STARTED);
-            SearchShardIterator remoteShardIterator2 = new SearchShardIterator("remote", remoteShardId2,
-                    Collections.singletonList(remoteShardRouting2), sharedIndex);
-            remoteShardIterators.add(remoteShardIterator2);
-        }
-        {
-            ShardId remoteShardId3 = new ShardId("shared_index", "shared_index_remote_uuid", 0);
-            ShardRouting remoteShardRouting3 = TestShardRouting.newShardRouting(remoteShardId3, "remote_node", true, STARTED);
-            SearchShardIterator remoteShardIterator3 = new SearchShardIterator("remote", remoteShardId3,
-                    Collections.singletonList(remoteShardRouting3), sharedIndex);
-            remoteShardIterators.add(remoteShardIterator3);
-        }
-
         String localClusterAlias = randomBoolean() ? null : "local";
+        OriginalIndices localIndices = new OriginalIndices(new String[]{"local"}, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> expected = new ArrayList<>();
+        int numLocalIterators = randomIntBetween(0, 10);
+        List<ShardIterator> localShardIterators = new ArrayList<>(numLocalIterators);
+        Map<Index, Integer> indices = new LinkedHashMap<>();
+        for (int i = 0; i < numLocalIterators; i++) {
+            ShardId shardId;
+            if (i > 0 && randomBoolean()) {
+                //add shards for already used indices
+                Map.Entry<Index, Integer> entry = randomFrom(indices.entrySet());
+                Index index = entry.getKey();
+                Integer shard = entry.getValue();
+                entry.setValue(++shard);
+                shardId = new ShardId(index, shard);
+            } else {
+                //add new indices
+                Index index = new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10));
+                indices.put(index, 0);
+                shardId = new ShardId(index, 0);
+            }
+            List<ShardRouting> shardRoutings = randomShardRoutings(shardId);
+            PlainShardIterator plainShardIterator = new PlainShardIterator(shardId, shardRoutings);
+            localShardIterators.add(plainShardIterator);
+            expected.add(new SearchShardIterator(localClusterAlias, shardId, shardRoutings, localIndices));
+        }
+
+        OriginalIndices remoteOriginalIndices = new OriginalIndices(new String[]{"remote"}, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        int numClusters = randomIntBetween(1, 3);
+        String[] clusters = new String[numClusters];
+        for (int i = 0; i < numClusters; i++) {
+            clusters[i] = randomAlphaOfLengthBetween(5, 10);
+        }
+        Map<Index, Integer> remoteIndices = new HashMap<>();
+        int numRemoteIterators = randomIntBetween(0, 10);
+        List<SearchShardIterator> remoteShardIterators = new ArrayList<>(numRemoteIterators);
+        for (int i = 0; i < numRemoteIterators; i++) {
+            ShardId shardId;
+            String clusterAlias = randomFrom(clusters);
+            if (indices.size() > 0 && randomBoolean()) {
+                Map.Entry<Index, Integer> entry = randomFrom(indices.entrySet());
+                Index index;
+                if (randomBoolean()) {
+                    //randomly reuse the same index, including uuid, to simulate case where the same cluster is registered twice
+                    index = entry.getKey();
+                } else {
+                    String indexName = entry.getKey().getName();
+                    //include the clusterAlias in the uuid to simplify disambiguation when indices have
+                    //the same name but are on different clusters. In practice uuid will differ
+                    index = new Index(indexName, indexName + "-" + clusterAlias);
+                }
+                Integer shard = remoteIndices.compute(index, (key, value) -> value == null ? 0 : ++value);
+                shardId = new ShardId(index, shard);
+            } else {
+                Index index = new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10));
+                remoteIndices.put(index, 0);
+                shardId = new ShardId(index, 0);
+            }
+            List<ShardRouting> shardRoutings = randomShardRoutings(shardId);
+            SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, shardId, shardRoutings, remoteOriginalIndices);
+            remoteShardIterators.add(shardIterator);
+            expected.add(shardIterator);
+        }
+
+        GroupShardsIterator<ShardIterator> localShardsIterator = new GroupShardsIterator<>(localShardIterators);
         GroupShardsIterator<SearchShardIterator> searchShardIterators = TransportSearchAction.mergeShardsIterators(localShardsIterator,
                 localIndices, localClusterAlias, remoteShardIterators);
+        assertEquals(numRemoteIterators + numLocalIterators, searchShardIterators.size());
 
-        assertEquals(searchShardIterators.size(), 5);
-        int i = 0;
-        for (SearchShardIterator searchShardIterator : searchShardIterators) {
-            switch(i++) {
-                case 0:
-                    assertEquals("local_index", searchShardIterator.shardId().getIndexName());
-                    assertEquals(0, searchShardIterator.shardId().getId());
-                    assertSame(localIndices, searchShardIterator.getOriginalIndices());
-                    assertEquals(localClusterAlias, searchShardIterator.getClusterAlias());
-                    break;
-                case 1:
-                    assertEquals("shared_index", searchShardIterator.shardId().getIndexName());
-                    assertEquals(0, searchShardIterator.shardId().getId());
-                    assertSame(sharedIndex, searchShardIterator.getOriginalIndices());
-                    assertEquals("remote", searchShardIterator.getClusterAlias());
-                    break;
-                case 2:
-                    assertEquals("shared_index", searchShardIterator.shardId().getIndexName());
-                    assertEquals(0, searchShardIterator.shardId().getId());
-                    assertSame(localIndices, searchShardIterator.getOriginalIndices());
-                    assertEquals(localClusterAlias, searchShardIterator.getClusterAlias());
-                    break;
-                case 3:
-                    assertEquals("shared_index", searchShardIterator.shardId().getIndexName());
-                    assertEquals(0, searchShardIterator.shardId().getId());
-                    assertSame(sharedIndex, searchShardIterator.getOriginalIndices());
-                    assertEquals("remote", searchShardIterator.getClusterAlias());
-                    break;
-                case 4:
-                    assertEquals("remote_index", searchShardIterator.shardId().getIndexName());
-                    assertEquals(2, searchShardIterator.shardId().getId());
-                    assertSame(remoteIndices, searchShardIterator.getOriginalIndices());
-                    assertEquals("remote", searchShardIterator.getClusterAlias());
-                    break;
+        expected.sort((o1, o2) -> {
+            int compare = o1.shardId().compareTo(o2.shardId());
+            if (compare != 0) {
+                return compare;
             }
+            if (o1.getClusterAlias() == null && o2.getClusterAlias() == null) {
+                return 0;
+            }
+            if (o1.getClusterAlias() == null) {
+                return -1;
+            }
+            if (o2.getClusterAlias() == null) {
+                return 1;
+            }
+            return o1.getClusterAlias().compareTo(o2.getClusterAlias());
+        });
+
+        List<SearchShardIterator> result = new ArrayList<>();
+        searchShardIterators.forEach(result::add);
+        assertEquals(expected, result);
+    }
+
+    private static List<ShardRouting> randomShardRoutings(ShardId shardId) {
+        List<ShardRouting> shardRoutings = new ArrayList<>();
+        shardRoutings.add(TestShardRouting.newShardRouting(shardId, randomAlphaOfLengthBetween(5, 10), true, STARTED));
+        int numReplicas = randomIntBetween(0, 2);
+        for (int j = 0; j < numReplicas; j++) {
+            shardRoutings.add(TestShardRouting.newShardRouting(shardId, randomAlphaOfLengthBetween(5, 10), false, STARTED));
         }
+        return shardRoutings;
     }
 
     public void testProcessRemoteShards() {

@@ -88,9 +88,7 @@ public class TemplateHttpResource extends PublishableHttpResource {
      */
     @Override
     protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
-        Map<String, String> parameters = new TreeMap<>();
-        parameters.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-
+        Map<String, String> parameters = Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true");
         putResource(client, listener, logger,
                     "/_template", templateName, parameters, this::templateToHttpEntity, "monitoring template",
                     resourceOwnerName, "monitoring cluster");

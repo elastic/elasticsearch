@@ -3,8 +3,6 @@
 [[sql-index-patterns]]
 == Index patterns
 
-beta[]
-
 {es-sql} supports two types of patterns for matching multiple indices or tables:
 
 * {es} multi-index

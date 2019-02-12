@@ -3,8 +3,6 @@
 [[sql-limitations]]
 == SQL Limitations
 
-beta[]
-
 [float]
 === Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE`
 

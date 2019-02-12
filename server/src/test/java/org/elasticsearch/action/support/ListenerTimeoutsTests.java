@@ -25,8 +25,10 @@ import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -36,6 +38,7 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 public class ListenerTimeoutsTests extends ESTestCase {
 
     private final TimeValue timeout = TimeValue.timeValueMillis(10);
+    private final String generic = ThreadPool.Names.GENERIC;
     private DeterministicTaskQueue taskQueue;
 
     @Before
@@ -50,23 +53,26 @@ public class ListenerTimeoutsTests extends ESTestCase {
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<Void> listener = wrap(completed, exception);
 
-        ActionListener<Void> wrapped = ListenerTimeouts.wrapWithTimeout(taskQueue.getThreadPool(), listener, timeout, "test");
+        ActionListener<Void> wrapped = ListenerTimeouts.wrapWithTimeout(taskQueue.getThreadPool(), listener, timeout, generic, "test");
         assertTrue(taskQueue.hasDeferredTasks());
         taskQueue.advanceTime();
         taskQueue.runAllRunnableTasks();
 
         wrapped.onResponse(null);
+        wrapped.onFailure(new IOException("incorrect exception"));
 
         assertFalse(completed.get());
         assertThat(exception.get(), instanceOf(ElasticsearchTimeoutException.class));
     }
 
-    public void testFinishBeforeTimeout() {
+    public void testFinishNormallyBeforeTimeout() {
         AtomicBoolean completed = new AtomicBoolean(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<Void> listener = wrap(completed, exception);
 
-        ActionListener<Void> wrapped = ListenerTimeouts.wrapWithTimeout(taskQueue.getThreadPool(), listener, timeout, "test");
+        ActionListener<Void> wrapped = ListenerTimeouts.wrapWithTimeout(taskQueue.getThreadPool(), listener, timeout, generic, "test");
+        wrapped.onResponse(null);
+        wrapped.onFailure(new IOException("boom"));
         wrapped.onResponse(null);
 
         assertTrue(taskQueue.hasDeferredTasks());
@@ -77,15 +83,33 @@ public class ListenerTimeoutsTests extends ESTestCase {
         assertNull(exception.get());
     }
 
+    public void testFinishExceptionallyBeforeTimeout() {
+        AtomicBoolean completed = new AtomicBoolean(false);
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<Void> listener = wrap(completed, exception);
+
+        ActionListener<Void> wrapped = ListenerTimeouts.wrapWithTimeout(taskQueue.getThreadPool(), listener, timeout, generic, "test");
+        wrapped.onFailure(new IOException("boom"));
+
+        assertTrue(taskQueue.hasDeferredTasks());
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
+
+        assertFalse(completed.get());
+        assertThat(exception.get(), instanceOf(IOException.class));
+    }
+
     private ActionListener<Void> wrap(AtomicBoolean completed, AtomicReference<Exception> exception) {
         return new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
+                assert completed.get() == false : "Should not be called twice";
                 completed.set(true);
             }
 
             @Override
             public void onFailure(Exception e) {
+                assert exception.get() == null : "Should not be called twice";
                 exception.set(e);
             }
         };

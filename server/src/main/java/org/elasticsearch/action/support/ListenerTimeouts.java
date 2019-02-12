@@ -37,13 +37,14 @@ public class ListenerTimeouts {
      * @param threadPool used to schedule the timeout
      * @param listener to that can timeout
      * @param timeout period before listener failed
+     * @param executor to use for scheduling timeout
      * @param listenerName name of the listener for timeout exception
      * @return the wrapped listener that will timeout
      */
-    public static <Response> ActionListener<Response> wrapWithTimeout(ThreadPool threadPool, ActionListener<Response> listener,
-                                                                      TimeValue timeout, String listenerName) {
+    public static <Response> ActionListener<Response> wrapWithTimeout(ThreadPool threadPool,  ActionListener<Response> listener,
+                                                                      TimeValue timeout, String executor, String listenerName) {
         TimeoutableListener<Response> wrappedListener = new TimeoutableListener<>(listener, timeout, listenerName);
-        wrappedListener.cancellable = threadPool.schedule(wrappedListener, timeout, ThreadPool.Names.GENERIC);
+        wrappedListener.cancellable = threadPool.schedule(wrappedListener, timeout, executor);
         return wrappedListener;
     }
 

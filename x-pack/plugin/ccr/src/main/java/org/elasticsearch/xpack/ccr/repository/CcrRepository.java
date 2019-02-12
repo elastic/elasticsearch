@@ -494,7 +494,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                         error.compareAndSet(null, Tuple.tuple(fileToRecover.metadata(), e));
                                         requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
                                     }
-                                    ), timeout, GetCcrRestoreFileChunkAction.NAME);
+                                    ), timeout, ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.NAME);
                             remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request, listener);
                         } catch (Exception e) {
                             error.compareAndSet(null, Tuple.tuple(fileToRecover.metadata(), e));

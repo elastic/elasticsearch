@@ -604,6 +604,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterArithmeticBinary(SqlBaseParser.ArithmeticBinaryContext ctx) { }
   /**
    * {@inheritDoc}
@@ -736,6 +748,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterCastExpression(SqlBaseParser.CastExpressionContext ctx) { }
   /**
    * {@inheritDoc}
@@ -755,18 +779,6 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitCastTemplate(SqlBaseParser.CastTemplateContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx) { }
   /**
    * {@inheritDoc}
    *

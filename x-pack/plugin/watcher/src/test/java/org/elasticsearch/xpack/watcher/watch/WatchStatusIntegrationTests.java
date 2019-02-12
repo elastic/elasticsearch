@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 

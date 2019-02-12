@@ -1012,7 +1012,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         SNAPSHOT_IN_PROGRESS_EXCEPTION(org.elasticsearch.snapshots.SnapshotInProgressException.class,
             org.elasticsearch.snapshots.SnapshotInProgressException::new, 151, Version.V_6_7_0),
         NO_SUCH_REMOTE_CLUSTER_EXCEPTION(org.elasticsearch.transport.NoSuchRemoteClusterException.class,
-            org.elasticsearch.transport.NoSuchRemoteClusterException::new, 152, Version.V_6_7_0);
+            org.elasticsearch.transport.NoSuchRemoteClusterException::new, 152, Version.V_6_7_0),
+        RETENTION_LEASE_ALREADY_EXISTS_EXCEPTION(
+                org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException.class,
+                org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException::new,
+                153,
+                Version.V_6_7_0),
+        RETENTION_LEASE_NOT_FOUND_EXCEPTION(
+                org.elasticsearch.index.seqno.RetentionLeaseNotFoundException.class,
+                org.elasticsearch.index.seqno.RetentionLeaseNotFoundException::new,
+                154,
+                Version.V_6_7_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

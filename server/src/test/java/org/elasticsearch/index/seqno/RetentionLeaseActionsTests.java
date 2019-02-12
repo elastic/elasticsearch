@@ -32,7 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.index.seqno.RetentionLeaseActions.Request.RETAIN_ALL;
+import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,7 +57,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         client()
                 .execute(
                         RetentionLeaseActions.Add.INSTANCE,
-                        new RetentionLeaseActions.Request(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source))
+                        new RetentionLeaseActions.AddRequest(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source))
                 .actionGet();
 
         final IndicesStatsResponse stats = client()
@@ -90,7 +90,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         client()
                 .execute(
                         RetentionLeaseActions.Add.INSTANCE,
-                        new RetentionLeaseActions.Request(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source))
+                        new RetentionLeaseActions.AddRequest(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source))
                 .actionGet();
 
         final long nextRetainingSequenceNumber =
@@ -102,7 +102,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
                 () -> client()
                         .execute(
                                 RetentionLeaseActions.Add.INSTANCE,
-                                new RetentionLeaseActions.Request(
+                                new RetentionLeaseActions.AddRequest(
                                         indexService.getShard(0).shardId(),
                                         id,
                                         nextRetainingSequenceNumber,
@@ -136,7 +136,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         client()
                 .execute(
                         RetentionLeaseActions.Add.INSTANCE,
-                        new RetentionLeaseActions.Request(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source))
+                        new RetentionLeaseActions.AddRequest(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source))
                 .actionGet();
 
         /*
@@ -179,7 +179,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         client()
                 .execute(
                         RetentionLeaseActions.Renew.INSTANCE,
-                        new RetentionLeaseActions.Request(indexService.getShard(0).shardId(), id, nextRetainingSequenceNumber, source))
+                        new RetentionLeaseActions.RenewRequest(indexService.getShard(0).shardId(), id, nextRetainingSequenceNumber, source))
                 .actionGet();
 
         final IndicesStatsResponse renewedStats = client()
@@ -220,7 +220,11 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
                 () -> client()
                         .execute(
                                 RetentionLeaseActions.Renew.INSTANCE,
-                                new RetentionLeaseActions.Request(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source))
+                                new RetentionLeaseActions.RenewRequest(
+                                        indexService.getShard(0).shardId(),
+                                        id,
+                                        retainingSequenceNumber,
+                                        source))
                         .actionGet());
         assertThat(e, hasToString(containsString("retention lease with ID [" + id + "] does not exist")));
     }

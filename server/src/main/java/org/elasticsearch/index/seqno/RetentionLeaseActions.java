@@ -47,10 +47,13 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 public class RetentionLeaseActions {
 
-    static abstract class TransportRetentionLeaseAction extends TransportSingleShardAction<Request, Response> {
+    public static final long RETAIN_ALL = -1;
+
+    static abstract class TransportRetentionLeaseAction<T extends Request<T>> extends TransportSingleShardAction<T, Response> {
 
         private Logger logger = LogManager.getLogger(getClass());
 
@@ -64,13 +67,22 @@ public class RetentionLeaseActions {
                 final TransportService transportService,
                 final ActionFilters actionFilters,
                 final IndexNameExpressionResolver indexNameExpressionResolver,
-                final IndicesService indicesService) {
-            super(name, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, Request::new, ThreadPool.Names.MANAGEMENT);
+                final IndicesService indicesService,
+                final Supplier<T> requestSupplier) {
+            super(
+                    name,
+                    threadPool,
+                    clusterService,
+                    transportService,
+                    actionFilters,
+                    indexNameExpressionResolver,
+                    requestSupplier,
+                    ThreadPool.Names.MANAGEMENT);
             this.indicesService = Objects.requireNonNull(indicesService);
         }
 
         @Override
-        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        protected ShardsIterator shards(final ClusterState state, final InternalRequest request) {
             return state
                     .routingTable()
                     .shardRoutingTable(request.concreteIndex(), request.request().getShardId().id())
@@ -78,9 +90,9 @@ public class RetentionLeaseActions {
         }
 
         @Override
-        protected Response shardOperation(final Request request, final ShardId shardId) {
-            final IndexService indexService = indicesService.indexServiceSafe(request.getShardId().getIndex());
-            final IndexShard indexShard = indexService.getShard(request.getShardId().id());
+        protected Response shardOperation(final T request, final ShardId shardId) {
+            final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            final IndexShard indexShard = indexService.getShard(shardId.id());
 
             final CompletableFuture<Releasable> permit = new CompletableFuture<>();
             final ActionListener<Releasable> onAcquired = new ActionListener<Releasable>() {
@@ -119,7 +131,7 @@ public class RetentionLeaseActions {
             return new Response();
         }
 
-        abstract void doRetentionLeaseAction(IndexShard indexShard, Request request);
+        abstract void doRetentionLeaseAction(IndexShard indexShard, T request);
 
         @Override
         protected Response newResponse() {
@@ -127,7 +139,7 @@ public class RetentionLeaseActions {
         }
 
         @Override
-        protected boolean resolveIndex(final Request request) {
+        protected boolean resolveIndex(final T request) {
             return false;
         }
 
@@ -142,7 +154,7 @@ public class RetentionLeaseActions {
             super(NAME);
         }
 
-        public static class TransportAction extends TransportRetentionLeaseAction {
+        public static class TransportAction extends TransportRetentionLeaseAction<AddRequest> {
 
             @Inject
             public TransportAction(
@@ -152,13 +164,26 @@ public class RetentionLeaseActions {
                     final ActionFilters actionFilters,
                     final IndexNameExpressionResolver indexNameExpressionResolver,
                     final IndicesService indicesService) {
-                super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, indicesService);
+                super(
+                        NAME,
+                        threadPool,
+                        clusterService,
+                        transportService,
+                        actionFilters,
+                        indexNameExpressionResolver,
+                        indicesService,
+                        AddRequest::new);
             }
 
             @Override
-            void doRetentionLeaseAction(final IndexShard indexShard, final Request request) {
-                indexShard.addRetentionLease(request.getId(), request.getRetainingSequenceNumber(), request.getSource(), ActionListener.wrap(() -> {}));
+            void doRetentionLeaseAction(final IndexShard indexShard, final AddRequest request) {
+                indexShard.addRetentionLease(
+                        request.getId(),
+                        request.getRetainingSequenceNumber(),
+                        request.getSource(),
+                        ActionListener.wrap(() -> {}));
             }
+
         }
 
         @Override
@@ -177,7 +202,7 @@ public class RetentionLeaseActions {
             super(NAME);
         }
 
-        public static class TransportAction extends TransportRetentionLeaseAction {
+        public static class TransportAction extends TransportRetentionLeaseAction<RenewRequest> {
 
             @Inject
             public TransportAction(
@@ -187,14 +212,23 @@ public class RetentionLeaseActions {
                     final ActionFilters actionFilters,
                     final IndexNameExpressionResolver indexNameExpressionResolver,
                     final IndicesService indicesService) {
-                super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, indicesService);
+                super(
+                        NAME,
+                        threadPool,
+                        clusterService,
+                        transportService,
+                        actionFilters,
+                        indexNameExpressionResolver,
+                        indicesService,
+                        RenewRequest::new);
             }
 
 
             @Override
-            void doRetentionLeaseAction(final IndexShard indexShard, final Request request) {
+            void doRetentionLeaseAction(final IndexShard indexShard, final RenewRequest request) {
                 indexShard.renewRetentionLease(request.getId(), request.getRetainingSequenceNumber(), request.getSource());
             }
+
         }
 
         @Override
@@ -204,9 +238,52 @@ public class RetentionLeaseActions {
 
     }
 
-    public static class Request extends SingleShardRequest<Request> {
+    public static class Remove extends Action<Response> {
 
-        public static long RETAIN_ALL = -1;
+        public static final Renew INSTANCE = new Renew();
+        public static final String NAME = "indices:admin/seq_no/renew_retention_lease";
+
+        private Remove() {
+            super(NAME);
+        }
+
+        public static class TransportAction extends TransportRetentionLeaseAction<RemoveRequest> {
+
+            @Inject
+            public TransportAction(
+                    final ThreadPool threadPool,
+                    final ClusterService clusterService,
+                    final TransportService transportService,
+                    final ActionFilters actionFilters,
+                    final IndexNameExpressionResolver indexNameExpressionResolver,
+                    final IndicesService indicesService) {
+                super(
+                        NAME,
+                        threadPool,
+                        clusterService,
+                        transportService,
+                        actionFilters,
+                        indexNameExpressionResolver,
+                        indicesService,
+                        RemoveRequest::new);
+            }
+
+
+            @Override
+            void doRetentionLeaseAction(final IndexShard indexShard, final RemoveRequest request) {
+                indexShard.removeRetentionLease(request.getId(), ActionListener.wrap(() -> {}));
+            }
+
+        }
+
+        @Override
+        public Response newResponse() {
+            return new Response();
+        }
+
+    }
+
+    private abstract static class Request<T extends SingleShardRequest<T>> extends SingleShardRequest<T> {
 
         private ShardId shardId;
 
@@ -220,6 +297,38 @@ public class RetentionLeaseActions {
             return id;
         }
 
+        public Request() {
+        }
+
+        public Request(final ShardId shardId, final String id) {
+            super(Objects.requireNonNull(shardId).getIndexName());
+            this.shardId = shardId;
+            this.id = Objects.requireNonNull(id);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
+        }
+
+        @Override
+        public void readFrom(final StreamInput in) throws IOException {
+            super.readFrom(in);
+            shardId = ShardId.readShardId(in);
+            id = in.readString();
+        }
+
+        @Override
+        public void writeTo(final StreamOutput out) throws IOException {
+            super.writeTo(out);
+            shardId.writeTo(out);
+            out.writeString(id);
+        }
+
+    }
+
+    private abstract static class AddOrRenewRequest<T extends SingleShardRequest<T>> extends Request<T> {
+
         private long retainingSequenceNumber;
 
         public long getRetainingSequenceNumber() {
@@ -232,42 +341,63 @@ public class RetentionLeaseActions {
             return source;
         }
 
-        public Request() {
+        public AddOrRenewRequest() {
         }
 
-        public Request(final ShardId shardId, final String id, final long retainingSequenceNumber, final String source) {
-            super(Objects.requireNonNull(shardId).getIndexName());
-            this.shardId = shardId;
-            this.id = Objects.requireNonNull(id);
+        public AddOrRenewRequest(final ShardId shardId, final String id, final long retainingSequenceNumber, final String source) {
+            super(shardId, id);
             if (retainingSequenceNumber < 0 && retainingSequenceNumber != RETAIN_ALL) {
-                throw new IllegalArgumentException(
-                        "retention lease retaining sequence number [" + retainingSequenceNumber + "] out of range");
+                throw new IllegalArgumentException("retaining sequence number [" + retainingSequenceNumber + "] out of range");
             }
             this.retainingSequenceNumber = retainingSequenceNumber;
             this.source = Objects.requireNonNull(source);
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
+        public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
-            id = in.readString();
             retainingSequenceNumber = in.readZLong();
             source = in.readString();
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
-            shardId.writeTo(out);
-            out.writeString(id);
             out.writeZLong(retainingSequenceNumber);
             out.writeString(source);
+        }
+
+    }
+
+    public static class AddRequest extends AddOrRenewRequest<AddRequest> {
+
+        public AddRequest() {
+        }
+
+        public AddRequest(final ShardId shardId, final String id, final long retainingSequenceNumber, final String source) {
+            super(shardId, id, retainingSequenceNumber, source);
+        }
+
+    }
+
+    public static class RenewRequest extends AddOrRenewRequest<RenewRequest> {
+
+        public RenewRequest() {
+        }
+
+        public RenewRequest(final ShardId shardId, final String id, final long retainingSequenceNumber, final String source) {
+            super(shardId, id, retainingSequenceNumber, source);
+        }
+
+    }
+
+    public static class RemoveRequest extends Request<RemoveRequest> {
+
+        public RemoveRequest() {
+        }
+
+        public RemoveRequest(final ShardId shardId, final String id) {
+            super(shardId, id);
         }
 
     }

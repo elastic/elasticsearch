@@ -55,7 +55,7 @@ public class RetentionLeaseActions {
 
     static abstract class TransportRetentionLeaseAction<T extends Request<T>> extends TransportSingleShardAction<T, Response> {
 
-        private Logger logger = LogManager.getLogger(getClass());
+        private final Logger logger = LogManager.getLogger(getClass());
 
         private final IndicesService indicesService;
 

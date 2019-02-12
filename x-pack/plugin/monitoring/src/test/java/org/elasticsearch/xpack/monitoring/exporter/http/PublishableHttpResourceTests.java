@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import java.util.Collections;
 import java.util.Map;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
@@ -181,7 +182,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         whenPerformRequestAsyncWith(client, request, e);
 
-        resource.putResource(client, listener, logger, resourceBasePath, resourceName, null, body, resourceType, owner, ownerType);
+        resource.putResource(client, listener, logger, resourceBasePath, resourceName, Collections.emptyMap(), body, resourceType, owner, ownerType);
 
         verifyListener(null);
 
@@ -375,7 +376,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         whenPerformRequestAsyncWith(client, request, response);
 
-        resource.putResource(client, listener, logger, resourceBasePath, resourceName, null, body, resourceType, owner, ownerType);
+        resource.putResource(client, listener, logger, resourceBasePath, resourceName, Collections.emptyMap(), body, resourceType, owner, ownerType);
 
         verifyListener(errorFree ? true : null);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));

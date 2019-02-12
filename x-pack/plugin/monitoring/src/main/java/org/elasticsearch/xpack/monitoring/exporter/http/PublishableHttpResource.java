@@ -321,9 +321,7 @@ public abstract class PublishableHttpResource extends HttpResource {
 
         final Request request = new Request("PUT", resourceBasePath + "/" + resourceName);
         addDefaultParameters(request);
-        if (parameters != null) {
-            addParameters(request, parameters);
-        }
+        addParameters(request, parameters);
         request.setEntity(body.get());
 
         client.performRequestAsync(request, new ResponseListener() {

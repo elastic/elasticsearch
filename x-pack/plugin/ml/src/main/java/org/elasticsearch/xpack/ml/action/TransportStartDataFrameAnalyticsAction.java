@@ -122,16 +122,16 @@ public class TransportStartDataFrameAnalyticsAction
             };
 
         // Start persistent task
-        ActionListener<DataFrameAnalyticsConfig> validatedConfigListener = ActionListener.wrap(
-            config -> persistentTasksService.sendStartRequest(MlTasks.dataFrameAnalyticsTaskId(request.getId()),
+        ActionListener<Boolean> validateListener = ActionListener.wrap(
+            validated -> persistentTasksService.sendStartRequest(MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, taskParams, waitForAnalyticsToStart),
             listener::onFailure
         );
 
         // Validate config
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
-            config -> DataFrameDataExtractorFactory.create(client, Collections.emptyMap(), config.getId(), config.getSource(),
-                ActionListener.wrap(dataExtractorFactory -> validatedConfigListener.onResponse(config), listener::onFailure)),
+            config ->
+                DataFrameDataExtractorFactory.validateConfigAndSourceIndex(client, Collections.emptyMap(), config, validateListener),
             listener::onFailure
         );
 

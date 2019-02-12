@@ -278,8 +278,8 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testCastWithInvalidDataType() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CAST(1 AS INVALID)"));
-        assertEquals("line 1:12: Does not recognize type invalid", ex.getMessage());
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CAST(1 AS InVaLiD)"));
+        assertEquals("line 1:12: Does not recognize type [InVaLiD]", ex.getMessage());
     }
 
     public void testCastOperatorWithUnquotedDataType() {
@@ -309,8 +309,8 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testCastOperatorWithInvalidDataType() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("-1::INVALID"));
-        assertEquals("line 1:6: Does not recognize type invalid", ex.getMessage());
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("-1::InVaLiD"));
+        assertEquals("line 1:6: Does not recognize type [InVaLiD]", ex.getMessage());
     }
 
     public void testConvertWithUnquotedDataType() {

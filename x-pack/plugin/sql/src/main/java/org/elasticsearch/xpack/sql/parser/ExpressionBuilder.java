@@ -423,7 +423,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case "ip":
                 return DataType.IP;
             default:
-                throw new ParsingException(source(ctx), "Does not recognize type {}", type);
+                throw new ParsingException(source(ctx), "Does not recognize type [{}]", ctx.getText());
         }
     }
 

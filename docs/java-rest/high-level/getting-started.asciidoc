@@ -46,6 +46,9 @@ Central]. The minimum Java version required is `1.8`.
 The High Level REST Client is subject to the same release cycle as
 Elasticsearch. Replace the version with the desired client version.
 
+If you are looking for a SNAPSHOT version, the Elastic Maven Snapshot repository is available
+at https://snapshots.elastic.co/maven/.
+
 [[java-rest-high-getting-started-maven-maven]]
 ==== Maven configuration
 
@@ -80,7 +83,7 @@ dependencies {
 The very first releases of any major version (like a beta), might have been built on top of a Lucene Snapshot version.
 In such a case you will be unable to resolve the Lucene dependencies of the client.
 
-For example, if you want to use the `6.0.0-beta1` version which depends on Lucene `7.0.0-snapshot-00142c9`, you must
+For example, if you want to use the `7.0.0-alpha2` version which depends on Lucene `8.0.0-snapshot-774e9aefbc`, you must
 define the following repository.
 
 For Maven:
@@ -90,7 +93,7 @@ For Maven:
 <repository>
     <id>elastic-lucene-snapshots</id>
     <name>Elastic Lucene Snapshots</name>
-    <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9</url>
+    <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/774e9aefbc</url>
     <releases><enabled>true</enabled></releases>
     <snapshots><enabled>false</enabled></snapshots>
 </repository>
@@ -101,7 +104,7 @@ For Gradle:
 ["source","groovy",subs="attributes"]
 --------------------------------------------------
 maven {
-    url 'http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9'
+    url 'http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/774e9aefbc'
 }
 --------------------------------------------------
 
@@ -123,21 +126,30 @@ to be built as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-init]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-init]
 --------------------------------------------------
 
 The high-level client will internally create the low-level client used to
-perform requests based on the provided builder, and manage its lifecycle.
-
-The high-level client instance needs to be closed when no longer needed so that
-all the resources used by it get properly released, as well as the underlying
-http client instance and its threads. This can be done through the `close`
-method, which will close the internal `RestClient` instance.
+perform requests based on the provided builder. That low-level client
+maintains a pool of connections and starts some threads so you should
+close the high-level client when you are well and truly done with
+it and it will in turn close the internal low-level client to free those
+resources. This can be done through the `close`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-close]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-close]
 --------------------------------------------------
 
 In the rest of this documentation about the Java High Level Client, the `RestHighLevelClient` instance
 will be referenced as `client`.
+
+[[java-rest-high-getting-started-request-options]]
+=== RequestOptions
+
+All APIs in the `RestHighLevelClient` accept a `RequestOptions` which you can
+use to customize the request in ways that won't change how Elasticsearch
+executes the request. For example, this is the place where you'd specify a
+`NodeSelector` to control which node receives the request. See the
+<<java-rest-low-usage-request-options,low level client documentation>> for
+more examples of customizing the options.

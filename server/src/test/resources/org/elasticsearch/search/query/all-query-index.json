@@ -1,0 +1,67 @@
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    }
+  },
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "f1": {"type": "text"},
+        "f2": {"type": "keyword"},
+        "f3": {"type": "text"},
+        "f3_alias": {
+          "type": "alias",
+          "path": "f3"
+        },
+        "f4": {
+          "type": "text",
+          "index_options": "docs"
+        },
+        "f_multi": {
+          "type": "text",
+          "fields": {
+            "raw": {"type": "keyword"}
+          }
+        },
+        "f_object": {
+          "type": "object",
+          "properties": {
+            "sub1": {"type": "text"},
+            "sub2": {"type": "keyword"},
+            "sub3": {"type": "integer"}
+          }
+        },
+        "f_nested": {
+          "type": "nested",
+          "properties": {
+            "nest1": {"type": "text"},
+            "nest2": {"type": "keyword"},
+            "nest3": {"type": "integer"}
+          }
+        },
+        "f_date": {
+          "type": "date",
+          "format": "yyyy/MM/dd||epoch_millis"
+        },
+        "f_bool": {"type": "boolean"},
+        "f_byte": {"type": "byte"},
+        "f_short": {"type": "short"},
+        "f_int": {"type": "integer"},
+        "f_long": {"type": "long"},
+        "f_float": {"type": "float"},
+        "f_hfloat": {"type": "half_float"},
+        "f_ip": {"type": "ip"},
+        "f_binary": {"type": "binary"},
+        "f_suggest": {"type": "completion"},
+        "f_geop": {"type": "geo_point"},
+        "f_geop_alias": {
+          "type": "alias",
+          "path": "f_geop"
+        },
+        "f_geos": {"type": "geo_shape"}
+      }
+    }
+  }
+}

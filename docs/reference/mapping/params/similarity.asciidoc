@@ -39,19 +39,13 @@ as follows:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "default_field": { <1>
-          "type": "text"
-        },
-        "classic_field": {
-          "type": "text",
-          "similarity": "classic" <2>
-        },
-        "boolean_sim_field": {
-          "type": "text",
-          "similarity": "boolean" <3>
-        }
+    "properties": {
+      "default_field": { <1>
+        "type": "text"
+      },
+      "boolean_sim_field": {
+        "type": "text",
+        "similarity": "boolean" <2>
       }
     }
   }
@@ -59,5 +53,4 @@ PUT my_index
 --------------------------------------------------
 // CONSOLE
 <1> The `default_field` uses the `BM25` similarity.
-<2> The `classic_field` uses the `classic` similarity (ie TF/IDF).
-<3> The `boolean_sim_field` uses the `boolean` similarity.
+<2> The `boolean_sim_field` uses the `boolean` similarity.

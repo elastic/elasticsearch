@@ -12,23 +12,21 @@
                             analyzer:
                                 my_analyzer:
                                     tokenizer:  standard
-                                    filter: ["standard", "lowercase", "my_metaphone"]
+                                    filter: ["lowercase", "my_metaphone"]
                             filter:
                                 my_metaphone:
                                     type: phonetic
                                     encoder: metaphone
                                     replace: false
                 mappings:
-                    type:
-                        properties:
-                            text:
-                                type:     text
-                                analyzer: my_analyzer
+                    properties:
+                        text:
+                            type:     text
+                            analyzer: my_analyzer
 
     - do:
         index:
             index:  phonetic_sample
-            type:   type
             id:     1
             body:   { "text": "hello world" }
     - do:
@@ -36,6 +34,7 @@
 
     - do:
         search:
+            rest_total_hits_as_int: true
             index: phonetic_sample
             body:
                 query:

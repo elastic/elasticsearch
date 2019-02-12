@@ -10,20 +10,18 @@ stored by default and is not searchable:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "name": {
-          "type": "text"
-        },
-        "blob": {
-          "type": "binary"
-        }
+    "properties": {
+      "name": {
+        "type": "text"
+      },
+      "blob": {
+        "type": "binary"
       }
     }
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "name": "Some binary blob",
   "blob": "U29tZSBiaW5hcnkgYmxvYg==" <1>
@@ -43,7 +41,7 @@ The following parameters are accepted by `binary` fields:
 
     Should the field be stored on disk in a column-stride fashion, so that it
     can later be used for sorting, aggregations, or scripting? Accepts `true`
-    (default) or `false`.
+    or `false` (default).
 
 <<mapping-store,`store`>>::
 

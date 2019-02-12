@@ -52,7 +52,7 @@ public class PSubNullSafeCallInvoke extends AExpression {
     void analyze(Locals locals) {
         guarded.analyze(locals);
         actual = guarded.actual;
-        if (actual.clazz.isPrimitive()) {
+        if (actual.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");
         }
     }

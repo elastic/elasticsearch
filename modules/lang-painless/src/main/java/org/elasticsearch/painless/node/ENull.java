@@ -19,15 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Set;
-
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a null constant.
@@ -52,13 +51,14 @@ public final class ENull extends AExpression {
         isNull = true;
 
         if (expected != null) {
-            if (expected.clazz.isPrimitive()) {
-                throw createError(new IllegalArgumentException("Cannot cast null to a primitive type [" + expected.name + "]."));
+            if (expected.isPrimitive()) {
+                throw createError(new IllegalArgumentException(
+                    "Cannot cast null to a primitive type [" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]."));
             }
 
             actual = expected;
         } else {
-            actual = locals.getDefinition().ObjectType;
+            actual = Object.class;
         }
     }
 

@@ -1,0 +1,13 @@
+---
+"Test watcher settings filter is applied":
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+
+  - do:
+      nodes.info:
+        metric: settings
+  - is_true: nodes.$master.settings.xpack.notification.email.account._email.smtp.host
+  - is_true: nodes.$master.settings.xpack.notification.email.account._email.smtp.port
+  - is_true: nodes.$master.settings.xpack.notification.email.account._email.smtp.user
+  - is_false: nodes.$master.settings.xpack.notification.email.account._email.smtp.password

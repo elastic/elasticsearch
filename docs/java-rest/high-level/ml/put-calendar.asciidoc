@@ -1,0 +1,35 @@
+--
+:api: put-calendar
+:request: PutCalendarRequest
+:response: PutCalendarResponse
+--
+[id="{upid}-{api}"]
+=== Put Calendar API
+Creates a new {ml} calendar.
+The API accepts a +{request}+ and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Put Calendar Request
+
+A +{request}+ is constructed with a Calendar object
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Create a request with the given Calendar
+
+
+[id="{upid}-{api}-response"]
+==== Put Calendar Response
+
+The returned +{response}+ contains the created Calendar:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The created Calendar
+
+include::../execution.asciidoc[]

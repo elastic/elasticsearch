@@ -1,0 +1,11 @@
+# This LDAP connection does group lookup by a subtree search, no role mapping
+ldap:
+  urls:
+    - ldap://ldap.example.com:1389
+  userDnTemplate: "cn={0},ou=people,o=superheros"
+  groupSearch:
+    isSubtreeSearch: "true"
+    baseDn: "ou=marvel,o=superheros"
+  # no dnToRoleMapping mapping implies that the group name will be used directly as the ES role name
+
+

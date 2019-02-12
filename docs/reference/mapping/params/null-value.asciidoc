@@ -13,23 +13,21 @@ the specified value so that it can be indexed and searched.  For instance:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "status_code": {
-          "type":       "keyword",
-          "null_value": "NULL" <1>
-        }
+    "properties": {
+      "status_code": {
+        "type":       "keyword",
+        "null_value": "NULL" <1>
       }
     }
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "status_code": null
 }
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 {
   "status_code": [] <2>
 }
@@ -50,3 +48,6 @@ GET my_index/_search
 
 IMPORTANT: The `null_value` needs to be the same datatype as the field.  For
 instance, a `long` field cannot have a string `null_value`.
+
+NOTE: The `null_value` only influences how data is indexed, it doesn't modify
+the `_source` document.

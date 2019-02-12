@@ -1,0 +1,81 @@
+[[java-rest-high-multi-search-template]]
+=== Multi-Search-Template API
+
+The `multiSearchTemplate` API executes multiple <<java-rest-high-search-template,`search template`>>
+requests in a single http request in parallel.
+
+[[java-rest-high-multi-search-template-request]]
+==== Multi-Search-Template Request
+
+The `MultiSearchTemplateRequest` is built empty and you add all of the searches that
+you wish to execute to it:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-template-request-inline]
+--------------------------------------------------
+<1> Create an empty `MultiSearchTemplateRequest`.
+<2> Create one or more `SearchTemplateRequest` objects and populate them just like you
+would for a regular <<java-rest-high-search-template,`search template`>>.
+<3> Add the `SearchTemplateRequest` to the `MultiSearchTemplateRequest`.
+
+===== Optional arguments
+
+The multiSearchTemplate's `max_concurrent_searches` request parameter can be used to control
+the maximum number of concurrent searches the multi search api will execute.
+This default is based on the number of data nodes and the default search thread pool size.
+
+[[java-rest-high-multi-search-template-sync]]
+==== Synchronous Execution
+
+The `multiSearchTemplate` method executes `MultiSearchTemplateRequest`s synchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-template-request-sync]
+--------------------------------------------------
+
+[[java-rest-high-multi-search-template-async]]
+==== Asynchronous Execution
+
+The `multiSearchTemplateAsync` method executes `MultiSearchTemplateRequest`s asynchronously,
+calling the provided `ActionListener` when the response is ready.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-template-execute-async]
+--------------------------------------------------
+The parameters are the `MultiSearchTemplateRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `MultiSearchTemplateResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-template-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed.
+<2> Called when the whole `MultiSearchTemplateRequest` fails.
+
+==== MultiSearchTemplateResponse
+
+The `MultiSearchTemplateResponse` that is returned by executing the `multiSearchTemplate` method contains
+a `MultiSearchTemplateResponse.Item` for each `SearchTemplateRequest` in the
+`MultiSearchTemplateRequest`. Each `MultiSearchTemplateResponse.Item` contains an
+exception in `getFailure` if the request failed or a
+<<java-rest-high-search-response,`SearchResponse`>> in `getResponse` if
+the request succeeded:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-template-response]
+--------------------------------------------------
+<1> An array of responses is returned - one response for each request
+<2> Failed search template requests have error messages
+<3> Successful requests contain a <<java-rest-high-search-response,`SearchResponse`>> in
+`getResponse`.

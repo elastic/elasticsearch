@@ -28,7 +28,7 @@ This client provides:
 
 * Logging support via Log::Any
 
-* Compatibility with the official clients for Python, Ruby, PHP and Javascript
+* Compatibility with the official clients for Python, Ruby, PHP and JavaScript
 
 * Easy extensibility
 
@@ -115,7 +115,7 @@ https://github.com/elastic/elasticsearch-perl/blob/master/CONTRIBUTING.asciidoc[
 
 == Copyright and License
 
-This software is Copyright (c) 2013-2016 by Elasticsearch BV.
+This software is Copyright (c) 2013-2018 by Elasticsearch BV.
 
 This is free software, licensed under:
 https://github.com/elastic/elasticsearch-perl/blob/master/LICENSE.txt[The Apache License Version 2.0].

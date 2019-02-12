@@ -3,6 +3,9 @@
 # Check plugin is installed
 #
 "Plugin loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 
@@ -12,7 +15,7 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: repository-hdfs  }
+    - contains:  { nodes.$master.plugins: { name: repository-hdfs } }
 ---
 #
 # Check that we can't use file:// repositories or anything like that

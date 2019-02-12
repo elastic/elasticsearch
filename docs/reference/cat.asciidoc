@@ -9,8 +9,8 @@
 
 JSON is great... for computers.  Even if it's pretty-printed, trying
 to find relationships in the data is tedious.  Human eyes, especially
-when looking at an ssh terminal, need compact and aligned text.  The
-cat API aims to meet this need.
+when looking at a terminal, need compact and aligned text.  The cat API
+aims to meet this need.
 
 All the cat commands accept a query string parameter `help` to see all
 the headers and info they provide, and the `/_cat` command alone lists all
@@ -55,7 +55,7 @@ GET /_cat/master?help
 --------------------------------------------------
 // CONSOLE
 
-Might respond respond with:
+Might respond with:
 
 [source,txt]
 --------------------------------------------------
@@ -65,6 +65,11 @@ ip   |   | ip address
 node | n | node name
 --------------------------------------------------
 // TESTRESPONSE[s/[|]/[|]/ _cat]
+
+NOTE: `help` is not supported if any optional url parameter is used.
+For example `GET _cat/shards/twitter?help` or `GET _cat/indices/twi*?help`
+results in an error. Use `GET _cat/shards?help` or `GET _cat/indices?help`
+instead.
 
 [float]
 [[headers]]
@@ -88,8 +93,8 @@ Responds with:
 // TESTRESPONSE[s/9300 27 sLBaIGK/\\d+ \\d+ .+/ _cat]
 
 You can also request multiple columns using simple wildcards like
-`/_cat/thread_pool?h=ip,bulk.*` to get all headers (or aliases) starting
-with `bulk.`.
+`/_cat/thread_pool?h=ip,queue*` to get all headers (or aliases) starting
+with `queue`.
 
 [float]
 [[numeric-formats]]

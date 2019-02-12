@@ -1,9 +1,5 @@
 ---
 setup:
-  - skip:
-      version: " - 5.3.99"
-      reason: typed_keys parameter was added in 5.4.0
-
   - do:
       indices.create:
         index: test-0
@@ -11,18 +7,17 @@ setup:
           settings:
             number_of_replicas: 0
           mappings:
-            user:
-              properties:
-                index_start_at:
-                   type: integer
-                integer:
-                   type: integer
-                float:
-                   type: float
-                name:
-                   type: keyword
-                title:
-                   type: completion
+            properties:
+              index_start_at:
+                 type: integer
+              integer:
+                 type: integer
+              float:
+                 type: float
+              name:
+                 type: keyword
+              title:
+                 type: completion
 
   - do:
       indices.create:
@@ -31,38 +26,38 @@ setup:
           settings:
             number_of_replicas: 0
           mappings:
-            user:
-              properties:
-                index_start_at:
-                   type: integer
-                integer:
-                   type: integer
-                float:
-                   type: float
-                name:
-                   type: keyword
-                title:
-                   type: completion
+            properties:
+              index_start_at:
+                 type: integer
+              integer:
+                 type: integer
+              float:
+                 type: float
+              name:
+                 type: keyword
+              title:
+                 type: completion
 
   - do:
      bulk:
         refresh: true
         body:
-          - '{"index": {"_index": "test-0", "_type": "user"}}'
+          - '{"index": {"_index": "test-0"}}'
           - '{"row": 1, "index_start_at": 56, "integer": 38, "float": 12.5713, "name": "Ruth", "bool": true, "title": "doctor"}'
-          - '{"index": {"_index": "test-0", "_type": "user"}}'
+          - '{"index": {"_index": "test-0"}}'
           - '{"row": 2, "index_start_at": 57, "integer": 42, "float": 15.3393, "name": "Jackie", "bool": false}'
-          - '{"index": {"_index": "test-1", "_type": "user"}}'
+          - '{"index": {"_index": "test-1"}}'
           - '{"row": 3, "index_start_at": 58, "integer": 29, "float": 19.0517, "name": "Stephanie", "bool": true}'
-          - '{"index": {"_index": "test-1", "_type": "user"}}'
+          - '{"index": {"_index": "test-1"}}'
           - '{"row": 4, "index_start_at": 59, "integer": 19, "float": 19.3717, "bool": true, "title": "commandant"}'
-          - '{"index": {"_index": "test-1", "_type": "user"}}'
+          - '{"index": {"_index": "test-1"}}'
           - '{"row": 5, "index_start_at": 60, "integer": 0, "float": 17.3349, "name": "Natalie", "bool": false}'
 
 ---
 "Multisearch test with typed_keys parameter":
   - do:
       msearch:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           # Testing aggegrations
@@ -97,6 +92,7 @@ setup:
 "Multisearch test with typed_keys parameter for sampler and significant terms":
   - do:
       msearch:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           - index: test-*

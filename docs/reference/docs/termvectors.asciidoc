@@ -8,7 +8,7 @@ realtime. This can be changed by setting `realtime` parameter to `false`.
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/1/_termvectors
+GET /twitter/_termvectors/1
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -18,7 +18,7 @@ retrieved either with a parameter in the url
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/1/_termvectors?fields=message
+GET /twitter/_termvectors/1?fields=message
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -26,9 +26,6 @@ GET /twitter/tweet/1/_termvectors?fields=message
 or by adding the requested fields in the request body (see
 example below). Fields can also be specified with wildcards
 in similar way to the <<query-dsl-multi-match-query,multi match query>>
-
-[WARNING]
-Note that the usage of `/_termvector` is deprecated in 2.0, and replaced by `/_termvectors`.
 
 [float]
 === Return values
@@ -128,21 +125,19 @@ First, we create an index that stores term vectors, payloads etc. :
 
 [source,js]
 --------------------------------------------------
-PUT /twitter/
+PUT /twitter
 { "mappings": {
-    "tweet": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "term_vector": "with_positions_offsets_payloads",
-          "store" : true,
-          "analyzer" : "fulltext_analyzer"
-         },
-         "fullname": {
-          "type": "text",
-          "term_vector": "with_positions_offsets_payloads",
-          "analyzer" : "fulltext_analyzer"
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "term_vector": "with_positions_offsets_payloads",
+        "store" : true,
+        "analyzer" : "fulltext_analyzer"
+       },
+       "fullname": {
+        "type": "text",
+        "term_vector": "with_positions_offsets_payloads",
+        "analyzer" : "fulltext_analyzer"
       }
     }
   },
@@ -172,13 +167,13 @@ Second, we add some documents:
 
 [source,js]
 --------------------------------------------------
-PUT /twitter/tweet/1
+PUT /twitter/_doc/1
 {
   "fullname" : "John Doe",
   "text" : "twitter test test test "
 }
 
-PUT /twitter/tweet/2
+PUT /twitter/_doc/2
 {
   "fullname" : "Jane Doe",
   "text" : "Another twitter test ..."
@@ -192,7 +187,7 @@ The following request returns all information and statistics for field
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/1/_termvectors
+GET /twitter/_termvectors/1
 {
   "fields" : ["text"],
   "offsets" : true,
@@ -212,7 +207,7 @@ Response:
 {
     "_id": "1",
     "_index": "twitter",
-    "_type": "tweet",
+    "_type": "_doc",
     "_version": 1,
     "found": true,
     "took": 6,
@@ -280,7 +275,7 @@ Note that for the field `text`, the terms are not re-generated.
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/1/_termvectors
+GET /twitter/_termvectors/1
 {
   "fields" : ["text", "some_field_without_term_vectors"],
   "offsets" : true,
@@ -298,15 +293,14 @@ GET /twitter/tweet/1/_termvectors
 
 Term vectors can also be generated for artificial documents,
 that is for documents not present in the index.  For example, the following request would
-return the same results as in example 1. The mapping used is determined by the
-`index` and `type`.
+return the same results as in example 1. The mapping used is determined by the `index`.
 
 *If dynamic mapping is turned on (default), the document fields not in the original
 mapping will be dynamically created.*
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_termvectors
+GET /twitter/_termvectors
 {
   "doc" : {
     "fullname" : "John Doe",
@@ -329,7 +323,7 @@ vectors, the term vectors will be re-generated.
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_termvectors
+GET /twitter/_termvectors
 {
   "doc" : {
     "fullname" : "John Doe",
@@ -350,7 +344,7 @@ Response:
 --------------------------------------------------
 {
   "_index": "twitter",
-  "_type": "tweet",
+  "_type": "_doc",
   "_version": 0,
   "found": true,
   "took": 6,
@@ -396,7 +390,7 @@ their tf-idf must be too low.
 
 [source,js]
 --------------------------------------------------
-GET /imdb/movies/_termvectors
+GET /imdb/_termvectors
 {
     "doc": {
       "plot": "When wealthy industrialist Tony Stark is forced to build an armored suit after a life-threatening incident, he ultimately decides to use its technology to fight against evil."
@@ -421,7 +415,7 @@ Response:
 --------------------------------------------------
 {
    "_index": "imdb",
-   "_type": "movies",
+   "_type": "_doc",
    "_version": 0,
    "found": true,
    "term_vectors": {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -163,7 +162,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         String routing = String.valueOf(randomIntBetween(2, docs));
 
         logger.info("--> counting documents with routing [{}]", routing);
-        long expected = client().prepareSearch().setSize(0).setRouting(routing).get().getHits().getTotalHits();
+        long expected = client().prepareSearch().setSize(0).setRouting(routing).get().getHits().getTotalHits().value;
 
         logger.info("--> delete all documents with routing [{}] with a delete-by-query", routing);
         DeleteByQueryRequestBuilder delete = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery());
@@ -307,25 +306,4 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
     }
 
-    /**
-     * Test delete by query support for filtering by type. This entire feature
-     * can and should be removed when we drop support for types index with
-     * multiple types from core.
-     */
-    public void testFilterByType() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))); // allows for multiple types
-        indexRandom(true,
-                client().prepareIndex("test", "test1", "1").setSource("foo", "a"),
-                client().prepareIndex("test", "test2", "2").setSource("foo", "a"),
-                client().prepareIndex("test", "test2", "3").setSource("foo", "b"));
-
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 3);
-
-        // Deletes doc of the type "type2" that also matches foo:a
-        DeleteByQueryRequestBuilder builder = deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true);
-        builder.source().setTypes("test2");
-        assertThat(builder.get(), matcher().deleted(1));
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 2);
-    }
 }

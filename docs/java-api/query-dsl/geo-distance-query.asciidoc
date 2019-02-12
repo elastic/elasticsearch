@@ -5,7 +5,7 @@ See {ref}/query-dsl-geo-distance-query.html[Geo Distance Query]
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{query-dsl-test}[geo_bounding_box]
+include-tagged::{query-dsl-test}[geo_distance]
 --------------------------------------------------
 <1> field
 <2> center point

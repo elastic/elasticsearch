@@ -21,56 +21,30 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchTemplateAction extends BaseRestHandler {
+    public static final String TYPED_KEYS_PARAM = "typed_keys";
+    private static final Set<String> RESPONSE_PARAMS;
 
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton(RestSearchAction.TYPED_KEYS_PARAM);
-
-    private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
     static {
-        PARSER = new ObjectParser<>("search_template");
-        PARSER.declareField((parser, request, s) ->
-                        request.setScriptParams(parser.map())
-                , new ParseField("params"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareString((request, s) -> {
-            request.setScriptType(ScriptType.STORED);
-            request.setScript(s);
-        }, new ParseField("id"));
-        PARSER.declareBoolean(SearchTemplateRequest::setExplain, new ParseField("explain"));
-        PARSER.declareBoolean(SearchTemplateRequest::setProfile, new ParseField("profile"));
-        PARSER.declareField((parser, request, value) -> {
-            request.setScriptType(ScriptType.INLINE);
-            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                //convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    request.setScript(builder.copyCurrentStructure(parser).string());
-                } catch (IOException e) {
-                    throw new ParsingException(parser.getTokenLocation(), "Could not parse inline template", e);
-                }
-            } else {
-                request.setScript(parser.text());
-            }
-        }, new ParseField("source", "inline", "template"), ObjectParser.ValueType.OBJECT_OR_STRING);
+        final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM));
+        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
     public RestSearchTemplateAction(Settings settings, RestController controller) {
@@ -80,6 +54,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_search/template", this);
         controller.registerHandler(GET, "/{index}/_search/template", this);
         controller.registerHandler(POST, "/{index}/_search/template", this);
+
+        // Deprecated typed endpoints.
         controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
         controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
     }
@@ -98,15 +74,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            searchTemplateRequest = PARSER.parse(parser, new SearchTemplateRequest(), null);
+            searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
         searchTemplateRequest.setRequest(searchRequest);
+        RestSearchAction.checkRestTotalHits(request, searchRequest);
 
         return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
-    }
-
-    public static SearchTemplateRequest parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new SearchTemplateRequest(), null);
     }
 
     @Override

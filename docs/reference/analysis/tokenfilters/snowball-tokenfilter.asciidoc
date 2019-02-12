@@ -19,7 +19,7 @@ PUT /my_index
             "analyzer" : {
                 "my_analyzer" : {
                     "tokenizer" : "standard",
-                    "filter" : ["standard", "lowercase", "my_snow"]
+                    "filter" : ["lowercase", "my_snow"]
                 }
             },
             "filter" : {

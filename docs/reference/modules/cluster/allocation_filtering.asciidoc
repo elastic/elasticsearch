@@ -1,13 +1,37 @@
 [[allocation-filtering]]
-=== Shard Allocation Filtering
+=== Cluster-level shard allocation filtering
 
-While <<index-modules-allocation>> provides *per-index* settings to control the
-allocation of shards to nodes, cluster-level shard allocation filtering allows
-you to allow or disallow the allocation of shards from *any* index to
-particular nodes.
+You can use cluster-level shard allocation filters to control where {es}
+allocates shards from any index. These cluster wide filters are applied in
+conjunction with <<shard-allocation-filtering, per-index allocation filtering>>
+and <<allocation-awareness, allocation awareness>>.
 
-The available _dynamic_ cluster settings are as follows, where `{attribute}`
-refers to an arbitrary node attribute.:
+Shard allocation filters can be based on custom node attributes or the built-in
+`_name`, `_ip`, and `_host` attributes.
+
+The `cluster.routing.allocation` settings are dynamic, enabling live indices to
+be moved from one set of nodes to another. Shards are only relocated if it is
+possible to do so without breaking another routing constraint, such as never
+allocating a primary and replica shard on the same node.
+
+The most common use case for cluster-level shard allocation filtering is when
+you want to decommission a node. To move shards off of a node prior to shutting
+it down, you could create a filter that excludes the node by its IP address:
+
+[source,js]
+--------------------------------------------------
+PUT _cluster/settings
+{
+  "transient" : {
+    "cluster.routing.allocation.exclude._ip" : "10.0.0.1"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
+[[cluster-routing-settings]]
+==== Cluster routing settings
 
 `cluster.routing.allocation.include.{attribute}`::
 
@@ -21,39 +45,17 @@ refers to an arbitrary node attribute.:
 
 `cluster.routing.allocation.exclude.{attribute}`::
 
-    Do not allocate shards to a node whose `{attribute}` has _none_ of the
+    Do not allocate shards to a node whose `{attribute}` has _any_ of the
     comma-separated values.
 
-These special attributes are also supported:
+The cluster allocation settings support the following built-in attributes:
 
 [horizontal]
 `_name`::   Match nodes by node names
 `_ip`::     Match nodes by IP addresses (the IP address associated with the hostname)
 `_host`::   Match nodes by hostnames
 
-The typical use case for cluster-wide shard allocation filtering is when you
-want to decommission a node, and you would like to move the shards from that
-node to other nodes in the cluster before shutting it down.
-
-For instance, we could decommission a node using its IP address as follows:
-
-[source,js]
---------------------------------------------------
-PUT _cluster/settings
-{
-  "transient" : {
-    "cluster.routing.allocation.exclude._ip" : "10.0.0.1"
-  }
-}
---------------------------------------------------
-// CONSOLE
-
-NOTE: Shards will only be relocated if it is possible to do so without
-breaking another routing constraint, such as never allocating a primary and
-replica shard to the same node.
-
-In addition to listing multiple values as a comma-separated list, all
-attribute values can be specified with wildcards, eg:
+You can use wildcards when specifying attribute values, for example:
 
 [source,js]
 ------------------------
@@ -65,4 +67,3 @@ PUT _cluster/settings
 }
 ------------------------
 // CONSOLE
-// TEST[skip:indexes don't assign]

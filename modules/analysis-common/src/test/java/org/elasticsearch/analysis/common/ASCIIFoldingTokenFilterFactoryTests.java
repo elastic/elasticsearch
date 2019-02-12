@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
@@ -64,11 +63,9 @@ public class ASCIIFoldingTokenFilterFactoryTests extends ESTokenStreamTestCase {
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
 
         // but the multi-term aware component still emits a single token
-        tokenFilter = (TokenFilterFactory) ((MultiTermAwareComponent) tokenFilter)
-                .getMultiTermComponent();
         tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(source));
         expected = new String[]{"Anspruche"};
-        assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
+        assertTokenStreamContents(tokenFilter.normalize(tokenizer), expected);
     }
 }

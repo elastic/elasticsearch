@@ -33,7 +33,7 @@ index :
         version: 3.6
       czechAnalyzerWithStemmer :
         tokenizer : standard
-        filter : [standard, lowercase, stop, czech_stem]
+        filter : [lowercase, stop, czech_stem]
       decompoundingAnalyzer :
         tokenizer : standard
         filter : [dict_dec]

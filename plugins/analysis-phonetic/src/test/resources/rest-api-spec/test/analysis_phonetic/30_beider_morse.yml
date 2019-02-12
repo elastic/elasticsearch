@@ -13,7 +13,7 @@
                             analyzer:
                                 my_analyzer:
                                     tokenizer:  standard
-                                    filter: ["standard", "lowercase", "beider_morse"]
+                                    filter: ["lowercase", "beider_morse"]
                             filter:
                                 beider_morse:
                                     type: phonetic

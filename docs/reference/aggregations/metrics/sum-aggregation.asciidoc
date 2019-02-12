@@ -40,7 +40,7 @@ Resulting in:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-The name of the aggregation (`intraday_return` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
+The name of the aggregation (`hat_prices` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
 ==== Script
 

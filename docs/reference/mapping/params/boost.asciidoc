@@ -9,15 +9,13 @@ Individual fields can be _boosted_ automatically -- count more towards the relev
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "title": {
-          "type": "text",
-          "boost": 2 <1>
-        },
-        "content": {
-          "type": "text"
-        }
+    "properties": {
+      "title": {
+        "type": "text",
+        "boost": 2 <1>
+      },
+      "content": {
+        "type": "text"
       }
     }
   }

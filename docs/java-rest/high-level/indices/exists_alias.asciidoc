@@ -1,0 +1,58 @@
+--
+:api: exists-alias
+:request: GetAliasesRequest
+:response: Boolean
+--
+
+[id="{upid}-{api}"]
+=== Exists Alias API
+
+[id="{upid}-{api}-request"]
+==== Exists Alias Request
+
+The Exists Alias API uses +{request}+ as its request object.
+One or more aliases can be optionally provided either at construction
+time or later on through the relevant setter method.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-alias]
+--------------------------------------------------
+<1> One or more aliases to look for
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indices]
+--------------------------------------------------
+<1> The index or indices that the alias is associated with
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-local]
+--------------------------------------------------
+<1> The `local` flag (defaults to `false`) controls whether the aliases need
+to be looked up in the local cluster state or in the cluster state held by
+the elected master node
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Exists Alias Response
+
+The Exists Alias API returns a +{response}+ that indicates whether the provided
+alias (or aliases) was found or not.

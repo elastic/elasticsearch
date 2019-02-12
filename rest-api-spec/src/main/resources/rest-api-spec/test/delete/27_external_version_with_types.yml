@@ -1,0 +1,32 @@
+---
+"External version":
+
+ - do:
+      index:
+          index:          test_1
+          type:           test
+          id:             1
+          body:           { foo: bar }
+          version_type:   external
+          version:        5
+
+ - match:   { _version: 5}
+
+ - do:
+      catch:             conflict
+      delete:
+          index:          test_1
+          type:           test
+          id:             1
+          version_type:   external
+          version:        4
+
+ - do:
+      delete:
+          index:          test_1
+          type:           test
+          id:             1
+          version_type:   external
+          version:        6
+
+ - match:   { _version: 6}

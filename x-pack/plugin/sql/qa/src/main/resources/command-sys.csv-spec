@@ -1,0 +1,11 @@
+//
+// Sys Commands
+//
+
+sysTableTypes
+SYS TABLE TYPES;
+
+    TABLE_TYPE:s
+BASE TABLE
+VIEW
+;

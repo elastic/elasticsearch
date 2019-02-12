@@ -21,24 +21,23 @@ package org.elasticsearch.repositories.hdfs;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
+import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -69,58 +68,68 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
-        if (!blobExists(blobName)) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+        try {
+            if (store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true)) == false) {
+                throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+            }
+        } catch (FileNotFoundException fnfe) {
+            throw new NoSuchFileException("[" + blobName + "] blob not found");
         }
-
-        store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true));
     }
 
     @Override
-    public void move(String sourceBlobName, String targetBlobName) throws IOException {
+    public InputStream readBlob(String blobName) throws IOException {
+        // FSDataInputStream does buffering internally
+        // FSDataInputStream can open connections on read() or skip() so we wrap in
+        // HDFSPrivilegedInputSteam which will ensure that underlying methods will
+        // be called with the proper privileges.
+        try {
+            return store.execute(fileContext ->
+                new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize), securityContext)
+            );
+        } catch (FileNotFoundException fnfe) {
+            throw new NoSuchFileException("[" + blobName + "] blob not found");
+        }
+    }
+
+    @Override
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         store.execute((Operation<Void>) fileContext -> {
-            fileContext.rename(new Path(path, sourceBlobName), new Path(path, targetBlobName));
+            Path blob = new Path(path, blobName);
+            // we pass CREATE, which means it fails if a blob already exists.
+            EnumSet<CreateFlag> flags = failIfAlreadyExists ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
+                : EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
+            try (FSDataOutputStream stream = fileContext.create(blob, flags, CreateOpts.bufferSize(bufferSize))) {
+                int bytesRead;
+                byte[] buffer = new byte[bufferSize];
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    stream.write(buffer, 0, bytesRead);
+                }
+            } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
+                throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
+            }
             return null;
         });
     }
 
     @Override
-    public InputStream readBlob(String blobName) throws IOException {
-        if (!blobExists(blobName)) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-        }
-        // FSDataInputStream does buffering internally
-        // FSDataInputStream can open connections on read() or skip() so we wrap in
-        // HDFSPrivilegedInputSteam which will ensure that underlying methods will
-        // be called with the proper privileges.
-        return store.execute(fileContext ->
-            new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize), securityContext)
-        );
-    }
-
-    @Override
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        if (blobExists(blobName)) {
-            throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
-        }
+    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        final String tempBlob = FsBlobContainer.tempBlobName(blobName);
         store.execute((Operation<Void>) fileContext -> {
-            Path blob = new Path(path, blobName);
-            // we pass CREATE, which means it fails if a blob already exists.
-            // NOTE: this behavior differs from FSBlobContainer, which passes TRUNCATE_EXISTING
-            // that should be fixed there, no need to bring truncation into this, give the user an error.
-            EnumSet<CreateFlag> flags = EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK);
-            CreateOpts[] opts = {CreateOpts.bufferSize(bufferSize)};
-            try (FSDataOutputStream stream = fileContext.create(blob, flags, opts)) {
+            final Path tempBlobPath = new Path(path, tempBlob);
+            try (FSDataOutputStream stream = fileContext.create(
+                tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK),  CreateOpts.bufferSize(bufferSize))) {
                 int bytesRead;
                 byte[] buffer = new byte[bufferSize];
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
                     stream.write(buffer, 0, bytesRead);
-                    //  For safety we also hsync each write as well, because of its docs:
-                    //  SYNC_BLOCK - to force closed blocks to the disk device
-                    // "In addition Syncable.hsync() should be called after each write,
-                    //  if true synchronous behavior is required"
-                    stream.hsync();
                 }
+            }
+            final Path blob = new Path(path, blobName);
+            try {
+                fileContext.rename(tempBlobPath, blob, failIfAlreadyExists ? Options.Rename.NONE : Options.Rename.OVERWRITE);
+            } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
+                throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
             }
             return null;
         });
@@ -157,39 +166,30 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         }
 
         public int read() throws IOException {
-            return doPrivilegedOrThrow(in::read);
+            return securityContext.doPrivilegedOrThrow(in::read);
         }
 
         public int read(byte b[]) throws IOException {
-            return doPrivilegedOrThrow(() -> in.read(b));
+            return securityContext.doPrivilegedOrThrow(() -> in.read(b));
         }
 
         public int read(byte b[], int off, int len) throws IOException {
-            return doPrivilegedOrThrow(() -> in.read(b, off, len));
+            return securityContext.doPrivilegedOrThrow(() -> in.read(b, off, len));
         }
 
         public long skip(long n) throws IOException {
-            return doPrivilegedOrThrow(() -> in.skip(n));
+            return securityContext.doPrivilegedOrThrow(() -> in.skip(n));
         }
 
         public int available() throws IOException {
-            return doPrivilegedOrThrow(() -> in.available());
+            return securityContext.doPrivilegedOrThrow(() -> in.available());
         }
 
         public synchronized void reset() throws IOException {
-            doPrivilegedOrThrow(() -> {
+            securityContext.doPrivilegedOrThrow(() -> {
                 in.reset();
                 return null;
             });
-        }
-
-        private <T> T doPrivilegedOrThrow(PrivilegedExceptionAction<T> action) throws IOException {
-            SpecialPermission.check();
-            try {
-                return AccessController.doPrivileged(action, null, securityContext.getRestrictedExecutionPermissions());
-            } catch (PrivilegedActionException e) {
-                throw (IOException) e.getCause();
-            }
         }
     }
 }

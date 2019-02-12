@@ -1,0 +1,75 @@
+--
+:api: put-mapping
+:request: PutMappingRequest
+:response: PutMappingResponse
+--
+
+[id="{upid}-{api}"]
+=== Put Mapping API
+
+[id="{upid}-{api}-request"]
+==== Put Mapping Request
+
+A +{request}+ requires an `index` argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The index to add the mapping to
+
+==== Mapping source
+A description of the fields to create on the mapping; if not defined, the mapping will default to empty.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-source]
+--------------------------------------------------
+<1> Mapping source provided as a `String`
+
+==== Providing the mapping source
+The mapping source can be provided in different ways in addition to
+the `String` example shown above:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-map]
+--------------------------------------------------
+<1> Mapping source provided as a `Map` which gets automatically converted
+to JSON format
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-xcontent]
+--------------------------------------------------
+<1> Mapping source provided as an `XContentBuilder` object, the Elasticsearch
+built-in helpers to generate JSON content
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the index creation as a `TimeValue`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Put Mapping Response
+
+The returned +{response}+ allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request

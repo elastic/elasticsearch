@@ -19,15 +19,12 @@
 
 package org.elasticsearch.bootstrap;
 
-import java.util.Map;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasKey;
 
 public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
 

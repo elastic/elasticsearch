@@ -20,17 +20,15 @@ For example:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "is_published": {
-          "type": "boolean"
-        }
+    "properties": {
+      "is_published": {
+        "type": "boolean"
       }
     }
   }
 }
 
-POST my_index/my_type/1
+POST my_index/_doc/1
 {
   "is_published": "true" <1>
 }
@@ -55,12 +53,12 @@ return `1` and `0`:
 
 [source,js]
 --------------------------------------------------
-POST my_index/my_type/1
+POST my_index/_doc/1
 {
   "is_published": true
 }
 
-POST my_index/my_type/2
+POST my_index/_doc/2
 {
   "is_published": false
 }

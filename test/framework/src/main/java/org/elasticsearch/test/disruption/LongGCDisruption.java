@@ -72,7 +72,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
                 assert isDisruptedNodeThread(currentThreadName) == false :
                     "current thread match pattern. thread name: " + currentThreadName + ", node: " + disruptedNode;
                 // we spawn a background thread to protect against deadlock which can happen
-                // if there are shared resources between caller thread and and suspended threads
+                // if there are shared resources between caller thread and suspended threads
                 // see unsafeClasses to how to avoid that
                 final AtomicReference<Exception> suspendingError = new AtomicReference<>();
                 final Thread suspendingThread = new Thread(new AbstractRunnable() {
@@ -103,8 +103,14 @@ public class LongGCDisruption extends SingleNodeDisruption {
                     throw new RuntimeException("unknown error while suspending threads", suspendingError.get());
                 }
                 if (suspendingThread.isAlive()) {
-                    logger.warn("failed to suspend node [{}]'s threads within [{}] millis. Suspending thread stack trace:\n {}"
-                        , disruptedNode, getSuspendingTimeoutInMillis(), stackTrace(suspendingThread.getStackTrace()));
+                    logger.warn(
+                        "failed to suspend node [{}]'s threads within [{}] millis. Suspending thread stack trace:\n {}" +
+                            "\nThreads that weren't suspended:\n {}"
+                        , disruptedNode, getSuspendingTimeoutInMillis(), stackTrace(suspendingThread.getStackTrace()),
+                        suspendedThreads.stream()
+                            .map(t -> t.getName() + "\n----\n" + stackTrace(t.getStackTrace()))
+                            .collect(Collectors.joining("\n"))
+                    );
                     suspendingThread.interrupt(); // best effort;
                     try {
                         /*

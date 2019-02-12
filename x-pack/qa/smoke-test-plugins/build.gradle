@@ -1,0 +1,41 @@
+import org.elasticsearch.gradle.MavenFilteringHack
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+}
+
+ext.pluginsCount = 0
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+  // need to get a non-decorated project object, so must re-lookup the project by path
+  integTestCluster.plugin(pluginProject.path)
+  pluginsCount += 1
+}
+
+integTestCluster {
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setupCommand 'setupDummyUser',
+               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+            dest: tmpFile.toString(),
+            username: 'test_user',
+            password: 'x-pack-test-password',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+  }
+}
+
+ext.expansions = [
+  'expected.plugins.count': pluginsCount
+]
+
+processTestResources {
+  inputs.properties(expansions)
+  MavenFilteringHack.filter(it, expansions)
+}

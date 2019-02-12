@@ -19,41 +19,42 @@
 package org.elasticsearch.http;
 
 import org.apache.http.HttpHeaders;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 
 public class HttpCompressionIT extends ESRestTestCase {
     private static final String GZIP_ENCODING = "gzip";
 
-    private static final StringEntity SAMPLE_DOCUMENT = new StringEntity("{\n" +
+    private static final String SAMPLE_DOCUMENT = "{\n" +
         "   \"name\": {\n" +
         "      \"first name\": \"Steve\",\n" +
         "      \"last name\": \"Jobs\"\n" +
         "   }\n" +
-        "}", ContentType.APPLICATION_JSON);
+        "}";
 
 
     public void testCompressesResponseIfRequested() throws IOException {
-        RestClient client = client();
-        Response response = client.performRequest("GET", "/", new BasicHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING));
+        Request request = new Request("GET", "/");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING);
+        request.setOptions(options);
+        Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(GZIP_ENCODING, response.getHeader(HttpHeaders.CONTENT_ENCODING));
     }
 
     public void testUncompressedResponseByDefault() throws IOException {
-        RestClient client = client();
-        Response response = client.performRequest("GET", "/");
+        Response response = client().performRequest(new Request("GET", "/"));
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
 
-        response = client.performRequest("POST", "/company/employees/1", Collections.emptyMap(), SAMPLE_DOCUMENT);
+        Request request = new Request("POST", "/company/_doc/1");
+        request.setJsonEntity(SAMPLE_DOCUMENT);
+        response = client().performRequest(request);
         assertEquals(201, response.getStatusLine().getStatusCode());
         assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
     }

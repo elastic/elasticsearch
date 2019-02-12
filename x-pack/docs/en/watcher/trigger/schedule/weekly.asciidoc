@@ -1,0 +1,78 @@
+[[schedule-weekly]]
+==== Weekly Schedule
+
+A <<trigger-schedule, `schedule`>> that triggers at a specific day and time
+every week. To use the `weekly` schedule, you specify the day and time (or days
+and times) when you want the scheduler to start the watch execution with the `on`
+and `at` attributes.
+
+You can specify the day of the week by name, abbreviation, or number (with Sunday
+being the first day of the week):
+
+* `sunday`, `monday`, `tuesday`, `wednesday`, `thursday`, `friday` and `saturday`
+* `sun`, `mon`, `tue`, `wed`, `thu`, `fri` and `sat`
+* `1`, `2`, `3`, `4`, `5`, `6` and `7`
+
+Times are specified in the form `HH:mm` on a 24-hour clock. You can also use the
+reserved values `midnight` and `noon` for `00:00` and `12:00`.
+
+===== Configuring a Weekly Schedule
+
+To configure a once a week schedule, you specify the day with the `on` attribute
+and the time with the `at` attribute. For example, the following `weekly` schedule
+triggers once a week on Friday at 5:00 PM:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "weekly" : { "on" : "friday", "at" : "17:00" }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+NOTE: You can also specify the day and time with the `day` and `time` attributes,
+      they are interchangeable with `on` and `at`.
+
+===== Configuring a Multiple Times Weekly Schedule
+
+To configure a `weekly` schedule that triggers multiple times a week, you can
+specify an array of day and time values. For example, the following `weekly`
+schedule triggers every Tuesday at 12:00 PM and every Friday at 5:00 PM:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "weekly" : [
+        { "on" : "tuesday", "at" : "noon" },
+        { "on" : "friday", "at" : "17:00" }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Alternatively, you can specify days and times in an object that has `on` and
+`minute` attributes that contain an array of values. For example, the following
+`weekly` schedule triggers every Tuesday and Friday at 12:00 PM and 17:00 PM:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "weekly" : {
+        "on" : [ "tuesday", "friday" ],
+        "at" : [ "noon", "17:00" ]
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

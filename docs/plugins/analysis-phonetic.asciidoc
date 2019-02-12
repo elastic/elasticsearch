@@ -17,15 +17,15 @@ The `phonetic` token filter takes the following settings:
 `encoder`::
 
     Which phonetic encoder to use.  Accepts `metaphone` (default),
-    `doublemetaphone`, `soundex`, `refinedsoundex`, `caverphone1`,
+    `double_metaphone`, `soundex`, `refined_soundex`, `caverphone1`,
     `caverphone2`, `cologne`, `nysiis`, `koelnerphonetik`, `haasephonetik`,
-    `beidermorse`, `daitch_mokotoff`.
+    `beider_morse`, `daitch_mokotoff`.
 
 `replace`::
 
     Whether or not the original token should be replaced by the phonetic
     token. Accepts `true` (default) and `false`.  Not supported by
-    `beidermorse` encoding.
+    `beider_morse` encoding.
 
 [source,js]
 --------------------------------------------------
@@ -38,7 +38,6 @@ PUT phonetic_sample
           "my_analyzer": {
             "tokenizer": "standard",
             "filter": [
-              "standard",
               "lowercase",
               "my_metaphone"
             ]
@@ -94,6 +93,6 @@ supported:
 `languageset`::
 
     An array of languages to check. If not specified, then the language will
-    be guessed. Accepts: `any`, `comomon`, `cyrillic`, `english`, `french`,
+    be guessed. Accepts: `any`, `common`, `cyrillic`, `english`, `french`,
     `german`, `hebrew`, `hungarian`, `polish`, `romanian`, `russian`,
     `spanish`.

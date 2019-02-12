@@ -8,17 +8,15 @@
            index:
              number_of_replicas: 0
          mappings:
-           test:
-             properties:
-               foo:
-                 type : "text"
-               title:
-                 type : "text"
+           properties:
+             foo:
+               type : "text"
+             title:
+               type : "text"
 
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar, title: howdy }
 
@@ -31,8 +29,8 @@
 
   - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
-          type:    test
           body:
             query:
               more_like_this:
@@ -42,4 +40,3 @@
                 fields: ["title"]
 
   - match: {hits.total: 0}
-

@@ -19,11 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.test.ESTestCase;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,10 +26,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.test.ESTestCase;
+
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.elasticsearch.ingest.common.ConvertProcessor.Type;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ConvertProcessorTests extends ESTestCase {
@@ -46,6 +47,33 @@ public class ConvertProcessorTests extends ESTestCase {
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.INTEGER, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, Integer.class), equalTo(randomInt));
+    }
+
+    public void testConvertIntHex() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        int randomInt = randomInt();
+        String intString = randomInt < 0 ? "-0x" + Integer.toHexString(-randomInt) : "0x" + Integer.toHexString(randomInt);
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, intString);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.INTEGER, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, Integer.class), equalTo(randomInt));
+    }
+
+    public void testConvertIntLeadingZero() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "010");
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.INTEGER, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, Integer.class), equalTo(10));
+    }
+
+    public void testConvertIntHexError() {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String value = "0xnotanumber";
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, value);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.INTEGER, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to integer"));
     }
 
     public void testConvertIntList() throws Exception {
@@ -76,6 +104,119 @@ public class ConvertProcessorTests extends ESTestCase {
             fail("processor execute should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to integer"));
+        }
+    }
+
+    public void testConvertLong() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        Map<String, Long> expectedResult = new HashMap<>();
+        long randomLong = randomLong();
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomLong);
+        expectedResult.put(fieldName, randomLong);
+
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, Long.class), equalTo(randomLong));
+    }
+
+    public void testConvertLongHex() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        long randomLong = randomLong();
+        String longString = randomLong < 0 ? "-0x" + Long.toHexString(-randomLong) : "0x" + Long.toHexString(randomLong);
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, longString);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, Long.class), equalTo(randomLong));
+    }
+
+    public void testConvertLongLeadingZero() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "010");
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, Long.class), equalTo(10L));
+    }
+
+    public void testConvertLongHexError() {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        String value = "0xnotanumber";
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, value);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to long"));
+    }
+
+    public void testConvertLongList() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        int numItems = randomIntBetween(1, 10);
+        List<String> fieldValue = new ArrayList<>();
+        List<Long> expectedList = new ArrayList<>();
+        for (int j = 0; j < numItems; j++) {
+            long randomLong = randomLong();
+            fieldValue.add(Long.toString(randomLong));
+            expectedList.add(randomLong);
+        }
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
+    }
+
+    public void testConvertLongError() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        String value = "string-" + randomAlphaOfLengthBetween(1, 10);
+        ingestDocument.setFieldValue(fieldName, value);
+
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.LONG, false);
+        try {
+            processor.execute(ingestDocument);
+            fail("processor execute should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to long"));
+        }
+    }
+
+    public void testConvertDouble() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        Map<String, Double> expectedResult = new HashMap<>();
+        double randomDouble = randomDouble();
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomDouble);
+        expectedResult.put(fieldName, randomDouble);
+
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.DOUBLE, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, Double.class), equalTo(randomDouble));
+    }
+
+    public void testConvertDoubleList() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        int numItems = randomIntBetween(1, 10);
+        List<String> fieldValue = new ArrayList<>();
+        List<Double> expectedList = new ArrayList<>();
+        for (int j = 0; j < numItems; j++) {
+            double randomDouble = randomDouble();
+            fieldValue.add(Double.toString(randomDouble));
+            expectedList.add(randomDouble);
+        }
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.DOUBLE, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
+    }
+
+    public void testConvertDoubleError() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        String value = "string-" + randomAlphaOfLengthBetween(1, 10);
+        ingestDocument.setFieldValue(fieldName, value);
+
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), fieldName, fieldName, Type.DOUBLE, false);
+        try {
+            processor.execute(ingestDocument);
+            fail("processor execute should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to double"));
         }
     }
 
@@ -231,6 +372,16 @@ public class ConvertProcessorTests extends ESTestCase {
                     randomValue = randomBoolean;
                     randomValueString = Boolean.toString(randomBoolean);
                     break;
+                case 3:
+                    long randomLong = randomLong();
+                    randomValue = randomLong;
+                    randomValueString = Long.toString(randomLong);
+                    break;
+                case 4:
+                    double randomDouble = randomDouble();
+                    randomValue = randomDouble;
+                    randomValueString = Double.toString(randomDouble);
+                    break;
                 default:
                     throw new UnsupportedOperationException();
             }
@@ -340,6 +491,28 @@ public class ConvertProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
         assertThat(convertedValue, equalTo(randomInt));
+    }
+
+    public void testAutoConvertMatchLong() throws Exception {
+        long randomLong = randomLong();
+        String randomString = Long.toString(randomLong);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), "field", "field", Type.AUTO, false);
+        processor.execute(ingestDocument);
+        Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
+        assertThat(convertedValue, equalTo(randomLong));
+    }
+
+    public void testAutoConvertDoubleNotMatched() throws Exception {
+        double randomDouble = randomDouble();
+        String randomString = Double.toString(randomDouble);
+        float randomFloat  = Float.parseFloat(randomString);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
+        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), "field", "field", Type.AUTO, false);
+        processor.execute(ingestDocument);
+        Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
+        assertThat(convertedValue, not(randomDouble));
+        assertThat(convertedValue, equalTo(randomFloat));
     }
 
     public void testAutoConvertMatchFloat() throws Exception {

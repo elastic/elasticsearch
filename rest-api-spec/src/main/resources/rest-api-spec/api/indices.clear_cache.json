@@ -1,7 +1,7 @@
 {
   "indices.clear_cache": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-clearcache.html",
-    "methods": ["POST", "GET"],
+    "methods": ["POST"],
     "url": {
       "path": "/_cache/clear",
       "paths": ["/_cache/clear", "/{index}/_cache/clear"],
@@ -12,17 +12,13 @@
         }
       },
       "params": {
-        "field_data": {
-          "type" : "boolean",
-          "description" : "Clear field data"
-        },
         "fielddata": {
           "type" : "boolean",
           "description" : "Clear field data"
         },
         "fields": {
           "type" : "list",
-          "description" : "A comma-separated list of fields to clear when using the `field_data` parameter (default: all)"
+          "description" : "A comma-separated list of fields to clear when using the `fielddata` parameter (default: all)"
         },
         "query": {
           "type" : "boolean",
@@ -45,14 +41,6 @@
         "index": {
           "type" : "list",
           "description" : "A comma-separated list of index name to limit the operation"
-        },
-        "recycler": {
-          "type" : "boolean",
-          "description" : "Clear the recycler cache"
-        },
-        "request_cache": {
-          "type" : "boolean",
-          "description" : "Clear request cache"
         },
         "request": {
           "type" : "boolean",

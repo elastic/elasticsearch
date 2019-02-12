@@ -1,0 +1,85 @@
+---
+setup:
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_restore_1
+        body:
+          type: source
+          settings:
+            delegate_type: fs
+            location: "test_repo_restore_1_loc"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+---
+"Create a source only snapshot and then restore it":
+
+  - do:
+      index:
+          index:  test_index
+          type:   _doc
+          id:     1
+          body:   { foo: bar }
+  - do:
+      indices.flush:
+        index: test_index
+
+  - do:
+      snapshot.create:
+        repository: test_repo_restore_1
+        snapshot: test_snapshot
+        wait_for_completion: true
+
+  - match: { snapshot.snapshot: test_snapshot }
+  - match: { snapshot.state : SUCCESS }
+  - match: { snapshot.shards.successful: 1 }
+  - match: { snapshot.shards.failed : 0 }
+  - is_true: snapshot.version
+  - gt: { snapshot.version_id: 0}
+
+  - do:
+      indices.close:
+        index : test_index
+
+  - do:
+      snapshot.restore:
+        repository: test_repo_restore_1
+        snapshot: test_snapshot
+        wait_for_completion: true
+
+  - do:
+      indices.recovery:
+        index: test_index
+
+  - match: { test_index.shards.0.type: SNAPSHOT }
+  - match: { test_index.shards.0.stage: DONE }
+  - match: { test_index.shards.0.translog.recovered: 0}
+  - match: { test_index.shards.0.translog.total: 0}
+  - match: { test_index.shards.0.translog.total_on_start: 0}
+  - match: { test_index.shards.0.index.files.recovered: 5}
+  - match: { test_index.shards.0.index.files.reused: 0}
+  - match: { test_index.shards.0.index.size.reused_in_bytes: 0}
+  - gt: { test_index.shards.0.index.size.recovered_in_bytes: 0}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            match_all: {}
+
+  - match: {hits.total:      1    }
+  - length: {hits.hits:      1    }
+  - match: {hits.hits.0._id: "1" }

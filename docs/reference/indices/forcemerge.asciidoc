@@ -10,6 +10,11 @@ This call will block until the merge is complete. If the http connection is
 lost, the request will continue in the background, and any new requests will
 block until the previous force merge is complete.
 
+WARNING: Force merge should only be called against *read-only indices*. Running 
+force merge against a read-write index can cause very large segments to be produced 
+(>5Gb per segment), and the merge policy will never consider it for merging again until 
+it mostly consists of deleted docs. This can cause very large segments to remain in the shards.
+
 [source,js]
 --------------------------------------------------
 POST /twitter/_forcemerge
@@ -38,12 +43,23 @@ deletes. Defaults to `false`.  Note that this won't override the
 `flush`::  Should a flush be performed after the forced merge. Defaults to
 `true`.
 
+[source,js]
+--------------------------------------------------
+POST /kimchy/_forcemerge?only_expunge_deletes=false&max_num_segments=100&flush=true
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT kimchy\n/]
+
 [float]
 [[forcemerge-multi-index]]
 === Multi Index
 
 The force merge API can be applied to more than one index with a single call, or
-even on `_all` the indices.
+even on `_all` the indices. Multi index operations are executed one shard at a
+time per node. Force merge makes the storage for the shard being merged
+temporarily increase, up to double its size in case `max_num_segments` is set
+to `1`, as all segments need to be rewritten into a new one.
+
 
 [source,js]
 --------------------------------------------------

@@ -5,15 +5,13 @@
           index:  test
           body:
             mappings:
-              test:
-                properties:
-                  number:
-                    type: integer
+              properties:
+                number:
+                  type: integer
 
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { field: foo bar}
 
@@ -43,14 +41,6 @@
         default_operator: AND
 
   - match: {count : 0}
-
-  - do:
-      count:
-        index: test
-        q: field:bars
-        analyzer: snowball
-
-  - match: {count : 1}
 
   - do:
       count:

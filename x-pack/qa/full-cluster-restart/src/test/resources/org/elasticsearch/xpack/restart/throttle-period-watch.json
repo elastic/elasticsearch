@@ -1,0 +1,27 @@
+{
+  "trigger" : {
+    "schedule": {
+      "interval": "1s"
+    }
+  },
+  "condition" : {
+    "never" : {}
+  },
+  "throttle_period": "100s",
+  "actions" : {
+    "index_payload" : {
+      "throttle_period": "100s",
+      "transform" : {
+        "search" : {
+          "request" : {
+            "body" : { "size": 1, "query" : { "match_all" : {} }}
+          }
+        }
+      },
+      "index" : {
+        "index" : "bwc_watch_index",
+        "doc_type" : "bwc_watch_type"
+      }
+    }
+  }
+}

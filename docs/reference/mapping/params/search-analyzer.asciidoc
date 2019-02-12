@@ -38,19 +38,17 @@ PUT my_index
     }
   },
   "mappings": {
-    "my_type": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "analyzer": "autocomplete", <2>
-          "search_analyzer": "standard" <2>
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "analyzer": "autocomplete", <2>
+        "search_analyzer": "standard" <2>
       }
     }
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "text": "Quick Brown Fox" <3>
 }

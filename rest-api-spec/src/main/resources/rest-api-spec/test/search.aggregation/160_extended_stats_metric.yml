@@ -6,14 +6,13 @@ setup:
             settings:
               number_of_replicas: 0
             mappings:
-              doc:
-                properties:
-                  int_field:
-                     type : integer
-                  double_field:
-                     type : double
-                  string_field:
-                     type: keyword
+              properties:
+                int_field:
+                   type : integer
+                double_field:
+                   type : double
+                string_field:
+                   type: keyword
 
   - do:
        bulk:
@@ -21,28 +20,24 @@ setup:
          body:
            - index:
                _index: test_1
-               _type:  doc
                _id:    1
            - int_field: 1
              double_field: 1.0
              string_field: foo
            - index:
                _index: test_1
-               _type:  doc
                _id:    2
            - int_field: 51
              double_field: 51.0
              string_field: foo
            - index:
                _index: test_1
-               _type:  doc
                _id:    3
            - int_field: 101
              double_field: 101.0
              string_field: foo
            - index:
                _index: test_1
-               _type:  doc
                _id:    4
            - int_field: 151
              double_field: 151.0
@@ -53,6 +48,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_int_extended_stats:
@@ -88,6 +84,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -126,6 +123,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             constant_score:
@@ -170,6 +168,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_missing_extended_stats:
@@ -195,6 +194,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_missing_extended_stats:
@@ -210,6 +210,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_int_extended_stats:
@@ -235,6 +236,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_int_extended_stats:
@@ -273,6 +275,7 @@ setup:
   - do:
       catch: /\[sigma\] must be greater than or equal to 0. Found \[-1.0\] in \[the_int_extended_stats\]/
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_int_extended_stats:
@@ -281,8 +284,9 @@ setup:
                 sigma: -1
 
   - do:
-      catch: /parsing_exception/
+      catch: /x_content_parse_exception/
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             the_int_extended_stats:

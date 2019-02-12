@@ -160,7 +160,7 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
                 .build();
         MockSleeper mockSleeper = new MockSleeper();
         RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, mockSleeper,
-            TimeValue.timeValueMillis(500));
+            TimeValue.timeValueSeconds(30L));
 
         Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null)
                 .setHttpRequestInitializer(retryHttpInitializerWrapper)

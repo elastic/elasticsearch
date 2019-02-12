@@ -38,18 +38,16 @@ all other fields use `docs` as the default.
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "index_options": "offsets"
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "index_options": "offsets"
       }
     }
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "text": "Quick brown fox"
 }

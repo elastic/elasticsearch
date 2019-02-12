@@ -21,11 +21,11 @@ package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -45,6 +46,10 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * A command for the plugin CLI to remove a plugin from Elasticsearch.
  */
 class RemovePluginCommand extends EnvironmentAwareCommand {
+
+    // exit codes for remove
+    /** A plugin cannot be removed because it is extended by another plugin. */
+    static final int PLUGIN_STILL_USED = 11;
 
     private final OptionSpec<Void> purgeOption;
     private final OptionSpec<String> arguments;
@@ -74,20 +79,31 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
      * @throws UserException if plugin directory does not exist
      * @throws UserException if the plugin bin directory is not a directory
      */
-    void execute(
-            final Terminal terminal,
-            final Environment env,
-            final String pluginName,
-            final boolean purge) throws IOException, UserException {
+    void execute(Terminal terminal, Environment env, String pluginName, boolean purge) throws IOException, UserException {
         if (pluginName == null) {
             throw new UserException(ExitCodes.USAGE, "plugin name is required");
         }
 
-        terminal.println("-> removing [" + pluginName + "]...");
+        // first make sure nothing extends this plugin
+        List<String> usedBy = new ArrayList<>();
+        Set<PluginsService.Bundle> bundles = PluginsService.getPluginBundles(env.pluginsFile());
+        for (PluginsService.Bundle bundle : bundles) {
+            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
+                if (extendedPlugin.equals(pluginName)) {
+                    usedBy.add(bundle.plugin.getName());
+                }
+            }
+        }
+        if (usedBy.isEmpty() == false) {
+            throw new UserException(PLUGIN_STILL_USED, "plugin [" + pluginName + "] cannot be removed" +
+                " because it is extended by other plugins: " + usedBy);
+        }
 
         final Path pluginDir = env.pluginsFile().resolve(pluginName);
         final Path pluginConfigDir = env.configFile().resolve(pluginName);
         final Path removing = env.pluginsFile().resolve(".removing-" + pluginName);
+
+        terminal.println("-> removing [" + pluginName + "]...");
         /*
          * If the plugin does not exist and the plugin config does not exist, fail to the user that the plugin is not found, unless there's
          * a marker file left from a previously failed attempt in which case we proceed to clean up the marker file. Or, if the plugin does

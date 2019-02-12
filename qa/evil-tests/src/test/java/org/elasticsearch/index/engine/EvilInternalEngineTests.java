@@ -79,6 +79,7 @@ public class EvilInternalEngineTests extends EngineTestCase {
                             }
                         }
                     },
+                    null,
                     null)) {
                 // force segments to exist on disk
                 final ParsedDocument doc1 = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);

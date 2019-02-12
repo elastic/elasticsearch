@@ -42,7 +42,7 @@
                 },
                 "czechAnalyzerWithStemmer":{
                     "tokenizer":"standard",
-                    "filter":["standard", "lowercase", "stop", "czech_stem"]
+                    "filter":["lowercase", "stop", "czech_stem"]
                 },
                 "decompoundingAnalyzer":{
                     "tokenizer":"standard",

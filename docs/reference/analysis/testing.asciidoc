@@ -58,12 +58,10 @@ PUT my_index
     }
   },
   "mappings": {
-    "my_type": {
-      "properties": {
-        "my_text": {
-          "type": "text",
-          "analyzer": "std_folded" <2>
-        }
+    "properties": {
+      "my_text": {
+        "type": "text",
+        "analyzer": "std_folded" <2>
       }
     }
   }

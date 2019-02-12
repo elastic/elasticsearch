@@ -160,9 +160,6 @@
 
 ---
 "Test cat indices sort":
-  - skip:
-      version: " - 5.0.99"
-      reason:  sorting was introduced in 5.1.0
 
   - do:
       indices.create:

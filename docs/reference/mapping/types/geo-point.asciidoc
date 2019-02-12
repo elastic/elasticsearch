@@ -6,7 +6,7 @@ Fields of type `geo_point` accept latitude-longitude pairs, which can be used:
 * to find geo-points within a <<query-dsl-geo-bounding-box-query,bounding box>>,
   within a certain <<query-dsl-geo-distance-query,distance>> of a central point,
   or within a <<query-dsl-geo-polygon-query,polygon>>.
-* to aggregate documents by <<search-aggregations-bucket-geohashgrid-aggregation,geographically>>
+* to aggregate documents <<search-aggregations-bucket-geohashgrid-aggregation,geographically>>
   or by <<search-aggregations-bucket-geodistance-aggregation,distance>> from a central point.
 * to integrate distance into a document's <<query-dsl-function-score-query,relevance score>>.
 * to <<geo-sorting,sort>> documents by distance.
@@ -18,17 +18,15 @@ There are four ways that a geo-point may be specified, as demonstrated below:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "location": {
-          "type": "geo_point"
-        }
+    "properties": {
+      "location": {
+        "type": "geo_point"
       }
     }
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "text": "Geo-point as an object",
   "location": { <1>
@@ -37,19 +35,19 @@ PUT my_index/my_type/1
   }
 }
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 {
   "text": "Geo-point as a string",
   "location": "41.12,-71.34" <2>
 }
 
-PUT my_index/my_type/3
+PUT my_index/_doc/3
 {
   "text": "Geo-point as a geohash",
   "location": "drm3btev3e86" <3>
 }
 
-PUT my_index/my_type/4
+PUT my_index/_doc/4
 {
   "text": "Geo-point as an array",
   "location": [ -71.34, 41.12 ] <4>
@@ -92,6 +90,16 @@ format was changed early on to conform to the format used by GeoJSON.
 
 ==================================================
 
+[NOTE]
+A point can be expressed as a http://en.wikipedia.org/wiki/Geohash[geohash].
+Geohashes are https://en.wikipedia.org/wiki/Base32[base32] encoded strings of
+the bits of the latitude and longitude interleaved. Each character in a geohash
+adds additional 5 bits to the precision. So the longer the hash, the more
+precise it is. For the indexing purposed geohashs are translated into
+latitude-longitude pairs. During this process only first 12 characters are
+used, so specifying more than 12 characters in a geohash doesn't increase the
+precision. The 12 characters provide 60 bits, which should reduce a possible
+error to less than 2cm.
 
 [[geo-point-params]]
 ==== Parameters for `geo_point` fields
@@ -104,6 +112,18 @@ The following parameters are accepted by `geo_point` fields:
 
     If `true`, malformed geo-points are ignored. If `false` (default),
     malformed geo-points throw an exception and reject the whole document.
+
+`ignore_z_value`::
+
+    If `true` (default) three dimension points will be accepted (stored in source)
+    but only latitude and longitude values will be indexed; the third dimension is
+    ignored. If `false`, geo-points containing any more than latitude and longitude
+    (two dimensions) values throw an exception and reject the whole document.
+
+<<null-value,`null_value`>>::
+
+    Accepts an geopoint value which is substituted for any explicit `null` values.
+    Defaults to `null`, which means the field is treated as missing.
 
 ==== Using geo-points in scripts
 

@@ -4,7 +4,7 @@
 [partintro]
 --
 
-Most search APIs are <<search-multi-index-type,multi-index&#44; multi-type>>, with the
+Most search APIs are <<search-multi-index,multi-index>>, with the
 exception of the <<search-explain>> endpoints.
 
 [float]
@@ -19,7 +19,7 @@ the user name:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet?routing=kimchy
+POST /twitter/_doc?routing=kimchy
 {
     "user" : "kimchy",
     "postDate" : "2009-11-15T14:12:12",
@@ -34,7 +34,7 @@ only the relevant shard:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet/_search?routing=kimchy
+POST /twitter/_search?routing=kimchy
 {
     "query": {
         "bool" : {
@@ -119,10 +119,14 @@ Individual searches can have a timeout as part of the
 <<search-request-body>>. Since search requests can originate from many
 sources, Elasticsearch has a dynamic cluster-level setting for a global
 search timeout that applies to all search requests that do not set a
-timeout in the <<search-request-body>>. The default value is no global
-timeout. The setting key is `search.default_search_timeout` and can be
-set using the <<cluster-update-settings>> endpoints. Setting this value
-to `-1` resets the global search timeout to no timeout.
+timeout in the request body. These requests will be cancelled after
+the specified time using the mechanism described in the following section on
+<<global-search-cancellation>>. Therefore the same caveats about timeout
+responsiveness apply.
+
+The setting key is `search.default_search_timeout` and can be set using the
+<<cluster-update-settings>> endpoints. The default value is no global timeout.
+Setting this value to `-1` resets the global search timeout to no timeout.
 
 [float]
 [[global-search-cancellation]]
@@ -136,6 +140,26 @@ the dynamic cluster-level setting `search.low_level_cancellation` to `true`.
 However, it comes with an additional overhead of more frequent cancellation
 checks that can be noticeable on large fast running search queries. Changing this
 setting only affects the searches that start after the change is made.
+
+[float]
+[[search-concurrency-and-parallelism]]
+== Search concurrency and parallelism
+
+By default Elasticsearch doesn't reject any search requests based on the number
+of shards the request hits. While Elasticsearch will optimize the search
+execution on the coordinating node a large number of shards can have a
+significant impact CPU and memory wise. It is usually a better idea to organize
+data in such a way that there are fewer larger shards. In case you would like to
+configure a soft limit, you can update the `action.search.shard_count.limit`
+cluster setting in order to reject search requests that hit too many shards.
+
+The request parameter `max_concurrent_shard_requests` can be used to control the
+maximum number of concurrent shard requests the search API will execute for the
+request. This parameter should be used to protect a single request from
+overloading a cluster (e.g., a default request will hit all indices in a cluster
+which could cause shard request rejections if the number of shards per node is
+high). This default is based on the number of data nodes in the cluster but at
+most `256`.
 
 --
 
@@ -162,3 +186,5 @@ include::search/explain.asciidoc[]
 include::search/profile.asciidoc[]
 
 include::search/field-caps.asciidoc[]
+
+include::search/rank-eval.asciidoc[]

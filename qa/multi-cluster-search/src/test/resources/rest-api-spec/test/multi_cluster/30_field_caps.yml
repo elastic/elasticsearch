@@ -1,33 +1,28 @@
 ---
 "Get simple field caps from remote cluster":
-  - skip:
-      version: " - 5.4.99"
-      reason:  this uses a new API functionality that has been added in 5.5.0
-
   - do:
         indices.create:
           index: field_caps_index_2
           body:
               mappings:
-                t:
-                  properties:
-                    text:
-                      type:     text
-                    keyword:
-                      type:     keyword
-                    number:
-                      type:     double
-                    geo:
-                      type:     geo_point
-                    object:
-                      type: object
-                      properties:
-                        nested1 :
-                          type : text
-                          index: true
-                        nested2:
-                          type: float
-                          doc_values: true
+                properties:
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  geo:
+                    type:     geo_point
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : text
+                        index: true
+                      nested2:
+                        type: float
+                        doc_values: true
 
   - do:
       field_caps:

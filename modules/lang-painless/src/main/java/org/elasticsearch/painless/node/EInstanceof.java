@@ -19,12 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.util.Objects;
 import java.util.Set;
@@ -55,17 +54,17 @@ public final class EInstanceof extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        final Type type;
 
         // ensure the specified type is part of the definition
-        try {
-            type = locals.getDefinition().getType(this.type);
-        } catch (IllegalArgumentException exception) {
+        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
+
+        if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         // map to wrapped type for primitive types
-        resolvedType = type.clazz.isPrimitive() ? locals.getDefinition().getBoxedType(type).clazz : type.clazz;
+        resolvedType = clazz.isPrimitive() ? PainlessLookupUtility.typeToBoxedType(clazz) :
+                PainlessLookupUtility.typeToJavaType(clazz);
 
         // analyze and cast the expression
         expression.analyze(locals);
@@ -73,11 +72,12 @@ public final class EInstanceof extends AExpression {
         expression = expression.cast(locals);
 
         // record if the expression returns a primitive
-        primitiveExpression = expression.actual.clazz.isPrimitive();
+        primitiveExpression = expression.actual.isPrimitive();
         // map to wrapped type for primitive types
-        expressionType = expression.actual.clazz.isPrimitive() ? locals.getDefinition().getBoxedType(expression.actual).clazz : type.clazz;
+        expressionType = expression.actual.isPrimitive() ?
+            PainlessLookupUtility.typeToBoxedType(expression.actual) : PainlessLookupUtility.typeToJavaType(clazz);
 
-        actual = locals.getDefinition().booleanType;
+        actual = boolean.class;
     }
 
     @Override
@@ -87,7 +87,7 @@ public final class EInstanceof extends AExpression {
             // run the expression anyway (who knows what it does)
             expression.write(writer, globals);
             // discard its result
-            writer.writePop(expression.actual.type.getSize());
+            writer.writePop(MethodWriter.getType(expression.actual).getSize());
             // push our result: its a primitive so it cannot be null.
             writer.push(resolvedType.isAssignableFrom(expressionType));
         } else {

@@ -19,24 +19,41 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
+import org.elasticsearch.index.query.RankFeatureQueryBuilder;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
-public class MapperExtrasPlugin extends Plugin implements MapperPlugin {
+public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
         mappers.put(ScaledFloatFieldMapper.CONTENT_TYPE, new ScaledFloatFieldMapper.TypeParser());
         mappers.put(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
-        for (RangeFieldMapper.RangeType type : RangeFieldMapper.RangeType.values()) {
-            mappers.put(type.typeName(), new RangeFieldMapper.TypeParser(type));
-        }
+        mappers.put(RankFeatureFieldMapper.CONTENT_TYPE, new RankFeatureFieldMapper.TypeParser());
+        mappers.put(RankFeaturesFieldMapper.CONTENT_TYPE, new RankFeaturesFieldMapper.TypeParser());
+        mappers.put(DenseVectorFieldMapper.CONTENT_TYPE, new DenseVectorFieldMapper.TypeParser());
+        mappers.put(SparseVectorFieldMapper.CONTENT_TYPE, new SparseVectorFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);
+    }
+
+    @Override
+    public Map<String, TypeParser> getMetadataMappers() {
+        return Collections.singletonMap(RankFeatureMetaFieldMapper.CONTENT_TYPE, new RankFeatureMetaFieldMapper.TypeParser());
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return Collections.singletonList(
+            new QuerySpec<>(RankFeatureQueryBuilder.NAME, RankFeatureQueryBuilder::new,
+                p -> RankFeatureQueryBuilder.PARSER.parse(p, null)));
     }
 
 }

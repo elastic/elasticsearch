@@ -1,6 +1,0 @@
-[[breaking_70_aggregations_changes]]
-=== Aggregations changes
-
-==== Deprecated `global_ordinals_hash` and `global_ordinals_low_cardinality` execution hints for terms aggregations have been removed
-
-These `execution_hint` are removed and should be replaced by `global_ordinals`.

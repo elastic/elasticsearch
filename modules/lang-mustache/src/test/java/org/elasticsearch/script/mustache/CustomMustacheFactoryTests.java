@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.TemplateScript;

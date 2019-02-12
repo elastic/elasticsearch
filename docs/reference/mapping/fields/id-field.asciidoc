@@ -5,22 +5,18 @@ Each document has an `_id` that uniquely identifies it, which is indexed
 so that documents can be looked up either with the <<docs-get,GET API>> or the
 <<query-dsl-ids-query,`ids` query>>.
 
-NOTE: This was not the case with pre-6.0 indices due to the fact that they
-supported multiple types, so the `_type` and `_id` were merged into a composite
-primary key called `_uid`.
-
 The value of the `_id` field is accessible in certain queries (`term`,
 `terms`, `match`, `query_string`, `simple_query_string`).
 
 [source,js]
 --------------------------
 # Example documents
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "text": "Document with ID 1"
 }
 
-PUT my_index/my_type/2&refresh=true
+PUT my_index/_doc/2&refresh=true
 {
   "text": "Document with ID 2"
 }

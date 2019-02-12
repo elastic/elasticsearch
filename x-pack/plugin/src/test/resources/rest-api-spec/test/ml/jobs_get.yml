@@ -1,0 +1,88 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: jobs-get-1
+        body:  >
+          {
+            "job_id":"jobs-get-1",
+            "description":"Job 1",
+            "analysis_config" : {
+                "bucket_span": "300s",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: jobs-get-2
+        body:  >
+          {
+            "job_id":"jobs-get-2",
+            "description":"Job 2",
+            "analysis_config" : {
+                "bucket_span": "600s",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format" : "xcontent",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd'T'HH:mm:ssX"
+            }
+          }
+
+---
+"Test get job given missing job_id":
+
+  - do:
+      catch: missing
+      ml.get_jobs:
+        job_id: missing-job
+
+---
+"Test get single job":
+
+  - do:
+      ml.get_jobs:
+        job_id: jobs-get-1
+  - match: { jobs.0.job_id: "jobs-get-1"}
+  - match: { jobs.0.description: "Job 1"}
+
+  - do:
+      ml.get_jobs:
+        job_id: jobs-get-2
+  - match: { jobs.0.job_id: "jobs-get-2"}
+  - match: { jobs.0.description: "Job 2"}
+
+---
+"Test explicit get all jobs":
+
+  - do:
+      ml.get_jobs:
+        job_id: _all
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: "jobs-get-1"}
+  - match: { jobs.0.description: "Job 1"}
+  - match: { jobs.1.job_id: "jobs-get-2"}
+  - match: { jobs.1.description: "Job 2"}
+
+---
+"Test implicit get all jobs":
+
+  - do:
+      ml.get_jobs: {}
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: "jobs-get-1"}
+  - match: { jobs.0.description: "Job 1"}
+  - match: { jobs.1.job_id: "jobs-get-2"}
+  - match: { jobs.1.description: "Job 2"}

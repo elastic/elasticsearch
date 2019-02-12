@@ -11,13 +11,59 @@ GET /_search
     "query" : {
         "match_all": {}
     },
-    "docvalue_fields" : ["test1", "test2"]
+    "docvalue_fields" : [
+        "my_ip_field", <1>
+        {
+            "field": "my_keyword_field" <2>
+        },
+        {
+            "field": "my_date_field",
+            "format": "epoch_millis" <3>
+        }
+    ]
 }
 --------------------------------------------------
 // CONSOLE
+<1> the name of the field
+<2> an object notation is supported as well
+<3> the object notation allows to specify a custom format
 
-Doc value fields can work on fields that are not stored.
+Doc value fields can work on fields that have doc-values enabled, regardless of whether they are stored
+
+`*` can be used as a wild card, for example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query" : {
+        "match_all": {}
+    },
+    "docvalue_fields" : [
+        {
+            "field": "*_date_field", <1>
+            "format": "epoch_millis" <2>
+        }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+<1> Match all fields ending with `field`
+<2> Format to be applied to all matching fields.
 
 Note that if the fields parameter specifies fields without docvalues it will try to load the value from the fielddata cache
 causing the terms for that field to be loaded to memory (cached), which will result in more memory consumption.
+
+[float]
+==== Custom formats
+
+While most fields do not support custom formats, some of them do:
+
+ - <<date,Date>> fields can take any <<mapping-date-format,date format>>.
+ - <<number,Numeric>> fields accept a https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat pattern].
+
+By default fields are formatted based on a sensible configuration that depends
+on their mappings: `long`, `double` and other numeric fields are formatted as
+numbers, `keyword` fields are formatted as strings, `date` fields are formatted
+with the configured `date` format, etc.
 

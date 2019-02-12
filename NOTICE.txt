@@ -1,5 +1,8 @@
 Elasticsearch
-Copyright 2009-2017 Elasticsearch
+Copyright 2009-2018 Elasticsearch
 
 This product includes software developed by The Apache Software
 Foundation (http://www.apache.org/).
+
+This product includes software developed by
+Joda.org (http://www.joda.org/).

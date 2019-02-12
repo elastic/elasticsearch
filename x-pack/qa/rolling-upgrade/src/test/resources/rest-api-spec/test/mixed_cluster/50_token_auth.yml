@@ -1,0 +1,53 @@
+---
+"Get the indexed token and use if to authenticate":
+  - skip:
+      features: headers
+
+  - do:
+      get:
+        index: token_index
+        type:  doc
+        id:    "6"
+
+  - match: { _index:   token_index }
+  - match: { _type:    doc   }
+  - match: { _id:      "6"      }
+  - is_true: _source.token
+  - set: { _source.token : token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      security.authenticate: {}
+
+  - match: { username: "token_user" }
+  - match: { roles.0:  "superuser" }
+  - match: { full_name: "Token User" }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      search:
+        rest_total_hits_as_int: true
+        index: token_index
+
+  - match: { hits.total: 6 }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      search:
+        rest_total_hits_as_int: true
+        index: token_index
+
+  - match: { hits.total: 6 }
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      search:
+        rest_total_hits_as_int: true
+        index: token_index
+
+  - match: { hits.total: 6 }
+

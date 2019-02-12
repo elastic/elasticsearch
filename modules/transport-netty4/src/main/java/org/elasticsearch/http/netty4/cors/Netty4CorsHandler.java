@@ -22,7 +22,9 @@ package org.elasticsearch.http.netty4.cors;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
@@ -30,6 +32,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.http.netty4.Netty4HttpResponse;
 
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -48,7 +51,7 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
     private static Pattern SCHEME_PATTERN = Pattern.compile("^https?://");
 
     private final Netty4CorsConfig config;
-    private HttpRequest request;
+    private FullHttpRequest request;
 
     /**
      * Creates a new instance with the specified {@link Netty4CorsConfig}.
@@ -62,18 +65,35 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        if (config.isCorsSupportEnabled() && msg instanceof HttpRequest) {
-            request = (HttpRequest) msg;
+        assert msg instanceof FullHttpRequest : "Invalid message type: " + msg.getClass();
+        if (config.isCorsSupportEnabled()) {
+            request = (FullHttpRequest) msg;
             if (isPreflightRequest(request)) {
-                handlePreflight(ctx, request);
-                return;
+                try {
+                    handlePreflight(ctx, request);
+                    return;
+                } finally {
+                    releaseRequest();
+                }
             }
             if (config.isShortCircuit() && !validateOrigin()) {
-                forbidden(ctx, request);
-                return;
+                try {
+                    forbidden(ctx, request);
+                    return;
+                } finally {
+                    releaseRequest();
+                }
             }
         }
         ctx.fireChannelRead(msg);
+    }
+
+    @Override
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+        assert msg instanceof Netty4HttpResponse : "Invalid message type: " + msg.getClass();
+        Netty4HttpResponse response = (Netty4HttpResponse) msg;
+        setCorsResponseHeaders(response.getRequest().nettyRequest(), response, config);
+        ctx.write(response, promise);
     }
 
     public static void setCorsResponseHeaders(HttpRequest request, HttpResponse resp, Netty4CorsConfig config) {
@@ -113,6 +133,11 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
         }
     }
 
+    private void releaseRequest() {
+        request.release();
+        request = null;
+    }
+
     private static void forbidden(final ChannelHandlerContext ctx, final HttpRequest request) {
         ctx.writeAndFlush(new DefaultFullHttpResponse(request.protocolVersion(), HttpResponseStatus.FORBIDDEN))
             .addListener(ChannelFutureListener.CLOSE);
@@ -142,11 +167,6 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
     private boolean setOrigin(final HttpResponse response) {
         final String origin = request.headers().get(HttpHeaderNames.ORIGIN);
         if (!Strings.isNullOrEmpty(origin)) {
-            if ("null".equals(origin) && config.isNullOriginAllowed()) {
-                setAnyOrigin(response);
-                return true;
-            }
-
             if (config.isAnyOriginSupported()) {
                 if (config.isCredentialsAllowed()) {
                     echoRequestOrigin(response);
@@ -173,10 +193,6 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
         final String origin = request.headers().get(HttpHeaderNames.ORIGIN);
         if (Strings.isNullOrEmpty(origin)) {
             // Not a CORS request so we cannot validate it. It may be a non CORS request.
-            return true;
-        }
-
-        if ("null".equals(origin) && config.isNullOriginAllowed()) {
             return true;
         }
 

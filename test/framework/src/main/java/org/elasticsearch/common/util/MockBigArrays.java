@@ -21,10 +21,12 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
+
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -32,6 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -59,8 +62,17 @@ public class MockBigArrays extends BigArrays {
                 masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
                 ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
                 if (!masterCopy.isEmpty()) {
-                    final Object cause = masterCopy.entrySet().iterator().next().getValue();
-                    throw new RuntimeException(masterCopy.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
+                    Iterator<Object> causes = masterCopy.values().iterator();
+                    Object firstCause = causes.next();
+                    RuntimeException exception = new RuntimeException(masterCopy.size() + " arrays have not been released",
+                            firstCause instanceof Throwable ? (Throwable) firstCause : null);
+                    while (causes.hasNext()) {
+                        Object cause = causes.next();
+                        if (cause instanceof Throwable) {
+                            exception.addSuppressed((Throwable) cause);
+                        }
+                    }
+                    throw exception;
                 }
             }
         }
@@ -70,12 +82,12 @@ public class MockBigArrays extends BigArrays {
     private final PageCacheRecycler recycler;
     private final CircuitBreakerService breakerService;
 
-    public MockBigArrays(Settings settings, CircuitBreakerService breakerService) {
-        this(new MockPageCacheRecycler(settings), breakerService, false);
+    public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService) {
+        this(recycler, breakerService, false);
     }
 
     private MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
-        super(recycler, breakerService, checkBreaker);
+        super(recycler, breakerService, CircuitBreaker.REQUEST, checkBreaker);
         this.recycler = recycler;
         this.breakerService = breakerService;
         long seed;
@@ -249,7 +261,9 @@ public class MockBigArrays extends BigArrays {
         AbstractArrayWrapper(boolean clearOnResize) {
             this.clearOnResize = clearOnResize;
             this.originalRelease = new AtomicReference<>();
-            ACQUIRED_ARRAYS.put(this, TRACK_ALLOCATIONS ? new RuntimeException() : Boolean.TRUE);
+            ACQUIRED_ARRAYS.put(this,
+                    TRACK_ALLOCATIONS ? new RuntimeException("Unreleased array from test: " + LuceneTestCase.getTestClass().getName())
+                            : Boolean.TRUE);
         }
 
         protected abstract BigArray getDelegate();

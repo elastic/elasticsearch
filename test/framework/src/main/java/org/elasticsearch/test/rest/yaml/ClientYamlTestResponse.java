@@ -22,7 +22,9 @@ import org.apache.http.Header;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -114,10 +116,11 @@ public class ClientYamlTestResponse {
             } else {
                 //if the body is in a binary format and gets requested as a string (e.g. to log a test failure), we convert it to json
                 try (XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()) {
-                    try (XContentParser parser = bodyContentType.xContent().createParser(NamedXContentRegistry.EMPTY, body)) {
+                    try (XContentParser parser = bodyContentType.xContent()
+                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, body)) {
                         jsonBuilder.copyCurrentStructure(parser);
                     }
-                    bodyAsString = jsonBuilder.string();
+                    bodyAsString = Strings.toString(jsonBuilder);
                 } catch (IOException e) {
                     throw new UncheckedIOException("unable to convert response body to a string format", e);
                 }

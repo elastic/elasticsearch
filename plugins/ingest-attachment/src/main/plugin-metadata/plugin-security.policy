@@ -29,4 +29,8 @@ grant {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed by xmlbeans, as part of POI for MS xml docs
   permission java.lang.RuntimePermission "getClassLoader";
+  // ZipFile needs accessDeclaredMembers on Java 10
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // PDFBox checks for the existence of this class
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.java2d.cmm.kcms";
 };

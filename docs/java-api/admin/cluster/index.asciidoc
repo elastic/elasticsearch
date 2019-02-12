@@ -13,3 +13,4 @@ In the rest of this guide, we will use `client.admin().cluster()`.
 
 include::health.asciidoc[]
 
+include::stored-scripts.asciidoc[]

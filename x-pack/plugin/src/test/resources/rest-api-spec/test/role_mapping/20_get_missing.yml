@@ -1,0 +1,12 @@
+"Get missing role-mapping":
+  - do:
+      catch:  missing
+      security.get_role_mapping:
+        name: 'does-not-exist'
+
+---
+"Get missing (multiple) role-mappings":
+  - do:
+      catch:  missing
+      security.get_role_mapping:
+        name: [ 'dne1', 'dne2' ]

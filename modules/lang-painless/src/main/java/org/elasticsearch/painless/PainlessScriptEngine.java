@@ -19,24 +19,20 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.logging.log4j.core.tools.Generate;
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.SearchScript;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.lang.invoke.MethodType;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.security.AccessControlContext;
 import java.security.AccessController;
@@ -45,7 +41,6 @@ import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -57,7 +52,7 @@ import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 /**
  * Implementation of a ScriptEngine for the Painless language.
  */
-public final class PainlessScriptEngine extends AbstractComponent implements ScriptEngine {
+public final class PainlessScriptEngine implements ScriptEngine {
 
     /**
      * Standard name of the Painless language.
@@ -82,7 +77,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
     /**
      * Default compiler settings to be used. Note that {@link CompilerSettings} is mutable but this instance shouldn't be mutated outside
-     * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings, Collection)}.
+     * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings, Map)}.
      */
     private final CompilerSettings defaultCompilerSettings = new CompilerSettings();
 
@@ -92,19 +87,15 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
-    public PainlessScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-        super(settings);
-
+    public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
 
         Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
 
-        for (ScriptContext<?> context : contexts) {
-            if (context.instanceClazz.equals(SearchScript.class) || context.instanceClazz.equals(ExecutableScript.class)) {
-                contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, Definition.DEFINITION));
-            } else {
-                contextsToCompilers.put(context, new Compiler(context.instanceClazz, Definition.DEFINITION));
-            }
+        for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
+            ScriptContext<?> context = entry.getKey();
+            contextsToCompilers.put(context, new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz,
+                    PainlessLookupBuilder.buildFromWhitelists(entry.getValue())));
         }
 
         this.contextsToCompilers = Collections.unmodifiableMap(contextsToCompilers);
@@ -119,54 +110,28 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         return NAME;
     }
 
-    /**
-     * When a script is anonymous (inline), we give it this name.
-     */
-    static final String INLINE_NAME = "<inline>";
-
     @Override
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
-        if (context.instanceClazz.equals(SearchScript.class)) {
-            GenericElasticsearchScript painlessScript =
-                (GenericElasticsearchScript)compile(contextsToCompilers.get(context), scriptName, scriptSource, params);
+        Compiler compiler = contextsToCompilers.get(context);
 
-            SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
-                @Override
-                public SearchScript newInstance(final LeafReaderContext context) {
-                    return new ScriptImpl(painlessScript, p, lookup, context);
-                }
-                @Override
-                public boolean needs_score() {
-                    return painlessScript.needs_score();
-                }
-            };
-            return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
-            GenericElasticsearchScript painlessScript =
-                (GenericElasticsearchScript)compile(contextsToCompilers.get(context), scriptName, scriptSource, params);
+        // Check we ourselves are not being called by unprivileged code.
+        SpecialPermission.check();
 
-            ExecutableScript.Factory factory = (p) -> new ScriptImpl(painlessScript, p, null, null);
-            return context.factoryClazz.cast(factory);
-        } else {
-            // Check we ourselves are not being called by unprivileged code.
-            SpecialPermission.check();
-
-            // Create our loader (which loads compiled code with no permissions).
-            final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
-                @Override
-                public Loader run() {
-                    return new Loader(getClass().getClassLoader());
-                }
-            });
-
-            MainMethodReserved reserved = new MainMethodReserved();
-            compile(contextsToCompilers.get(context), loader, reserved, scriptName, scriptSource, params);
-
-            if (context.statefulFactoryClazz != null) {
-                return generateFactory(loader, context, reserved, generateStatefulFactory(loader, context, reserved));
-            } else {
-                return generateFactory(loader, context, reserved, WriterConstants.CLASS_TYPE);
+        // Create our loader (which loads compiled code with no permissions).
+        final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
+            @Override
+            public Loader run() {
+                return compiler.createLoader(getClass().getClassLoader());
             }
+        });
+
+        MainMethodReserved reserved = new MainMethodReserved();
+        compile(contextsToCompilers.get(context), loader, reserved, scriptName, scriptSource, params);
+
+        if (context.statefulFactoryClazz != null) {
+            return generateFactory(loader, context, reserved, generateStatefulFactory(loader, context, reserved));
+        } else {
+            return generateFactory(loader, context, reserved, WriterConstants.CLASS_TYPE);
         }
     }
 
@@ -367,126 +332,16 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         }
     }
 
-    Object compile(Compiler compiler, String scriptName, String source, Map<String, String> params, Object... args) {
-        final CompilerSettings compilerSettings;
-
-        if (params.isEmpty()) {
-            // Use the default settings.
-            compilerSettings = defaultCompilerSettings;
-        } else {
-            // Use custom settings specified by params.
-            compilerSettings = new CompilerSettings();
-
-            // Except regexes enabled - this is a node level setting and can't be changed in the request.
-            compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
-
-            Map<String, String> copy = new HashMap<>(params);
-
-            String value = copy.remove(CompilerSettings.MAX_LOOP_COUNTER);
-            if (value != null) {
-                compilerSettings.setMaxLoopCounter(Integer.parseInt(value));
-            }
-
-            value = copy.remove(CompilerSettings.PICKY);
-            if (value != null) {
-                compilerSettings.setPicky(Boolean.parseBoolean(value));
-            }
-
-            value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
-            if (value != null) {
-                compilerSettings.setInitialCallSiteDepth(Integer.parseInt(value));
-            }
-
-            value = copy.remove(CompilerSettings.REGEX_ENABLED.getKey());
-            if (value != null) {
-                throw new IllegalArgumentException("[painless.regex.enabled] can only be set on node startup.");
-            }
-
-            if (!copy.isEmpty()) {
-                throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + copy);
-            }
-        }
-
-        // Check we ourselves are not being called by unprivileged code.
-        SpecialPermission.check();
-
-        // Create our loader (which loads compiled code with no permissions).
-        final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
-            @Override
-            public Loader run() {
-                return new Loader(getClass().getClassLoader());
-            }
-        });
-
-        try {
-            // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<Object>() {
-                @Override
-                public Object run() {
-                    String name = scriptName == null ? INLINE_NAME : scriptName;
-                    Constructor<?> constructor = compiler.compile(loader, new MainMethodReserved(), name, source, compilerSettings);
-
-                    try {
-                        return constructor.newInstance(args);
-                    } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
-                        throw new IllegalStateException(
-                            "An internal error occurred attempting to define the script [" + name + "].", exception);
-                    }
-                }
-            }, COMPILATION_CONTEXT);
-        // Note that it is safe to catch any of the following errors since Painless is stateless.
-        } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
-            throw convertToScriptException(scriptName == null ? source : scriptName, source, e);
-        }
-    }
-
     void compile(Compiler compiler, Loader loader, MainMethodReserved reserved,
                  String scriptName, String source, Map<String, String> params) {
-        final CompilerSettings compilerSettings;
-
-        if (params.isEmpty()) {
-            // Use the default settings.
-            compilerSettings = defaultCompilerSettings;
-        } else {
-            // Use custom settings specified by params.
-            compilerSettings = new CompilerSettings();
-
-            // Except regexes enabled - this is a node level setting and can't be changed in the request.
-            compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
-
-            Map<String, String> copy = new HashMap<>(params);
-
-            String value = copy.remove(CompilerSettings.MAX_LOOP_COUNTER);
-            if (value != null) {
-                compilerSettings.setMaxLoopCounter(Integer.parseInt(value));
-            }
-
-            value = copy.remove(CompilerSettings.PICKY);
-            if (value != null) {
-                compilerSettings.setPicky(Boolean.parseBoolean(value));
-            }
-
-            value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
-            if (value != null) {
-                compilerSettings.setInitialCallSiteDepth(Integer.parseInt(value));
-            }
-
-            value = copy.remove(CompilerSettings.REGEX_ENABLED.getKey());
-            if (value != null) {
-                throw new IllegalArgumentException("[painless.regex.enabled] can only be set on node startup.");
-            }
-
-            if (!copy.isEmpty()) {
-                throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + copy);
-            }
-        }
+        final CompilerSettings compilerSettings = buildCompilerSettings(params);
 
         try {
             // Drop all permissions to actually compile the code itself.
             AccessController.doPrivileged(new PrivilegedAction<Void>() {
                 @Override
                 public Void run() {
-                    String name = scriptName == null ? INLINE_NAME : scriptName;
+                    String name = scriptName == null ? source : scriptName;
                     compiler.compile(loader, reserved, name, source, compilerSettings);
 
                     return null;
@@ -494,11 +349,52 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
             }, COMPILATION_CONTEXT);
             // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
-            throw convertToScriptException(scriptName == null ? source : scriptName, source, e);
+            throw convertToScriptException(source, e);
         }
     }
 
-    private ScriptException convertToScriptException(String scriptName, String scriptSource, Throwable t) {
+    private CompilerSettings buildCompilerSettings(Map<String, String> params) {
+        CompilerSettings compilerSettings;
+        if (params.isEmpty()) {
+            // Use the default settings.
+            compilerSettings = defaultCompilerSettings;
+        } else {
+            // Use custom settings specified by params.
+            compilerSettings = new CompilerSettings();
+
+            // Except regexes enabled - this is a node level setting and can't be changed in the request.
+            compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
+
+            Map<String, String> copy = new HashMap<>(params);
+
+            String value = copy.remove(CompilerSettings.MAX_LOOP_COUNTER);
+            if (value != null) {
+                compilerSettings.setMaxLoopCounter(Integer.parseInt(value));
+            }
+
+            value = copy.remove(CompilerSettings.PICKY);
+            if (value != null) {
+                compilerSettings.setPicky(Boolean.parseBoolean(value));
+            }
+
+            value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
+            if (value != null) {
+                compilerSettings.setInitialCallSiteDepth(Integer.parseInt(value));
+            }
+
+            value = copy.remove(CompilerSettings.REGEX_ENABLED.getKey());
+            if (value != null) {
+                throw new IllegalArgumentException("[painless.regex.enabled] can only be set on node startup.");
+            }
+
+            if (!copy.isEmpty()) {
+                throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + copy);
+            }
+        }
+        return compilerSettings;
+    }
+
+    private ScriptException convertToScriptException(String scriptSource, Throwable t) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         for (StackTraceElement element : t.getStackTrace()) {
@@ -509,7 +405,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
                     scriptStack.add("<<< unknown portion of script >>>");
                 } else {
                     offset--; // offset is 1 based, line numbers must be!
-                    int startOffset = getPreviousStatement(scriptSource, offset);
+                    int startOffset = getPreviousStatement(offset);
                     int endOffset = getNextStatement(scriptSource, offset);
                     StringBuilder snippet = new StringBuilder();
                     if (startOffset > 0) {
@@ -537,7 +433,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
     }
 
     // very simple heuristic: +/- 25 chars. can be improved later.
-    private int getPreviousStatement(String scriptSource, int offset) {
+    private int getPreviousStatement(int offset) {
         return Math.max(0, offset - 25);
     }
 

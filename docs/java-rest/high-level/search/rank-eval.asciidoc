@@ -1,0 +1,89 @@
+[[java-rest-high-rank-eval]]
+=== Ranking Evaluation API
+
+The `rankEval` method allows to evaluate the quality of ranked search
+results over a set of search request. Given sets of manually rated
+documents for each search request, ranking evaluation performs a
+<<java-rest-high-multi-search,multi search>> request and calculates
+information retrieval metrics like _mean reciprocal rank_, _precision_
+or _discounted cumulative gain_ on the returned results.
+
+[[java-rest-high-rank-eval-request]]
+==== Ranking Evaluation Request
+
+In order to build a `RankEvalRequest`, you first need to create an
+evaluation specification (`RankEvalSpec`). This specification requires
+to define the evaluation metric that is going to be calculated, as well
+as a list of rated documents per search requests. Creating the ranking
+evaluation request then takes the specification and a list of target
+indices as arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[rank-eval-request-basic]
+--------------------------------------------------
+<1> Define the metric used in the evaluation
+<2> Add rated documents, specified by index name, id and rating
+<3> Create the search query to evaluate
+<4> Combine the three former parts into a `RatedRequest`
+<5> Create the ranking evaluation specification
+<6> Create the ranking evaluation request
+
+[[java-rest-high-rank-eval-sync]]
+==== Synchronous Execution
+
+The `rankEval` method executes `RankEvalRequest`s synchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[rank-eval-execute]
+--------------------------------------------------
+
+[[java-rest-high-rank-eval-async]]
+==== Asynchronous Execution
+
+The `rankEvalAsync` method executes `RankEvalRequest`s asynchronously,
+calling the provided `ActionListener` when the response is ready.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[rank-eval-execute-async]
+--------------------------------------------------
+<1> The `RankEvalRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `RankEvalResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[rank-eval-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed.
+<2> Called when the whole `RankEvalRequest` fails.
+
+==== RankEvalResponse
+
+The `RankEvalResponse` that is returned by executing the request 
+contains information about the overall evaluation score, the
+scores of each individual search request in the set of queries and
+detailed information about search hits and details about the metric
+calculation per partial result.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[rank-eval-response]
+--------------------------------------------------
+<1> The overall evaluation result
+<2> Partial results that are keyed by their query id
+<3> The metric score for each partial result
+<4> Rated search hits contain a fully fledged `SearchHit`
+<5> Rated search hits also contain an `Optional<Integer>` rating that 
+is not present if the document did not get a rating in the request
+<6> Metric details are named after the metric used in the request
+<7> After casting to the metric used in the request, the
+metric details offers insight into parts of the metric calculation

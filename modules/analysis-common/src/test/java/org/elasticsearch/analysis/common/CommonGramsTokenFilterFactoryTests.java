@@ -45,7 +45,7 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
                                 .build();
 
         try {
-            AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
             Assert.fail("[common_words] or [common_words_path] is set");
         } catch (IllegalArgumentException e) {
         } catch (IOException e) {

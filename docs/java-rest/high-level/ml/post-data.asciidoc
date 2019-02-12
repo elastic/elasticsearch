@@ -1,0 +1,59 @@
+--
+:api: post-data
+:request: PostDataRequest
+:response: PostDataResponse
+--
+[id="{upid}-{api}"]
+=== Post Data API
+
+The Post Data API provides the ability to post data to an open
+ {ml} job in the cluster.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Post Data Request
+
+A +{request}+ object gets created with an existing non-null `jobId`
+and the `XContentType` being sent. Individual docs can be added
+incrementally via the `PostDataRequest.JsonBuilder#addDoc` method.
+These are then serialized and sent in bulk when passed to the +{request}+.
+
+Alternatively, the serialized bulk content can be set manually, along with its `XContentType`
+through one of the other +{request}+ constructors.
+
+Only `XContentType.JSON` and `XContentType.SMILE` are supported.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Create a new `PostDataRequest.JsonBuilder` object for incrementally adding documents
+<2> Add a new document as a `Map<String, Object>` object
+<3> Add a new document as a serialized JSON formatted String.
+<4> Constructing a new request referencing an opened `jobId`, and a JsonBuilder
+
+==== Optional Arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> Set the start of the bucket resetting time
+<2> Set the end of the bucket resetting time
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Post Data Response
+
+A +{response}+ contains current data processing statistics.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `getDataCounts()` a `DataCounts` object containing the current
+data processing counts.

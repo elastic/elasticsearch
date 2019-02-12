@@ -6,22 +6,21 @@ setup:
             settings:
               number_of_replicas: 0
             mappings:
-              test:
-                properties:
-                  str:
-                     type: keyword
-                  ip:
-                     type: ip
-                  boolean:
-                     type: boolean
-                  integer:
-                    type: long
-                  double:
-                    type: double
-                  number:
-                    type: long
-                  date:
-                    type: date
+              properties:
+                str:
+                   type: keyword
+                ip:
+                   type: ip
+                boolean:
+                   type: boolean
+                integer:
+                  type: long
+                double:
+                  type: double
+                number:
+                  type: long
+                date:
+                  type: date
 
   - do:
       indices.create:
@@ -30,10 +29,9 @@ setup:
             settings:
               number_of_replicas: 0
             mappings:
-              test:
-                properties:
-                  number:
-                    type: double
+              properties:
+                number:
+                  type: double
 
   - do:
       cluster.health:
@@ -44,21 +42,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "str" : "abc" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "str": "abc" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "str": "bcd" }
 
@@ -67,6 +62,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str" } } } }
 
   - match: { hits.total: 3 }
@@ -90,21 +86,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "ip": "::1" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "ip": "127.0.0.1" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "ip": "::1" }
 
@@ -113,6 +106,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip" } } } }
 
   - match: { hits.total: 3 }
@@ -133,6 +127,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "include" : [ "127.0.0.1" ] } } } }
 
   - match: { hits.total: 3 }
@@ -143,6 +138,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" : [ "127.0.0.1" ] } } } }
 
   - match: { hits.total: 3 }
@@ -154,6 +150,7 @@ setup:
   - do:
       catch: request
       search:
+        rest_total_hits_as_int: true
         index: test_1
         body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
 
@@ -164,21 +161,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "boolean": true }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "boolean": false }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "boolean": true }
 
@@ -187,6 +181,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "boolean_terms" : { "terms" : { "field" : "boolean" } } } }
 
   - match: { hits.total: 3 }
@@ -210,21 +205,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "integer": 1234 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "integer": 5678 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "integer": 1234 }
 
@@ -233,6 +225,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "integer_terms" : { "terms" : { "field" : "integer" } } } }
 
   - match: { hits.total: 3 }
@@ -256,21 +249,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "double": 1234.5 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "double": 5678.5 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "double": 1234.5 }
 
@@ -279,6 +269,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "double_terms" : { "terms" : { "field" : "double" } } } }
 
   - match: { hits.total: 3 }
@@ -302,21 +293,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "date": "2016-05-03" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "date": "2014-09-01" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "date": "2016-05-03" }
 
@@ -325,6 +313,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date" } } } }
 
   - match: { hits.total: 3 }
@@ -345,6 +334,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date", "include" : [ "2016-05-03" ] } } } }
 
   - match: { hits.total: 3 }
@@ -357,6 +347,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date", "exclude" : [ "2016-05-03" ] } } } }
 
   - match: { hits.total: 3 }
@@ -370,28 +361,21 @@ setup:
 ---
 "Partitioned string test":
 
-  - skip:
-      version: " - 5.1.99"
-      reason:  Partitioning is a 5.2.0 feature
-
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "str" : "abc" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "str": "abc" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "str": "bcd" }
 
@@ -400,6 +384,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"partition": 0, "num_partitions": 2 } } } } }
 
   - match: { hits.total : 3 }
@@ -414,6 +399,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"partition": 1, "num_partitions": 2 } } } } }
 
   - match: { hits.total: 3 }
@@ -429,28 +415,21 @@ setup:
 ---
 "Partitioned integer test":
 
-  - skip:
-      version: " - 5.1.99"
-      reason:  Partitioning is a 5.2.0 feature
-
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "integer": 1234 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "integer": 5678 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "integer": 1234 }
 
@@ -459,6 +438,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "integer", "include" : {"partition": 0, "num_partitions": 2 } } } } }
 
   - match: { hits.total: 3 }
@@ -471,6 +451,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "integer", "include" : {"partition": 1, "num_partitions": 2 } } } } }
 
   - match: { hits.total: 3 }
@@ -484,14 +465,9 @@ setup:
 ---
 "Unmapped strings":
 
-  - skip:
-      version: " - 5.1.99"
-      reason: Unmapped fields handling with value_type was added in 5.2
-
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: {}
 
@@ -500,6 +476,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "string_terms" : { "terms" : { "field" : "unmapped_string", "value_type" : "string", "missing": "abc" } } } }
 
   - match: { hits.total: 1 }
@@ -513,14 +490,9 @@ setup:
 ---
 "Unmapped booleans":
 
-  - skip:
-      version: " - 5.1.99"
-      reason: Unmapped fields handling with value_type was added in 5.2
-
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: {}
 
@@ -529,6 +501,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "boolean_terms" : { "terms" : { "field" : "unmapped_boolean", "value_type" : "boolean", "missing": true } } } }
 
   - match: { hits.total: 1 }
@@ -544,14 +517,9 @@ setup:
 ---
 "Unmapped dates":
 
-  - skip:
-      version: " - 5.1.99"
-      reason: Unmapped fields handling with value_type was added in 5.2
-
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: {}
 
@@ -560,6 +528,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "unmapped_date", "value_type" : "date", "missing": "2016-05-11" } } } }
 
   - match: { hits.total: 1 }
@@ -575,14 +544,9 @@ setup:
 ---
 "Unmapped longs":
 
-  - skip:
-      version: " - 5.1.99"
-      reason: Unmapped fields handling with value_type was added in 5.2
-
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: {}
 
@@ -591,6 +555,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "long_terms" : { "terms" : { "field" : "unmapped_long", "value_type" : "long", "missing": 3 } } } }
 
   - match: { hits.total: 1 }
@@ -604,14 +569,9 @@ setup:
 ---
 "Unmapped doubles":
 
-  - skip:
-      version: " - 5.1.99"
-      reason: Unmapped fields handling with value_type was added in 5.2
-
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: {}
 
@@ -620,6 +580,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "double_terms" : { "terms" : { "field" : "unmapped_double", "value_type" : "double", "missing": 3.5 } } } }
 
   - match: { hits.total: 1 }
@@ -633,42 +594,33 @@ setup:
 ---
 "Mixing longs and doubles":
 
-  - skip:
-      version: " - 5.99.99"
-      reason:  in 6.0 longs and doubles are compatible within a terms agg (longs are promoted to doubles)
-
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: {"number": 100}
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: {"number": 10}
 
   - do:
       index:
         index: test_2
-        type: test
         id: 3
         body: {"number": 100.0}
 
   - do:
       index:
         index: test_2
-        type: test
         id: 1
         body: {"number": 10.0}
 
   - do:
       index:
         index: test_2
-        type: test
         id: 2
         body: {"number": 14.6}
 
@@ -677,6 +629,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "number_terms" : { "terms" : { "field" : "number" } } } }
 
   - match: { hits.total: 5 }
@@ -699,28 +652,24 @@ setup:
 "Deprecated _term order":
 
   - skip:
-      version: " - 5.99.99"
       reason:  _term order deprecated in 6.0, replaced by _key
       features: "warnings"
 
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "str": "abc" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "str": "abc" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "str": "bcd" }
 
@@ -729,6 +678,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "order" :  { "_term" : "desc" } } } } }
       warnings:
         - "Deprecated aggregation order key [_term] used, replaced by [_key]"
@@ -748,3 +698,74 @@ setup:
   - is_false: aggregations.str_terms.buckets.1.key_as_string
 
   - match: { aggregations.str_terms.buckets.1.doc_count: 2 }
+
+---
+"Global ordinals are not loaded with the map execution hint":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  bug fixed in 7.0
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: 1
+        routing: 1
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: 2
+        routing: 1
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_1
+        id: 3
+        routing: 1
+        body: { "str": "bcd" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_1
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "map" } } } }
+
+  - match: { hits.total.value: 3}
+  - length: { aggregations.str_terms.buckets: 2 }
+
+  - do:
+      indices.stats:
+        index: test_1
+        metric: fielddata
+        fielddata_fields: str
+
+  - match: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
+
+  - do:
+      search:
+        index: test_1
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "global_ordinals" } } } }
+
+  - match: { hits.total.value: 3}
+  - length: { aggregations.str_terms.buckets: 2 }
+
+  - do:
+      indices.stats:
+        index: test_1
+        metric: fielddata
+        fielddata_fields: str
+
+  - gt: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
+
+
+
+
+

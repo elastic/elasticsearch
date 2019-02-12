@@ -19,29 +19,27 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import com.amazonaws.util.EC2MetadataUtils;
 import com.amazonaws.util.json.Jackson;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.UncheckedIOException;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.Closeable;
+import java.io.UncheckedIOException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
@@ -53,11 +51,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Closeable {
+public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
 
-    private static Logger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-
+    private static Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
     public static final String EC2 = "ec2";
 
     static {
@@ -71,51 +67,54 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
                 // ClientConfiguration clinit has some classloader problems
                 // TODO: fix that
                 Class.forName("com.amazonaws.ClientConfiguration");
-            } catch (ClassNotFoundException e) {
+            } catch (final ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
             return null;
         });
     }
 
-    private Settings settings;
-    // stashed when created in order to properly close
-    private final SetOnce<AwsEc2ServiceImpl> ec2Service = new SetOnce<>();
+    private final Settings settings;
+    // protected for testing
+    protected final AwsEc2Service ec2Service;
 
     public Ec2DiscoveryPlugin(Settings settings) {
-        this.settings = settings;
+        this(settings, new AwsEc2ServiceImpl());
     }
 
-
+    protected Ec2DiscoveryPlugin(Settings settings, AwsEc2ServiceImpl ec2Service) {
+        this.settings = settings;
+        this.ec2Service = ec2Service;
+        // eagerly load client settings when secure settings are accessible
+        reload(settings);
+    }
 
     @Override
     public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
         logger.debug("Register _ec2_, _ec2:xxx_ network names");
-        return new Ec2NameResolver(settings);
+        return new Ec2NameResolver();
     }
 
     @Override
-    public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
-                                                                            NetworkService networkService) {
-        return Collections.singletonMap(EC2, () -> {
-            ec2Service.set(new AwsEc2ServiceImpl(settings));
-            return new AwsEc2UnicastHostsProvider(settings, transportService, ec2Service.get());
-        });
+    public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
+                                                                         NetworkService networkService) {
+        return Collections.singletonMap(EC2, () -> new AwsEc2SeedHostsProvider(settings, transportService, ec2Service));
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
         // Register EC2 discovery settings: discovery.ec2
-        AwsEc2Service.ACCESS_KEY_SETTING,
-        AwsEc2Service.SECRET_KEY_SETTING,
-        AwsEc2Service.ENDPOINT_SETTING,
-        AwsEc2Service.PROTOCOL_SETTING,
-        AwsEc2Service.PROXY_HOST_SETTING,
-        AwsEc2Service.PROXY_PORT_SETTING,
-        AwsEc2Service.PROXY_USERNAME_SETTING,
-        AwsEc2Service.PROXY_PASSWORD_SETTING,
-        AwsEc2Service.READ_TIMEOUT_SETTING,
+        Ec2ClientSettings.ACCESS_KEY_SETTING,
+        Ec2ClientSettings.SECRET_KEY_SETTING,
+        Ec2ClientSettings.SESSION_TOKEN_SETTING,
+        Ec2ClientSettings.ENDPOINT_SETTING,
+        Ec2ClientSettings.PROTOCOL_SETTING,
+        Ec2ClientSettings.PROXY_HOST_SETTING,
+        Ec2ClientSettings.PROXY_PORT_SETTING,
+        Ec2ClientSettings.PROXY_USERNAME_SETTING,
+        Ec2ClientSettings.PROXY_PASSWORD_SETTING,
+        Ec2ClientSettings.READ_TIMEOUT_SETTING,
         AwsEc2Service.HOST_TYPE_SETTING,
         AwsEc2Service.ANY_GROUP_SETTING,
         AwsEc2Service.GROUPS_SETTING,
@@ -128,10 +127,11 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
 
     @Override
     public Settings additionalSettings() {
-        Settings.Builder builder = Settings.builder();
+        final Settings.Builder builder = Settings.builder();
 
         // Adds a node attribute for the ec2 availability zone
-        String azMetadataUrl = AwsEc2ServiceImpl.EC2_METADATA_URL + "placement/availability-zone";
+        final String azMetadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService()
+            + "/latest/meta-data/placement/availability-zone";
         builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl));
         return builder.build();
     }
@@ -142,7 +142,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         if (AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings) == false) {
             return Settings.EMPTY;
         }
-        Settings.Builder attrs = Settings.builder();
+        final Settings.Builder attrs = Settings.builder();
 
         final URL url;
         final URLConnection urlConnection;
@@ -151,7 +151,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
             urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
             urlConnection.setConnectTimeout(2000);
-        } catch (IOException e) {
+        } catch (final IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
             throw new UncheckedIOException(e);
         }
@@ -159,13 +159,13 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         try (InputStream in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
              BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
 
-            String metadataResult = urlReader.readLine();
-            if (metadataResult == null || metadataResult.length() == 0) {
+            final String metadataResult = urlReader.readLine();
+            if ((metadataResult == null) || (metadataResult.length() == 0)) {
                 throw new IllegalStateException("no ec2 metadata returned from " + url);
             } else {
                 attrs.put(Node.NODE_ATTRIBUTES.getKey() + "aws_availability_zone", metadataResult);
             }
-        } catch (IOException e) {
+        } catch (final IOException e) {
             // this is lenient so the plugin does not fail when installed outside of ec2
             logger.error("failed to get metadata for [placement/availability-zone]", e);
         }
@@ -175,6 +175,13 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(ec2Service.get());
+        ec2Service.close();
+    }
+
+    @Override
+    public void reload(Settings settings) {
+        // secure settings should be readable
+        final Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settings);
+        ec2Service.refreshAndClearCache(clientSettings);
     }
 }

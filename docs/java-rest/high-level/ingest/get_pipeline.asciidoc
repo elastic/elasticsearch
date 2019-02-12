@@ -1,0 +1,75 @@
+[[java-rest-high-ingest-get-pipeline]]
+=== Get Pipeline API
+
+[[java-rest-high-ingest-get-pipeline-request]]
+==== Get Pipeline Request
+
+A `GetPipelineRequest` requires one or more `pipelineIds` to fetch.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-request]
+--------------------------------------------------
+<1> The pipeline id to fetch
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-ingest-get-pipeline-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-execute]
+--------------------------------------------------
+<1> Execute the request and get back the response in a GetPipelineResponse object.
+
+[[java-rest-high-ingest-get-pipeline-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a get pipeline request requires both the `GetPipelineRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-execute-async]
+--------------------------------------------------
+<1> The `GetPipelineRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `GetPipelineResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-ingest-get-pipeline-response]]
+==== Get Pipeline Response
+
+The returned `GetPipelineResponse` allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IngestClientDocumentationIT.java[get-pipeline-response]
+--------------------------------------------------
+<1> Check if a matching pipeline id was found or not.
+<2> Get the list of pipelines found as a list of `PipelineConfig` objects.
+<3> Get the individual configuration of each pipeline as a `Map<String, Object>`.

@@ -13,6 +13,10 @@
         }
       },
       "params": {
+        "include_type_name": {
+          "type" : "boolean",
+          "description" : "Whether a type should be expected in the body of the mappings."
+        },
         "wait_for_active_shards": {
           "type" : "string",
           "description" : "Set the number of active shards to wait for before the operation returns." 
@@ -24,10 +28,6 @@
         "master_timeout": {
           "type" : "time",
           "description" : "Specify timeout for connection to master"
-        },
-        "update_all_types": {
-          "type": "boolean",
-          "description": "Whether to update the mapping for all fields with the same name across all types or not"
         }
       }
     },

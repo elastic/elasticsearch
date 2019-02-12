@@ -22,25 +22,23 @@ package org.elasticsearch.transport.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.handler.codec.DecoderException;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Optional;
-
-import static org.hamcrest.CoreMatchers.equalTo;
 
 public class Netty4UtilsTests extends ESTestCase {
 
-    private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
-    private final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), false);
+    private static final int PAGE_SIZE = PageCacheRecycler.BYTE_PAGE_SIZE;
+    private final BigArrays bigarrays = new BigArrays(null, new NoneCircuitBreakerService(), CircuitBreaker.REQUEST);
 
     public void testToChannelBufferWithEmptyRef() throws IOException {
         ByteBuf buffer = Netty4Utils.toByteBuf(getRandomizedBytesReference(0));
@@ -77,60 +75,6 @@ public class Netty4UtilsTests extends ESTestCase {
             assertTrue(buffer instanceof CompositeByteBuf);
         }
         assertArrayEquals(BytesReference.toBytes(ref), BytesReference.toBytes(bytesReference));
-    }
-
-    public void testMaybeError() {
-        final Error outOfMemoryError = new OutOfMemoryError();
-        assertError(outOfMemoryError, outOfMemoryError);
-
-        final DecoderException decoderException = new DecoderException(outOfMemoryError);
-        assertError(decoderException, outOfMemoryError);
-
-        final Exception e = new Exception();
-        e.addSuppressed(decoderException);
-        assertError(e, outOfMemoryError);
-
-        final int depth = randomIntBetween(1, 16);
-        Throwable cause = new Exception();
-        boolean fatal = false;
-        Error error = null;
-        for (int i = 0; i < depth; i++) {
-            final int length = randomIntBetween(1, 4);
-            for (int j = 0; j < length; j++) {
-                if (!fatal && rarely()) {
-                    error = new Error();
-                    cause.addSuppressed(error);
-                    fatal = true;
-                } else {
-                    cause.addSuppressed(new Exception());
-                }
-            }
-            if (!fatal && rarely()) {
-                cause = error = new Error(cause);
-                fatal = true;
-            } else {
-                cause = new Exception(cause);
-            }
-        }
-        if (fatal) {
-            assertError(cause, error);
-        } else {
-            assertFalse(Netty4Utils.maybeError(cause).isPresent());
-        }
-
-        assertFalse(Netty4Utils.maybeError(new Exception(new DecoderException())).isPresent());
-
-        Throwable chain = outOfMemoryError;
-        for (int i = 0; i < Netty4Utils.MAX_ITERATIONS; i++) {
-            chain = new Exception(chain);
-        }
-        assertFalse(Netty4Utils.maybeError(chain).isPresent());
-    }
-
-    private void assertError(final Throwable cause, final Error error) {
-        final Optional<Error> maybeError = Netty4Utils.maybeError(cause);
-        assertTrue(maybeError.isPresent());
-        assertThat(maybeError.get(), equalTo(error));
     }
 
     private BytesReference getRandomizedBytesReference(int length) throws IOException {

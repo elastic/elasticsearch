@@ -58,14 +58,12 @@ enabled for aggregations, as follows:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "my_field": { <1>
-          "type": "text",
-          "fields": {
-            "keyword": { <2>
-              "type": "keyword"
-            }
+    "properties": {
+      "my_field": { <1>
+        "type": "text",
+        "fields": {
+          "keyword": { <2>
+            "type": "keyword"
           }
         }
       }
@@ -84,7 +82,7 @@ You can enable fielddata on an existing `text` field using the
 
 [source,js]
 -----------------------------------
-PUT my_index/_mapping/my_type
+PUT my_index/_mapping
 {
   "properties": {
     "my_field": { <1>
@@ -99,11 +97,6 @@ PUT my_index/_mapping/my_type
 
 <1> The mapping that you specify for `my_field` should consist of the existing
     mapping for that field, plus the `fielddata` parameter.
-
-TIP: The `fielddata.*` parameter must have the same settings for fields of the
-same name in the same index.  Its value can be updated on existing fields
-using the <<indices-put-mapping,PUT mapping API>>.
-
 
 [[field-data-filtering]]
 ==== `fielddata_frequency_filter`
@@ -126,16 +119,14 @@ number of docs that the segment should contain with `min_segment_size`:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
-      "properties": {
-        "tag": {
-          "type": "text",
-          "fielddata": true,
-          "fielddata_frequency_filter": {
-            "min": 0.001,
-            "max": 0.1,
-            "min_segment_size": 500
-          }
+    "properties": {
+      "tag": {
+        "type": "text",
+        "fielddata": true,
+        "fielddata_frequency_filter": {
+          "min": 0.001,
+          "max": 0.1,
+          "min_segment_size": 500
         }
       }
     }

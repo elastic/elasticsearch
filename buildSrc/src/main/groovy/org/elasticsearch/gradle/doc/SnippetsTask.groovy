@@ -84,6 +84,7 @@ public class SnippetsTask extends DefaultTask {
             Snippet snippet = null
             StringBuilder contents = null
             List substitutions = null
+            String testEnv = null
             Closure emit = {
                 snippet.contents = contents.toString()
                 contents = null
@@ -121,7 +122,9 @@ public class SnippetsTask extends DefaultTask {
                             + "contain `curl`.")
                     }
                 }
-                if (snippet.testResponse && snippet.language == 'js') {
+                if (snippet.testResponse
+                        && 'js' == snippet.language
+                        && null == snippet.skip) {
                     String quoted = snippet.contents
                         // quote values starting with $
                         .replaceAll(/([:,])\s*(\$[^ ,\n}]+)/, '$1 "$2"')
@@ -143,10 +146,14 @@ public class SnippetsTask extends DefaultTask {
             }
             file.eachLine('UTF-8') { String line, int lineNumber ->
                 Matcher matcher
+                matcher = line =~ /\[testenv="([^"]+)"\]\s*/
+                if (matcher.matches()) {
+                    testEnv = matcher.group(1)
+                }
                 if (line ==~ /-{4,}\s*/) { // Four dashes looks like a snippet
                     if (snippet == null) {
                         Path path = docs.dir.toPath().relativize(file.toPath())
-                        snippet = new Snippet(path: path, start: lineNumber)
+                        snippet = new Snippet(path: path, start: lineNumber, testEnv: testEnv)
                         if (lastLanguageLine == lineNumber - 1) {
                             snippet.language = lastLanguage
                         }
@@ -211,7 +218,7 @@ public class SnippetsTask extends DefaultTask {
                                 return
                             }
                             if (it.group(4) != null) {
-                                snippet.skipTest = it.group(4)
+                                snippet.skip = it.group(4)
                                 return
                             }
                             if (it.group(5) != null) {
@@ -244,7 +251,7 @@ public class SnippetsTask extends DefaultTask {
                             substitutions = []
                         }
                         String loc = "$file:$lineNumber"
-                        parse(loc, matcher.group(2), /(?:$SUBSTITUTION|$CAT) ?/) {
+                        parse(loc, matcher.group(2), /(?:$SUBSTITUTION|$CAT|$SKIP) ?/) {
                             if (it.group(1) != null) {
                                 // TESTRESPONSE[s/adsf/jkl/]
                                 substitutions.add([it.group(1), it.group(2)])
@@ -254,6 +261,9 @@ public class SnippetsTask extends DefaultTask {
                                 substitutions.add(['\n$', '\\\\s*/'])
                                 substitutions.add(['( +)', '$1\\\\s+'])
                                 substitutions.add(['\n', '\\\\s*\n '])
+                            } else if (it.group(4) != null) {
+                                // TESTRESPONSE[skip:reason]
+                                snippet.skip = it.group(4)
                             }
                         }
                     }
@@ -261,6 +271,10 @@ public class SnippetsTask extends DefaultTask {
                 }
                 if (line ==~ /\/\/\s*TESTSETUP\s*/) {
                     snippet.testSetup = true
+                    return
+                }
+                if (line ==~ /\/\/\s*TEARDOWN\s*/) {
+                    snippet.testTearDown = true
                     return
                 }
                 if (snippet == null) {
@@ -277,6 +291,10 @@ public class SnippetsTask extends DefaultTask {
                     // Nor any trailing spaces
                     line = line.replaceAll(/\s+$/, '')
                     contents.append(line).append('\n')
+                    return
+                }
+                // Allow line continuations for console snippets within lists
+                if (snippet != null && line.trim() == '+') {
                     return
                 }
                 // Just finished
@@ -297,12 +315,14 @@ public class SnippetsTask extends DefaultTask {
         int start
         int end = NOT_FINISHED
         String contents
+        String testEnv
 
         Boolean console = null
         boolean test = false
         boolean testResponse = false
         boolean testSetup = false
-        String skipTest = null
+        boolean testTearDown = false
+        String skip = null
         boolean continued = false
         String language = null
         String catchPart = null
@@ -321,11 +341,14 @@ public class SnippetsTask extends DefaultTask {
             }
             if (test) {
                 result += '// TEST'
+                if (testEnv != null) {
+                    result += "[testenv=$testEnv]"
+                }
                 if (catchPart) {
                     result += "[catch: $catchPart]"
                 }
-                if (skipTest) {
-                    result += "[skip=$skipTest]"
+                if (skip) {
+                    result += "[skip=$skip]"
                 }
                 if (continued) {
                     result += '[continued]'
@@ -339,6 +362,9 @@ public class SnippetsTask extends DefaultTask {
             }
             if (testResponse) {
                 result += '// TESTRESPONSE'
+                if (skip) {
+                    result += "[skip=$skip]"
+                }
             }
             if (testSetup) {
                 result += '// TESTSETUP'

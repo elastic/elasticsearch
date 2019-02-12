@@ -16,17 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Date;
+import java.util.function.Predicate;
+
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeable> extends AbstractWireSerializingTestCase<T> {
 
@@ -34,30 +38,15 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * Generic test that creates new instance from the test instance and checks
      * both for equality and asserts equality on the two instances.
      */
-    public void testFromXContent() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            T testInstance = createTestInstance();
-            XContentType xContentType = randomFrom(XContentType.values());
-            BytesReference shuffled = toShuffledXContent(testInstance, xContentType, ToXContent.EMPTY_PARAMS,
-                    false, getShuffleFieldsExceptions());
-            assertParsedInstance(xContentType, shuffled, testInstance);
-        }
-    }
-
-    protected void assertParsedInstance(XContentType xContentType, BytesReference instanceAsBytes, T expectedInstance)
-            throws IOException {
-
-        XContentParser parser = createParser(XContentFactory.xContent(xContentType), instanceAsBytes);
-        T newInstance = parseInstance(parser);
-        assertNotSame(newInstance, expectedInstance);
-        assertEquals(expectedInstance, newInstance);
-        assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
-    }
-
-    protected T parseInstance(XContentParser parser) throws IOException {
-        T parsedInstance = doParseInstance(parser);
-        assertNull(parser.nextToken());
-        return parsedInstance;
+    public final void testFromXContent() throws IOException {
+        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance)
+            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+            .supportsUnknownFields(supportsUnknownFields())
+            .shuffleFieldsExceptions(getShuffleFieldsExceptions())
+            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .assertToXContentEquivalence(assertToXContentEquivalence())
+            .test();
     }
 
     /**
@@ -66,9 +55,57 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
     protected abstract T doParseInstance(XContentParser parser) throws IOException;
 
     /**
+     * Creates a random instance to use in the xcontent tests.
+     * Override this method if the random instance that you build
+     * should be aware of the {@link XContentType} used in the test.
+     */
+    protected T createXContextTestInstance(XContentType xContentType) {
+        return createTestInstance();
+    }
+
+    /**
+     * Indicates whether the parser supports unknown fields or not. In case it does, such behaviour will be tested by
+     * inserting random fields before parsing and checking that they don't make parsing fail.
+     */
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    /**
+     * Returns a predicate that given the field name indicates whether the field has to be excluded from random fields insertion or not
+     */
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> false;
+    }
+
+    /**
      * Fields that have to be ignored when shuffling as part of testFromXContent
      */
     protected String[] getShuffleFieldsExceptions() {
         return Strings.EMPTY_ARRAY;
+    }
+
+    /**
+     * Params that have to be provided when calling calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)}
+     */
+    protected ToXContent.Params getToXContentParams() {
+        return ToXContent.EMPTY_PARAMS;
+    }
+
+    /**
+     * Whether or not to assert equivalence of the {@link org.elasticsearch.common.xcontent.XContent} of the test instance and the instance
+     * parsed from the {@link org.elasticsearch.common.xcontent.XContent} of the test instance.
+     *
+     * @return true if equivalence should be asserted, otherwise false
+     */
+    protected boolean assertToXContentEquivalence() {
+        return true;
+    }
+
+    /**
+     * @return a random date between 1970 and ca 2065
+     */
+    protected Date randomDate() {
+        return new Date(randomLongBetween(0, 3000000000000L));
     }
 }

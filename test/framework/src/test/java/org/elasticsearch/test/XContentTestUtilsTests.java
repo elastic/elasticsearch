@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -38,7 +40,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class XContentTestUtilsTests extends ESTestCase {
 
@@ -71,7 +73,8 @@ public class XContentTestUtilsTests extends ESTestCase {
         }
         builder.endObject();
 
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, builder.bytes(), builder.contentType())) {
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(builder), builder.contentType())) {
             parser.nextToken();
             List<String> insertPaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
             assertEquals(5, insertPaths.size());
@@ -88,15 +91,16 @@ public class XContentTestUtilsTests extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.endObject();
-        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), builder.bytes(), Collections.singletonList(""),
-                () -> "inn.er1", () -> new HashMap<>());
-        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), builder.bytes(), Collections.singletonList(""),
-                () -> "field1", () -> "value1");
-        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), builder.bytes(),
+        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), BytesReference.bytes(builder),
+                Collections.singletonList(""), () -> "inn.er1", () -> new HashMap<>());
+        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), BytesReference.bytes(builder),
+                Collections.singletonList(""), () -> "field1", () -> "value1");
+        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), BytesReference.bytes(builder),
                 Collections.singletonList("inn\\.er1"), () -> "inner2", () -> new HashMap<>());
-        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), builder.bytes(),
+        builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), BytesReference.bytes(builder),
                 Collections.singletonList("inn\\.er1"), () -> "field2", () -> "value2");
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, builder.bytes(), builder.contentType())) {
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(builder), builder.contentType())) {
             Map<String, Object> map = parser.map();
             assertEquals(2, map.size());
             assertEquals("value1", map.get("field1"));
@@ -145,7 +149,7 @@ public class XContentTestUtilsTests extends ESTestCase {
         Map<String, Object> resultMap;
 
         try (XContentParser parser = createParser(XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), builder.bytes(), null, random()))) {
+                insertRandomFields(builder.contentType(), BytesReference.bytes(builder), null, random()))) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());
@@ -159,7 +163,7 @@ public class XContentTestUtilsTests extends ESTestCase {
 
         Predicate<String> pathsToExclude = path -> path.endsWith("foo1");
         try (XContentParser parser = createParser(XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude, random()))) {
+                insertRandomFields(builder.contentType(), BytesReference.bytes(builder), pathsToExclude, random()))) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());
@@ -173,7 +177,7 @@ public class XContentTestUtilsTests extends ESTestCase {
 
         pathsToExclude = path -> path.contains("foo1");
         try (XContentParser parser = createParser(XContentType.JSON.xContent(),
-                insertRandomFields(builder.contentType(), builder.bytes(), pathsToExclude, random()))) {
+                insertRandomFields(builder.contentType(), BytesReference.bytes(builder), pathsToExclude, random()))) {
             resultMap = parser.map();
         }
         assertEquals(5, resultMap.keySet().size());

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http;
 
-import org.apache.http.message.BasicHeader;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -31,10 +30,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -89,7 +90,6 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
 
@@ -103,12 +103,12 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
     @Before
     public void createIndices() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("location").field("type", "geo_shape").endObject()
             .startObject("name").field("type", "text").endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         Settings settings = Settings.builder()
             .put(indexSettings())
@@ -221,8 +221,12 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
     public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws IOException {
         final String IRRELEVANT_HEADER = "SomeIrrelevantHeader";
-        Response response = getRestClient().performRequest("GET", "/" + queryIndex + "/_search",
-                new BasicHeader(CUSTOM_HEADER, randomHeaderValue), new BasicHeader(IRRELEVANT_HEADER, randomHeaderValue));
+        Request request = new Request("GET", "/" + queryIndex + "/_search");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(CUSTOM_HEADER, randomHeaderValue);
+        options.addHeader(IRRELEVANT_HEADER, randomHeaderValue);
+        request.setOptions(options);
+        Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
         assertThat(searchRequests, hasSize(greaterThan(0)));
@@ -294,7 +298,7 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-            loggingFilter.set(new LoggingFilter(clusterService.getSettings(), threadPool));
+            loggingFilter.set(new LoggingFilter(threadPool));
             return Collections.emptyList();
         }
 
@@ -309,8 +313,7 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
         private final ThreadPool threadPool;
 
-        public LoggingFilter(Settings settings, ThreadPool pool) {
-            super(settings);
+        public LoggingFilter(ThreadPool pool) {
             this.threadPool = pool;
         }
 

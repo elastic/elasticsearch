@@ -19,12 +19,11 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.util.Set;
 
@@ -35,10 +34,10 @@ final class PSubShortcut extends AStoreable {
 
     private final String value;
     private final String type;
-    private final Method getter;
-    private final Method setter;
+    private final PainlessMethod getter;
+    private final PainlessMethod setter;
 
-    PSubShortcut(Location location, String value, String type, Method getter, Method setter) {
+    PSubShortcut(Location location, String value, String type, PainlessMethod getter, PainlessMethod setter) {
         super(location);
 
         this.value = value;
@@ -54,22 +53,22 @@ final class PSubShortcut extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        if (getter != null && (getter.rtn.clazz == void.class || !getter.arguments.isEmpty())) {
+        if (getter != null && (getter.returnType == void.class || !getter.typeParameters.isEmpty())) {
             throw createError(new IllegalArgumentException(
                 "Illegal get shortcut on field [" + value + "] for type [" + type + "]."));
         }
 
-        if (setter != null && (setter.rtn.clazz != void.class || setter.arguments.size() != 1)) {
+        if (setter != null && (setter.returnType != void.class || setter.typeParameters.size() != 1)) {
             throw createError(new IllegalArgumentException(
                 "Illegal set shortcut on field [" + value + "] for type [" + type + "]."));
         }
 
-        if (getter != null && setter != null && setter.arguments.get(0) != getter.rtn) {
+        if (getter != null && setter != null && setter.typeParameters.get(0) != getter.returnType) {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
         if ((getter != null || setter != null) && (!read || getter != null) && (!write || setter != null)) {
-            actual = setter != null ? setter.arguments.get(0) : getter.rtn;
+            actual = setter != null ? setter.typeParameters.get(0) : getter.returnType;
         } else {
             throw createError(new IllegalArgumentException("Illegal shortcut on field [" + value + "] for type [" + type + "]."));
         }
@@ -79,10 +78,10 @@ final class PSubShortcut extends AStoreable {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        getter.write(writer);
+        writer.invokeMethodCall(getter);
 
-        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            writer.checkCast(getter.rtn.type);
+        if (!getter.returnType.equals(getter.javaMethod.getReturnType())) {
+            writer.checkCast(MethodWriter.getType(getter.returnType));
         }
     }
 
@@ -97,7 +96,7 @@ final class PSubShortcut extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
     }
 
@@ -110,10 +109,10 @@ final class PSubShortcut extends AStoreable {
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        getter.write(writer);
+        writer.invokeMethodCall(getter);
 
-        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            writer.checkCast(getter.rtn.type);
+        if (getter.returnType != getter.javaMethod.getReturnType()) {
+            writer.checkCast(MethodWriter.getType(getter.returnType));
         }
     }
 
@@ -121,9 +120,9 @@ final class PSubShortcut extends AStoreable {
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        setter.write(writer);
+        writer.invokeMethodCall(setter);
 
-        writer.writePop(setter.rtn.type.getSize());
+        writer.writePop(MethodWriter.getType(setter.returnType).getSize());
     }
 
     @Override

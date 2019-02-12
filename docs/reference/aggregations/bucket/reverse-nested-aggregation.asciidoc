@@ -20,18 +20,16 @@ the issue documents as nested documents. The mapping could look like:
 PUT /issues
 {
     "mappings": {
-        "issue" : {
-            "properties" : {
-                "tags" : { "type" : "keyword" },
-                "comments" : { <1>
-                    "type" : "nested",
-                    "properties" : {
-                        "username" : { "type" : "keyword" },
-                        "comment" : { "type" : "text" }
-                    }
-                }
-            }
-        }
+         "properties" : {
+             "tags" : { "type" : "keyword" },
+             "comments" : { <1>
+                 "type" : "nested",
+                 "properties" : {
+                     "username" : { "type" : "keyword" },
+                     "comment" : { "type" : "text" }
+                 }
+             }
+         }
     }
 }
 --------------------------------------------------
@@ -45,7 +43,7 @@ tags of the issues the user has commented on:
 
 [source,js]
 --------------------------------------------------
-POST /issues/issue/0?refresh
+POST /issues/_doc/0?refresh
 {"tags": ["tag_1"], "comments": [{"username": "username_1"}]}
 --------------------------------------------------
 // CONSOLE
@@ -93,7 +91,7 @@ GET /issues/_search
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 As you can see above, the `reverse_nested` aggregation is put in to a `nested` aggregation as this is the only place
-in the dsl where the `reversed_nested` aggregation can be used. Its sole purpose is to join back to a parent doc higher
+in the dsl where the `reverse_nested` aggregation can be used. Its sole purpose is to join back to a parent doc higher
 up in the nested structure.
 
 <1> A `reverse_nested` aggregation that joins back to the root / main document level, because no `path` has been defined.

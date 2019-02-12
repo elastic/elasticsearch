@@ -19,7 +19,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3M=" }
@@ -27,7 +26,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3M=" }
   - length: { _source.attachment: 4 }
@@ -62,7 +60,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3MK" }
@@ -70,7 +67,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3MK" }
   - length: { _source.attachment: 1 }
@@ -98,7 +94,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3M=" }
@@ -106,9 +101,76 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - length: { _source.attachment: 4 }
   - match: { _source.attachment.content: "This is an english text to tes" }
   - match: { _source.attachment.language: "en" }
   - match: { _source.attachment.content_length: 30 }
+
+---
+"Test indexed chars are configurable per document":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "attachment" : {
+                  "field" : "field1",
+                  "indexed_chars": 30,
+                  "indexed_chars_field": "max_size"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3M=" }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - length: { _source.attachment: 4 }
+  - match: { _source.attachment.content: "This is an english text to tes" }
+  - match: { _source.attachment.language: "en" }
+  - match: { _source.attachment.content_length: 30 }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        pipeline: "my_pipeline"
+        body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3M=", "max_size": 18 }
+
+  - do:
+      get:
+        index: test
+        id: 2
+  - length: { _source.attachment: 4 }
+  - match: { _source.attachment.content: "This is an english" }
+  - match: { _source.attachment.language: "en" }
+  - match: { _source.attachment.content_length: 18 }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        pipeline: "my_pipeline"
+        body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3M=", "max_size": 100000000 }
+
+  - do:
+      get:
+        index: test
+        id: 3
+  - length: { _source.attachment: 4 }
+  - match: { _source.attachment.content: "This is an english text to test if the pipeline works" }
+  - match: { _source.attachment.language: "en" }
+  - match: { _source.attachment.content_length: 54 }

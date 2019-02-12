@@ -1,0 +1,229 @@
+[[watching-time-series-data]]
+=== Watching Time Series Data
+
+If you are indexing time-series data such as logs, RSS feeds, or network traffic,
+you can use {watcher} to send notifications when certain events occur.
+
+For example, you could index an RSS feed of posts on Stack Overflow that are
+tagged with Elasticsearch, Logstash, Beats, or Kibana, set up a watch to check
+daily for new posts about a problem or failure, and send an email if any are
+found.
+
+The simplest way to index an RSS feed is to use https://www.elastic.co/products/logstash[Logstash].
+
+To install Logstash and set up the RSS input plugin:
+
+. https://www.elastic.co/downloads/logstash[Download Logstash] and unpack the
+  archive file.
+. Go to the `logstash-{version}` directory and install the
+  {logstash-ref}/plugins-inputs-rss.html[RSS input] plugin:
++
+[source,sh]
+----------------------------------------------------------
+cd logstash-<logstash_version>
+bin/logstash-plugin install logstash-input-rss
+----------------------------------------------------------
+
+. Create a Logstash configuration file that uses the RSS input plugin to get
+  data from an RSS/atom feed and outputs the data to Elasticsearch. For example,
+  the following `rss.conf` file gets events from the Stack Overflow feed that
+  are tagged with `elasticsearch`, `logstash`, `beats` or `kibana`.
++
+[source,ruby]
+----------------------------------------------------------
+input {
+  rss {
+    url => "http://stackoverflow.com/feeds/tag/elasticsearch+or+logstash+or+beats+or+kibana"
+    interval => 3600 <1>
+  }
+}
+
+output {
+  elasticsearch { }
+  stdout { }
+}
+----------------------------------------------------------
+<1> Checks the feed every hour.
++
+For more information see {logstash-ref}/plugins-outputs-elasticsearch.html[Elasticsearch output]
+in the Logstash Reference.
+
+. Run Logstash with the `rss.conf` config file to start indexing the feed:
++
+[source,she]
+----------------------------------------------------------
+bin/logstash -f rss.conf
+----------------------------------------------------------
+
+Once you have Logstash set up to input data from the RSS feed into Elasticsearch,
+you can set up a daily watch that runs at noon to check for new posts that
+contain the words "error" or "problem".
+
+To set up the watch:
+
+. Define the watch trigger--a daily schedule that runs at 12:00 UTC:
++
+[source,js]
+--------------------------------------------------
+"trigger" : {
+  "schedule" : {
+    "daily" : { "at" : "12:00" }
+  }
+}
+--------------------------------------------------
++
+NOTE: In {watcher}, you specify times in UTC time. Don't forget to do the
+      conversion from your local time so the schedule triggers at the time
+      you intend.
+
+. Define the watch input--a search that uses a filter to constrain the results
+  to the past day.
++
+[source,js]
+--------------------------------------------------
+"input" : {
+  "search" : {
+    "request" : {
+      "indices" : [ "logstash*" ],
+      "body" : {
+        "query" : {
+          "bool" : {
+            "must" : { "match" : { "message": "error problem" }},
+            "filter" : { "range" : { "@timestamp" : { "gte" : "now-1d" }}}
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+. Define a watch condition to check the payload to see if the input search
+  returned any hits. If it did, the condition resolves to `true` and the watch
+  actions will be executed.
++
+You define the condition with the following script:
++
+[source,text]
+--------------------------------------------------
+return ctx.payload.hits.total.value > threshold
+--------------------------------------------------
++
+If you store the script in a file at `$ES_HOME/config/scripts/threshold_hits.painless`,
+you can then reference it by name in the watch condition.
++
+[source,js]
+--------------------------------------------------
+"condition" : {
+  "script" : {
+    "id" : "threshold_hits",
+    "params" : {
+      "threshold" : 0 <1>
+    }
+  }
+}
+--------------------------------------------------
+<1> The threshold parameter value you want to pass to the script.
++
+. Define a watch action to send an email that contains the relevant messages
+  from the past day as an attachment.
++
+[source,js]
+--------------------------------------------------
+"actions" : {
+  "send_email" : {
+    "email" : {
+      "to" : "username@example.org",
+      "subject" : "Somebody needs help with the Elastic Stack",
+      "body" : "The attached Stack Overflow posts were tagged with Elasticsearch, Logstash, Beats or Kibana and mentioned an error or problem.",
+      "attachments" : {
+        "attached_data" : {
+          "data" : {
+            "format" : "json"
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
++
+NOTE: To use the email action, you must configure at least one email account in
+`elasticsearch.yml`. If you configure multiple email accounts, you need to
+specify which one you want to send the email with. For more information, see
+<<configuring-email, Working with Various Email Services>>.
+
+The complete watch looks like this:
+
+[source,js]
+--------------------------------------------------
+PUT _watcher/watch/rss_watch
+{
+  "trigger" : {
+      "schedule" : {
+        "daily" : { "at" : "12:00" }
+    }
+  },
+  "input" : {
+    "search" : {
+      "request" : {
+        "indices" : [ "logstash*" ],
+        "body" : {
+          "query" : {
+            "bool" : {
+              "must" : { "match" : { "message": "error problem" }},
+              "filter" : { "range" : { "@timestamp" : { "gte" : "now-1d" }}}
+            }
+          }
+        }
+      }
+    }
+  },
+  "condition" : {
+    "script" : {
+      "id" : "threshold_hits",
+      "params" : {
+        "threshold" : 0
+      }
+    }
+  },
+  "actions" : {
+    "send_email" : {
+      "email" : {
+        "to" : "username@example.org",  <1>
+        "subject" : "Somebody needs help with the Elastic Stack",
+        "body" : "The attached Stack Overflow posts were tagged with Elasticsearch, Logstash, Beats or Kibana and mentioned an error or problem.",
+        "attachments" : {
+          "attached_data" : {
+            "data" : {}
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/"id" : "threshold_hits"/"source": "return ctx.payload.hits.total.value > params.threshold"/]
+<1> Replace `username@example.org` with your email address to receive
+    notifications.
+
+[TIP]
+=================================================
+To execute a watch immediately (without waiting for the schedule to trigger),
+use the {ref}/watcher-api-execute-watch.html[`_execute` API]:
+
+[source,js]
+--------------------------------------------------
+POST _watcher/watch/rss_watch/_execute
+{
+  "ignore_condition" : true,
+  "action_modes" : {
+    "_all" : "force_execute"
+  },
+  "record_execution" : true
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+=================================================

@@ -1,0 +1,146 @@
+[role="xpack"]
+[testenv="basic"]
+[[info-api]]
+== Info API
+
+The info API provides general information about the installed {xpack} features.
+
+[float]
+=== Request
+
+`GET /_xpack`
+
+[float]
+=== Description
+
+The information provided by this API includes:
+
+* Build Information - including the build number and timestamp.
+* License Information - basic information about the currently installed license.
+* Features Information - The features that are currently enabled and available
+  under the current license.
+
+[float]
+=== Path Parameters
+
+`categories`::
+  (list) A comma-separated list of the information categories to include in the
+  response. For example, `build,license,features`.
+
+`human`::
+  (boolean) Defines whether additional human-readable information is included in
+  the response. In particular, it adds descriptions and a tag line. The
+  default value is `true`.
+
+//=== Query Parameters
+
+//=== Authorization
+
+[float]
+=== Examples
+
+The following example queries the info API:
+
+[source,js]
+------------------------------------------------------------
+GET /_xpack
+------------------------------------------------------------
+// CONSOLE
+
+Example response:
+[source,js]
+------------------------------------------------------------
+{
+   "build" : {
+      "hash" : "2798b1a3ce779b3611bb53a0082d4d741e4d3168",
+      "date" : "2015-04-07T13:34:42Z"
+   },
+   "license" : {
+      "uid" : "893361dc-9749-4997-93cb-xxx",
+      "type" : "trial",
+      "mode" : "trial",
+      "status" : "active",
+      "expiry_date_in_millis" : 1542665112332
+   },
+   "features" : {
+      "ccr" : {
+        "description" : "Cross Cluster Replication",
+        "available" : true,
+        "enabled" : true
+      },
+      "graph" : {
+         "description" : "Graph Data Exploration for the Elastic Stack",
+         "available" : true,
+         "enabled" : true
+      },
+      "ilm" : {
+         "description" : "Index lifecycle management for the Elastic Stack",
+         "available" : true,
+         "enabled" : true
+      },
+      "logstash" : {
+         "description" : "Logstash management component for X-Pack",
+         "available" : true,
+         "enabled" : true
+      },
+      "ml" : {
+         "description" : "Machine Learning for the Elastic Stack",
+         "available" : true,
+         "enabled" : true,
+         "native_code_info" : {
+           "version" : "7.0.0-alpha1-SNAPSHOT",
+           "build_hash" : "99a07c016d5a73"
+        }
+      },
+      "monitoring" : {
+         "description" : "Monitoring for the Elastic Stack",
+         "available" : true,
+         "enabled" : true
+      },
+      "rollup": {
+        "description": "Time series pre-aggregation and rollup",
+         "available": true,
+         "enabled": true
+      },
+      "security" : {
+         "description" : "Security for the Elastic Stack",
+         "available" : true,
+         "enabled" : false
+      },
+      "sql" : {
+         "description" : "SQL access to Elasticsearch",
+         "available" : true,
+         "enabled" : true
+      },
+      "watcher" : {
+         "description" : "Alerting, Notification and Automation for the Elastic Stack",
+         "available" : true,
+         "enabled" : true
+      }
+   },
+   "tagline" : "You know, for X"
+}
+------------------------------------------------------------
+// TESTRESPONSE[s/"hash" : "2798b1a3ce779b3611bb53a0082d4d741e4d3168",/"hash" : "$body.build.hash",/]
+// TESTRESPONSE[s/"date" : "2015-04-07T13:34:42Z"/"date" : "$body.build.date"/]
+// TESTRESPONSE[s/"uid" : "893361dc-9749-4997-93cb-xxx",/"uid": "$body.license.uid",/]
+// TESTRESPONSE[s/"expiry_date_in_millis" : 1542665112332/"expiry_date_in_millis" : "$body.license.expiry_date_in_millis"/]
+// TESTRESPONSE[s/"version" : "7.0.0-alpha1-SNAPSHOT",/"version": "$body.features.ml.native_code_info.version",/]
+// TESTRESPONSE[s/"build_hash" : "99a07c016d5a73"/"build_hash": "$body.features.ml.native_code_info.build_hash"/]
+// So much s/// but at least we test that the layout is close to matching....
+
+The following example only returns the build and features information:
+
+[source,js]
+------------------------------------------------------------
+GET /_xpack?categories=build,features
+------------------------------------------------------------
+// CONSOLE
+
+The following example removes the descriptions from the response:
+
+[source,js]
+------------------------------------------------------------
+GET /_xpack?human=false
+------------------------------------------------------------
+// CONSOLE

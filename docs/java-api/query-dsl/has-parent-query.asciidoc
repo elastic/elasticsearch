@@ -9,7 +9,7 @@ When using the `has_parent` query it is important to use the `PreBuiltTransportC
 --------------------------------------------------
 Settings settings = Settings.builder().put("cluster.name", "elasticsearch").build();
 TransportClient client = new PreBuiltTransportClient(settings);
-client.addTransportAddress(new InetSocketTransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300)));
+client.addTransportAddress(new TransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300)));
 --------------------------------------------------
 
 Otherwise the parent-join module doesn't get loaded and the `has_parent` query can't be used from the transport client.

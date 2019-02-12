@@ -1,0 +1,38 @@
+--
+:api: indices-exists
+:request: GetIndexRequest
+:response: boolean
+--
+
+[id="{upid}-{api}"]
+=== Indices Exists API
+
+[id="{upid}-{api}-request"]
+==== Indices Exists Request
+
+The high-level REST client uses a +{request}+ for Indices Exists API. The index name (or indices' names) are required.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Index
+
+[[java-rest-high-indices-exists-optional-args]]
+==== Optional arguments
+Indices Exists API also accepts following optional arguments, through a +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-optionals]
+--------------------------------------------------
+<1> Whether to return local information or retrieve the state from master node
+<2> Return result in a format suitable for humans
+<3> Whether to return all default setting for each of the indices
+<4> Controls how unavailable indices are resolved and how wildcard expressions are expanded
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+The response is a +{response}+ value, indicating whether the index (or indices) exist.

@@ -1,10 +1,13 @@
 ---
 "Partial document":
 
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:
               foo:    bar
@@ -14,7 +17,6 @@
   - do:
       update:
           index:  test_1
-          type:   test
           id:     1
           body:
             doc:
@@ -23,18 +25,16 @@
                     one:  3
 
   - match: { _index:   test_1 }
-  - match: { _type:    test   }
+  - match: { _type: _doc }
   - match: { _id:      "1"    }
   - match: { _version: 2      }
 
   - do:
       get:
           index:  test_1
-          type:   test
           id:     1
 
   - match: { _source.foo:        baz }
   - match: { _source.count:      1   }
   - match: { _source.nested.one: 3   }
   - match: { _source.nested.two: 2   }
-

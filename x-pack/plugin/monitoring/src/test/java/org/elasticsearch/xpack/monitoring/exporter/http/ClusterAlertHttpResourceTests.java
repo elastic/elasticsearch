@@ -181,7 +181,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testParameters() {
-        final Map<String, String> parameters = new HashMap<>(resource.getParameters());
+        final Map<String, String> parameters = new HashMap<>(resource.getDefaultParameters());
 
         assertThat(parameters.remove("filter_path"), is("metadata.xpack.version_created"));
         assertThat(parameters.isEmpty(), is(true));

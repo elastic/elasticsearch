@@ -113,7 +113,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      *
      * @return Never {@code null}.
      */
-    public Map<String, String> getParameters() {
+    public Map<String, String> getDefaultParameters() {
         return defaultParameters;
     }
 

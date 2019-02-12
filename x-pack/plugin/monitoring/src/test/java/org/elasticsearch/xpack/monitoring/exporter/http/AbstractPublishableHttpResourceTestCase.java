@@ -81,7 +81,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
      */
     protected void assertCheckWithException(final PublishableHttpResource resource,
                                             final String resourceBasePath, final String resourceName) {
-        assertCheckWithException(resource, getParameters(resource.getParameters()), resourceBasePath, resourceName);
+        assertCheckWithException(resource, getParameters(resource.getDefaultParameters()), resourceBasePath, resourceName);
     }
 
     /**
@@ -140,7 +140,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
 
         final Request request = new Request("DELETE", endpoint);
-        addParameters(request, deleteParameters(resource.getParameters()));
+        addParameters(request, deleteParameters(resource.getDefaultParameters()));
         whenPerformRequestAsyncWith(client, request, e);
 
         resource.doCheck(client, listener);
@@ -186,12 +186,12 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         verify(client).performRequestAsync(request.capture(), any(ResponseListener.class));
         assertThat(request.getValue().getMethod(), is("PUT"));
         assertThat(request.getValue().getEndpoint(), is(endpoint));
-        assertThat(request.getValue().getParameters(), is(resource.getParameters()));
+        assertThat(request.getValue().getParameters(), is(resource.getDefaultParameters()));
         assertThat(request.getValue().getEntity(), instanceOf(bodyType));
     }
 
     protected void assertParameters(final PublishableHttpResource resource) {
-        final Map<String, String> parameters = new HashMap<>(resource.getParameters());
+        final Map<String, String> parameters = new HashMap<>(resource.getDefaultParameters());
 
         if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
             assertThat(parameters.remove("master_timeout"), is(masterTimeout.toString()));
@@ -204,7 +204,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     }
 
     protected void assertVersionParameters(final PublishableHttpResource resource) {
-        final Map<String, String> parameters = new HashMap<>(resource.getParameters());
+        final Map<String, String> parameters = new HashMap<>(resource.getDefaultParameters());
 
         if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
             assertThat(parameters.remove("master_timeout"), is(masterTimeout.toString()));
@@ -244,7 +244,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("GET", endpoint, status, entity);
 
-        doCheckWithStatusCode(resource, getParameters(resource.getParameters(), exists, doesNotExist), endpoint, expected, response);
+        doCheckWithStatusCode(resource, getParameters(resource.getDefaultParameters(), exists, doesNotExist), endpoint, expected, response);
     }
 
     protected void doCheckWithStatusCode(final PublishableHttpResource resource, final Map<String, String> expectedParameters,
@@ -279,7 +279,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
         assertThat(request.getValue().getMethod(), is("PUT"));
         assertThat(request.getValue().getEndpoint(), is(endpoint));
-        assertThat(request.getValue().getParameters(), is(resource.getParameters()));
+        assertThat(request.getValue().getParameters(), is(resource.getDefaultParameters()));
         assertThat(request.getValue().getEntity(), instanceOf(bodyType));
     }
 
@@ -297,7 +297,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
                                                  final String endpoint, final Boolean expected,
                                                  final Response response) {
         final Request request = new Request("DELETE", endpoint);
-        addParameters(request, deleteParameters(resource.getParameters()));
+        addParameters(request, deleteParameters(resource.getDefaultParameters()));
         whenPerformRequestAsyncWith(client, request, response);
 
         resource.doCheck(client, listener);

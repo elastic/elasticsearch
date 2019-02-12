@@ -3,7 +3,7 @@
 
 coming[7.0.0-beta1]
 
-Also see <<breaking-changes-7.0.0-beta1>>.
+Also see <<breaking-changes-7.0>>.
 
 [[breaking-7.0.0-beta1]]
 [float]
@@ -27,6 +27,9 @@ CRUD::
 Features/Ingest::
 * Add ECS schema for user-agent ingest processor (#37727) {pull}37984[#37984] (issues: {issue}37329[#37329], {issue}37727[#37727])
 * Remove special handling for ingest plugins {pull}36967[#36967] (issues: {issue}36898[#36898], {issue}36956[#36956])
+
+Features/Java Low Level REST Client::
+* Drop support for the low-level REST client on JDK 7 {pull}38540[#38540] (issue: {issue}29607[#29607])
 
 Features/Watcher::
 * Remove Watcher Account "unsecure" settings {pull}36736[#36736] (issue: {issue}36403[#36403])
@@ -89,6 +92,9 @@ Analysis::
 
 Audit::
 * Deprecate index audit output type {pull}37301[#37301] (issue: {issue}29881[#29881])
+
+Features/Indices APIs::
+* Reject setting index.optimize_auto_generated_id after version 7.0.0 {pull}28895[#28895] (issue: {issue}27600[#27600])
 
 Features/Ingest::
 * Deprecate `_type` in simulate pipeline requests {pull}37949[#37949] (issue: {issue}37731[#37731])
@@ -213,11 +219,13 @@ Authentication::
 * Enhance Invalidate Token API {pull}35388[#35388] (issues: {issue}34556[#34556], {issue}35115[#35115])
 
 Authorization::
+* Add apm_user reserved role {pull}38206[#38206]
 * Permission for restricted indices {pull}37577[#37577] (issue: {issue}34454[#34454])
 * Remove kibana_user and kibana_dashboard_only_user index privileges {pull}37441[#37441]
 * Create snapshot role {pull}35820[#35820] (issue: {issue}34454[#34454])
 
 CCR::
+* Concurrent file chunk fetching for CCR restore {pull}38495[#38495]
 * Tighten mapping syncing in ccr remote restore {pull}38071[#38071] (issues: {issue}36879[#36879], {issue}37887[#37887])
 * Do not allow put mapping on follower {pull}37675[#37675] (issue: {issue}30086[#30086])
 * Added ccr to xpack usage infrastructure {pull}37256[#37256] (issue: {issue}37221[#37221])
@@ -261,6 +269,7 @@ Distributed::
 * Always initialize the global checkpoint {pull}34381[#34381]
 
 Engine::
+* Specialize pre-closing checks for engine implementations {pull}38702[#38702]
 * Ensure that max seq # is equal to the global checkpoint when creating ReadOnlyEngines {pull}37426[#37426]
 * Enable Bulk-Merge if all source remains {pull}37269[#37269]
 * Rename setting to enable mmap {pull}37070[#37070] (issue: {issue}36668[#36668])
@@ -389,6 +398,7 @@ SQL::
 * SQL: Fix wrong appliance of StackOverflow limit for IN {pull}36724[#36724] (issue: {issue}36592[#36592])
 
 Search::
+* Tie break on cluster alias when merging shard search failures {pull}38715[#38715] (issue: {issue}38672[#38672])
 * Add finalReduce flag to SearchRequest {pull}38104[#38104] (issues: {issue}37000[#37000], {issue}37838[#37838])
 * Streamline skip_unavailable handling {pull}37672[#37672] (issue: {issue}32125[#32125])
 * Expose sequence number and primary terms in search responses {pull}37639[#37639]
@@ -454,6 +464,7 @@ Audit::
 * Fix NPE in Logfile Audit Filter {pull}38120[#38120] (issue: {issue}38097[#38097])
 
 Authentication::
+*  Enhance parsing of StatusCode in SAML Responses {pull}38628[#38628]
 * Limit token expiry to 1 hour maximum {pull}38244[#38244]
 * Fix expired token message in Exception header {pull}37196[#37196]
 * Fix NPE in CachingUsernamePasswordRealm {pull}36953[#36953] (issue: {issue}36951[#36951])
@@ -532,6 +543,7 @@ Features/Watcher::
 * Ensures watch definitions are valid json {pull}30692[#30692] (issue: {issue}29746[#29746])
 
 Geo::
+* Fix GeoHash PrefixTree BWC {pull}38584[#38584] (issue: {issue}38494[#38494])
 * Geo: Do not normalize the longitude with value -180 for Lucene shapes {pull}37299[#37299] (issue: {issue}37297[#37297])
 
 Infra/Core::
@@ -593,6 +605,8 @@ Rollup::
 * Fix rollup search statistics {pull}36674[#36674]
 
 SQL::
+* SQL: Prevent grouping over grouping functions {pull}38649[#38649] (issue: {issue}38308[#38308])
+* SQL: Relax StackOverflow circuit breaker for constants {pull}38572[#38572] (issue: {issue}38571[#38571])
 * SQL: Fix issue with IN not resolving to underlying keyword field {pull}38440[#38440] (issue: {issue}38424[#38424])
 * SQL: change the Intervals milliseconds precision to 3 digits {pull}38297[#38297] (issue: {issue}37423[#37423])
 * SQL: Fix esType for DATETIME/DATE and INTERVALS {pull}38179[#38179] (issue: {issue}38051[#38051])
@@ -618,6 +632,7 @@ SQL::
 * SQL: Fix issue with complex HAVING and GROUP BY ordinal {pull}36594[#36594] (issue: {issue}36059[#36059])
 
 Search::
+* Look up connection using the right cluster alias when releasing contexts {pull}38570[#38570]
 * Fix fetch source option in expand search phase {pull}37908[#37908] (issue: {issue}23829[#23829])
 * Change `rational` to `saturation` in script_score {pull}37766[#37766] (issue: {issue}37714[#37714])
 * Throw if two inner_hits have the same name {pull}37645[#37645] (issue: {issue}37584[#37584])
@@ -654,6 +669,7 @@ ZenDiscovery::
 === Regressions
 
 Infra/Core::
+* Restore date aggregation performance in UTC case {pull}38221[#38221] (issue: {issue}37826[#37826])
 * Speed up converting of temporal accessor to zoned date time {pull}37915[#37915] (issue: {issue}37826[#37826])
 
 Mapping::

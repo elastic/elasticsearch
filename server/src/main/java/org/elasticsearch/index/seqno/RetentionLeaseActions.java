@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -36,7 +34,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,7 +43,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 public class RetentionLeaseActions {
@@ -54,8 +50,6 @@ public class RetentionLeaseActions {
     public static final long RETAIN_ALL = -1;
 
     static abstract class TransportRetentionLeaseAction<T extends Request<T>> extends TransportSingleShardAction<T, Response> {
-
-        private final Logger logger = LogManager.getLogger(getClass());
 
         private final IndicesService indicesService;
 
@@ -90,48 +84,35 @@ public class RetentionLeaseActions {
         }
 
         @Override
-        protected Response shardOperation(final T request, final ShardId shardId) {
+        protected void asyncShardOperation(T request, ShardId shardId, final ActionListener<Response> listener) throws IOException {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
+            indexShard.acquirePrimaryOperationPermit(
+                    new ActionListener<Releasable>() {
 
-            final CompletableFuture<Releasable> permit = new CompletableFuture<>();
-            final ActionListener<Releasable> onAcquired = new ActionListener<Releasable>() {
+                        @Override
+                        public void onResponse(final Releasable releasable) {
+                            try (Releasable ignore = releasable) {
+                                doRetentionLeaseAction(indexShard, request, listener);
+                            }
+                        }
 
-                @Override
-                public void onResponse(Releasable releasable) {
-                    if (permit.complete(releasable) == false) {
-                        releasable.close();
-                    }
-                }
+                        @Override
+                        public void onFailure(final Exception e) {
+                            listener.onFailure(e);
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    permit.completeExceptionally(e);
-                }
-
-            };
-
-            indexShard.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME, request);
-
-            // block until we have the permit
-            try (Releasable ignore = FutureUtils.get(permit)) {
-                doRetentionLeaseAction(indexShard, request);
-            } finally {
-                // just in case we got an exception (likely interrupted) while waiting for the get
-                permit.whenComplete((r, e) -> {
-                    if (r != null) {
-                        r.close();
-                    }
-                    if (e != null) {
-                        logger.trace("suppressing exception on completion (it was already bubbled up or the operation was aborted)", e);
-                    }
-                });
-            }
-
-            return new Response();
+                    },
+                    ThreadPool.Names.SAME,
+                    request);
         }
 
-        abstract void doRetentionLeaseAction(IndexShard indexShard, T request);
+        @Override
+        protected Response shardOperation(final T request, final ShardId shardId) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        abstract void doRetentionLeaseAction(IndexShard indexShard, T request, ActionListener<Response> listener);
 
         @Override
         protected Response newResponse() {
@@ -176,12 +157,14 @@ public class RetentionLeaseActions {
             }
 
             @Override
-            void doRetentionLeaseAction(final IndexShard indexShard, final AddRequest request) {
+            void doRetentionLeaseAction(final IndexShard indexShard, final AddRequest request, final ActionListener<Response> listener) {
                 indexShard.addRetentionLease(
                         request.getId(),
                         request.getRetainingSequenceNumber(),
                         request.getSource(),
-                        ActionListener.wrap(() -> {}));
+                        ActionListener.wrap(
+                                r -> listener.onResponse(new Response()),
+                                listener::onFailure));
             }
 
         }
@@ -225,8 +208,9 @@ public class RetentionLeaseActions {
 
 
             @Override
-            void doRetentionLeaseAction(final IndexShard indexShard, final RenewRequest request) {
+            void doRetentionLeaseAction(final IndexShard indexShard, final RenewRequest request, final ActionListener<Response> listener) {
                 indexShard.renewRetentionLease(request.getId(), request.getRetainingSequenceNumber(), request.getSource());
+                listener.onResponse(new Response());
             }
 
         }
@@ -240,8 +224,8 @@ public class RetentionLeaseActions {
 
     public static class Remove extends Action<Response> {
 
-        public static final Renew INSTANCE = new Renew();
-        public static final String NAME = "indices:admin/seq_no/renew_retention_lease";
+        public static final Remove INSTANCE = new Remove();
+        public static final String NAME = "indices:admin/seq_no/remove_retention_lease";
 
         private Remove() {
             super(NAME);
@@ -270,8 +254,12 @@ public class RetentionLeaseActions {
 
 
             @Override
-            void doRetentionLeaseAction(final IndexShard indexShard, final RemoveRequest request) {
-                indexShard.removeRetentionLease(request.getId(), ActionListener.wrap(() -> {}));
+            void doRetentionLeaseAction(final IndexShard indexShard, final RemoveRequest request, final ActionListener<Response> listener) {
+                indexShard.removeRetentionLease(
+                        request.getId(),
+                        ActionListener.wrap(
+                                r -> listener.onResponse(new Response()),
+                                listener::onFailure));
             }
 
         }

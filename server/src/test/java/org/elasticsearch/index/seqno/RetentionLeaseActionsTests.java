@@ -229,4 +229,60 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         assertThat(e, hasToString(containsString("retention lease with ID [" + id + "] does not exist")));
     }
 
+    public void testRemoveAction() {
+        final Settings settings = Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .build();
+        final IndexService indexService = createIndex("index", settings);
+        ensureGreen("index");
+
+        final String id = randomAlphaOfLength(8);
+        final String source = randomAlphaOfLength(8);
+        final long retainingSequenceNumber = randomBoolean() ? RETAIN_ALL : randomNonNegativeLong();
+        client()
+                .execute(
+                        RetentionLeaseActions.Add.INSTANCE,
+                        new RetentionLeaseActions.AddRequest(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source))
+                .actionGet();
+
+        client()
+                .execute(
+                        RetentionLeaseActions.Remove.INSTANCE,
+                        new RetentionLeaseActions.RemoveRequest(indexService.getShard(0).shardId(), id))
+                .actionGet();
+
+        final IndicesStatsResponse stats = client()
+                .execute(
+                        IndicesStatsAction.INSTANCE,
+                        new IndicesStatsRequest().indices("index"))
+                .actionGet();
+        assertNotNull(stats.getShards());
+        assertThat(stats.getShards(), arrayWithSize(1));
+        assertNotNull(stats.getShards()[0].getRetentionLeaseStats());
+        assertThat(stats.getShards()[0].getRetentionLeaseStats().retentionLeases().leases(), hasSize(0));
+    }
+
+    public void testRemoveNotFound() {
+        final Settings settings = Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .build();
+        final IndexService indexService = createIndex("index", settings);
+        ensureGreen("index");
+
+        final String id = randomAlphaOfLength(8);
+
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client()
+                        .execute(
+                                RetentionLeaseActions.Remove.INSTANCE,
+                                new RetentionLeaseActions.RemoveRequest(indexService.getShard(0).shardId(), id))
+                        .actionGet());
+        assertThat(e, hasToString(containsString("retention lease with ID [" + id + "] does not exist")));
+    }
+
 }

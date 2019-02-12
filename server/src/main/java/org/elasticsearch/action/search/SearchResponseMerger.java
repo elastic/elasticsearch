@@ -204,7 +204,25 @@ final class SearchResponseMerger {
             if (shardId2 == null) {
                 return 1;
             }
-            return shardId1.compareTo(shardId2);
+            int shardIdCompare = shardId1.compareTo(shardId2);
+            //we could assume that the same shard id cannot come back from multiple clusters as even with same index name and shard index,
+            //the index uuid does not match. But the same cluster can be registered multiple times with different aliases, in which case
+            //we may get failures from the same index, yet with a different cluster alias in their shard target.
+            if (shardIdCompare != 0) {
+                return shardIdCompare;
+            }
+            String clusterAlias1 = o1.shard() == null ? null : o1.shard().getClusterAlias();
+            String clusterAlias2 = o2.shard() == null ? null : o2.shard().getClusterAlias();
+            if (clusterAlias1 == null && clusterAlias2 == null) {
+                return 0;
+            }
+            if (clusterAlias1 == null) {
+                return -1;
+            }
+            if (clusterAlias2 == null) {
+                return 1;
+            }
+            return clusterAlias1.compareTo(clusterAlias2);
         }
 
         private ShardId extractShardId(ShardSearchFailure failure) {

@@ -106,6 +106,12 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         int numberOfReplicas = between(0, 1);
+
+        followerClient().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(),
+                new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.KB)))
+            .get();
+
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, numberOfReplicas,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));

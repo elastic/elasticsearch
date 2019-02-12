@@ -17,23 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.routing;
+package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.util.Objects;
 
-/**
- * A base {@link Exception}s for all exceptions thrown by routing related operations.
- */
-public class RoutingException extends ElasticsearchException {
+public class RetentionLeaseNotFoundException extends ResourceNotFoundException {
 
-    public RoutingException(String message, Throwable cause) {
-        super(message, cause);
+    RetentionLeaseNotFoundException(final String id) {
+        super("retention lease with ID [" + Objects.requireNonNull(id) + "] not found");
     }
 
-    public RoutingException(StreamInput in) throws IOException{
+    public RetentionLeaseNotFoundException(final StreamInput in) throws IOException {
         super(in);
     }
+
 }

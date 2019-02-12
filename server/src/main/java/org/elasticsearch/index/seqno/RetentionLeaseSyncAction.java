@@ -122,6 +122,12 @@ public class RetentionLeaseSyncAction extends
 
     @Override
     protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(final Request request, final IndexShard primary) {
+        return performOnPrimary(request, primary, logger);
+    }
+
+    public static WritePrimaryResult<Request, Response> performOnPrimary(final Request request,
+                                                                         final IndexShard primary,
+                                                                         final Logger logger) {
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
         // we flush to ensure that retention leases are committed
@@ -131,6 +137,10 @@ public class RetentionLeaseSyncAction extends
 
     @Override
     protected WriteReplicaResult<Request> shardOperationOnReplica(final Request request, final IndexShard replica) {
+        return performOnReplica(request, replica, logger);
+    }
+
+    public static WriteReplicaResult<Request> performOnReplica(final Request request, final IndexShard replica, final Logger logger) {
         Objects.requireNonNull(request);
         Objects.requireNonNull(replica);
         replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
@@ -139,7 +149,7 @@ public class RetentionLeaseSyncAction extends
         return new WriteReplicaResult<>(request, null, null, replica, logger);
     }
 
-    private void flush(final IndexShard indexShard) {
+    private static void flush(final IndexShard indexShard) {
         final FlushRequest flushRequest = new FlushRequest();
         flushRequest.force(true);
         flushRequest.waitIfOngoing(true);

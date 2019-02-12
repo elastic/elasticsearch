@@ -56,12 +56,12 @@ public class RetentionLeaseActions {
 
     public static final long RETAIN_ALL = -1;
 
-    static abstract class TransportRetentionLeaseAction<T extends Request<T>> extends TransportSingleShardAction<T, Response> {
+    abstract static class TransportRetentionLeaseAction<T extends Request<T>> extends TransportSingleShardAction<T, Response> {
 
         private final IndicesService indicesService;
 
         @Inject
-        public TransportRetentionLeaseAction(
+        TransportRetentionLeaseAction(
                 final String name,
                 final ThreadPool threadPool,
                 final ClusterService clusterService,
@@ -292,10 +292,10 @@ public class RetentionLeaseActions {
             return id;
         }
 
-        public Request() {
+        Request() {
         }
 
-        public Request(final ShardId shardId, final String id) {
+        Request(final ShardId shardId, final String id) {
             super(Objects.requireNonNull(shardId).getIndexName());
             this.shardId = shardId;
             this.id = Objects.requireNonNull(id);
@@ -336,10 +336,10 @@ public class RetentionLeaseActions {
             return source;
         }
 
-        public AddOrRenewRequest() {
+        AddOrRenewRequest() {
         }
 
-        public AddOrRenewRequest(final ShardId shardId, final String id, final long retainingSequenceNumber, final String source) {
+        AddOrRenewRequest(final ShardId shardId, final String id, final long retainingSequenceNumber, final String source) {
             super(shardId, id);
             if (retainingSequenceNumber < 0 && retainingSequenceNumber != RETAIN_ALL) {
                 throw new IllegalArgumentException("retaining sequence number [" + retainingSequenceNumber + "] out of range");

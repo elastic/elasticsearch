@@ -230,7 +230,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
                                         retainingSequenceNumber,
                                         source))
                         .actionGet());
-        assertThat(e, hasToString(containsString("retention lease with ID [" + id + "] does not exist")));
+        assertThat(e, hasToString(containsString("retention lease with ID [" + id + "] not found")));
     }
 
     public void testRemoveAction() {
@@ -286,7 +286,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
                                 RetentionLeaseActions.Remove.INSTANCE,
                                 new RetentionLeaseActions.RemoveRequest(indexService.getShard(0).shardId(), id))
                         .actionGet());
-        assertThat(e, hasToString(containsString("retention lease with ID [" + id + "] does not exist")));
+        assertThat(e, hasToString(containsString("retention lease with ID [" + id + "] not found")));
     }
 
     public void testAddUnderBlock() throws InterruptedException {

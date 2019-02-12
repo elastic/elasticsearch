@@ -143,7 +143,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         final RetentionLeaseNotFoundException e = expectThrows(
                 RetentionLeaseNotFoundException.class,
                 () -> replicationTracker.renewRetentionLease(id, randomNonNegativeLong(), randomAlphaOfLength(8)));
-        assertThat(e, hasToString(containsString("retention lease with [" + id + "] not found")));
+        assertThat(e, hasToString(containsString("retention lease with ID [" + id + "] not found")));
     }
 
     public void testAddRetentionLeaseCausesRetentionLeaseSync() {

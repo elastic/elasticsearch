@@ -32,6 +32,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_READ_REQUEST_OPERATION_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_READ_REQUEST_SIZE;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_OUTSTANDING_READ_REQUESTS;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_WRITE_REQUEST_OPERATION_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_WRITE_REQUEST_SIZE;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_OUTSTANDING_WRITE_REQUESTS;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_WRITE_BUFFER_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_WRITE_BUFFER_SIZE;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.MAX_RETRY_DELAY;
+import static org.elasticsearch.xpack.core.ccr.action.FollowParameters.READ_POLL_TIMEOUT;
+
 /**
  * Custom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
  */
@@ -165,12 +176,14 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AutoFollowMetadata that = (AutoFollowMetadata) o;
-        return Objects.equals(patterns, that.patterns);
+        return Objects.equals(patterns, that.patterns) &&
+               Objects.equals(followedLeaderIndexUUIDs, that.followedLeaderIndexUUIDs) &&
+               Objects.equals(headers, that.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(patterns);
+        return Objects.hash(patterns, followedLeaderIndexUUIDs, headers);
     }
 
     public static class AutoFollowPattern implements Writeable, ToXContentObject {
@@ -178,16 +191,6 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         public static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         public static final ParseField LEADER_PATTERNS_FIELD = new ParseField("leader_index_patterns");
         public static final ParseField FOLLOW_PATTERN_FIELD = new ParseField("follow_index_pattern");
-        public static final ParseField MAX_READ_REQUEST_OPERATION_COUNT = new ParseField("max_read_request_operation_count");
-        public static final ParseField MAX_READ_REQUEST_SIZE = new ParseField("max_read_request_size");
-        public static final ParseField MAX_OUTSTANDING_READ_REQUESTS = new ParseField("max_outstanding_read_requests");
-        public static final ParseField MAX_WRITE_REQUEST_OPERATION_COUNT = new ParseField("max_write_request_operation_count");
-        public static final ParseField MAX_WRITE_REQUEST_SIZE = new ParseField("max_write_request_size");
-        public static final ParseField MAX_OUTSTANDING_WRITE_REQUESTS = new ParseField("max_outstanding_write_requests");
-        public static final ParseField MAX_WRITE_BUFFER_COUNT = new ParseField("max_write_buffer_count");
-        public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
-        public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
-        public static final ParseField READ_POLL_TIMEOUT = new ParseField("read_poll_timeout");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<AutoFollowPattern, Void> PARSER =
@@ -271,7 +274,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
         public AutoFollowPattern(StreamInput in) throws IOException {
             remoteCluster = in.readString();
-            leaderIndexPatterns = in.readList(StreamInput::readString);
+            leaderIndexPatterns = in.readStringList();
             followIndexPattern = in.readOptionalString();
             maxReadRequestOperationCount = in.readOptionalVInt();
             maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
@@ -348,7 +351,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(remoteCluster);
-            out.writeStringList(leaderIndexPatterns);
+            out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
             out.writeOptionalVInt(maxReadRequestOperationCount);
             out.writeOptionalWriteable(maxReadRequestSize);

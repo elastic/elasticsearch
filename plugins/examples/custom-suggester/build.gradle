@@ -32,4 +32,4 @@ integTestCluster {
 }
 
 // this plugin has no unit tests, only rest tests
-tasks.test.enabled = false
+tasks.unitTest.enabled = false

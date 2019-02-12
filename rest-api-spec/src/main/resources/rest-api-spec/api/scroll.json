@@ -19,6 +19,11 @@
         "scroll_id": {
           "type" : "string",
           "description" : "The scroll ID for scrolled search"
+        },
+        "rest_total_hits_as_int" : {
+          "type" : "boolean",
+          "description" : "Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
+          "default" : false
         }
       }
     },

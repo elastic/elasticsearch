@@ -581,30 +581,6 @@ public abstract class AbstractClient implements Client {
         return new TermVectorsRequestBuilder(this, TermVectorsAction.INSTANCE, index, type, id);
     }
 
-    @Deprecated
-    @Override
-    public ActionFuture<TermVectorsResponse> termVector(final TermVectorsRequest request) {
-        return termVectors(request);
-    }
-
-    @Deprecated
-    @Override
-    public void termVector(final TermVectorsRequest request, final ActionListener<TermVectorsResponse> listener) {
-        termVectors(request, listener);
-    }
-
-    @Deprecated
-    @Override
-    public TermVectorsRequestBuilder prepareTermVector() {
-        return prepareTermVectors();
-    }
-
-    @Deprecated
-    @Override
-    public TermVectorsRequestBuilder prepareTermVector(String index, String type, String id) {
-        return prepareTermVectors(index, type, id);
-    }
-
     @Override
     public ActionFuture<MultiTermVectorsResponse> multiTermVectors(final MultiTermVectorsRequest request) {
         return execute(MultiTermVectorsAction.INSTANCE, request);
@@ -1091,11 +1067,6 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source) {
-            return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source);
-        }
-
-        @Override
         public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType) {
             return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source, xContentType);
         }
@@ -1143,11 +1114,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request) {
             return execute(SimulatePipelineAction.INSTANCE, request);
-        }
-
-        @Override
-        public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
-            return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
         }
 
         @Override

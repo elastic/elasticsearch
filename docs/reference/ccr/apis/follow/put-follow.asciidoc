@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-put-follow]]
-=== Create Follower API
+=== Create follower API
 ++++
-<titleabbrev>Create Follower</titleabbrev>
+<titleabbrev>Create follower</titleabbrev>
 ++++
 
 beta[]
@@ -31,7 +31,7 @@ POST /follower_index/_ccr/pause_follow
 
 [source,js]
 --------------------------------------------------
-PUT /<follower_index>/_ccr/follow
+PUT /<follower_index>/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "<remote_cluster>",
   "leader_index" : "<leader_index>"
@@ -42,6 +42,11 @@ PUT /<follower_index>/_ccr/follow
 // TEST[s/<follower_index>/follower_index/]
 // TEST[s/<remote_cluster>/remote_cluster/]
 // TEST[s/<leader_index>/leader_index/]
+
+The `wait_for_active_shards` parameter specifies the number of shards to wait on being active
+before responding. This defaults to waiting on none of the shards to be active. A shard must
+be restored from the leader index being active. Restoring a follower shard requires transferring
+all the remote Lucene segment files to the follower index.
 
 ==== Path Parameters
 
@@ -73,7 +78,7 @@ This example creates a follower index named `follower_index`:
 
 [source,js]
 --------------------------------------------------
-PUT /follower_index/_ccr/follow
+PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
   "remote_cluster" : "remote_cluster",
   "leader_index" : "leader_index",

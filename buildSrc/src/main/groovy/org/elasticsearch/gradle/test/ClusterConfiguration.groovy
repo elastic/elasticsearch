@@ -29,7 +29,7 @@ class ClusterConfiguration {
     private final Project project
 
     @Input
-    String distribution = 'zip'
+    String distribution = 'default'
 
     @Input
     int numNodes = 1
@@ -75,6 +75,22 @@ class ClusterConfiguration {
             return numNodes > 1 ? numNodes.intdiv(2) + 1 : -1
         }
     }
+
+    /**
+     * Whether the initial_master_nodes setting should be automatically derived from the nodes
+     * in the cluster. Only takes effect if all nodes in the cluster understand this setting
+     * and the discovery type is not explicitly set.
+     */
+    @Input
+    boolean autoSetInitialMasterNodes = true
+
+    /**
+     * Whether the file-based discovery provider should be automatically setup based on
+     * the nodes in the cluster. Only takes effect if no other hosts provider is already
+     * configured.
+     */
+    @Input
+    boolean autoSetHostsProvider = true
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +

@@ -22,7 +22,7 @@ And now you can execute SQL using the <<sql-rest>> right away:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql?format=txt
+POST /_sql?format=txt
 {
     "query": "SELECT * FROM library WHERE release_date < '2000-01-01'"
 }

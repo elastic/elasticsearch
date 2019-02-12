@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -35,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Locale;
 
@@ -85,7 +88,16 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                               "wait until initialization has completed";
         }
         assertEquals("{\"index\":\"idx\",\"shard\":0,\"primary\":true,\"current_state\":\"" +
-                         shardRoutingState.toString().toLowerCase(Locale.ROOT) + "\",\"current_node\":" +
+                         shardRoutingState.toString().toLowerCase(Locale.ROOT) + "\"" +
+                        (shard.unassignedInfo() != null ?
+                            ",\"unassigned_info\":{"
+                                + "\"reason\":\"" + shard.unassignedInfo().getReason() + "\","
+                                + "\"at\":\""+ UnassignedInfo.DATE_TIME_FORMATTER.format(
+                                    Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis())) + "\","
+                                + "\"last_allocation_status\":\"" + AllocationDecision.fromAllocationStatus(
+                                    shard.unassignedInfo().getLastAllocationStatus()) + "\"}"
+                            : "")
+                        + ",\"current_node\":" +
                          "{\"id\":\"" + cae.getCurrentNode().getId() + "\",\"name\":\"" + cae.getCurrentNode().getName() +
                          "\",\"transport_address\":\"" + cae.getCurrentNode().getAddress() +
                          "\"},\"explanation\":\"" + explanation + "\"}", Strings.toString(builder));

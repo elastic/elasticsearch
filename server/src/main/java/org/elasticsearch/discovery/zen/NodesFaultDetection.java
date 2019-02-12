@@ -132,7 +132,7 @@ public class NodesFaultDetection extends FaultDetection {
                 // it's OK to overwrite an existing nodeFD - it will just stop and the new one will pick things up.
                 nodesFD.put(node, fd);
                 // we use schedule with a 0 time value to run the pinger on the pool as it will run on later
-                threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, fd);
+                threadPool.schedule(fd, TimeValue.timeValueMillis(0), ThreadPool.Names.SAME);
             }
         }
     }
@@ -161,7 +161,7 @@ public class NodesFaultDetection extends FaultDetection {
                 transportService.connectToNode(node);
                 nodesFD.put(node, fd);
                 // we use schedule with a 0 time value to run the pinger on the pool as it will run on later
-                threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, fd);
+                threadPool.schedule(fd, TimeValue.timeValueMillis(0), ThreadPool.Names.SAME);
             } catch (Exception e) {
                 logger.trace("[node  ] [{}] transport disconnected (with verified connect)", node);
                 // clean up if needed, just to be safe..
@@ -240,7 +240,7 @@ public class NodesFaultDetection extends FaultDetection {
                                 return;
                             }
                             retryCount = 0;
-                            threadPool.schedule(pingInterval, ThreadPool.Names.SAME, NodeFD.this);
+                            threadPool.schedule(NodeFD.this, pingInterval, ThreadPool.Names.SAME);
                         }
 
                         @Override
@@ -316,7 +316,7 @@ public class NodesFaultDetection extends FaultDetection {
         public PingRequest() {
         }
 
-        PingRequest(DiscoveryNode targetNode, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {
+        public PingRequest(DiscoveryNode targetNode, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {
             this.targetNode = targetNode;
             this.clusterName = clusterName;
             this.masterNode = masterNode;
@@ -358,12 +358,12 @@ public class NodesFaultDetection extends FaultDetection {
         }
     }
 
-    private static class PingResponse extends TransportResponse {
+    public static class PingResponse extends TransportResponse {
 
-        private PingResponse() {
+        public PingResponse() {
         }
 
-        private PingResponse(StreamInput in) throws IOException {
+        public PingResponse(StreamInput in) throws IOException {
             super(in);
         }
     }

@@ -63,6 +63,8 @@ Returns this:
   "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
+  "_seq_no": 22,
+  "_primary_term": 1,
   "_source": {
     "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "attachment": {
@@ -74,7 +76,7 @@ Returns this:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 To specify only some fields to be extracted:
@@ -146,6 +148,8 @@ Returns this:
   "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
+  "_seq_no": 35,
+  "_primary_term": 1,
   "_source": {
     "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "attachment": {
@@ -157,7 +161,7 @@ Returns this:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 [source,js]
@@ -194,6 +198,8 @@ Returns this:
   "_type": "_doc",
   "_id": "my_id_2",
   "_version": 1,
+  "_seq_no": 40,
+  "_primary_term": 1,
   "_source": {
     "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "max_size": 5,
@@ -206,7 +212,7 @@ Returns this:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 [[ingest-attachment-with-arrays]]
@@ -285,6 +291,8 @@ Returns this:
   "_type" : "_doc",
   "_id" : "my_id",
   "_version" : 1,
+  "_seq_no" : 50,
+  "_primary_term" : 1,
   "found" : true,
   "_source" : {
     "attachments" : [
@@ -312,7 +320,7 @@ Returns this:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 
 Note that the `target_field` needs to be set, otherwise the

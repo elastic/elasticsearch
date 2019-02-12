@@ -13,14 +13,13 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDate
 import org.junit.Assume;
 
 import java.io.IOException;
-import java.util.TimeZone;
+import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase<NamedDateTimeProcessor> {
     
-    private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
-
     public static NamedDateTimeProcessor randomNamedDateTimeProcessor() {
         return new NamedDateTimeProcessor(randomFrom(NameExtractor.values()), UTC);
     }
@@ -56,7 +55,7 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
 
     public void testValidDayNamesWithNonUTCTimeZone() {
         assumeJava9PlusAndCompatLocaleProviderSetting();
-        NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.DAY_NAME, TimeZone.getTimeZone("GMT-10:00"));
+        NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.DAY_NAME, ZoneId.of("GMT-10:00"));
         assertEquals("Wednesday", proc.process(dateTime(0)));
         assertEquals("Friday", proc.process(dateTime(-64164233612338L)));
         assertEquals("Monday", proc.process(dateTime(64164233612338L)));
@@ -83,7 +82,7 @@ public class NamedDateTimeProcessorTests extends AbstractWireSerializingTestCase
 
     public void testValidMonthNamesWithNonUTCTimeZone() {
         assumeJava9PlusAndCompatLocaleProviderSetting();
-        NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.MONTH_NAME, TimeZone.getTimeZone("GMT-3:00"));
+        NamedDateTimeProcessor proc = new NamedDateTimeProcessor(NameExtractor.MONTH_NAME, ZoneId.of("GMT-03:00"));
         assertEquals("December", proc.process(dateTime(0)));
         assertEquals("August", proc.process(dateTime(-64165813612338L))); // GMT: Tuesday, September 1, -0064 2:53:07.662 AM
         assertEquals("April", proc.process(dateTime(64164233612338L))); // GMT: Monday, April 14, 4003 2:13:32.338 PM

@@ -28,7 +28,7 @@ This client provides:
 
 * Logging support via Log::Any
 
-* Compatibility with the official clients for Python, Ruby, PHP and Javascript
+* Compatibility with the official clients for Python, Ruby, PHP and JavaScript
 
 * Easy extensibility
 

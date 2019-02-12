@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Objects;
 
@@ -25,8 +25,8 @@ public class BoolQuery extends Query {
     private final Query left;
     private final Query right;
 
-    public BoolQuery(Location location, boolean isAnd, Query left, Query right) {
-        super(location);
+    public BoolQuery(Source source, boolean isAnd, Query left, Query right) {
+        super(source);
         if (left == null) {
             throw new IllegalArgumentException("left is required");
         }
@@ -44,13 +44,13 @@ public class BoolQuery extends Query {
     }
 
     @Override
-    public Query addNestedField(String path, String field, boolean hasDocValues) {
-        Query rewrittenLeft = left.addNestedField(path, field, hasDocValues);
-        Query rewrittenRight = right.addNestedField(path, field, hasDocValues);
+    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
+        Query rewrittenLeft = left.addNestedField(path, field, format, hasDocValues);
+        Query rewrittenRight = right.addNestedField(path, field, format, hasDocValues);
         if (rewrittenLeft == left && rewrittenRight == right) {
             return this;
         }
-        return new BoolQuery(location(), isAnd, rewrittenLeft, rewrittenRight);
+        return new BoolQuery(source(), isAnd, rewrittenLeft, rewrittenRight);
     }
 
     @Override

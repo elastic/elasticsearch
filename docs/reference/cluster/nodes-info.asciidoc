@@ -158,20 +158,6 @@ The result will look similar to:
           "description": "The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.",
           "classname": "org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin",
           "has_native_controller": false
-        },
-        {
-          "name": "ingest-geoip",
-          "version": "{version}",
-          "description": "Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database",
-          "classname": "org.elasticsearch.ingest.geoip.IngestGeoIpPlugin",
-          "has_native_controller": false
-        },
-        {
-          "name": "ingest-user-agent",
-          "version": "{version}",
-          "description": "Ingest processor that extracts information from a user agent",
-          "classname": "org.elasticsearch.ingest.useragent.IngestUserAgentPlugin",
-          "has_native_controller": false
         }
       ],
       "modules": [

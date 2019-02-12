@@ -128,7 +128,7 @@ public class MasterFaultDetection extends FaultDetection {
         this.masterPinger = new MasterPinger();
 
         // we start pinging slightly later to allow the chosen master to complete it's own master election
-        threadPool.schedule(pingInterval, ThreadPool.Names.SAME, masterPinger);
+        threadPool.schedule(masterPinger, pingInterval, ThreadPool.Names.SAME);
     }
 
     public void stop(String reason) {
@@ -174,7 +174,7 @@ public class MasterFaultDetection extends FaultDetection {
                     }
                     this.masterPinger = new MasterPinger();
                     // we use schedule with a 0 time value to run the pinger on the pool as it will run on later
-                    threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, masterPinger);
+                    threadPool.schedule(masterPinger, TimeValue.timeValueMillis(0), ThreadPool.Names.SAME);
                 } catch (Exception e) {
                     logger.trace("[master] [{}] transport disconnected (with verified connect)", masterNode);
                     notifyMasterFailure(masterNode, null, "transport disconnected (with verified connect)");
@@ -218,7 +218,7 @@ public class MasterFaultDetection extends FaultDetection {
             final DiscoveryNode masterToPing = masterNode;
             if (masterToPing == null) {
                 // master is null, should not happen, but we are still running, so reschedule
-                threadPool.schedule(pingInterval, ThreadPool.Names.SAME, MasterPinger.this);
+                threadPool.schedule(MasterPinger.this, pingInterval, ThreadPool.Names.SAME);
                 return;
             }
 
@@ -243,7 +243,7 @@ public class MasterFaultDetection extends FaultDetection {
                             // check if the master node did not get switched on us..., if it did, we simply return with no reschedule
                             if (masterToPing.equals(MasterFaultDetection.this.masterNode())) {
                                 // we don't stop on disconnection from master, we keep pinging it
-                                threadPool.schedule(pingInterval, ThreadPool.Names.SAME, MasterPinger.this);
+                                threadPool.schedule(MasterPinger.this, pingInterval, ThreadPool.Names.SAME);
                             }
                         }
 
@@ -301,13 +301,13 @@ public class MasterFaultDetection extends FaultDetection {
     }
 
     /** Thrown when a ping reaches the wrong node */
-    static class ThisIsNotTheMasterYouAreLookingForException extends IllegalStateException {
+    public static class ThisIsNotTheMasterYouAreLookingForException extends IllegalStateException {
 
-        ThisIsNotTheMasterYouAreLookingForException(String msg) {
+        public ThisIsNotTheMasterYouAreLookingForException(String msg) {
             super(msg);
         }
 
-        ThisIsNotTheMasterYouAreLookingForException() {
+        public ThisIsNotTheMasterYouAreLookingForException() {
         }
 
         @Override
@@ -401,7 +401,7 @@ public class MasterFaultDetection extends FaultDetection {
 
     public static class MasterPingRequest extends TransportRequest {
 
-        private DiscoveryNode sourceNode;
+        public DiscoveryNode sourceNode;
 
         private DiscoveryNode masterNode;
         private ClusterName clusterName;
@@ -409,7 +409,7 @@ public class MasterFaultDetection extends FaultDetection {
         public MasterPingRequest() {
         }
 
-        private MasterPingRequest(DiscoveryNode sourceNode, DiscoveryNode masterNode, ClusterName clusterName) {
+        public MasterPingRequest(DiscoveryNode sourceNode, DiscoveryNode masterNode, ClusterName clusterName) {
             this.sourceNode = sourceNode;
             this.masterNode = masterNode;
             this.clusterName = clusterName;
@@ -432,12 +432,12 @@ public class MasterFaultDetection extends FaultDetection {
         }
     }
 
-    private static class MasterPingResponseResponse extends TransportResponse {
+    public static class MasterPingResponseResponse extends TransportResponse {
 
-        private MasterPingResponseResponse() {
+        public MasterPingResponseResponse() {
         }
 
-        private MasterPingResponseResponse(StreamInput in) throws IOException {
+        public MasterPingResponseResponse(StreamInput in) throws IOException {
             super(in);
         }
     }

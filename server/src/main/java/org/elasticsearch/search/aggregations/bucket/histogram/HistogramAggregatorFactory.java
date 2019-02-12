@@ -42,7 +42,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final long minDocCount;
     private final double minBound, maxBound;
 
-    HistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double interval, double offset,
+    public HistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double interval, double offset,
             BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
             SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {

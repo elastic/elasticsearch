@@ -80,13 +80,6 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitSysCatalogs(SqlBaseParser.SysCatalogsContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
   @Override public T visitSysTables(SqlBaseParser.SysTablesContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -102,13 +95,6 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitSysTypes(SqlBaseParser.SysTypesContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitSysTableTypes(SqlBaseParser.SysTableTypesContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -402,6 +388,13 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitConstantDefault(SqlBaseParser.ConstantDefaultContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -452,6 +445,13 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitCastTemplate(SqlBaseParser.CastTemplateContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

@@ -8,7 +8,6 @@ setup:
   - do:
       index:
         index: my_test_index
-        type: type
         id: 1
         refresh: true
         body: >
@@ -22,9 +21,6 @@ teardown:
       xpack.watcher.delete_watch:
         id: "my_watch"
         ignore: 404
-
-
-
 
 ---
 "Test watch search input is run as user who added the watch":
@@ -42,6 +38,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -97,6 +94,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -153,6 +151,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "index_not_allowed_to_read" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -220,7 +219,6 @@ teardown:
               "index": {
                 "index": {
                   "index" : "my_test_index",
-                  "doc_type" : "type",
                   "doc_id": "my-id"
                 }
               }
@@ -236,7 +234,6 @@ teardown:
   - do:
       get:
         index: my_test_index
-        type: type
         id: my-id
   # this value is from the document in the my_text_index index, see the setup
   - match: { _source.hits.hits.0._source.value: "15" }
@@ -260,6 +257,7 @@ teardown:
             "transform" : {
               "search" : {
                 "request" : {
+                  "rest_total_hits_as_int": true,
                   "indices" : [ "index_not_allowed_to_read" ],
                   "body" :{
                     "query" : { "match_all": {} }
@@ -271,7 +269,6 @@ teardown:
               "index": {
                 "index": {
                   "index" : "my_test_index",
-                  "doc_type" : "type",
                   "doc_id": "my-id"
                 }
               }
@@ -287,7 +284,6 @@ teardown:
   - do:
       get:
         index: my_test_index
-        type: type
         id: my-id
   - match: { _source.hits.total: 0 }
 
@@ -314,7 +310,6 @@ teardown:
               "index": {
                 "index": {
                   "index" : "my_test_index",
-                  "doc_type" : "type",
                   "doc_id": "my-id"
                 }
               }
@@ -338,7 +333,6 @@ teardown:
   - do:
       get:
         index: my_test_index
-        type: type
         id: 1
   - match: { _id: "1" }
 
@@ -365,7 +359,6 @@ teardown:
               "index": {
                 "index": {
                   "index" : "index_not_allowed_to_read",
-                  "doc_type" : "type",
                   "doc_id": "my-id"
                 }
               }
@@ -389,7 +382,6 @@ teardown:
   - do:
       get:
         index: index_not_allowed_to_read
-        type: type
         id: 1
       catch: forbidden
 

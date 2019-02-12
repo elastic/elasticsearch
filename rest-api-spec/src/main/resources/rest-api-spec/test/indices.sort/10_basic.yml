@@ -10,36 +10,31 @@
             number_of_replicas: 0
             index.sort.field: rank
           mappings:
-            test:
-              properties:
-                rank:
-                  type:     integer
+            properties:
+              rank:
+                type:     integer
 
   - do:
       index:
         index: test
-        type:  test
         id:    "1"
         body:  { "rank": 4 }
 
   - do:
       index:
         index: test
-        type:  test
         id:    "2"
         body:  { "rank": 1 }
 
   - do:
       index:
         index: test
-        type:  test
         id:    "3"
         body:  { "rank": 3 }
 
   - do:
       index:
         index: test
-        type:  test
         id:    "4"
         body:  { "rank": 2 }
 
@@ -50,35 +45,30 @@
   - do:
       index:
         index: test
-        type:  test
         id:    "5"
         body:  { "rank": 8 }
 
   - do:
       index:
         index: test
-        type:  test
         id:    "6"
         body:  { "rank": 6 }
 
   - do:
       index:
         index: test
-        type:  test
         id:    "7"
         body:  { "rank": 5 }
 
   - do:
       index:
         index: test
-        type:  test
         id:    "8"
         body:  { "rank": 7 }
 
   - do:
       index:
         index: test
-        type:  test
         id:    "8"
         body:  { "rank": 7 }
 
@@ -88,6 +78,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           sort: ["rank"]
@@ -99,6 +90,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           sort: ["rank"]
@@ -121,6 +113,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           sort: _doc
@@ -138,6 +131,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         body:
           sort: ["rank"]
@@ -154,6 +148,7 @@
   - do:
       catch:      /disabling \[track_total_hits\] is not allowed in a scroll context/
       search:
+        rest_total_hits_as_int: true
         index: test
         scroll: 1m
         body:
@@ -161,4 +156,3 @@
           query: {"range": { "rank": { "from": 0 } } }
           track_total_hits: false
           size: 3
-

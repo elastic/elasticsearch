@@ -29,7 +29,7 @@ integTestCluster {
 }
 
 integTestRunner {
-  if ('zip'.equals(integTestCluster.distribution)) {
+  if ('default'.equals(integTestCluster.distribution)) {
     systemProperty 'tests.rest.blacklist', [
         'cat.templates/10_basic/No templates',
         'cat.templates/10_basic/Sort templates',

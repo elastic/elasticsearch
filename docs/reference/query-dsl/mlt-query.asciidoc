@@ -42,12 +42,10 @@ GET /_search
             "like" : [
             {
                 "_index" : "imdb",
-                "_type" : "movies",
                 "_id" : "1"
             },
             {
                 "_index" : "imdb",
-                "_type" : "movies",
                 "_id" : "2"
             },
             "and potentially some more text here as well"
@@ -74,7 +72,6 @@ GET /_search
             "like" : [
             {
                 "_index" : "marvel",
-                "_type" : "quotes",
                 "doc" : {
                     "name": {
                         "first": "Ben",
@@ -85,7 +82,6 @@ GET /_search
             },
             {
                 "_index" : "marvel",
-                "_type" : "quotes",
                 "_id" : "2"
             }
             ],
@@ -126,23 +122,21 @@ default, but there will be no speed up on analysis for these fields.
 PUT /imdb
 {
     "mappings": {
-        "movies": {
-            "properties": {
-                "title": {
-                    "type": "text",
-                    "term_vector": "yes"
-                },
-                "description": {
-                    "type": "text"
-                },
-                "tags": {
-                    "type": "text",
-                    "fields" : {
-                        "raw": {
-                            "type" : "text",
-                            "analyzer": "keyword",
-                            "term_vector" : "yes"
-                        }
+        "properties": {
+            "title": {
+                "type": "text",
+                "term_vector": "yes"
+            },
+            "description": {
+                "type": "text"
+            },
+            "tags": {
+                "type": "text",
+                "fields" : {
+                    "raw": {
+                        "type" : "text",
+                        "analyzer": "keyword",
+                        "term_vector" : "yes"
                     }
                 }
             }

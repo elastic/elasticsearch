@@ -36,28 +36,33 @@ public class TransportGetBucketsAction extends HandledTransportAction<GetBuckets
 
     @Override
     protected void doExecute(Task task, GetBucketsAction.Request request, ActionListener<GetBucketsAction.Response> listener) {
-        jobManager.getJobOrThrowIfUnknown(request.getJobId());
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
+                ok -> {
+                    BucketsQueryBuilder query =
+                            new BucketsQueryBuilder().expand(request.isExpand())
+                                    .includeInterim(request.isExcludeInterim() == false)
+                                    .start(request.getStart())
+                                    .end(request.getEnd())
+                                    .anomalyScoreThreshold(request.getAnomalyScore())
+                                    .sortField(request.getSort())
+                                    .sortDescending(request.isDescending());
 
-        BucketsQueryBuilder query =
-                new BucketsQueryBuilder().expand(request.isExpand())
-                        .includeInterim(request.isExcludeInterim() == false)
-                        .start(request.getStart())
-                        .end(request.getEnd())
-                        .anomalyScoreThreshold(request.getAnomalyScore())
-                        .sortField(request.getSort())
-                        .sortDescending(request.isDescending());
+                    if (request.getPageParams() != null) {
+                        query.from(request.getPageParams().getFrom())
+                                .size(request.getPageParams().getSize());
+                    }
+                    if (request.getTimestamp() != null) {
+                        query.timestamp(request.getTimestamp());
+                    } else {
+                        query.start(request.getStart());
+                        query.end(request.getEnd());
+                    }
+                    jobResultsProvider.buckets(request.getJobId(), query, q ->
+                            listener.onResponse(new GetBucketsAction.Response(q)), listener::onFailure, client);
 
-        if (request.getPageParams() != null) {
-            query.from(request.getPageParams().getFrom())
-                    .size(request.getPageParams().getSize());
-        }
-        if (request.getTimestamp() != null) {
-            query.timestamp(request.getTimestamp());
-        } else {
-            query.start(request.getStart());
-            query.end(request.getEnd());
-        }
-        jobResultsProvider.buckets(request.getJobId(), query, q ->
-                listener.onResponse(new GetBucketsAction.Response(q)), listener::onFailure, client);
+                },
+                listener::onFailure
+
+        ));
     }
 }

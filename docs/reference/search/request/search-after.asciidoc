@@ -37,6 +37,10 @@ of the sort specification. Otherwise the sort order for documents that have
 the same sort values would be undefined and could lead to missing or duplicate
 results. The <<mapping-id-field,`_id` field>> has a unique value per document
 but it is not recommended to use it as a tiebreaker directly.
+Beware that `search_after` looks for the first document which fully or partially
+matches tiebreaker's provided value. Therefore if a document has a tiebreaker value of
+`"654323"` and you `search_after` for `"654"` it would still match that document
+and return results found after it.
 <<doc-values,doc value>> are disabled on this field so sorting on it requires
 to load a lot of data in memory. Instead it is advised to duplicate (client side
  or with a <<ingest-processors,set ingest processor>>) the content

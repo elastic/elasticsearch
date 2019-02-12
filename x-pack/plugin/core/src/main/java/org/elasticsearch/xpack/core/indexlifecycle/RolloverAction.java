@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -29,6 +30,7 @@ import java.util.Objects;
  */
 public class RolloverAction implements LifecycleAction {
     public static final String NAME = "rollover";
+    public static final String INDEXING_COMPLETE_STEP_NAME = "set-indexing-complete";
     public static final ParseField MAX_SIZE_FIELD = new ParseField("max_size");
     public static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
     public static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
@@ -132,15 +134,21 @@ public class RolloverAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
+        Settings indexingComplete = Settings.builder().put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true).build();
+
         StepKey waitForRolloverReadyStepKey = new StepKey(phase, NAME, WaitForRolloverReadyStep.NAME);
         StepKey rolloverStepKey = new StepKey(phase, NAME, RolloverStep.NAME);
         StepKey updateDateStepKey = new StepKey(phase, NAME, UpdateRolloverLifecycleDateStep.NAME);
+        StepKey setIndexingCompleteStepKey = new StepKey(phase, NAME, INDEXING_COMPLETE_STEP_NAME);
 
         WaitForRolloverReadyStep waitForRolloverReadyStep = new WaitForRolloverReadyStep(waitForRolloverReadyStepKey, rolloverStepKey,
             client, maxSize, maxAge, maxDocs);
         RolloverStep rolloverStep = new RolloverStep(rolloverStepKey, updateDateStepKey, client);
-        UpdateRolloverLifecycleDateStep updateDateStep = new UpdateRolloverLifecycleDateStep(updateDateStepKey, nextStepKey);
-        return Arrays.asList(waitForRolloverReadyStep, rolloverStep, updateDateStep);
+        UpdateRolloverLifecycleDateStep updateDateStep = new UpdateRolloverLifecycleDateStep(updateDateStepKey, setIndexingCompleteStepKey,
+            System::currentTimeMillis);
+        UpdateSettingsStep setIndexingCompleteStep = new UpdateSettingsStep(setIndexingCompleteStepKey, nextStepKey,
+            client, indexingComplete);
+        return Arrays.asList(waitForRolloverReadyStep, rolloverStep, updateDateStep, setIndexingCompleteStep);
     }
 
     @Override
@@ -148,7 +156,8 @@ public class RolloverAction implements LifecycleAction {
         StepKey rolloverReadyStepKey = new StepKey(phase, NAME, WaitForRolloverReadyStep.NAME);
         StepKey rolloverStepKey = new StepKey(phase, NAME, RolloverStep.NAME);
         StepKey updateDateStepKey = new StepKey(phase, NAME, UpdateRolloverLifecycleDateStep.NAME);
-        return Arrays.asList(rolloverReadyStepKey, rolloverStepKey, updateDateStepKey);
+        StepKey setIndexingCompleteStepKey = new StepKey(phase, NAME, INDEXING_COMPLETE_STEP_NAME);
+        return Arrays.asList(rolloverReadyStepKey, rolloverStepKey, updateDateStepKey, setIndexingCompleteStepKey);
     }
 
     @Override

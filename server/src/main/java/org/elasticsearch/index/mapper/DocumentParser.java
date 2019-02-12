@@ -21,10 +21,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 
 import java.io.IOException;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -106,7 +108,8 @@ final class DocumentParser {
             throw new IllegalArgumentException("It is forbidden to index into the default mapping [" + MapperService.DEFAULT_MAPPING + "]");
         }
 
-        if (Objects.equals(source.type(), docMapper.type()) == false) {
+        if (Objects.equals(source.type(), docMapper.type()) == false &&
+                MapperService.SINGLE_MAPPING_NAME.equals(source.type()) == false) { // used by typeless APIs
             throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type ["
                 + docMapper.type() + "]");
         }
@@ -668,10 +671,10 @@ final class DocumentParser {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
     }
 
-    private static Mapper.Builder<?, ?> newDateBuilder(String name, FormatDateTimeFormatter dateTimeFormatter, Version indexCreated) {
+    private static Mapper.Builder<?, ?> newDateBuilder(String name, DateFormatter dateTimeFormatter, Version indexCreated) {
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
         if (dateTimeFormatter != null) {
-            builder.dateTimeFormatter(dateTimeFormatter);
+            builder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
         }
         return builder;
     }
@@ -714,10 +717,10 @@ final class DocumentParser {
                 // We refuse to match pure numbers, which are too likely to be
                 // false positives with date formats that include eg.
                 // `epoch_millis` or `YYYY`
-                for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
+                for (DateFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                     try {
-                        dateTimeFormatter.parser().parseMillis(text);
-                    } catch (IllegalArgumentException e) {
+                        dateTimeFormatter.parse(text);
+                    } catch (ElasticsearchParseException | DateTimeParseException | IllegalArgumentException e) {
                         // failure to parse this, continue
                         continue;
                     }
@@ -727,8 +730,8 @@ final class DocumentParser {
                     }
                     if (builder instanceof DateFieldMapper.Builder) {
                         DateFieldMapper.Builder dateBuilder = (DateFieldMapper.Builder) builder;
-                        if (dateBuilder.isDateTimeFormatterSet() == false) {
-                            dateBuilder.dateTimeFormatter(dateTimeFormatter);
+                        if (dateBuilder.isFormatterSet() == false) {
+                            dateBuilder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
                         }
                     }
                     return builder;

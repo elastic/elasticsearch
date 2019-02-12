@@ -120,10 +120,6 @@ public final class AutoExpandReplicas {
         return enabled ? minReplicas + "-" + maxReplicas : "false";
     }
 
-    boolean isEnabled() {
-        return enabled;
-    }
-
     /**
      * Checks if the are replicas with the auto-expand feature that need to be adapted.
      * Returns a map of updates, which maps the indices to be updated to the desired number of replicas.

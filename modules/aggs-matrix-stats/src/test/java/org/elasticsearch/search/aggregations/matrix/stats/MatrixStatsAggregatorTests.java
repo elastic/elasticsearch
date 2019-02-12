@@ -53,10 +53,12 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                     .fields(Collections.singletonList("field"));
                 InternalMatrixStats stats = search(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
                 assertNull(stats.getStats());
+                assertFalse(MatrixAggregationInspectionHelper.hasValue(stats));
             }
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37587")
     public void testTwoFields() throws Exception {
         String fieldA = "a";
         MappedFieldType ftA = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
@@ -87,8 +89,9 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg")
                     .fields(Arrays.asList(fieldA, fieldB));
-                InternalMatrixStats stats = search(searcher, new MatchAllDocsQuery(), aggBuilder, ftA, ftB);
+                InternalMatrixStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, ftA, ftB);
                 multiPassStats.assertNearlyEqual(new MatrixStatsResults(stats.getStats()));
+                assertTrue(MatrixAggregationInspectionHelper.hasValue(stats));
             }
         }
     }

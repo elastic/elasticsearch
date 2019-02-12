@@ -49,12 +49,12 @@ public final class PutPrivilegesResponse extends ActionResponse implements ToXCo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(created, StreamOutput::writeString, StreamOutput::writeStringList);
+        out.writeMap(created, StreamOutput::writeString, StreamOutput::writeStringCollection);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        this.created = Collections.unmodifiableMap(in.readMap(StreamInput::readString, si -> si.readList(StreamInput::readString)));
+        this.created = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readStringList));
     }
 }

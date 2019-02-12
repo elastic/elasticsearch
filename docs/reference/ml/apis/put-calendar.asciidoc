@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-calendar]]
-=== Create Calendar API
+=== Create calendar API
 ++++
-<titleabbrev>Create Calendar</titleabbrev>
+<titleabbrev>Create calendar</titleabbrev>
 ++++
 
 Instantiates a calendar.
 
 ==== Request
 
-`PUT _xpack/ml/calendars/<calendar_id>`
+`PUT _ml/calendars/<calendar_id>`
 
 ===== Description
 
@@ -42,7 +42,7 @@ The following example creates the `planned-outages` calendar:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/calendars/planned-outages
+PUT _ml/calendars/planned-outages
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:need-license]

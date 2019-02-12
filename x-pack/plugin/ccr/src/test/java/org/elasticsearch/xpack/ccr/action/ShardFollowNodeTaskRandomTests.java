@@ -98,7 +98,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> {
             assert delay.millis() < 100 : "The delay should be kept to a minimum, so that this test does not take to long to run";
             if (stopped.get() == false) {
-                threadPool.schedule(delay, ThreadPool.Names.GENERIC, task);
+                threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
             }
         };
         List<Translog.Operation> receivedOperations = Collections.synchronizedList(new ArrayList<>());
@@ -111,7 +111,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             private final Map<Long, Integer> fromToSlot = new HashMap<>();
 
             @Override
-            protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {
+            protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
                 handler.accept(mappingVersion);
             }
 

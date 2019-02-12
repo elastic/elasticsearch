@@ -24,7 +24,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.client.ml.CloseJobRequest;
@@ -53,6 +53,7 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
@@ -63,6 +64,7 @@ import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
+import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
@@ -86,8 +88,7 @@ final class MLRequestConverters {
 
     static Request putJob(PutJobRequest putJobRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("anomaly_detectors")
                 .addPathPart(putJobRequest.getJob().getId())
                 .build();
@@ -98,8 +99,7 @@ final class MLRequestConverters {
 
     static Request getJob(GetJobRequest getJobRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(Strings.collectionToCommaDelimitedString(getJobRequest.getJobIds()))
             .build();
@@ -115,8 +115,7 @@ final class MLRequestConverters {
 
     static Request getJobStats(GetJobStatsRequest getJobStatsRequest) {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("anomaly_detectors")
                 .addPathPart(Strings.collectionToCommaDelimitedString(getJobStatsRequest.getJobIds()))
                 .addPathPartAsIs("_stats")
@@ -132,8 +131,7 @@ final class MLRequestConverters {
 
     static Request openJob(OpenJobRequest openJobRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("anomaly_detectors")
                 .addPathPart(openJobRequest.getJobId())
                 .addPathPartAsIs("_open")
@@ -145,8 +143,7 @@ final class MLRequestConverters {
 
     static Request closeJob(CloseJobRequest closeJobRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(Strings.collectionToCommaDelimitedString(closeJobRequest.getJobIds()))
             .addPathPartAsIs("_close")
@@ -158,8 +155,7 @@ final class MLRequestConverters {
 
     static Request deleteExpiredData(DeleteExpiredDataRequest deleteExpiredDataRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("_delete_expired_data")
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
@@ -169,8 +165,7 @@ final class MLRequestConverters {
 
     static Request deleteJob(DeleteJobRequest deleteJobRequest) {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("anomaly_detectors")
                 .addPathPart(deleteJobRequest.getJobId())
                 .build();
@@ -189,8 +184,7 @@ final class MLRequestConverters {
 
     static Request flushJob(FlushJobRequest flushJobRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("anomaly_detectors")
                 .addPathPart(flushJobRequest.getJobId())
                 .addPathPartAsIs("_flush")
@@ -202,8 +196,7 @@ final class MLRequestConverters {
 
     static Request forecastJob(ForecastJobRequest forecastJobRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(forecastJobRequest.getJobId())
             .addPathPartAsIs("_forecast")
@@ -215,8 +208,7 @@ final class MLRequestConverters {
 
     static Request updateJob(UpdateJobRequest updateJobRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("anomaly_detectors")
                 .addPathPart(updateJobRequest.getJobUpdate().getJobId())
                 .addPathPartAsIs("_update")
@@ -228,8 +220,7 @@ final class MLRequestConverters {
 
     static Request putDatafeed(PutDatafeedRequest putDatafeedRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("datafeeds")
                 .addPathPart(putDatafeedRequest.getDatafeed().getId())
                 .build();
@@ -240,8 +231,7 @@ final class MLRequestConverters {
 
     static Request updateDatafeed(UpdateDatafeedRequest updateDatafeedRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("datafeeds")
             .addPathPart(updateDatafeedRequest.getDatafeedUpdate().getId())
             .addPathPartAsIs("_update")
@@ -253,8 +243,7 @@ final class MLRequestConverters {
 
     static Request getDatafeed(GetDatafeedRequest getDatafeedRequest) {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("datafeeds")
                 .addPathPart(Strings.collectionToCommaDelimitedString(getDatafeedRequest.getDatafeedIds()))
                 .build();
@@ -271,8 +260,7 @@ final class MLRequestConverters {
 
     static Request deleteDatafeed(DeleteDatafeedRequest deleteDatafeedRequest) {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("datafeeds")
                 .addPathPart(deleteDatafeedRequest.getDatafeedId())
                 .build();
@@ -286,8 +274,7 @@ final class MLRequestConverters {
 
     static Request startDatafeed(StartDatafeedRequest startDatafeedRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("datafeeds")
             .addPathPart(startDatafeedRequest.getDatafeedId())
             .addPathPartAsIs("_start")
@@ -299,8 +286,7 @@ final class MLRequestConverters {
 
     static Request stopDatafeed(StopDatafeedRequest stopDatafeedRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("datafeeds")
             .addPathPart(Strings.collectionToCommaDelimitedString(stopDatafeedRequest.getDatafeedIds()))
             .addPathPartAsIs("_stop")
@@ -312,8 +298,7 @@ final class MLRequestConverters {
 
     static Request getDatafeedStats(GetDatafeedStatsRequest getDatafeedStatsRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("datafeeds")
             .addPathPart(Strings.collectionToCommaDelimitedString(getDatafeedStatsRequest.getDatafeedIds()))
             .addPathPartAsIs("_stats")
@@ -329,8 +314,7 @@ final class MLRequestConverters {
 
     static Request previewDatafeed(PreviewDatafeedRequest previewDatafeedRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("datafeeds")
             .addPathPart(previewDatafeedRequest.getDatafeedId())
             .addPathPartAsIs("_preview")
@@ -340,8 +324,7 @@ final class MLRequestConverters {
 
     static Request deleteForecast(DeleteForecastRequest deleteForecastRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(deleteForecastRequest.getJobId())
             .addPathPartAsIs("_forecast")
@@ -360,8 +343,7 @@ final class MLRequestConverters {
 
     static Request deleteModelSnapshot(DeleteModelSnapshotRequest deleteModelSnapshotRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(deleteModelSnapshotRequest.getJobId())
             .addPathPartAsIs("model_snapshots")
@@ -372,8 +354,7 @@ final class MLRequestConverters {
 
     static Request getBuckets(GetBucketsRequest getBucketsRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("anomaly_detectors")
                 .addPathPart(getBucketsRequest.getJobId())
                 .addPathPartAsIs("results")
@@ -386,8 +367,7 @@ final class MLRequestConverters {
 
     static Request getCategories(GetCategoriesRequest getCategoriesRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(getCategoriesRequest.getJobId())
             .addPathPartAsIs("results")
@@ -400,8 +380,7 @@ final class MLRequestConverters {
 
     static Request getModelSnapshots(GetModelSnapshotsRequest getModelSnapshotsRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(getModelSnapshotsRequest.getJobId())
             .addPathPartAsIs("model_snapshots")
@@ -413,8 +392,7 @@ final class MLRequestConverters {
 
     static Request updateModelSnapshot(UpdateModelSnapshotRequest updateModelSnapshotRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(updateModelSnapshotRequest.getJobId())
             .addPathPartAsIs("model_snapshots")
@@ -428,8 +406,7 @@ final class MLRequestConverters {
 
     static Request revertModelSnapshot(RevertModelSnapshotRequest revertModelSnapshotsRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(revertModelSnapshotsRequest.getJobId())
             .addPathPartAsIs("model_snapshots")
@@ -443,8 +420,7 @@ final class MLRequestConverters {
 
     static Request getOverallBuckets(GetOverallBucketsRequest getOverallBucketsRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("anomaly_detectors")
                 .addPathPart(Strings.collectionToCommaDelimitedString(getOverallBucketsRequest.getJobIds()))
                 .addPathPartAsIs("results")
@@ -457,8 +433,7 @@ final class MLRequestConverters {
 
     static Request getRecords(GetRecordsRequest getRecordsRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("anomaly_detectors")
                 .addPathPart(getRecordsRequest.getJobId())
                 .addPathPartAsIs("results")
@@ -471,8 +446,7 @@ final class MLRequestConverters {
 
     static Request postData(PostDataRequest postDataRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("anomaly_detectors")
             .addPathPart(postDataRequest.getJobId())
             .addPathPartAsIs("_data")
@@ -489,7 +463,7 @@ final class MLRequestConverters {
         BytesReference content = postDataRequest.getContent();
         if (content != null) {
             BytesRef source = postDataRequest.getContent().toBytesRef();
-            HttpEntity byteEntity = new ByteArrayEntity(source.bytes,
+            HttpEntity byteEntity = new NByteArrayEntity(source.bytes,
                 source.offset,
                 source.length,
                 createContentType(postDataRequest.getXContentType()));
@@ -500,8 +474,7 @@ final class MLRequestConverters {
 
     static Request getInfluencers(GetInfluencersRequest getInfluencersRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("anomaly_detectors")
                 .addPathPart(getInfluencersRequest.getJobId())
                 .addPathPartAsIs("results")
@@ -514,8 +487,7 @@ final class MLRequestConverters {
 
     static Request putCalendar(PutCalendarRequest putCalendarRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("calendars")
                 .addPathPart(putCalendarRequest.getCalendar().getId())
                 .build();
@@ -526,8 +498,7 @@ final class MLRequestConverters {
 
     static Request getCalendars(GetCalendarsRequest getCalendarsRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("calendars")
                 .addPathPart(getCalendarsRequest.getCalendarId())
                 .build();
@@ -538,8 +509,7 @@ final class MLRequestConverters {
 
     static Request putCalendarJob(PutCalendarJobRequest putCalendarJobRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("calendars")
             .addPathPart(putCalendarJobRequest.getCalendarId())
             .addPathPartAsIs("jobs")
@@ -550,8 +520,7 @@ final class MLRequestConverters {
 
     static Request deleteCalendarJob(DeleteCalendarJobRequest deleteCalendarJobRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("calendars")
             .addPathPart(deleteCalendarJobRequest.getCalendarId())
             .addPathPartAsIs("jobs")
@@ -562,8 +531,7 @@ final class MLRequestConverters {
 
     static Request deleteCalendar(DeleteCalendarRequest deleteCalendarRequest) {
         String endpoint = new EndpointBuilder()
-                .addPathPartAsIs("_xpack")
-                .addPathPartAsIs("ml")
+                .addPathPartAsIs("_ml")
                 .addPathPartAsIs("calendars")
                 .addPathPart(deleteCalendarRequest.getCalendarId())
                 .build();
@@ -573,8 +541,7 @@ final class MLRequestConverters {
 
     static Request getCalendarEvents(GetCalendarEventsRequest getCalendarEventsRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("calendars")
             .addPathPart(getCalendarEventsRequest.getCalendarId())
             .addPathPartAsIs("events")
@@ -586,8 +553,7 @@ final class MLRequestConverters {
 
     static Request postCalendarEvents(PostCalendarEventRequest postCalendarEventRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("calendars")
             .addPathPart(postCalendarEventRequest.getCalendarId())
             .addPathPartAsIs("events")
@@ -601,8 +567,7 @@ final class MLRequestConverters {
 
     static Request deleteCalendarEvent(DeleteCalendarEventRequest deleteCalendarEventRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("calendars")
             .addPathPart(deleteCalendarEventRequest.getCalendarId())
             .addPathPartAsIs("events")
@@ -613,8 +578,7 @@ final class MLRequestConverters {
 
     static Request putFilter(PutFilterRequest putFilterRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("filters")
             .addPathPart(putFilterRequest.getMlFilter().getId())
             .build();
@@ -625,8 +589,7 @@ final class MLRequestConverters {
 
     static Request getFilter(GetFiltersRequest getFiltersRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("filters")
             .addPathPart(getFiltersRequest.getFilterId())
             .build();
@@ -643,8 +606,7 @@ final class MLRequestConverters {
 
     static Request updateFilter(UpdateFilterRequest updateFilterRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("filters")
             .addPathPart(updateFilterRequest.getFilterId())
             .addPathPartAsIs("_update")
@@ -656,17 +618,34 @@ final class MLRequestConverters {
 
     static Request deleteFilter(DeleteFilterRequest deleteFilterRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack", "ml", "filters")
+            .addPathPartAsIs("_ml", "filters")
             .addPathPart(deleteFilterRequest.getId())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }
 
+    static Request setUpgradeMode(SetUpgradeModeRequest setUpgradeModeRequest) {
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_ml", "set_upgrade_mode").build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.putParam(SetUpgradeModeRequest.ENABLED.getPreferredName(), Boolean.toString(setUpgradeModeRequest.isEnabled()));
+        if (setUpgradeModeRequest.getTimeout() != null) {
+            params.putParam(SetUpgradeModeRequest.TIMEOUT.getPreferredName(), setUpgradeModeRequest.getTimeout().toString());
+        }
+        return request;
+    }
+
+    static Request mlInfo(MlInfoRequest infoRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "info")
+            .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
+    }
+
     static Request findFileStructure(FindFileStructureRequest findFileStructureRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("ml")
+            .addPathPartAsIs("_ml")
             .addPathPartAsIs("find_file_structure")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
@@ -719,7 +698,7 @@ final class MLRequestConverters {
 
         BytesReference sample = findFileStructureRequest.getSample();
         BytesRef source = sample.toBytesRef();
-        HttpEntity byteEntity = new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));
+        HttpEntity byteEntity = new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(XContentType.JSON));
         request.setEntity(byteEntity);
         return request;
     }

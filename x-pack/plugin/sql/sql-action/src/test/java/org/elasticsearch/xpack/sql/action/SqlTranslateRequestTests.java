@@ -37,7 +37,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     @Override
     protected SqlTranslateRequest createTestInstance() {
         return new SqlTranslateRequest(randomAlphaOfLength(10),  Collections.emptyList(), randomFilterOrNull(random()),
-                randomTimeZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV(), new RequestInfo(testMode));
+                randomZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV(), new RequestInfo(testMode));
     }
 
     @Override
@@ -63,7 +63,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
 
     @Override
     protected SqlTranslateRequest doParseInstance(XContentParser parser) {
-        return SqlTranslateRequest.fromXContent(parser, testMode);
+        return SqlTranslateRequest.fromXContent(parser);
     }
 
     @Override
@@ -71,14 +71,14 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
         @SuppressWarnings("unchecked")
         Consumer<SqlTranslateRequest> mutator = randomFrom(
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
-                request -> request.timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomTimeZone)),
+                request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
                 request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
                 request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
                 request -> request.filter(randomValueOtherThan(request.filter(),
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random())))
         );
         SqlTranslateRequest newRequest = new SqlTranslateRequest(instance.query(), instance.params(), instance.filter(),
-                instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.requestInfo());
+                instance.zoneId(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.requestInfo());
         mutator.accept(newRequest);
         return newRequest;
     }

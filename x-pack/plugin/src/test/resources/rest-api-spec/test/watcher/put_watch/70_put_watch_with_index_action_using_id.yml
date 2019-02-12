@@ -37,7 +37,6 @@ teardown:
               "test_index": {
                 "index": {
                   "index": "my_test_index",
-                  "doc_type": "test2",
                   "doc_id": "test_id1"
                 }
               }
@@ -86,8 +85,7 @@ teardown:
             "actions": {
               "test_index": {
                 "index": {
-                  "index": "my_test_index",
-                  "doc_type": "test2"
+                  "index": "my_test_index"
                 }
               }
             }
@@ -143,8 +141,7 @@ teardown:
             "actions": {
               "test_index": {
                 "index": {
-                  "index": "my_test_index",
-                  "doc_type": "test2"
+                  "index": "my_test_index"
                 }
               }
             }
@@ -202,8 +199,7 @@ teardown:
             "actions": {
               "test_index": {
                 "index": {
-                  "index": "my_test_index",
-                  "doc_type": "test2"
+                  "index": "my_test_index"
                 }
               }
             }

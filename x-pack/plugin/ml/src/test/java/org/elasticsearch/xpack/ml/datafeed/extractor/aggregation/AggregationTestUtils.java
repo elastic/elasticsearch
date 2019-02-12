@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -35,6 +36,14 @@ public final class AggregationTestUtils {
         Aggregations aggs = createAggs(subAggregations);
         when(bucket.getAggregations()).thenReturn(aggs);
         return bucket;
+    }
+
+    static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, List<Aggregation> subAggregations) {
+        SingleBucketAggregation singleBucketAggregation = mock(SingleBucketAggregation.class);
+        when(singleBucketAggregation.getName()).thenReturn(name);
+        when(singleBucketAggregation.getDocCount()).thenReturn(docCount);
+        when(singleBucketAggregation.getAggregations()).thenReturn(createAggs(subAggregations));
+        return singleBucketAggregation;
     }
 
     static Histogram.Bucket createHistogramBucket(long timestamp, long docCount) {

@@ -3,8 +3,8 @@
       "documentation": "Execute SQL",
       "methods": [ "POST", "GET" ],
       "url": {
-        "path": "/_xpack/sql",
-        "paths": [ "/_xpack/sql" ],
+        "path": "/_sql",
+        "paths": [ "/_sql" ],
         "parts": {},
         "params": {
           "format": {

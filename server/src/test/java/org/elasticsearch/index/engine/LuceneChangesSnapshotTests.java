@@ -22,7 +22,6 @@ package org.elasticsearch.index.engine;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.translog.SnapshotMatchers;
@@ -32,7 +31,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -150,35 +148,35 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34667")
-    public void testDedupByPrimaryTerm() throws Exception {
-        Map<Long, Long> latestOperations = new HashMap<>();
-        List<Integer> terms = Arrays.asList(between(1, 1000), between(1000, 2000));
+    /**
+     * If an operation above the local checkpoint is delivered multiple times, an engine will add multiple copies of that operation
+     * into Lucene (only the first copy is non-stale; others are stale and soft-deleted). Moreover, a nested document is indexed into
+     * Lucene as multiple documents (only the root document has both seq_no and term, non-root docs only have seq_no). This test verifies
+     * that {@link LuceneChangesSnapshot} returns exactly one operation per seq_no, and skip non-root nested documents or stale copies.
+     */
+    public void testSkipStaleOrNonRootOfNestedDocuments() throws Exception {
+        Map<Long, Long> seqNoToTerm = new HashMap<>();
+        List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100), randomBoolean(), randomBoolean(), randomBoolean());
         int totalOps = 0;
-        for (long term : terms) {
-            final List<Engine.Operation> ops = generateSingleDocHistory(true,
-                randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE), term, 2, 20, "1");
-            primaryTerm.set(Math.max(primaryTerm.get(), term));
-            engine.rollTranslogGeneration();
-            for (Engine.Operation op : ops) {
-                // We need to simulate a rollback here as only ops after local checkpoint get into the engine
-                if (op.seqNo() <= engine.getLocalCheckpointTracker().getCheckpoint()) {
-                    engine.getLocalCheckpointTracker().resetCheckpoint(randomLongBetween(-1, op.seqNo() - 1));
-                    engine.rollTranslogGeneration();
-                }
+        for (Engine.Operation op : operations) {
+            // Engine skips deletes or indexes below the local checkpoint
+            if (engine.getLocalCheckpoint() < op.seqNo() || op instanceof Engine.NoOp) {
+                seqNoToTerm.put(op.seqNo(), op.primaryTerm());
                 if (op instanceof Engine.Index) {
-                    engine.index((Engine.Index) op);
-                } else if (op instanceof Engine.Delete) {
-                    engine.delete((Engine.Delete) op);
+                    totalOps += ((Engine.Index) op).docs().size();
+                } else {
+                    totalOps++;
                 }
-                latestOperations.put(op.seqNo(), op.primaryTerm());
-                if (rarely()) {
-                    engine.refresh("test");
-                }
-                if (rarely()) {
-                    engine.flush();
-                }
-                totalOps++;
+            }
+            applyOperation(engine, op);
+            if (rarely()) {
+                engine.refresh("test");
+            }
+            if (rarely()) {
+                engine.rollTranslogGeneration();
+            }
+            if (rarely()) {
+                engine.flush();
             }
         }
         long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
@@ -188,9 +186,9 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             searcher = null;
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
-                assertThat(op.toString(), op.primaryTerm(), equalTo(latestOperations.get(op.seqNo())));
+                assertThat(op.toString(), op.primaryTerm(), equalTo(seqNoToTerm.get(op.seqNo())));
             }
-            assertThat(snapshot.skippedOperations(), equalTo(totalOps - latestOperations.size()));
+            assertThat(snapshot.skippedOperations(), equalTo(totalOps - seqNoToTerm.size()));
         } finally {
             IOUtils.close(searcher);
         }

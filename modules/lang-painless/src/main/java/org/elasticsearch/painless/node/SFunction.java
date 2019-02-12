@@ -129,7 +129,7 @@ public final class SFunction extends AStatement {
         List<Class<?>> paramTypes = new ArrayList<>();
 
         for (int param = 0; param < this.paramTypeStrs.size(); ++param) {
-                Class<?> paramType = painlessLookup.canonicalTypeNameToType(this.paramTypeStrs.get(param));
+            Class<?> paramType = painlessLookup.canonicalTypeNameToType(this.paramTypeStrs.get(param));
 
             if (paramType == null) {
                 throw createError(new IllegalArgumentException(

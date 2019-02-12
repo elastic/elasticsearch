@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -34,12 +35,14 @@ import java.util.Map;
 public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
     private final double[] percents;
+    private boolean keyed = true;
     private List<Double> data;
 
-    PercentilesBucketPipelineAggregator(String name, double[] percents, String[] bucketsPaths, GapPolicy gapPolicy,
-                                                  DocValueFormat formatter, Map<String, Object> metaData) {
+    PercentilesBucketPipelineAggregator(String name, double[] percents, boolean keyed, String[] bucketsPaths,
+                                        GapPolicy gapPolicy, DocValueFormat formatter, Map<String, Object> metaData) {
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
         this.percents = percents;
+        this.keyed = keyed;
     }
 
     /**
@@ -48,11 +51,19 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
     public PercentilesBucketPipelineAggregator(StreamInput in) throws IOException {
         super(in);
         percents = in.readDoubleArray();
+
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            keyed = in.readBoolean();
+        }
     }
 
     @Override
     public void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(percents);
+
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(keyed);
+        }
     }
 
     @Override
@@ -91,6 +102,6 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
 
         // todo need postCollection() to clean up temp sorted data?
 
-        return new InternalPercentilesBucket(name(), percents, percentiles, format, pipelineAggregators, metadata);
+        return new InternalPercentilesBucket(name(), percents, percentiles, keyed, format, pipelineAggregators, metadata);
     }
 }

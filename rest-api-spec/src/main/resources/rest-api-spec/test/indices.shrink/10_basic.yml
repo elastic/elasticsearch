@@ -29,18 +29,16 @@
   - do:
       index:
         index: source
-        type:  test
         id:    "1"
         body:  { "foo": "hello world" }
 
   - do:
       get:
         index: source
-        type:  test
         id:    "1"
 
   - match: { _index:   source }
-  - match: { _type:    test   }
+  - match: { _type:    _doc   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 
@@ -75,10 +73,9 @@
   - do:
       get:
         index: target
-        type:  test
         id:    "1"
 
   - match: { _index:   target }
-  - match: { _type:    test   }
+  - match: { _type:    _doc   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }

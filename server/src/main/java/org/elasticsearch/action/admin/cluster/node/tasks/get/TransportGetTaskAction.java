@@ -28,6 +28,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -51,6 +52,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction.waitForCompletionTimeout;
 
 /**
@@ -77,7 +79,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.client = client;
+        this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -100,7 +102,6 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         if (request.getTimeout() != null) {
             builder.withTimeout(request.getTimeout());
         }
-        builder.withCompress(false);
         DiscoveryNode node = clusterService.state().nodes().get(request.getTaskId().getNodeId());
         if (node == null) {
             // Node is no longer part of the cluster! Try and look the task up from the results index.
@@ -210,6 +211,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         GetRequest get = new GetRequest(TaskResultsService.TASK_INDEX, TaskResultsService.TASK_TYPE,
                 request.getTaskId().toString());
         get.setParentTask(clusterService.localNode().getId(), thisTask.getId());
+
         client.get(get, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {

@@ -1,7 +1,7 @@
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.build'
-test.enabled = false
+unitTest.enabled = false
 
 dependencies {
     compile project(':test:framework')

@@ -411,7 +411,11 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitReturn(ReturnContext ctx) {
-        AExpression expression = (AExpression)visit(ctx.expression());
+        AExpression expression = null;
+
+        if (ctx.expression() != null) {
+            expression = (AExpression) visit(ctx.expression());
+        }
 
         return new SReturn(location(ctx), expression);
     }

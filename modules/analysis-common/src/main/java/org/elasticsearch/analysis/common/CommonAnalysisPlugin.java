@@ -171,6 +171,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     public Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
         Map<String, AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> analyzers = new TreeMap<>();
         analyzers.put("fingerprint", FingerprintAnalyzerProvider::new);
+
+        // TODO remove in 8.0
         analyzers.put("standard_html_strip", StandardHtmlStripAnalyzerProvider::new);
         analyzers.put("pattern", PatternAnalyzerProvider::new);
         analyzers.put("snowball", SnowballAnalyzerProvider::new);
@@ -320,6 +322,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     @Override
     public List<PreBuiltAnalyzerProviderFactory> getPreBuiltAnalyzerProviderFactories() {
         List<PreBuiltAnalyzerProviderFactory> analyzers = new ArrayList<>();
+        // TODO remove in 8.0
         analyzers.add(new PreBuiltAnalyzerProviderFactory("standard_html_strip", CachingStrategy.ELASTICSEARCH,
             () -> new StandardHtmlStripAnalyzer(CharArraySet.EMPTY_SET)));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("pattern", CachingStrategy.ELASTICSEARCH,
@@ -426,7 +429,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("german_stem", false, GermanStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("hindi_normalization", true, HindiNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("indic_normalization", true, IndicNormalizationFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("keyword_repeat", false, KeywordRepeatFilter::new));
+        filters.add(PreConfiguredTokenFilter.singleton("keyword_repeat", false, false, KeywordRepeatFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("kstem", false, KStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("length", false, input ->
                 new LengthFilter(input, 0, Integer.MAX_VALUE)));  // TODO this one seems useless

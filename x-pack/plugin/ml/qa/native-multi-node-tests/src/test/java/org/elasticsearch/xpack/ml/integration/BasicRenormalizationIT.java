@@ -6,13 +6,11 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.junit.After;
 
@@ -29,7 +27,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
 
     @After
-    public void tearDownData() throws Exception {
+    public void tearDownData() {
         cleanUp();
     }
 
@@ -52,15 +50,6 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
         // This is the key assertion: if renormalization never happened then the record_score would
         // be the same as the initial_record_score on the anomaly record that happened earlier
         assertThat(earlierRecord.getInitialRecordScore(), greaterThan(earlierRecord.getRecordScore()));
-
-        // Since this job ran for 50 buckets, it's a good place to assert
-        // that established model memory matches model memory in the job stats
-        assertBusy(() -> {
-            GetJobsStatsAction.Response.JobStats jobStats = getJobStats(jobId).get(0);
-            ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-            Job updatedJob = getJob(jobId).get(0);
-            assertThat(updatedJob.getEstablishedModelMemory(), equalTo(modelSizeStats.getModelBytes()));
-        });
     }
 
     public void testRenormalizationDisabled() throws Exception {
@@ -94,7 +83,7 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
         closeJob(job.getId());
     }
 
-    private Job.Builder buildAndRegisterJob(String jobId, TimeValue bucketSpan, Long renormalizationWindow) throws Exception {
+    private Job.Builder buildAndRegisterJob(String jobId, TimeValue bucketSpan, Long renormalizationWindow) {
         Detector.Builder detector = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
         analysisConfig.setBucketSpan(bucketSpan);

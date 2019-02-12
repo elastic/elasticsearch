@@ -22,6 +22,7 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -231,7 +232,9 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
     public void testTaskCancellation() {
         AtomicLong capturedTaskId = new AtomicLong();
         AtomicReference<ActionListener<CancelTasksResponse>> capturedListener = new AtomicReference<>();
-        PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, null) {
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+        PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
             void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
                 capturedTaskId.set(taskId);
@@ -292,7 +295,8 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         // That should trigger cancellation request
         assertThat(capturedTaskId.get(), equalTo(localId));
         // Notify successful cancellation
-        capturedListener.get().onResponse(new CancelTasksResponse());
+        capturedListener.get().onResponse(
+            new CancelTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
 
         // finish or fail task
         if (randomBoolean()) {

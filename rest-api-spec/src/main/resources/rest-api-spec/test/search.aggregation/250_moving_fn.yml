@@ -9,6 +9,7 @@ setup:
   - do:
       catch: /\[window\] must be a positive, non-zero integer\./
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -32,6 +33,7 @@ setup:
   - do:
       catch: /\[window\] must be a positive, non-zero integer\./
       search:
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:

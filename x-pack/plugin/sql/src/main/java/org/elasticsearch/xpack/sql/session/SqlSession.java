@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
+import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -40,21 +41,17 @@ public class SqlSession {
     private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
+    private final PlanExecutor planExecutor;
+    
+    private final Configuration configuration;
 
-    // TODO rename to `configuration`
-    private final Configuration settings;
-
-    public SqlSession(SqlSession other) {
-        this(other.settings, other.client, other.functionRegistry, other.indexResolver,
-             other.preAnalyzer, other.verifier, other.optimizer, other.planner);
-    }
-
-    public SqlSession(Configuration settings, Client client, FunctionRegistry functionRegistry,
+    public SqlSession(Configuration configuration, Client client, FunctionRegistry functionRegistry,
             IndexResolver indexResolver,
             PreAnalyzer preAnalyzer,
             Verifier verifier,
             Optimizer optimizer,
-            Planner planner) {
+            Planner planner,
+            PlanExecutor planExecutor) {
         this.client = client;
         this.functionRegistry = functionRegistry;
 
@@ -64,7 +61,8 @@ public class SqlSession {
         this.planner = planner;
         this.verifier = verifier;
 
-        this.settings = settings;
+        this.configuration = configuration;
+        this.planExecutor = planExecutor;
     }
 
     public FunctionRegistry functionRegistry() {
@@ -91,6 +89,10 @@ public class SqlSession {
         return verifier;
     }
 
+    public PlanExecutor planExecutor() {
+        return planExecutor;
+    }
+
     private LogicalPlan doParse(String sql, List<SqlTypedParamValue> params) {
         return new SqlParser().createStatement(sql, params);
     }
@@ -102,7 +104,7 @@ public class SqlSession {
         }
 
         preAnalyze(parsed, c -> {
-            Analyzer analyzer = new Analyzer(functionRegistry, c, settings.timeZone(), verifier);
+            Analyzer analyzer = new Analyzer(configuration, functionRegistry, c, verifier);
             return analyzer.analyze(parsed, verify);
         }, listener);
     }
@@ -114,7 +116,7 @@ public class SqlSession {
         }
 
         preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(functionRegistry, r, settings.timeZone(), verifier);
+            Analyzer analyzer = new Analyzer(configuration, functionRegistry, r, verifier);
             return analyzer.debugAnalyze(parsed);
         }, listener);
     }
@@ -166,7 +168,7 @@ public class SqlSession {
         }
     }
 
-    public Configuration settings() {
-        return settings;
+    public Configuration configuration() {
+        return configuration;
     }
 }

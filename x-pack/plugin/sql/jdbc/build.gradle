@@ -36,7 +36,7 @@ dependencyLicenses {
     ignoreSha 'elasticsearch'
 }
 
-test {
+unitTest {
     // don't use the shaded jar for tests
     classpath += project.tasks.compileJava.outputs.files
     classpath -= project.tasks.shadowJar.outputs.files
@@ -67,6 +67,10 @@ publishing {
     publications {
         nebula {
             artifactId = archivesBaseName
+            pom.withXml {
+                // Nebula is mistakenly including all dependencies that are already shadowed into the shadow jar
+                asNode().remove(asNode().dependencies)
+            }
         }
     }
 }

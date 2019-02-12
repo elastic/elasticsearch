@@ -27,15 +27,16 @@ import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geo.geometry.GeometryCollection;
 import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryCollectionBuilder> {
+public class GeometryCollectionBuilder extends ShapeBuilder<Shape,
+    org.elasticsearch.geo.geometry.GeometryCollection<org.elasticsearch.geo.geometry.Geometry>, GeometryCollectionBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 
@@ -185,22 +186,17 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
     }
 
     @Override
-    public Object buildLucene() {
-        List<Object> shapes = new ArrayList<>(this.shapes.size());
+    public org.elasticsearch.geo.geometry.GeometryCollection<org.elasticsearch.geo.geometry.Geometry> buildGeometry() {
+        if (this.shapes.isEmpty()) {
+            return GeometryCollection.EMPTY;
+        }
+        List<org.elasticsearch.geo.geometry.Geometry> shapes = new ArrayList<>(this.shapes.size());
 
         for (ShapeBuilder shape : this.shapes) {
-            Object o = shape.buildLucene();
-            if (o.getClass().isArray()) {
-                shapes.addAll(Arrays.asList((Object[])o));
-            } else {
-                shapes.add(o);
-            }
+            shapes.add(shape.buildGeometry());
         }
 
-        if (shapes.size() == 1) {
-            return shapes.get(0);
-        }
-        return shapes.toArray(new Object[shapes.size()]);
+        return new org.elasticsearch.geo.geometry.GeometryCollection<>(shapes);
     }
 
     @Override

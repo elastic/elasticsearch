@@ -4,8 +4,8 @@
 
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_xpack/watcher/watch/{id}",
-      "paths": [ "/_xpack/watcher/watch/{id}" ],
+      "path": "/_watcher/watch/{id}",
+      "paths": [ "/_watcher/watch/{id}" ],
       "parts": {
         "id": {
           "type" : "string",

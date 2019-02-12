@@ -47,7 +47,7 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
                 emptyList(), emptyMap());
 
         // create one document in this index, so we can test in the YAML tests, that the index cannot be accessed
-        Request request = new Request("PUT", "/index_not_allowed_to_read/doc/1");
+        Request request = new Request("PUT", "/index_not_allowed_to_read/_doc/1");
         request.setJsonEntity("{\"foo\":\"bar\"}");
         adminClient().performRequest(request);
 

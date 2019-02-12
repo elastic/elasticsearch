@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.junit.Before;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -137,6 +140,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
         assertThat(searchRequest.scroll().keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
         assertThat(searchRequest.types().length, equalTo(0));
         assertThat(searchRequest.source().query(), equalTo(QueryBuilders.matchAllQuery()));
+        assertThat(searchRequest.source().trackTotalHitsUpTo(), is(SearchContext.TRACK_TOTAL_HITS_ACCURATE));
     }
 
     private void assertSearchScrollRequests(int expectedCount) {
@@ -216,7 +220,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
             for (String value : values) {
                 hits.add(new SearchHitBuilder(randomInt()).setSource(value).build());
             }
-            return new SearchHits(hits.toArray(new SearchHit[hits.size()]), totalHits, 1.0f);
+            return new SearchHits(hits.toArray(new SearchHit[hits.size()]), new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1.0f);
         }
     }
 

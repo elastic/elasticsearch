@@ -90,6 +90,16 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(7).types().length, equalTo(0));
     }
 
+    public void testFailWithUnknownKey() {
+        final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"unknown_key\" : \"open,closed\"}}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON).build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> RestMultiSearchAction.parseRequest(restRequest, true));
+        assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
+    }
+
     public void testSimpleAddWithCarriageReturn() throws Exception {
         final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"expand_wildcards\" : \"open,closed\"}}\r\n" +
             "{\"query\" : {\"match_all\" :{}}}\r\n";
@@ -170,7 +180,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(2).routing(), equalTo("123"));
     }
 
-    public void testResponseErrorToXContent() throws IOException {
+    public void testResponseErrorToXContent() {
         long tookInMillis = randomIntBetween(1, 1000);
         MultiSearchResponse response = new MultiSearchResponse(
                 new MultiSearchResponse.Item[] {
@@ -252,12 +262,12 @@ public class MultiSearchRequestTests extends ESTestCase {
                 parsedRequest.add(r);
             };
             MultiSearchRequest.readMultiLineFormat(new BytesArray(originalBytes), xContentType.xContent(),
-                    consumer, null, null, null, null, null, xContentRegistry(), true);
+                    consumer, null, null, null, null, null, null, xContentRegistry(), true);
             assertEquals(originalRequest, parsedRequest);
         }
     }
 
-    public void testEqualsAndHashcode() throws IOException {
+    public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(createMultiSearchRequest(), MultiSearchRequestTests::copyRequest, MultiSearchRequestTests::mutate);
     }
 
@@ -272,7 +282,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return mutation;
     }
 
-    private static MultiSearchRequest copyRequest(MultiSearchRequest request) throws IOException {
+    private static MultiSearchRequest copyRequest(MultiSearchRequest request) {
         MultiSearchRequest copy = new MultiSearchRequest();
         if (request.maxConcurrentSearchRequests() > 0) {
             copy.maxConcurrentSearchRequests(request.maxConcurrentSearchRequests());
@@ -284,7 +294,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return copy;
     }
 
-    private static MultiSearchRequest createMultiSearchRequest() throws IOException {
+    private static MultiSearchRequest createMultiSearchRequest() {
         int numSearchRequest = randomIntBetween(1, 128);
         MultiSearchRequest request = new MultiSearchRequest();
         for (int j = 0; j < numSearchRequest; j++) {
@@ -311,7 +321,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return request;
     }
 
-    private static SearchRequest createSimpleSearchRequest() throws IOException {
+    private static SearchRequest createSimpleSearchRequest() {
         return randomSearchRequest(() -> {
             // No need to return a very complex SearchSourceBuilder here, that is tested elsewhere
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();

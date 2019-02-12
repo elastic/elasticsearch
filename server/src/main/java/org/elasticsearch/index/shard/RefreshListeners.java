@@ -22,6 +22,8 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.translog.Translog;
 
@@ -53,6 +55,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * Is this closed? If true then we won't add more listeners and have flushed all pending listeners.
      */
     private volatile boolean closed = false;
+
+    /**
+     * Force-refreshes new refresh listeners that are added while {@code >= 0}. Used to prevent becoming blocked on operations waiting for
+     * refresh during relocation.
+     */
+    private int refreshForcers;
+
     /**
      * List of refresh listeners. Defaults to null and built on demand because most refresh cycles won't need it. Entries are never removed
      * from it, rather, it is nulled and rebuilt when needed again. The (hopefully) rare entries that didn't make the current refresh cycle
@@ -76,6 +85,32 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     }
 
     /**
+     * Force-refreshes newly added listeners and forces a refresh if there are currently listeners registered. See {@link #refreshForcers}.
+     */
+    public Releasable forceRefreshes() {
+        synchronized (this) {
+            assert refreshForcers >= 0;
+            refreshForcers += 1;
+        }
+        final RunOnce runOnce = new RunOnce(() -> {
+            synchronized (RefreshListeners.this) {
+                assert refreshForcers > 0;
+                refreshForcers -= 1;
+            }
+        });
+        if (refreshNeeded()) {
+            try {
+                forceRefresh.run();
+            } catch (Exception e) {
+                runOnce.run();
+                throw e;
+            }
+        }
+        assert refreshListeners == null;
+        return () -> runOnce.run();
+    }
+
+    /**
      * Add a listener for refreshes, calling it immediately if the location is already visible. If this runs out of listener slots then it
      * forces a refresh and calls the listener immediately as well.
      *
@@ -94,15 +129,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             return true;
         }
         synchronized (this) {
-            List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
-            if (listeners == null) {
-                if (closed) {
-                    throw new IllegalStateException("can't wait for refresh on a closed index");
-                }
-                listeners = new ArrayList<>();
-                refreshListeners = listeners;
+            if (closed) {
+                throw new IllegalStateException("can't wait for refresh on a closed index");
             }
-            if (listeners.size() < getMaxRefreshListeners.getAsInt()) {
+            List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
+            final int maxRefreshes = getMaxRefreshListeners.getAsInt();
+            if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
                 ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
                 Consumer<Boolean> contextPreservingListener = forced -> {
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -110,8 +142,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                         listener.accept(forced);
                     }
                 };
+                if (listeners == null) {
+                    listeners = new ArrayList<>();
+                }
                 // We have a free slot so register the listener
                 listeners.add(new Tuple<>(location, contextPreservingListener));
+                refreshListeners = listeners;
                 return false;
             }
         }

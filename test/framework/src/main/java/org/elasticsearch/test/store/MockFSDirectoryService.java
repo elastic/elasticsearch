@@ -43,7 +43,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryService;
-import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -74,8 +73,8 @@ public class MockFSDirectoryService extends FsDirectoryService {
     private final boolean crashIndex;
 
     @Inject
-    public MockFSDirectoryService(IndexSettings idxSettings, IndexStore indexStore, final ShardPath path) {
-        super(idxSettings, indexStore, path);
+    public MockFSDirectoryService(IndexSettings idxSettings, final ShardPath path) {
+        super(idxSettings, path);
         Settings indexSettings = idxSettings.getSettings();
         final long seed = idxSettings.getValue(ESIntegTestCase.INDEX_TEST_SEED_SETTING);
         this.random = new Random(seed);
@@ -90,7 +89,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
             logger.debug("Using MockDirWrapper with seed [{}] throttle: [{}] crashIndex: [{}]", SeedUtils.formatSeed(seed),
                     throttle, crashIndex);
         }
-        delegateService = randomDirectoryService(indexStore, path);
+        delegateService = randomDirectoryService(idxSettings, path);
     }
 
 
@@ -152,8 +151,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         return w;
     }
 
-    private FsDirectoryService randomDirectoryService(IndexStore indexStore, ShardPath path) {
-        final IndexSettings indexSettings = indexStore.getIndexSettings();
+    private FsDirectoryService randomDirectoryService(IndexSettings indexSettings, ShardPath path) {
         final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData())
             .settings(Settings.builder()
                 // don't use the settings from indexSettings#getSettings() they are merged with node settings and might contain
@@ -163,7 +161,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                     RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey()))
             .build();
         final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings());
-        return new FsDirectoryService(newIndexSettings, indexStore, path);
+        return new FsDirectoryService(newIndexSettings, path);
     }
 
     public static final class ElasticsearchMockDirectoryWrapper extends MockDirectoryWrapper {

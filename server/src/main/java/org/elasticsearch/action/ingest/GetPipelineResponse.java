@@ -20,6 +20,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -109,13 +110,12 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         while(parser.nextToken().equals(Token.FIELD_NAME)) {
             String pipelineId = parser.currentName();
             parser.nextToken();
-            XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
-            contentBuilder.generator().copyCurrentStructure(parser);
-            PipelineConfiguration pipeline =
-                new PipelineConfiguration(
-                    pipelineId, BytesReference.bytes(contentBuilder), contentBuilder.contentType()
-                );
-            pipelines.add(pipeline);
+            try (XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent())) {
+                contentBuilder.generator().copyCurrentStructure(parser);
+                PipelineConfiguration pipeline =
+                    new PipelineConfiguration(pipelineId, BytesReference.bytes(contentBuilder), contentBuilder.contentType());
+                pipelines.add(pipeline);
+            }
         }
         ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
         return new GetPipelineResponse(pipelines);
@@ -146,6 +146,11 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         } else {
             return false;
         }
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     @Override

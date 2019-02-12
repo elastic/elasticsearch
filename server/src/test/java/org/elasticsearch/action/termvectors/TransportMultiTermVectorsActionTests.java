@@ -92,40 +92,53 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         };
 
         final Index index1 = new Index("index1", randomBase64UUID());
+        final Index index2 = new Index("index2", randomBase64UUID());
         final ClusterState clusterState = ClusterState.builder(new ClusterName(TransportMultiGetActionTests.class.getSimpleName()))
             .metaData(new MetaData.Builder()
                 .put(new IndexMetaData.Builder(index1.getName())
-                    .settings(Settings.builder().put("index.version.created", Version.CURRENT)
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 1)
-                        .put(IndexMetaData.SETTING_INDEX_UUID, index1.getUUID()))
-                    .putMapping("type1",
-                        XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
-                            .startObject()
-                                .startObject("type1")
-                                    .startObject("_routing")
-                                        .field("required", false)
+                        .settings(Settings.builder().put("index.version.created", Version.CURRENT)
+                            .put("index.number_of_shards", 1)
+                            .put("index.number_of_replicas", 1)
+                            .put(IndexMetaData.SETTING_INDEX_UUID, index1.getUUID()))
+                        .putMapping("_doc",
+                            XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
+                                .startObject()
+                                    .startObject("_doc")
+                                        .startObject("_routing")
+                                            .field("required", false)
+                                        .endObject()
                                     .endObject()
-                                .endObject()
-                            .endObject()), true, XContentType.JSON))
-                    .putMapping("type2",
-                        XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
-                            .startObject()
-                                .startObject("type2")
-                                    .startObject("_routing")
-                                        .field("required", true)
+                                .endObject()), true, XContentType.JSON)))
+                    .put(new IndexMetaData.Builder(index2.getName())
+                        .settings(Settings.builder().put("index.version.created", Version.CURRENT)
+                            .put("index.number_of_shards", 1)
+                            .put("index.number_of_replicas", 1)
+                            .put(IndexMetaData.SETTING_INDEX_UUID, index1.getUUID()))
+                        .putMapping("_doc",
+                            XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
+                                .startObject()
+                                    .startObject("_doc")
+                                        .startObject("_routing")
+                                            .field("required", true)
+                                        .endObject()
                                     .endObject()
-                                .endObject()
-                            .endObject()), true, XContentType.JSON)))).build();
+                                .endObject()), true, XContentType.JSON)))).build();
 
-        final ShardIterator shardIterator = mock(ShardIterator.class);
-        when(shardIterator.shardId()).thenReturn(new ShardId(index1, randomInt()));
+        final ShardIterator index1ShardIterator = mock(ShardIterator.class);
+        when(index1ShardIterator.shardId()).thenReturn(new ShardId(index1, randomInt()));
+
+        final ShardIterator index2ShardIterator = mock(ShardIterator.class);
+        when(index2ShardIterator.shardId()).thenReturn(new ShardId(index2, randomInt()));
 
         final OperationRouting operationRouting = mock(OperationRouting.class);
         when(operationRouting.getShards(eq(clusterState), eq(index1.getName()), anyString(), anyString(), anyString()))
-            .thenReturn(shardIterator);
+            .thenReturn(index1ShardIterator);
         when(operationRouting.shardId(eq(clusterState), eq(index1.getName()), anyString(), anyString()))
             .thenReturn(new ShardId(index1, randomInt()));
+        when(operationRouting.getShards(eq(clusterState), eq(index2.getName()), anyString(), anyString(), anyString()))
+            .thenReturn(index2ShardIterator);
+        when(operationRouting.shardId(eq(clusterState), eq(index2.getName()), anyString(), anyString()))
+            .thenReturn(new ShardId(index2, randomInt()));
 
         clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(transportService.getLocalNode());
@@ -155,8 +168,8 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client, MultiTermVectorsAction.INSTANCE);
-        request.add(new TermVectorsRequest("index1", "type1", "1"));
-        request.add(new TermVectorsRequest("index1", "type1", "2"));
+        request.add(new TermVectorsRequest("index1", "_doc", "1"));
+        request.add(new TermVectorsRequest("index2", "_doc", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
         transportAction = new TransportMultiTermVectorsAction(transportService, clusterService, shardAction,
@@ -180,8 +193,8 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client, MultiTermVectorsAction.INSTANCE);
-        request.add(new TermVectorsRequest("index1", "type2", "1").routing("1"));
-        request.add(new TermVectorsRequest("index1", "type2", "2"));
+        request.add(new TermVectorsRequest("index2", "_doc", "1").routing("1"));
+        request.add(new TermVectorsRequest("index2", "_doc", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
         transportAction = new TransportMultiTermVectorsAction(transportService, clusterService, shardAction,

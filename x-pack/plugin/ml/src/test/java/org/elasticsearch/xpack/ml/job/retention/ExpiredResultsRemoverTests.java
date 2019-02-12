@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -18,7 +17,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -31,9 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -46,17 +42,12 @@ import static org.mockito.Mockito.when;
 public class ExpiredResultsRemoverTests extends ESTestCase {
 
     private Client client;
-    private ClusterService clusterService;
-    private ClusterState clusterState;
     private List<DeleteByQueryRequest> capturedDeleteByQueryRequests;
     private ActionListener<Boolean> listener;
 
     @Before
     public void setUpTests() {
         capturedDeleteByQueryRequests = new ArrayList<>();
-        clusterService = mock(ClusterService.class);
-        clusterState = mock(ClusterState.class);
-        when(clusterService.state()).thenReturn(clusterState);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -74,17 +65,18 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         listener = mock(ActionListener.class);
     }
 
-    public void testRemove_GivenNoJobs() {
+    public void testRemove_GivenNoJobs() throws IOException {
         givenClientRequestsSucceed();
         givenJobs(Collections.emptyList());
 
         createExpiredResultsRemover().remove(listener);
 
         verify(listener).onResponse(true);
+        verify(client).search(any());
         Mockito.verifyNoMoreInteractions(client);
     }
 
-    public void testRemove_GivenJobsWithoutRetentionPolicy() {
+    public void testRemove_GivenJobsWithoutRetentionPolicy() throws IOException {
         givenClientRequestsSucceed();
         givenJobs(Arrays.asList(
                 JobTests.buildJobBuilder("foo").build(),
@@ -94,6 +86,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         createExpiredResultsRemover().remove(listener);
 
         verify(listener).onResponse(true);
+        verify(client).search(any());
         Mockito.verifyNoMoreInteractions(client);
     }
 
@@ -158,17 +151,15 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         }).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
     }
 
-    private void givenJobs(List<Job> jobs) {
-        Map<String, Job> jobsMap = new HashMap<>();
-        jobs.stream().forEach(job -> jobsMap.put(job.getId(), job));
-        MlMetadata mlMetadata = mock(MlMetadata.class);
-        when(mlMetadata.getJobs()).thenReturn(jobsMap);
-        MetaData metadata = mock(MetaData.class);
-        when(metadata.custom(MlMetadata.TYPE)).thenReturn(mlMetadata);
-        when(clusterState.getMetaData()).thenReturn(metadata);
+    private void givenJobs(List<Job> jobs) throws IOException {
+        SearchResponse response = AbstractExpiredJobDataRemoverTests.createSearchResponse(jobs);
+
+        ActionFuture<SearchResponse> future = mock(ActionFuture.class);
+        when(future.actionGet()).thenReturn(response);
+        when(client.search(any())).thenReturn(future);
     }
 
     private ExpiredResultsRemover createExpiredResultsRemover() {
-        return new ExpiredResultsRemover(client, clusterService, mock(Auditor.class));
+        return new ExpiredResultsRemover(client, mock(Auditor.class));
     }
 }

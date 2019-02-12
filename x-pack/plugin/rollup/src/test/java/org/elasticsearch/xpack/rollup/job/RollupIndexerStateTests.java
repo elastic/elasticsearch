@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -20,11 +21,11 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.mockito.stubbing.Answer;
 
@@ -93,7 +94,8 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponseSections sections = new SearchResponseSections(new SearchHits(new SearchHit[0], 0, 0),
+            final SearchResponseSections sections = new SearchResponseSections(
+                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                 aggs, null, false, null, null, 1);
             final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0,
                 new ShardSearchFailure[0], null);
@@ -228,6 +230,10 @@ public class RollupIndexerStateTests extends ESTestCase {
             ESTestCase.awaitBusy(() -> indexer.getState() == IndexerState.STARTED);
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
+            assertThat(indexer.getStats().getIndexFailures(), equalTo(0L));
+            assertThat(indexer.getStats().getSearchFailures(), equalTo(0L));
+            assertThat(indexer.getStats().getSearchTotal(), equalTo(1L));
+            assertThat(indexer.getStats().getIndexTotal(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();
@@ -257,6 +263,9 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
+            assertThat(indexer.getStats().getIndexFailures(), equalTo(0L));
+            assertThat(indexer.getStats().getSearchFailures(), equalTo(0L));
+            assertThat(indexer.getStats().getSearchTotal(), equalTo(1L));
             assertTrue(indexer.abort());
         } finally {
             executor.shutdownNow();
@@ -339,6 +348,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.ABORTING));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(0L));
+            assertThat(indexer.getStats().getSearchFailures(), equalTo(0L));
         } finally {
             executor.shutdownNow();
         }
@@ -402,7 +412,8 @@ public class RollupIndexerStateTests extends ESTestCase {
                             return null;
                         }
                     }));
-                    final SearchResponseSections sections = new SearchResponseSections(new SearchHits(new SearchHit[0], 0, 0),
+                    final SearchResponseSections sections = new SearchResponseSections(
+                        new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                         aggs, null, false, null, null, 1);
                     final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0,
                         ShardSearchFailure.EMPTY_ARRAY, null);
@@ -607,7 +618,8 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponseSections sections = new SearchResponseSections(new SearchHits(new SearchHit[0], 0, 0),
+            final SearchResponseSections sections = new SearchResponseSections(
+                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                 aggs, null, false, null, null, 1);
             return new SearchResponse(sections, null, 1, 1, 0, 0,
                 ShardSearchFailure.EMPTY_ARRAY, null);
@@ -637,6 +649,9 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
+
+            // There should be one recorded failure
+            assertThat(indexer.getStats().getSearchFailures(), equalTo(1L));
 
             // Note: no docs were indexed
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
@@ -712,7 +727,8 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponseSections sections = new SearchResponseSections(new SearchHits(new SearchHit[0], 0, 0),
+            final SearchResponseSections sections = new SearchResponseSections(
+                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                 aggs, null, false, null, null, 1);
             return new SearchResponse(sections, null, 1, 1, 0, 0,
                 ShardSearchFailure.EMPTY_ARRAY, null);
@@ -741,6 +757,9 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.STOPPED));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
+
+            // There should be one recorded failure
+            assertThat(indexer.getStats().getSearchFailures(), equalTo(1L));
 
             // Note: no docs were indexed
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
@@ -783,6 +802,9 @@ public class RollupIndexerStateTests extends ESTestCase {
             // Despite failure in bulk, we should move back to STARTED and wait to try again on next trigger
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
+
+            // There should be one recorded failure
+            assertThat(indexer.getStats().getSearchFailures(), equalTo(1L));
 
             // Note: no pages processed, no docs were indexed
             assertThat(indexer.getStats().getNumPages(), equalTo(0L));
@@ -856,7 +878,8 @@ public class RollupIndexerStateTests extends ESTestCase {
                     return null;
                 }
             }));
-            final SearchResponseSections sections = new SearchResponseSections(new SearchHits(new SearchHit[0], 0, 0),
+            final SearchResponseSections sections = new SearchResponseSections(
+                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
                 aggs, null, false, null, null, 1);
             return new SearchResponse(sections, null, 1, 1, 0, 0,
                 ShardSearchFailure.EMPTY_ARRAY, null);
@@ -894,6 +917,9 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
+
+            // There should be one recorded failure
+            assertThat(indexer.getStats().getIndexFailures(), equalTo(1L));
 
             // Note: no docs were indexed
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));

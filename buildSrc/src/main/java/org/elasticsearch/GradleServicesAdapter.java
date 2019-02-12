@@ -41,7 +41,7 @@ import java.io.File;
  */
 public class GradleServicesAdapter {
 
-    public final Project project;
+    private final Project project;
 
     public GradleServicesAdapter(Project project) {
         this.project = project;

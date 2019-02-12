@@ -77,7 +77,8 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
         assertThat(ESNativeRealmMigrateTool.MigrateUserOrRoles.createRoleJson(rd),
                 equalTo("{\"cluster\":[]," +
                         "\"indices\":[{\"names\":[\"i1\",\"i2\",\"i3\"]," +
-                        "\"privileges\":[\"all\"],\"field_security\":{\"grant\":[\"body\"]}}]," +
+                        "\"privileges\":[\"all\"],\"field_security\":{\"grant\":[\"body\"]}," +
+                        "\"allow_restricted_indices\":false}]," +
                         "\"applications\":[]," +
                         "\"run_as\":[],\"metadata\":{},\"type\":\"role\"}"));
     }

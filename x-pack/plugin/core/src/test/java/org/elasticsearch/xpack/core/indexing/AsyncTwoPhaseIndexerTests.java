@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.indexing;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -20,9 +21,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -34,11 +37,14 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
     private class MockIndexer extends AsyncTwoPhaseIndexer<Integer, MockJobStats> {
 
+        private final CountDownLatch latch;
         // test the execution order
         private int step;
 
-        protected MockIndexer(Executor executor, AtomicReference<IndexerState> initialState, Integer initialPosition) {
+        protected MockIndexer(Executor executor, AtomicReference<IndexerState> initialState, Integer initialPosition,
+                              CountDownLatch latch) {
             super(executor, initialState, initialPosition, new MockJobStats());
+            this.latch = latch;
         }
 
         @Override
@@ -48,9 +54,18 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected IterationResult<Integer> doProcess(SearchResponse searchResponse) {
+            awaitForLatch();
             assertThat(step, equalTo(3));
             ++step;
             return new IterationResult<Integer>(Collections.emptyList(), 3, true);
+        }
+
+        private void awaitForLatch() {
+            try {
+                latch.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
@@ -70,9 +85,9 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
             assertThat(step, equalTo(2));
             ++step;
-            final SearchResponseSections sections = new SearchResponseSections(new SearchHits(new SearchHit[0], 0, 0), null, null, false,
-                    null, null, 1);
-
+            final SearchResponseSections sections = new SearchResponseSections(
+                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), null,
+                null, false, null, null, 1);
             nextPhase.onResponse(new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null));
         }
 
@@ -195,12 +210,14 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         isFinished.set(false);
         try {
-
-            MockIndexer indexer = new MockIndexer(executor, state, 2);
+            CountDownLatch countDownLatch = new CountDownLatch(1);
+            MockIndexer indexer = new MockIndexer(executor, state, 2, countDownLatch);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+            countDownLatch.countDown();
+
             assertThat(indexer.getPosition(), equalTo(2));
             ESTestCase.awaitBusy(() -> isFinished.get());
             assertThat(indexer.getStep(), equalTo(6));

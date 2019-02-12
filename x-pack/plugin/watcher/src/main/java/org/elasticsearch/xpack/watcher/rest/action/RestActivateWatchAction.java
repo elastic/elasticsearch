@@ -3,8 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -29,18 +32,31 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * The rest action to de/activate a watch
  */
 public class RestActivateWatchAction extends WatcherRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestActivateWatchAction.class));
+
     public RestActivateWatchAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(POST, URI_BASE + "/watch/{id}/_activate", this);
-        controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_activate", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, "/_watcher/watch/{id}/_activate", this,
+            POST, URI_BASE + "/watcher/watch/{id}/_activate", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            PUT, "/_watcher/watch/{id}/_activate", this,
+            PUT, URI_BASE + "/watcher/watch/{id}/_activate", deprecationLogger);
+
         final DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler(settings);
-        controller.registerHandler(POST, URI_BASE + "/watch/{id}/_deactivate", deactivateRestHandler);
-        controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_deactivate", deactivateRestHandler);
+        controller.registerWithDeprecatedHandler(
+            POST, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler,
+            POST, URI_BASE + "/watcher/watch/{id}/_deactivate", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            PUT, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler,
+            PUT, URI_BASE + "/watcher/watch/{id}/_deactivate", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_watcher_activate_watch_action";
+        return "watcher_activate_watch";
     }
 
     @Override
@@ -65,7 +81,7 @@ public class RestActivateWatchAction extends WatcherRestHandler {
 
         @Override
         public String getName() {
-            return "xpack_watcher_deactivate_watch_action";
+            return "watcher_deactivate_watch";
         }
 
         @Override

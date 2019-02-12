@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.sql.expression.predicate.logical;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Or extends BinaryLogic implements Negatable<BinaryLogic> {
 
-    public Or(Location location, Expression left, Expression right) {
-        super(location, left, right, BinaryLogicOperation.OR);
+    public Or(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryLogicOperation.OR);
     }
 
     @Override
@@ -24,16 +24,16 @@ public class Or extends BinaryLogic implements Negatable<BinaryLogic> {
 
     @Override
     protected Or replaceChildren(Expression newLeft, Expression newRight) {
-        return new Or(location(), newLeft, newRight);
+        return new Or(source(), newLeft, newRight);
     }
 
     @Override
     public Or swapLeftAndRight() {
-        return new Or(location(), right(), left());
+        return new Or(source(), right(), left());
     }
 
     @Override
     public And negate() {
-        return new And(location(), new Not(location(), left()), new Not(location(), right()));
+        return new And(source(), new Not(source(), left()), new Not(source(), right()));
     }
 }

@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -128,7 +127,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             MockNioTransportPlugin.class);
 
         InternalTestCluster leaderCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
-            numberOfNodesPerCluster(), UUIDs.randomBase64UUID(random()), createNodeConfigurationSource(null), 0, "leader", mockPlugins,
+            numberOfNodesPerCluster(), "leader_cluster", createNodeConfigurationSource(null), 0, "leader", mockPlugins,
             Function.identity());
         leaderCluster.beforeTest(random(), 0.0D);
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
@@ -139,7 +138,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
         String address = leaderCluster.getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         InternalTestCluster followerCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
-            numberOfNodesPerCluster(), UUIDs.randomBase64UUID(random()), createNodeConfigurationSource(address), 0, "follower",
+            numberOfNodesPerCluster(), "follower_cluster", createNodeConfigurationSource(address), 0, "follower",
             mockPlugins, Function.identity());
         clusterGroup = new ClusterGroup(leaderCluster, followerCluster);
 

@@ -55,7 +55,6 @@ statement
     | (DESCRIBE | DESC) (tableLike=likePattern | tableIdent=tableIdentifier)                              #showColumns
     | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
-    | SYS CATALOGS                                                                                        #sysCatalogs
     | SYS TABLES (CATALOG clusterLike=likePattern)?
                  (tableLike=likePattern | tableIdent=tableIdentifier)?
                  (TYPE string (',' string)* )?                                                            #sysTables
@@ -63,7 +62,6 @@ statement
                   (TABLE tableLike=likePattern | tableIdent=tableIdentifier)?
                   (columnPattern=likePattern)?                                                            #sysColumns
     | SYS TYPES ((PLUS | MINUS)?  type=number)?                                                           #sysTypes
-    | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
     
 query
@@ -238,7 +236,8 @@ castTemplate
     ;
 
 builtinDateTimeFunction
-    : name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
+    : name=CURRENT_DATE ('(' ')')?
+    | name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
     ;
     
 convertTemplate
@@ -339,10 +338,10 @@ string
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS | CURRENT 
+    | CATALOGS | COLUMNS
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
-    | FIRST | FORMAT | FUNCTIONS 
+    | FIRST | FORMAT | FULL | FUNCTIONS
     | GRAPHVIZ
     | HOUR
     | INTERVAL
@@ -372,7 +371,7 @@ CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
 CONVERT: 'CONVERT';
-CURRENT: 'CURRENT';
+CURRENT_DATE : 'CURRENT_DATE';
 CURRENT_TIMESTAMP : 'CURRENT_TIMESTAMP';
 DAY: 'DAY';
 DAYS: 'DAYS';

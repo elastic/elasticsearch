@@ -29,7 +29,7 @@ class ClusterConfiguration {
     private final Project project
 
     @Input
-    String distribution = 'zip'
+    String distribution = 'default'
 
     @Input
     int numNodes = 1

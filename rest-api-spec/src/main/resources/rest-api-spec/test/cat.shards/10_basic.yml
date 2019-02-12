@@ -235,7 +235,6 @@
   - do:
       index:
         index: bar
-        type: type
         body: { test: bar }
         refresh: true
 

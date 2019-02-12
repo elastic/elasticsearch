@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatFunctionProcessor.process;
@@ -37,12 +37,12 @@ public class Concat extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = Expressions.typeMustBeString(left(), functionName(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = Expressions.typeMustBeString(left(), sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        return Expressions.typeMustBeString(right(), functionName(), ParamOrdinal.SECOND);
+        return Expressions.typeMustBeString(right(), sourceText(), ParamOrdinal.SECOND);
     }
 
     @Override

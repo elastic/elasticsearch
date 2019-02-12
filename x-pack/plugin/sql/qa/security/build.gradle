@@ -6,6 +6,9 @@ Project mainProject = project
 
 group = "${group}.x-pack.qa.sql.security"
 
+// Tests are pushed down to subprojects and will be checked there.
+testingConventions.enabled = false
+
 subprojects {
   // Use resources from the parent project in subprojects
   sourceSets {
@@ -26,7 +29,6 @@ subprojects {
   integTestCluster {
     // Setup auditing so we can use it in some tests
     setting 'xpack.security.audit.enabled', 'true'
-    setting 'xpack.security.audit.outputs', 'logfile'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     // Setup roles used by tests
@@ -39,14 +41,16 @@ subprojects {
   }
 
   integTestRunner {
+    def today = new Date().format('yyyy-MM-dd')
     systemProperty 'tests.audit.logfile',
-        "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_audit.log"
+        "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_audit.json"
+    systemProperty 'tests.audit.yesterday.logfile',
+        "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_audit-${today}.json"
   }
 
   runqa {
     // Setup auditing so we can use it in some tests
     setting 'xpack.security.audit.enabled', 'true'
-    setting 'xpack.security.audit.outputs', 'logfile'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     // Setup roles used by tests

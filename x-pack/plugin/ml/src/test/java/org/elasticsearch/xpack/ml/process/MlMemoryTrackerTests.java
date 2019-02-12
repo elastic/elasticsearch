@@ -123,9 +123,10 @@ public class MlMemoryTrackerTests extends ESTestCase {
             return null;
         }).when(jobResultsProvider).getEstablishedMemoryUsage(eq(jobId), any(), any(), any(Consumer.class), any());
 
-        long modelMemoryLimitMb = 2;
+        boolean simulateVeryOldJob = randomBoolean();
+        long recentJobModelMemoryLimitMb = 2;
         Job job = mock(Job.class);
-        when(job.getAnalysisLimits()).thenReturn(new AnalysisLimits(modelMemoryLimitMb, 4L));
+        when(job.getAnalysisLimits()).thenReturn(simulateVeryOldJob ? null : new AnalysisLimits(recentJobModelMemoryLimitMb, 4L));
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<Job> listener = (ActionListener<Job>) invocation.getArguments()[1];
@@ -141,7 +142,9 @@ public class MlMemoryTrackerTests extends ESTestCase {
                 assertEquals(Long.valueOf(modelBytes + Job.PROCESS_MEMORY_OVERHEAD.getBytes()),
                     memoryTracker.getJobMemoryRequirement(jobId));
             } else {
-                assertEquals(Long.valueOf(ByteSizeUnit.MB.toBytes(modelMemoryLimitMb) + Job.PROCESS_MEMORY_OVERHEAD.getBytes()),
+                long expectedModelMemoryLimit =
+                    simulateVeryOldJob ? AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB : recentJobModelMemoryLimitMb;
+                assertEquals(Long.valueOf(ByteSizeUnit.MB.toBytes(expectedModelMemoryLimit) + Job.PROCESS_MEMORY_OVERHEAD.getBytes()),
                     memoryTracker.getJobMemoryRequirement(jobId));
             }
         } else {

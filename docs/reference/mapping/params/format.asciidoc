@@ -14,12 +14,10 @@ Besides the <<built-in-date-formats,built-in formats>>, your own
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "date": {
-          "type":   "date",
-          "format": "yyyy-MM-dd"
-        }
+    "properties": {
+      "date": {
+        "type":   "date",
+        "format": "yyyy-MM-dd"
       }
     }
   }

@@ -16,10 +16,12 @@ List projects = [
   'client:benchmark',
   'benchmarks',
   'distribution:archives:integ-test-zip',
-  'distribution:archives:oss-zip',
-  'distribution:archives:zip',
-  'distribution:archives:oss-tar',
-  'distribution:archives:tar',
+  'distribution:archives:oss-windows-zip',
+  'distribution:archives:windows-zip',
+  'distribution:archives:oss-darwin-tar',
+  'distribution:archives:darwin-tar',
+  'distribution:archives:oss-linux-tar',
+  'distribution:archives:linux-tar',
   'distribution:docker',
   'distribution:packages:oss-deb',
   'distribution:packages:deb',
@@ -95,6 +97,8 @@ if (isEclipse) {
   projects << 'libs:x-content-tests'
   projects << 'libs:secure-sm-tests'
   projects << 'libs:grok-tests'
+  projects << 'libs:geo-tests'
+  projects << 'libs:ssl-config-tests'
 }
 
 include projects.toArray(new String[0])
@@ -130,6 +134,14 @@ if (isEclipse) {
   project(":libs:grok").buildFileName = 'eclipse-build.gradle'
   project(":libs:grok-tests").projectDir = new File(rootProject.projectDir, 'libs/grok/src/test')
   project(":libs:grok-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:geo").projectDir = new File(rootProject.projectDir, 'libs/geo/src/main')
+  project(":libs:geo").buildFileName = 'eclipse-build.gradle'
+  project(":libs:geo-tests").projectDir = new File(rootProject.projectDir, 'libs/geo/src/test')
+  project(":libs:geo-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:ssl-config").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/main')
+  project(":libs:ssl-config").buildFileName = 'eclipse-build.gradle'
+  project(":libs:ssl-config-tests").projectDir = new File(rootProject.projectDir, 'libs/ssl-config/src/test')
+  project(":libs:ssl-config-tests").buildFileName = 'eclipse-build.gradle'
 }
 
 // look for extra plugins for elasticsearch
@@ -141,3 +153,5 @@ if (extraProjects.exists()) {
 }
 
 project(":libs:cli").name = 'elasticsearch-cli'
+project(":libs:geo").name = 'elasticsearch-geo'
+project(":libs:ssl-config").name = 'elasticsearch-ssl-config'

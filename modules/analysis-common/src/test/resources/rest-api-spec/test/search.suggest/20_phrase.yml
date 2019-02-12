@@ -34,26 +34,24 @@ setup:
                   min_shingle_size: 2
                   max_shingle_size: 2
           mappings:
-            doc:
-              properties:
-                body:
-                  type: text
-                  analyzer: body
-                  fields:
-                    bigram:
-                      type: text
-                      analyzer: bigram
-                    ngram:
-                      type: text
-                      analyzer: ngram
-                    reverse:
-                      type: text
-                      analyzer: reverse
+            properties:
+              body:
+                type: text
+                analyzer: body
+                fields:
+                  bigram:
+                    type: text
+                    analyzer: bigram
+                  ngram:
+                    type: text
+                    analyzer: ngram
+                  reverse:
+                    type: text
+                    analyzer: reverse
 
   - do:
       bulk:
         index: test
-        type: doc
         refresh: true
         body: |
           { "index": {} }
@@ -226,4 +224,3 @@ setup:
                     post_filter: reverse
 
   - match: {suggest.test.0.options.0.text: arthur king of the britons}
-

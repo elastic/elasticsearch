@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -286,5 +288,39 @@ public class IndexMetaDataTests extends ESTestCase {
         iae = expectThrows(IllegalArgumentException.class,
             () -> IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings));
         assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
+    }
+
+    public void testMappingOrDefault() throws IOException {
+        Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+        IndexMetaData meta = IndexMetaData.builder("index")
+                .settings(settings)
+                .build();
+        assertNull(meta.mappingOrDefault());
+
+        meta = IndexMetaData.builder("index")
+                .settings(settings)
+                .putMapping("type", "{}")
+                .build();
+        assertNotNull(meta.mappingOrDefault());
+        assertEquals("type", meta.mappingOrDefault().type());
+
+        meta = IndexMetaData.builder("index")
+                .settings(settings)
+                .putMapping(MapperService.DEFAULT_MAPPING, "{}")
+                .build();
+        assertNotNull(meta.mappingOrDefault());
+        assertEquals(MapperService.DEFAULT_MAPPING, meta.mappingOrDefault().type());
+
+        meta = IndexMetaData.builder("index")
+                .settings(settings)
+                .putMapping("type", "{}")
+                .putMapping(MapperService.DEFAULT_MAPPING, "{}")
+                .build();
+        assertNotNull(meta.mappingOrDefault());
+        assertEquals("type", meta.mappingOrDefault().type());
     }
 }

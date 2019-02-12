@@ -86,7 +86,7 @@ public class ExecuteWatchResponse {
     }
 
     private static final ConstructingObjectParser<ExecuteWatchResponse, Void> PARSER
-        = new ConstructingObjectParser<>("x_pack_execute_watch_response", false,
+        = new ConstructingObjectParser<>("x_pack_execute_watch_response", true,
         (fields) -> new ExecuteWatchResponse((String)fields[0], (BytesReference) fields[1]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
@@ -103,5 +103,4 @@ public class ExecuteWatchResponse {
             return BytesReference.bytes(builder);
         }
     }
-
 }

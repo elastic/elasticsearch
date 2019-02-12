@@ -52,8 +52,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     private SortBy sort;
 
-    public TermSuggestion() {}
-
     public TermSuggestion(String name, int size, SortBy sort) {
         super(name, size);
         this.sort = sort;
@@ -61,7 +59,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     public TermSuggestion(StreamInput in) throws IOException {
         super(in);
-
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             sort = SortBy.readFromStream(in);
         }
@@ -80,7 +77,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             }
             return FREQUENCY.compare(first, second);
         }
-
     }
 
     // Same behaviour as comparators in suggest module, but for SuggestedWord
@@ -105,7 +101,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             // third criteria: term text
             return first.getText().compareTo(second.getText());
         }
-
     }
 
     @Override
@@ -155,11 +150,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     }
 
     @Override
-    protected Entry newEntry() {
-        return new Entry();
-    }
-
-    @Override
     protected Entry newEntry(StreamInput in) throws IOException {
         return new Entry(in);
     }
@@ -184,15 +174,10 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             super(text, offset, length);
         }
 
-        public Entry() {}
+        private Entry() {}
 
         public Entry(StreamInput in) throws IOException {
             super(in);
-        }
-
-        @Override
-        protected Option newOption() {
-            return new Option();
         }
 
         @Override
@@ -234,10 +219,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             protected void mergeInto(Suggestion.Entry.Option otherOption) {
                 super.mergeInto(otherOption);
                 freq += ((Option) otherOption).freq;
-            }
-
-            protected Option() {
-                super();
             }
 
             public void setFreq(int freq) {
@@ -283,6 +264,5 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
                 return PARSER.apply(parser, null);
             }
         }
-
     }
 }

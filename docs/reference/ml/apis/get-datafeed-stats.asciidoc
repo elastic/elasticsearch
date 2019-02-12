@@ -32,6 +32,7 @@ statistics for all {dfeeds} by using `_all`, by specifying `*` as the
 If the {dfeed} is stopped, the only information you receive is the
 `datafeed_id` and the `state`.
 
+IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 
 ==== Path Parameters
 

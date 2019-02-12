@@ -69,7 +69,9 @@ public class StubbableConnectionManager extends ConnectionManager {
     }
 
     public void clearBehaviors() {
+        defaultGetConnectionBehavior = ConnectionManager::getConnection;
         getConnectionBehaviors.clear();
+        defaultNodeConnectedBehavior = ConnectionManager::nodeConnected;
         nodeConnectedBehaviors.clear();
     }
 

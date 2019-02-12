@@ -139,6 +139,7 @@ public class JdbcAssert {
             if (expectedType == Types.TIMESTAMP_WITH_TIMEZONE) {
                 expectedType = Types.TIMESTAMP;
             }
+
             // since csv doesn't support real, we use float instead.....
             if (expectedType == Types.FLOAT && expected instanceof CsvResultSet) {
                 expectedType = Types.REAL;
@@ -204,6 +205,9 @@ public class JdbcAssert {
                         // fix for CSV which returns the shortName not fully-qualified name
                         if (!columnClassName.contains(".")) {
                             switch (columnClassName) {
+                                case "Date":
+                                    columnClassName = "java.sql.Date";
+                                    break;
                                 case "Timestamp":
                                     columnClassName = "java.sql.Timestamp";
                                     break;

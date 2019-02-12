@@ -49,7 +49,7 @@ public class ExampleCustomSettingsConfig {
     /**
      * A string setting that can be dynamically updated and that is validated by some logic
      */
-    static final Setting<String> VALIDATED_SETTING = Setting.simpleString("custom.validated", (value, settings) -> {
+    static final Setting<String> VALIDATED_SETTING = Setting.simpleString("custom.validated", value -> {
         if (value != null && value.contains("forbidden")) {
             throw new IllegalArgumentException("Setting must not contain [forbidden]");
         }

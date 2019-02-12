@@ -49,8 +49,8 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
     }
 
     public TokensInvalidationResult(StreamInput in) throws IOException {
-        this.invalidatedTokens = in.readList(StreamInput::readString);
-        this.previouslyInvalidatedTokens = in.readList(StreamInput::readString);
+        this.invalidatedTokens = in.readStringList();
+        this.previouslyInvalidatedTokens = in.readStringList();
         this.errors = in.readList(StreamInput::readException);
         this.attemptCount = in.readVInt();
     }
@@ -97,8 +97,8 @@ public class TokensInvalidationResult implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringList(invalidatedTokens);
-        out.writeStringList(previouslyInvalidatedTokens);
+        out.writeStringCollection(invalidatedTokens);
+        out.writeStringCollection(previouslyInvalidatedTokens);
         out.writeCollection(errors, StreamOutput::writeException);
         out.writeVInt(attemptCount);
     }

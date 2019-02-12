@@ -33,6 +33,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -255,6 +256,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (mappings.containsKey(type)) {
             throw new IllegalStateException("mappings for type \"" + type + "\" were already defined");
         }
+        // wrap it in a type map if its not
+        if (source.size() != 1 || !source.containsKey(type)) {
+            source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
+        }
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
@@ -269,7 +274,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * ("field1", "type=string,store=true").
      */
     public CreateIndexRequest mapping(String type, Object... source) {
-        mapping(type, PutMappingRequest.buildFromSimplifiedDef(source));
+        mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
         return this;
     }
 

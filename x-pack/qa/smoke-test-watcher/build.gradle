@@ -16,3 +16,7 @@ integTestCluster {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
 }
+
+integTestRunner {
+  include "**/*Tests.class"
+}

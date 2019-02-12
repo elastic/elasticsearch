@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
@@ -48,6 +48,10 @@ public class Min extends NumericAggregate implements EnclosedAgg {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeNumericOrDate(field(), functionName(), ParamOrdinal.DEFAULT);
+        if (field().dataType().isString()) {
+            return TypeResolution.TYPE_RESOLVED;
+        } else {
+            return Expressions.typeMustBeNumericOrDate(field(), sourceText(), ParamOrdinal.DEFAULT);
+        }
     }
 }

@@ -10,8 +10,8 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -20,17 +20,10 @@ import java.util.Objects;
 abstract class BaseDateTimeFunction extends UnaryScalarFunction {
     
     private final ZoneId zoneId;
-    private final String name;
 
     BaseDateTimeFunction(Source source, Expression field, ZoneId zoneId) {
         super(source, field);
         this.zoneId = zoneId;
-
-        StringBuilder sb = new StringBuilder(super.name());
-        // add timezone as last argument
-        sb.insert(sb.length() - 1, " [" + zoneId.getId() + "]");
-
-        this.name = sb.toString();
     }
 
     @Override
@@ -42,16 +35,11 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeDate(field(), functionName(), ParamOrdinal.DEFAULT);
+        return Expressions.typeMustBeDate(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     public ZoneId zoneId() {
         return zoneId;
-    }
-    
-    @Override
-    public String name() {
-        return name;
     }
 
     @Override

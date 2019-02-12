@@ -130,6 +130,7 @@ will be prefixed with their remote cluster name:
 {
   "took": 150,
   "timed_out": false,
+  "num_reduce_phases": 3,
   "_shards": {
     "total": 2,
     "successful": 2,
@@ -222,6 +223,7 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 {
   "took": 150,
   "timed_out": false,
+  "num_reduce_phases": 3,
   "_shards": {
     "total": 2,
     "successful": 2,
@@ -273,3 +275,43 @@ GET /cluster_one:twitter,cluster_two:twitter,twitter/_search <1>
 // TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
 // TESTRESPONSE[s/"_score": 2/"_score": "$body.hits.hits.1._score"/]
 <1> The `clusters` section indicates that one cluster was unavailable and got skipped
+
+[float]
+[[ccs-reduction]]
+=== CCS reduction phase
+
+Cross-cluster search requests can be executed in two ways:
+
+- the CCS coordinating node minimizes network round-trips by sending one search
+request to each cluster. Each cluster performs the search independently,
+reducing and fetching results. Once the CCS node has received all the
+responses, it performs another reduction and returns the relevant results back
+to the user. This strategy is beneficial when there is network latency between
+the CCS coordinating node and the remote clusters involved, which is typically
+the case. A single request is sent to each remote cluster, at the cost of
+retrieving `from` + `size` already fetched results. This is the default
+strategy, used whenever possible. In case a scroll is provided, or inner hits
+are requested as part of field collapsing, this strategy is not supported hence
+network round-trips cannot be minimized and the following strategy is used
+instead.
+
+- the CCS coordinating node sends a <<search-shards,search shards>> request to
+each remote cluster, in order to collect information about their corresponding
+remote indices involved in the search request and the shards where their data
+is located. Once each cluster has responded to such request, the search
+executes as if all shards were part of the same cluster. The coordinating node
+sends one request to each shard involved, each shard executes the query and
+returns its own results which are then reduced (and fetched, depending on the
+<<search-request-search-type, search type>>) by the CCS coordinating node.
+This strategy may be beneficial whenever there is very low network latency
+between the CCS coordinating node and the remote clusters involved, as it
+treats all shards the same, at the cost of sending many requests to each remote
+cluster, which is problematic in presence of network latency.
+
+The <<search-request-body, search API>> supports the `ccs_minimize_roundtrips`
+parameter, which defaults to `true` and can be set to `false` in case
+minimizing network round-trips is not desirable.
+
+Note that all the communication between the nodes, regardless of which cluster
+they belong to and the selected reduce mode, happens through the
+<<modules-transport,transport layer>>.

@@ -5,7 +5,7 @@
 
 `MAX_OPEN_FILES`::
 
-    Maximum number of open files, defaults to `65536`.
+    Maximum number of open files, defaults to `65535`.
 
 `MAX_LOCKED_MEMORY`::
 

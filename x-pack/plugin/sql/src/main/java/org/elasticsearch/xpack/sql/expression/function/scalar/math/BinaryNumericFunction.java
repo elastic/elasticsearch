@@ -36,12 +36,12 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = Expressions.typeMustBeNumeric(left(), functionName(), ParamOrdinal.FIRST);
+        TypeResolution resolution = Expressions.typeMustBeNumeric(left(), sourceText(), ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
 
         }
-        return Expressions.typeMustBeNumeric(right(), functionName(), ParamOrdinal.SECOND);
+        return Expressions.typeMustBeNumeric(right(), sourceText(), ParamOrdinal.SECOND);
     }
 
     @Override

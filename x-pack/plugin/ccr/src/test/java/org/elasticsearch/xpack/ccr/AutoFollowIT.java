@@ -16,14 +16,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrIntegTestCase;
-import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
+import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.Arrays;
@@ -139,7 +141,13 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo((long) expectedVal1));
         });
 
+        // Delete auto follow pattern and make sure that in the background the auto follower has stopped
+        // then the leader index created after that should never be auto followed:
         deleteAutoFollowPatternSetting();
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getAutoFollowedClusters().size(), equalTo(0));
+        });
         createLeaderIndex("logs-does-not-count", leaderIndexSettings);
 
         putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
@@ -151,15 +159,20 @@ public class AutoFollowIT extends CcrIntegTestCase {
         int expectedVal2 = numIndices;
 
         MetaData[] metaData = new MetaData[1];
+        AutoFollowStats[] autoFollowStats = new AutoFollowStats[1];
         try {
             assertBusy(() -> {
                 metaData[0] = followerClient().admin().cluster().prepareState().get().getState().metaData();
+                autoFollowStats[0] = getAutoFollowStats();
                 int count = (int) Arrays.stream(metaData[0].getConcreteAllIndices()).filter(s -> s.startsWith("copy-")).count();
                 assertThat(count, equalTo(expectedVal2));
+                // Ensure that there are no auto follow errors:
+                // (added specifically to see that there are no leader indices auto followed multiple times)
+                assertThat(autoFollowStats[0].getRecentAutoFollowErrors().size(), equalTo(0));
             });
         } catch (AssertionError ae) {
             logger.warn("metadata={}", Strings.toString(metaData[0]));
-            logger.warn("auto follow stats={}", Strings.toString(getAutoFollowStats()));
+            logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
             throw ae;
         }
     }
@@ -173,81 +186,96 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         // Enabling auto following:
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setName("my-pattern");
         request.setRemoteCluster("leader_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
         if (randomBoolean()) {
-            request.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
+            request.getParameters().setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxConcurrentReadBatches(randomIntBetween(0, Integer.MAX_VALUE));
+            request.getParameters().setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxConcurrentWriteBatches(randomIntBetween(0, Integer.MAX_VALUE));
+            request.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+            request.getParameters().setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            request.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
+            request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setReadPollTimeout(TimeValue.timeValueMillis(500));
+            request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+            request.getParameters().setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            request.getParameters().setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+            request.getParameters().setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
         }
+
+        request.setName("my-pattern");
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
 
         createLeaderIndex("logs-201901", leaderIndexSettings);
         assertBusy(() -> {
-            PersistentTasksCustomMetaData persistentTasksMetaData =
-                followerClient().admin().cluster().prepareState().get().getState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            assertThat(persistentTasksMetaData, notNullValue());
-            assertThat(persistentTasksMetaData.tasks().size(), equalTo(1));
-            ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTasksMetaData.tasks().iterator().next().getParams();
-            assertThat(shardFollowTask.getLeaderShardId().getIndexName(), equalTo("logs-201901"));
-            assertThat(shardFollowTask.getFollowShardId().getIndexName(), equalTo("copy-logs-201901"));
-            if (request.getMaxWriteBufferCount() != null) {
-                assertThat(shardFollowTask.getMaxWriteBufferCount(), equalTo(request.getMaxWriteBufferCount()));
+            FollowInfoAction.Request followInfoRequest = new FollowInfoAction.Request();
+            followInfoRequest.setFollowerIndices("copy-logs-201901");
+            FollowInfoAction.Response followInfoResponse;
+            try {
+                 followInfoResponse = followerClient().execute(FollowInfoAction.INSTANCE, followInfoRequest).actionGet();
+            } catch (IndexNotFoundException e) {
+                throw new AssertionError(e);
             }
-            if (request.getMaxWriteBufferSize() != null) {
-                assertThat(shardFollowTask.getMaxWriteBufferSize(), equalTo(request.getMaxWriteBufferSize()));
+
+            assertThat(followInfoResponse.getFollowInfos().size(), equalTo(1));
+            FollowerInfo followerInfo = followInfoResponse.getFollowInfos().get(0);
+            assertThat(followerInfo.getFollowerIndex(), equalTo("copy-logs-201901"));
+            assertThat(followerInfo.getRemoteCluster(), equalTo("leader_cluster"));
+            assertThat(followerInfo.getLeaderIndex(), equalTo("logs-201901"));
+
+            FollowParameters followParameters = followerInfo.getParameters();
+            assertThat(followParameters, notNullValue());
+            if (request.getParameters().getMaxWriteBufferCount() != null) {
+                assertThat(followParameters.getMaxWriteBufferCount(), equalTo(request.getParameters().getMaxWriteBufferCount()));
             }
-            if (request.getMaxConcurrentReadBatches() != null) {
-                assertThat(shardFollowTask.getMaxOutstandingReadRequests(), equalTo(request.getMaxConcurrentReadBatches()));
+            if (request.getParameters().getMaxWriteBufferSize() != null) {
+                assertThat(followParameters.getMaxWriteBufferSize(), equalTo(request.getParameters().getMaxWriteBufferSize()));
             }
-            if (request.getMaxConcurrentWriteBatches() != null) {
-                assertThat(shardFollowTask.getMaxOutstandingWriteRequests(), equalTo(request.getMaxConcurrentWriteBatches()));
+            if (request.getParameters().getMaxOutstandingReadRequests() != null) {
+                assertThat(followParameters.getMaxOutstandingReadRequests(),
+                    equalTo(request.getParameters().getMaxOutstandingReadRequests()));
             }
-            if (request.getMaxReadRequestOperationCount() != null) {
-                assertThat(shardFollowTask.getMaxReadRequestOperationCount(), equalTo(request.getMaxReadRequestOperationCount()));
+            if (request.getParameters().getMaxOutstandingWriteRequests() != null) {
+                assertThat(followParameters.getMaxOutstandingWriteRequests(),
+                    equalTo(request.getParameters().getMaxOutstandingWriteRequests()));
             }
-            if (request.getMaxReadRequestSize() != null) {
-                assertThat(shardFollowTask.getMaxReadRequestSize(), equalTo(request.getMaxReadRequestSize()));
+            if (request.getParameters().getMaxReadRequestOperationCount() != null) {
+                assertThat(followParameters.getMaxReadRequestOperationCount(),
+                    equalTo(request.getParameters().getMaxReadRequestOperationCount()));
             }
-            if (request.getMaxRetryDelay() != null) {
-                assertThat(shardFollowTask.getMaxRetryDelay(), equalTo(request.getMaxRetryDelay()));
+            if (request.getParameters().getMaxReadRequestSize() != null) {
+                assertThat(followParameters.getMaxReadRequestSize(), equalTo(request.getParameters().getMaxReadRequestSize()));
             }
-            if (request.getReadPollTimeout() != null) {
-                assertThat(shardFollowTask.getReadPollTimeout(), equalTo(request.getReadPollTimeout()));
+            if (request.getParameters().getMaxRetryDelay() != null) {
+                assertThat(followParameters.getMaxRetryDelay(), equalTo(request.getParameters().getMaxRetryDelay()));
             }
-            if (request.getMaxWriteRequestOperationCount() != null) {
-                assertThat(shardFollowTask.getMaxWriteRequestOperationCount(), equalTo(request.getMaxWriteRequestOperationCount()));
+            if (request.getParameters().getReadPollTimeout() != null) {
+                assertThat(followParameters.getReadPollTimeout(), equalTo(request.getParameters().getReadPollTimeout()));
             }
-            if (request.getMaxWriteRequestSize() != null) {
-                assertThat(shardFollowTask.getMaxWriteRequestSize(), equalTo(request.getMaxWriteRequestSize()));
+            if (request.getParameters().getMaxWriteRequestOperationCount() != null) {
+                assertThat(followParameters.getMaxWriteRequestOperationCount(),
+                    equalTo(request.getParameters().getMaxWriteRequestOperationCount()));
+            }
+            if (request.getParameters().getMaxWriteRequestSize() != null) {
+                assertThat(followParameters.getMaxWriteRequestSize(), equalTo(request.getParameters().getMaxWriteRequestSize()));
             }
         });
     }

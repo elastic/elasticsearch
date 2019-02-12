@@ -528,7 +528,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     public void testSliceEquals() {
         int length = randomIntBetween(100, PAGE_SIZE * randomIntBetween(2, 5));
         ByteArray ba1 = bigarrays.newByteArray(length, false);
-        BytesReference pbr = new PagedBytesReference(bigarrays, ba1, length);
+        BytesReference pbr = new PagedBytesReference(ba1, length);
 
         // test equality of slices
         int sliceFrom = randomIntBetween(0, pbr.length());

@@ -17,7 +17,7 @@ If you need help building patterns to match your logs, you will find the {kibana
 
 Grok sits on top of regular expressions, so any regular expressions are valid in grok as well.
 The regular expression library is Oniguruma, and you can see the full supported regexp syntax
-https://github.com/kkos/oniguruma/blob/master/doc/RE[on the Onigiruma site].
+https://github.com/kkos/oniguruma/blob/master/doc/RE[on the Oniguruma site].
 
 Grok works by leveraging this regular expression language to allow naming existing patterns and combining them into more
 complex patterns that match your fields.
@@ -193,7 +193,7 @@ response:
   "docs": [
     {
       "doc": {
-        "_type": "_type",
+        "_type": "_doc",
         "_index": "_index",
         "_id": "_id",
         "_source": {
@@ -254,7 +254,7 @@ POST _ingest/pipeline/_simulate
   "docs": [
     {
       "doc": {
-        "_type": "_type",
+        "_type": "_doc",
         "_index": "_index",
         "_id": "_id",
         "_source": {

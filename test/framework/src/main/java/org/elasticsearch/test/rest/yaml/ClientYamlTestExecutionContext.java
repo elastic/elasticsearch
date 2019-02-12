@@ -40,6 +40,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+
 /**
  * Execution context passed across the REST tests.
  * Holds the REST client used to communicate with elasticsearch.
@@ -96,6 +98,10 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
+        if (esVersion().before(Version.V_7_0_0)) {
+            adaptRequestForOlderVersion(apiName, bodies, requestParams);
+        }
+
         HttpEntity entity = createEntity(bodies, requestHeaders);
         try {
             response = callApiInternal(apiName, requestParams, entity, requestHeaders, nodeSelector);
@@ -108,6 +114,64 @@ public class ClientYamlTestExecutionContext {
             Object responseBody = response != null ? response.getBody() : null;
             //we always stash the last response body
             stash.stashValue("body", responseBody);
+        }
+    }
+
+    /**
+     * To allow tests to run against a mixed 7.x/6.x cluster, we make certain modifications to the
+     * request related to types.
+     *
+     * Specifically, we generally use typeless index creation and document writes in test set-up code.
+     * This functionality is supported in 7.x, but is not supported in 6.x (or is not the default
+     * behavior). Here we modify the request so that it will work against a 6.x node.
+     */
+    private void adaptRequestForOlderVersion(String apiName,
+                                             List<Map<String, Object>> bodies,
+                                             Map<String, String> requestParams) {
+        // For index creations, we specify 'include_type_name=false' if it is not explicitly set. This
+        // allows us to omit the parameter in the test description, while still being able to communicate
+        // with 6.x nodes where include_type_name defaults to 'true'.
+        if (apiName.equals("indices.create") && requestParams.containsKey(INCLUDE_TYPE_NAME_PARAMETER) == false) {
+            requestParams.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
+        }
+
+        // We add the type to the document API requests if it's not already included.
+        if ((apiName.equals("index") || apiName.equals("update") || apiName.equals("delete") || apiName.equals("get"))
+                && requestParams.containsKey("type") == false) {
+            requestParams.put("type", "_doc");
+        }
+
+        // We also add the type to the bulk API requests if it's not already included. The type can either
+        // be on the request parameters or in the action metadata in the body of the request so we need to
+        // be sensitive to both scenarios.
+        if (apiName.equals("bulk") && requestParams.containsKey("type") == false) {
+            if (requestParams.containsKey("index")) {
+                requestParams.put("type", "_doc");
+            } else {
+                for (int i = 0; i < bodies.size(); i++) {
+                    Map<String, Object> body = bodies.get(i);
+                    Map<String, Object> actionMetadata;
+                    if (body.containsKey("index")) {
+                        actionMetadata = (Map<String, Object>) body.get("index");
+                        i++;
+                    } else if (body.containsKey("create")) {
+                        actionMetadata = (Map<String, Object>) body.get("create");
+                        i++;
+                    } else if (body.containsKey("update")) {
+                        actionMetadata = (Map<String, Object>) body.get("update");
+                        i++;
+                    } else if (body.containsKey("delete")) {
+                        actionMetadata = (Map<String, Object>) body.get("delete");
+                    } else {
+                        // action metadata is malformed so leave it malformed since
+                        // the test is probably testing for malformed action metadata
+                        continue;
+                    }
+                    if (actionMetadata.containsKey("_type") == false) {
+                        actionMetadata.put("_type", "_doc");
+                    }
+                }
+            }
         }
     }
 

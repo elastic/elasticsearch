@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
@@ -385,7 +386,7 @@ public class RelocationIT extends ESIntegTestCase {
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());
         flush();
 
-        int allowedFailures = randomIntBetween(3, 10);
+        int allowedFailures = randomIntBetween(3, 5); // the default of the `index.allocation.max_retries` is 5.
         logger.info("--> blocking recoveries from primary (allowed failures: [{}])", allowedFailures);
         CountDownLatch corruptionCount = new CountDownLatch(allowedFailures);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, p_node);
@@ -552,7 +553,7 @@ public class RelocationIT extends ESIntegTestCase {
         assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
     }
 
-    public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() {
+    public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {
         logger.info("--> starting [node1] ...");
         final String node1 = internalCluster().startNode();
 
@@ -570,9 +571,11 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> flush so we have an actual index");
         client().admin().indices().prepareFlush().execute().actionGet();
         logger.info("--> index more docs so we have something in the translog");
+        final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         for (int i = 10; i < 20; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-                .setSource("field", "value" + i).execute();
+            pendingIndexResponses.add(client().prepareIndex("test", "type", Integer.toString(i))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                .setSource("field", "value" + i).execute());
         }
 
         logger.info("--> start another node");
@@ -587,8 +590,9 @@ public class RelocationIT extends ESIntegTestCase {
             .execute();
         logger.info("--> index 100 docs while relocating");
         for (int i = 20; i < 120; i++) {
-            client().prepareIndex("test", "type", Integer.toString(i)).setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-                .setSource("field", "value" + i).execute();
+            pendingIndexResponses.add(client().prepareIndex("test", "type", Integer.toString(i))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                .setSource("field", "value" + i).execute());
         }
         relocationListener.actionGet();
         clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
@@ -596,7 +600,11 @@ public class RelocationIT extends ESIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verifying count");
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        assertBusy(() -> {
+            client().admin().indices().prepareRefresh().execute().actionGet();
+            assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
+        }, 1, TimeUnit.MINUTES);
+
         assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(120L));
     }
 

@@ -79,7 +79,7 @@ check {
   dependsOn 'qa:amazon-ec2:check'
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   // classes are missing
   'com.amazonaws.jmespath.JmesPathEvaluationVisitor',
   'com.amazonaws.jmespath.JmesPathExpression',
@@ -105,12 +105,12 @@ thirdPartyAudit.excludes = [
   'javax.servlet.ServletContextListener', 
   'org.apache.avalon.framework.logger.Logger', 
   'org.apache.log.Hierarchy', 
-  'org.apache.log.Logger',
-]
+  'org.apache.log.Logger'
+)
 
 if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += [
+  thirdPartyAudit.ignoreMissingClasses (
     'javax.xml.bind.DatatypeConverter',
     'javax.xml.bind.JAXBContext'
-  ]
+  )
 }

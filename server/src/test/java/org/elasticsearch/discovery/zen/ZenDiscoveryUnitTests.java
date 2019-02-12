@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -267,6 +268,9 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             IOUtils.close(toClose);
             terminate(threadPool);
         }
+
+        assertWarnings("[discovery.zen.minimum_master_nodes] setting was deprecated in Elasticsearch and will be removed in a future " +
+            "release! See the breaking changes documentation for the next major version.");
     }
 
     public void testPendingCSQueueIsClearedWhenClusterStatePublished() throws Exception {
@@ -317,6 +321,9 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             IOUtils.close(toClose);
             terminate(threadPool);
         }
+
+        assertWarnings("[discovery.zen.minimum_master_nodes] setting was deprecated in Elasticsearch and will be removed in a future " +
+            "release! See the breaking changes documentation for the next major version.");
     }
 
     private class AwaitingPublishListener implements ActionListener<Void> {
@@ -388,7 +395,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             final DiscoveryNode localNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
                 EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
             MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler
-                (() -> localNode, ZenDiscovery.addBuiltInJoinValidators(Collections.emptyList()));
+                (() -> localNode, JoinTaskExecutor.addBuiltInJoinValidators(Collections.emptyList()));
             final boolean incompatible = randomBoolean();
             IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(Settings.builder()
                 .put(SETTING_VERSION_CREATED,

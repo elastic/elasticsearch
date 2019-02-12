@@ -3,8 +3,6 @@
 [[sql-client-apps-microstrat]]
 === MicroStrategy Desktop
 
-experimental[]
-
 [quote, https://www.microstrategy.com/us/resources/library/videos/new-microstrategy-desktop]
 ____
 https://www.microstrategy.com/us/get-started/desktop[MicroStrategy Desktop] is a free data discovery tool that helps people bring data to
@@ -19,7 +17,7 @@ ____
 
 ==== Data loading
 
-To use the {product} to load data into MicroStrategy Desktop perform the following steps in sequence.
+To use the {odbc} to load data into MicroStrategy Desktop perform the following steps in sequence.
 
 . Create a New Dossier
 +
@@ -80,7 +78,7 @@ image:images/sql/odbc/apps_microstrat_loadtable.png[]
 +
 . Data Access Mode
 +
-Choose a table to load data from and press the _Finish_ button. When doing so, the application offers to choose a loading methdology.
+Choose a table to load data from and press the _Finish_ button. When doing so, the application offers to choose a loading methodology.
 You can choose whichever, we'll exemplify the _Connect Live_ way:
 +
 [[apps_microstrat_live]]

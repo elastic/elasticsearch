@@ -87,6 +87,7 @@ class org.elasticsearch.script.JodaCompatibleZonedDateTime {
   int getNano()
   int getSecond()
   int getYear()
+  ZoneId getZone()
   ZonedDateTime minus(TemporalAmount)
   ZonedDateTime minus(long,TemporalUnit)
   ZonedDateTime minusYears(long)

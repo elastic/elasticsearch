@@ -68,7 +68,8 @@ dependencyLicenses {
   mapping from: /proto-google.*/, to: 'proto-google'
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit {
+    ignoreViolations (
         // uses internal java api: sun.misc.Unsafe
         'com.google.protobuf.UnsafeUtil',
         'com.google.protobuf.UnsafeUtil$1',
@@ -85,7 +86,9 @@ thirdPartyAudit.excludes = [
         'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
         'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
         'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-        // classes are missing
+    )
+
+    ignoreMissingClasses (
         'com.google.appengine.api.datastore.Blob',
         'com.google.appengine.api.datastore.DatastoreService',
         'com.google.appengine.api.datastore.DatastoreServiceFactory',
@@ -112,7 +115,8 @@ thirdPartyAudit.excludes = [
         // commons-logging provided dependencies
         'javax.servlet.ServletContextEvent',
         'javax.servlet.ServletContextListener'
-]
+    )
+}
 
 check {
   // also execute the QA tests when testing the plugin

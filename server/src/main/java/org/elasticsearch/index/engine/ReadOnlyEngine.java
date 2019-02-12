@@ -272,7 +272,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Closeable acquireRetentionLockForPeerRecovery() {
+    public Closeable acquireRetentionLock() {
         return () -> {};
     }
 
@@ -309,6 +309,11 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         return false;
+    }
+
+    @Override
+    public long getMinRetainedSeqNo() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

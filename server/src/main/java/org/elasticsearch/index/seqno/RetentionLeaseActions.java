@@ -84,7 +84,7 @@ public class RetentionLeaseActions {
         }
 
         @Override
-        protected void asyncShardOperation(T request, ShardId shardId, final ActionListener<Response> listener) throws IOException {
+        protected void asyncShardOperation(T request, ShardId shardId, final ActionListener<Response> listener) {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
             indexShard.acquirePrimaryOperationPermit(

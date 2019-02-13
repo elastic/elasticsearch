@@ -75,7 +75,6 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
                         );
                     }, listener::onFailure));
             } catch (IOException e) {
-                logger.debug("Internal error during OpenID Connect Logout");
                 listener.onFailure(e);
             }
         }, listener::onFailure));
@@ -115,8 +114,7 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
             throw new ElasticsearchSecurityException("Authenticating realm {} does not exist", ref.getName());
         }
         if (realm instanceof OpenIdConnectRealm == false) {
-            throw new ElasticsearchSecurityException("Authenticating realm {} is not an OpenID Connect realm",
-                realm);
+            throw new IllegalArgumentException("Access token is not valid for an OpenID Connect realm");
         }
     }
 

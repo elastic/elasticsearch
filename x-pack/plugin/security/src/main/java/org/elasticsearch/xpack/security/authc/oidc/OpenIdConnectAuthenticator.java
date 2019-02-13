@@ -231,12 +231,14 @@ public class OpenIdConnectAuthenticator {
             final JWTClaimsSet enrichedVerifiedIdTokenClaims = JWTClaimsSet.parse(verifiedIdTokenClaimsObject);
             if (accessToken != null && opConfig.getUserinfoEndpoint() != null) {
                 getAndCombineUserInfoClaims(accessToken, enrichedVerifiedIdTokenClaims, claimsListener);
-            } else if (accessToken == null && opConfig.getUserinfoEndpoint() != null) {
-                LOGGER.debug("UserInfo endpoint is configured but the OP didn't return an access token so we can't query it");
-            } else if (accessToken != null && opConfig.getUserinfoEndpoint() == null) {
-                LOGGER.debug("OP returned an access token but the UserInfo endpoint is not configured.");
+            } else {
+                if (accessToken == null && opConfig.getUserinfoEndpoint() != null) {
+                    LOGGER.debug("UserInfo endpoint is configured but the OP didn't return an access token so we can't query it");
+                } else if (accessToken != null && opConfig.getUserinfoEndpoint() == null) {
+                    LOGGER.debug("OP returned an access token but the UserInfo endpoint is not configured.");
+                }
+                claimsListener.onResponse(enrichedVerifiedIdTokenClaims);
             }
-            claimsListener.onResponse(enrichedVerifiedIdTokenClaims);
         } catch (BadJOSEException e) {
             // We only try to update the cached JWK set once if a remote source is used and
             // RSA or ECDSA is used for signatures

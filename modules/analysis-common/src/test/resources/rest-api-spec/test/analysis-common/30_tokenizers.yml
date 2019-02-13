@@ -178,7 +178,7 @@
             text: "foo"
             explain: true
             tokenizer:
-              type: edgeNGram
+              type: edge_ngram
               min_gram: 1
               max_gram: 3
     - length: { detail.tokenizer.tokens: 3 }
@@ -203,9 +203,9 @@
           body:
             text: "foo"
             explain: true
-            tokenizer: edgeNGram
+            tokenizer: edge_ngram
     - length: { detail.tokenizer.tokens: 2 }
-    - match:  { detail.tokenizer.name: edgeNGram }
+    - match:  { detail.tokenizer.name: edge_ngram }
     - match:  { detail.tokenizer.tokens.0.token: f }
     - match:  { detail.tokenizer.tokens.1.token: fo }
 

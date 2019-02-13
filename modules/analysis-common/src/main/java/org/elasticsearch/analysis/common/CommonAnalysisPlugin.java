@@ -238,7 +238,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("dictionary_decompounder", requiresAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
-        filters.put("edgeNGram", EdgeNGramTokenFilterFactory::new);
         filters.put("elision", ElisionTokenFilterFactory::new);
         filters.put("fingerprint", FingerprintTokenFilterFactory::new);
         filters.put("flatten_graph", FlattenGraphTokenFilterFactory::new);
@@ -301,7 +300,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
         tokenizers.put("thai", ThaiTokenizerFactory::new);
         tokenizers.put("ngram", NGramTokenizerFactory::new);
-        tokenizers.put("edgeNGram", EdgeNGramTokenizerFactory::new);
         tokenizers.put("edge_ngram", EdgeNGramTokenizerFactory::new);
         tokenizers.put("char_group", CharGroupTokenizerFactory::new);
         tokenizers.put("classic", ClassicTokenizerFactory::new);
@@ -412,14 +410,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.add(PreConfiguredTokenFilter.singleton("dutch_stem", false, input -> new SnowballFilter(input, new DutchStemmer())));
         filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, false, input ->
                 new EdgeNGramTokenFilter(input, 1)));
-        filters.add(PreConfiguredTokenFilter.singletonWithVersion("edgeNGram", false, false, (reader, version) -> {
-            if (version.onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
-                deprecationLogger.deprecatedAndMaybeLog("edgeNGram_deprecation",
-                        "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
-                                + "Please change the filter name to [edge_ngram] instead.");
-            }
-            return new EdgeNGramTokenFilter(reader, 1);
-            }));
         filters.add(PreConfiguredTokenFilter.singleton("elision", true,
                 input -> new ElisionFilter(input, FrenchAnalyzer.DEFAULT_ARTICLES)));
         filters.add(PreConfiguredTokenFilter.singleton("french_stem", false, input -> new SnowballFilter(input, new FrenchStemmer())));
@@ -500,8 +490,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", XLowerCaseTokenizer::new));
 
         // Temporary shim for aliases. TODO deprecate after they are moved
-        tokenizers.add(PreConfiguredTokenizer.singleton("edgeNGram",
-            () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE)));
         tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new));
 
         return tokenizers;

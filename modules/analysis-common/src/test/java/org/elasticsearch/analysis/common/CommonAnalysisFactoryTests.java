@@ -185,7 +185,6 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("delimited_payload", org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class);
         filters.put("dutch_stem", SnowballPorterFilterFactory.class);
         filters.put("edge_ngram", null);
-        filters.put("edgeNGram", null);
         filters.put("elision", null);
         filters.put("french_stem", SnowballPorterFilterFactory.class);
         filters.put("german_stem", null);
@@ -234,7 +233,6 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         tokenizers.put("thai", null);
 
         // TODO drop aliases once they are moved to module
-        tokenizers.put("edgeNGram", tokenizers.get("edge_ngram"));
         tokenizers.put("PathHierarchy", tokenizers.get("path_hierarchy"));
 
         return tokenizers;

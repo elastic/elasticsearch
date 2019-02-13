@@ -1039,7 +1039,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
      *
      * @param afterPausingFollower the callback to run after pausing the follower
      * @param exceptionConsumer    the callback to run on a collection of resource not found exceptions after resuming the follower
-     * @throws Exception
+     * @throws Exception if a checked exception is thrown during the test
      */
     private void runFallBehindTest(
             final CheckedRunnable<Exception> afterPausingFollower,

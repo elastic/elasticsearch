@@ -18,8 +18,7 @@ https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/htt
  as an argument and has the same return type. The request config builder can
 be modified and then returned. In the following example we increase the
 connect timeout (defaults to 1 second) and the socket timeout (defaults to 30
-seconds). Also we adjust the max retry timeout accordingly (defaults to 30
-seconds too).
+seconds).
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

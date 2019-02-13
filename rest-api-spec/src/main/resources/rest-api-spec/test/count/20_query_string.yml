@@ -2,7 +2,6 @@
 "count with query_string parameters":
   - do:
       indices.create:
-          include_type_name: false
           index:  test
           body:
             mappings:

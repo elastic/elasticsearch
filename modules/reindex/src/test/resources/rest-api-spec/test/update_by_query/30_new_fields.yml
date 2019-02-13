@@ -5,10 +5,9 @@
         index: test
         body:
           mappings:
-            place:
-              properties:
-                name:
-                  type: keyword
+            properties:
+              name:
+                type: keyword
   - do:
       index:
         index:   test
@@ -18,7 +17,6 @@
 
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: test
         body:
           properties:

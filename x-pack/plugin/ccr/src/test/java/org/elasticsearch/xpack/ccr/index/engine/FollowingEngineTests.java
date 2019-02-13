@@ -32,6 +32,7 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.TranslogHandler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -270,7 +271,7 @@ public class FollowingEngineTests extends ESTestCase {
                 null,
                 new NoneCircuitBreakerService(),
                 globalCheckpoint::longValue,
-                Collections::emptyList,
+                () -> RetentionLeases.EMPTY,
                 () -> primaryTerm.get(),
                 EngineTestCase.tombstoneDocSupplier());
     }
@@ -638,5 +639,24 @@ public class FollowingEngineTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Test that {@link FollowingEngine#verifyEngineBeforeIndexClosing()} never fails
+     * whatever the value of the global checkpoint to check is.
+     */
+    public void testVerifyShardBeforeIndexClosingIsNoOp() throws IOException {
+        final long seqNo = randomIntBetween(0, Integer.MAX_VALUE);
+        runIndexTest(
+            seqNo,
+            Engine.Operation.Origin.PRIMARY,
+            (followingEngine, index) -> {
+                globalCheckpoint.set(randomNonNegativeLong());
+                try {
+                    followingEngine.verifyEngineBeforeIndexClosing();
+                } catch (final IllegalStateException e) {
+                    fail("Following engine pre-closing verifications failed");
+                }
+            });
     }
 }

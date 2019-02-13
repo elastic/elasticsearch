@@ -144,7 +144,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
     }
 
     public void testClientSucceedsWithVerificationDisabled() throws IOException {
-        assertFalse("Cannot disable verification in FIPS JVM", inFipsJvm());
+        assumeFalse("Cannot disable verification in FIPS JVM", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())

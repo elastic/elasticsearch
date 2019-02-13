@@ -2,7 +2,6 @@
 "Default index":
   - do:
       indices.create:
-          include_type_name: false
           index:  goodbad
           body:
             settings:
@@ -77,7 +76,6 @@
 "IP test":
   - do:
       indices.create:
-          include_type_name: false
           index:  ip_index
           body:
             mappings:

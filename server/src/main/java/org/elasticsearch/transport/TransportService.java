@@ -953,9 +953,18 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 responseHandlers.prune(h -> h.connection().getCacheKey().equals(connection.getCacheKey()));
             // callback that an exception happened, but on a different thread since we don't
             // want handlers to worry about stack overflows
-            getExecutorService().execute(() -> {
-                for (Transport.ResponseContext holderToNotify : pruned) {
-                    holderToNotify.handler().handleException(new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
+            getExecutorService().execute(new Runnable() {
+                @Override
+                public void run() {
+                    for (Transport.ResponseContext holderToNotify : pruned) {
+                        holderToNotify.handler().handleException(
+                            new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "onConnectionClosed(" + connection.getNode() + ")";
                 }
             });
         } catch (EsRejectedExecutionException ex) {

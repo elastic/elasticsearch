@@ -85,6 +85,7 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getClusterSettingsIssues().size(), equalTo(0));
         assertThat(response.getIndexSettingsIssues().size(), equalTo(0));
         assertThat(response.getNodeSettingsIssues().size(), equalTo(0));
+        assertThat(response.getMlSettingsIssues().size(), equalTo(0));
     }
 
     /**

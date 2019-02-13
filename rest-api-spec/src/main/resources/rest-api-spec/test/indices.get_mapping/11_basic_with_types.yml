@@ -2,12 +2,14 @@
 setup:
   - do:
         indices.create:
+          include_type_name: true
           index: test_1
           body:
               mappings:
                 doc: {}
   - do:
         indices.create:
+          include_type_name: true
           index: test_2
           body:
               mappings:

@@ -6,15 +6,16 @@
 package org.elasticsearch.xpack.core.monitoring.exporter;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
-import org.joda.time.format.DateTimeFormatter;
-import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -252,12 +253,12 @@ public final class MonitoringTemplateUtils {
     /**
      * Get the index name given a specific date format, a monitored system and a timestamp.
      *
-     * @param formatter the {@link DateTimeFormatter} to use to compute the timestamped index name
+     * @param formatter the {@link DateFormatter} to use to compute the timestamped index name
      * @param system the {@link MonitoredSystem} for which the index name is computed
      * @param timestamp the timestamp value to use to compute the timestamped index name
      * @return the index name as a @{link String}
      */
-    public static String indexName(final DateTimeFormatter formatter, final MonitoredSystem system, final long timestamp) {
-        return ".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-" + formatter.print(timestamp);
+    public static String indexName(final DateFormatter formatter, final MonitoredSystem system, final long timestamp) {
+        return ".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-" + formatter.format(Instant.ofEpochMilli(timestamp));
     }
 }

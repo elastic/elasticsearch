@@ -32,7 +32,7 @@ my @Groups = (
     ">enhancement", ">bug",           ">regression",  ">upgrade"
 );
 my %Ignore = map { $_ => 1 }
-    ( ">non-issue", ">refactoring", ">docs", ">test", ">test-failure", ":Core/Infra/Build", "backport" );
+    ( ">non-issue", ">refactoring", ">docs", ">test", ">test-failure", ">test-mute", ":Core/Infra/Build", "backport" );
 
 my %Group_Labels = (
     '>breaking'      => 'Breaking changes',

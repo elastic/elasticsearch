@@ -29,10 +29,12 @@ import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -45,7 +47,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.joda.time.DateTimeZone.UTC;
 
 /**
  * This index listener ensures, that watches that are being indexed are put into the trigger service
@@ -101,7 +102,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     @Override
     public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
         if (isWatchDocument(shardId.getIndexName(), operation.type())) {
-            DateTime now = new DateTime(clock.millis(), UTC);
+            ZonedDateTime now = Instant.ofEpochMilli(clock.millis()).atZone(ZoneOffset.UTC);
             try {
                 Watch watch = parser.parseWithSecrets(operation.id(), true, operation.source(), now, XContentType.JSON,
                     operation.getIfSeqNo(), operation.getIfPrimaryTerm());

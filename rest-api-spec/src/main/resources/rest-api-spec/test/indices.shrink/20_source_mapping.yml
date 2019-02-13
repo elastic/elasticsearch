@@ -14,7 +14,6 @@
   # create index
     - do:
         indices.create:
-          include_type_name: false
           index: source
           wait_for_active_shards: 1
           body:
@@ -38,7 +37,6 @@
     # create template matching shrink target
     - do:
         indices.put_template:
-          include_type_name: false
           name: tpl1
           body:
             index_patterns: targ*

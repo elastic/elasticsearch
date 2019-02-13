@@ -512,7 +512,7 @@ public final class SearchPhaseController {
     }
 
     private static InternalAggregations reduceAggs(List<InternalAggregations> aggregationsList,
-                                            List<SiblingPipelineAggregator> pipelineAggregators, ReduceContext reduceContext) {
+                                               List<SiblingPipelineAggregator> pipelineAggregators, ReduceContext reduceContext) {
         InternalAggregations aggregations = InternalAggregations.reduce(aggregationsList, reduceContext);
         if (pipelineAggregators != null) {
             List<InternalAggregation> newAggs = StreamSupport.stream(aggregations.spliterator(), false)
@@ -714,20 +714,18 @@ public final class SearchPhaseController {
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
         final int trackTotalHitsUpTo = resolveTrackTotalHits(request);
-        final boolean finalReduce = request.getLocalClusterAlias() == null;
-
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
             if (request.getBatchedReduceSize() < numShards) {
                 // only use this if there are aggs and if there are more shards than we should reduce at once
                 return new QueryPhaseResultConsumer(this, numShards, request.getBatchedReduceSize(), hasTopDocs, hasAggs,
-                    trackTotalHitsUpTo, finalReduce);
+                    trackTotalHitsUpTo, request.isFinalReduce());
             }
         }
         return new InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult>(numShards) {
             @Override
             ReducedQueryPhase reduce() {
-                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHitsUpTo, finalReduce);
+                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHitsUpTo, request.isFinalReduce());
             }
         };
     }

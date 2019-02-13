@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -90,6 +91,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -172,7 +174,7 @@ public class UnicastZenPingTests extends ESTestCase {
         final ClusterState stateMismatch = ClusterState.builder(new ClusterName("mismatch")).version(randomNonNegativeLong()).build();
 
         final Settings hostsSettings = Settings.builder()
-            .putList("discovery.zen.ping.unicast.hosts",
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(),
                 NetworkAddress.format(new InetSocketAddress(handleA.address.address().getAddress(), handleA.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort())),
                 NetworkAddress.format(new InetSocketAddress(handleC.address.address().getAddress(), handleC.address.address().getPort())),
@@ -306,7 +308,7 @@ public class UnicastZenPingTests extends ESTestCase {
                     new InetSocketAddress(handleC.address.address().getAddress(), handleC.address.address().getPort()))});
 
         final Settings hostsSettings = Settings.builder()
-            .putList("discovery.zen.ping.unicast.hosts", "UZP_A", "UZP_B", "UZP_C")
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), "UZP_A", "UZP_B", "UZP_C")
             .put("cluster.name", "test")
             .build();
 
@@ -590,11 +592,11 @@ public class UnicastZenPingTests extends ESTestCase {
         final boolean useHosts = randomBoolean();
         final Settings.Builder hostsSettingsBuilder = Settings.builder().put("cluster.name", "test");
         if (useHosts) {
-            hostsSettingsBuilder.putList("discovery.zen.ping.unicast.hosts",
+            hostsSettingsBuilder.putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(),
                 NetworkAddress.format(new InetSocketAddress(handleB.address.address().getAddress(), handleB.address.address().getPort()))
             );
         } else {
-            hostsSettingsBuilder.put("discovery.zen.ping.unicast.hosts", (String) null);
+            hostsSettingsBuilder.put(DISCOVERY_SEED_HOSTS_SETTING.getKey(), (String) null);
         }
         final Settings hostsSettings = hostsSettingsBuilder.build();
 
@@ -655,7 +657,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
         final Settings hostsSettings = Settings.builder()
             .put("cluster.name", "test")
-            .put("discovery.zen.ping.unicast.hosts", (String) null) // use nodes for simplicity
+            .put(DISCOVERY_SEED_HOSTS_SETTING.getKey(), (String) null) // use nodes for simplicity
             .build();
 
         final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
@@ -821,7 +823,7 @@ public class UnicastZenPingTests extends ESTestCase {
                            PingContextProvider contextProvider) {
             super(Settings.builder().put("node.name", networkHandle.node.getName()).put(settings).build(),
                 threadPool, networkHandle.transportService,
-                new SettingsBasedHostsProvider(settings, networkHandle.transportService), contextProvider);
+                new SettingsBasedSeedHostsProvider(settings, networkHandle.transportService), contextProvider);
         }
 
         volatile CountDownLatch allTasksCompleted;

@@ -6,7 +6,6 @@ setup:
         reason:  "moving_fn added in 6.4.0"
   - do:
       indices.create:
-        include_type_name: false
         index: test
         body:
             mappings:

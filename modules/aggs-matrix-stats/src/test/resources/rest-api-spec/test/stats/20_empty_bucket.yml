@@ -2,7 +2,6 @@
 "Empty Bucket Aggregation":
   - do:
       indices.create:
-        include_type_name: false
         index: empty_bucket_idx
         body:
           settings:

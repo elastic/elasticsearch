@@ -17,9 +17,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
-import org.joda.time.DateTime;
-import org.joda.time.chrono.ISOChronology;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -56,7 +57,8 @@ public class CleanerService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         logger.debug("starting cleaning service");
-        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(new DateTime(ISOChronology.getInstance())), executorName());
+        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(ZonedDateTime.now(Clock.systemDefaultZone())),
+            executorName());
         logger.debug("cleaning service started");
     }
 
@@ -190,7 +192,7 @@ public class CleanerService extends AbstractLifecycleComponent {
          */
         @Override
         protected void onAfterInLifecycle() {
-            DateTime start = new DateTime(ISOChronology.getInstance());
+            ZonedDateTime start = ZonedDateTime.now(Clock.systemUTC());
             TimeValue delay = executionScheduler.nextExecutionDelay(start);
 
             logger.debug("scheduling next execution in [{}] seconds", delay.seconds());
@@ -233,7 +235,7 @@ public class CleanerService extends AbstractLifecycleComponent {
          * @param now the current time
          * @return the delay in millis
          */
-        TimeValue nextExecutionDelay(DateTime now);
+        TimeValue nextExecutionDelay(ZonedDateTime now);
     }
 
     /**
@@ -242,14 +244,16 @@ public class CleanerService extends AbstractLifecycleComponent {
     static class DefaultExecutionScheduler implements ExecutionScheduler {
 
         @Override
-        public TimeValue nextExecutionDelay(DateTime now) {
+        public TimeValue nextExecutionDelay(ZonedDateTime now) {
             // Runs at 01:00 AM today or the next day if it's too late
-            DateTime next = now.withTimeAtStartOfDay().plusHours(1);
+            ZonedDateTime next = now.toLocalDate()
+                .atStartOfDay(now.getZone())
+                .plusHours(1);
             // if it's not after now, then it needs to be the next day!
             if (next.isAfter(now) == false) {
                 next = next.plusDays(1);
             }
-            return TimeValue.timeValueMillis(next.getMillis() - now.getMillis());
+            return TimeValue.timeValueMillis(Duration.between(now, next).toMillis());
         }
     }
 }

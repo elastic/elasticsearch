@@ -518,17 +518,21 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         }
                     });
                 };
-                recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps(),
-                    request.maxSeenAutoIdTimestampOnPrimary(), request.maxSeqNoOfUpdatesOrDeletesOnPrimary(),
-                    ActionListener.wrap(
-                        checkpoint -> listener.onResponse(new RecoveryTranslogOperationsResponse(checkpoint)),
-                        e -> {
-                            if (e instanceof MapperException) {
-                                retryOnMappingException.accept(e);
-                            } else {
-                                listener.onFailure(e);
-                            }
-                        })
+                recoveryTarget.indexTranslogOperations(
+                        request.operations(),
+                        request.totalTranslogOps(),
+                        request.maxSeenAutoIdTimestampOnPrimary(),
+                        request.maxSeqNoOfUpdatesOrDeletesOnPrimary(),
+                        request.retentionLeases(),
+                        ActionListener.wrap(
+                                checkpoint -> listener.onResponse(new RecoveryTranslogOperationsResponse(checkpoint)),
+                                e -> {
+                                    if (e instanceof MapperException) {
+                                        retryOnMappingException.accept(e);
+                                    } else {
+                                        listener.onFailure(e);
+                                    }
+                                })
                 );
             }
         }

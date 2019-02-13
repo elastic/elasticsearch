@@ -44,19 +44,8 @@
                           }
                         },
                         {
-                          "bool": {
-                            "should": [
-                              {
-                                "term": {
-                                  "_type": "logstash_stats"
-                                }
-                              },
-                              {
-                                "term": {
-                                  "type": "logstash_stats"
-                                }
-                              }
-                            ]
+                          "term": {
+                            "type": "logstash_stats"
                           }
                         }
                       ]

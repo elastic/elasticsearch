@@ -44,19 +44,8 @@
                           }
                         },
                         {
-                          "bool": {
-                            "should": [
-                              {
-                                "term": {
-                                  "_type": "kibana_stats"
-                                }
-                              },
-                              {
-                                "term": {
-                                  "type": "kibana_stats"
-                                }
-                              }
-                            ]
+                          "term": {
+                            "type": "kibana_stats"
                           }
                         }
                       ]

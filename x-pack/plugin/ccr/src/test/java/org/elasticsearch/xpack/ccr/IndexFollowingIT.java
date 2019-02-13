@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
@@ -43,6 +44,7 @@ import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -55,6 +57,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
@@ -92,6 +95,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -983,7 +987,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     public void testIndexFallBehind() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+                singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderYellow("index1");
 
@@ -1006,6 +1010,32 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         pauseFollow("index2");
+
+        // we have to remove the retention leases on the leader shards to ensure the follower falls behind
+        final ClusterStateResponse followerIndexClusterState =
+                followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices("index2").get();
+        final String followerUUID = followerIndexClusterState.getState().metaData().index("index2").getIndexUUID();
+        final ClusterStateResponse leaderIndexClusterState =
+                leaderClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices("index1").get();
+        final String leaderUUID = leaderIndexClusterState.getState().metaData().index("index1").getIndexUUID();
+
+        final RoutingTable leaderRoutingTable = leaderClient()
+                .admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setIndices("index1")
+                .setRoutingTable(true)
+                .get()
+                .getState()
+                .routingTable();
+        for (int i = 0; i < numberOfPrimaryShards; i++) {
+            final ShardId shardId = leaderRoutingTable.index("index1").shard(i).shardId();
+            leaderClient().execute(
+                    RetentionLeaseActions.Remove.INSTANCE,
+                    new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId(followerUUID, leaderUUID)))
+                    .get();
+        }
 
         for (int i = 0; i < numDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i * 2);

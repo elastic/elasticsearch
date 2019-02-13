@@ -53,6 +53,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -107,7 +108,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String leaderIndexSettings = getIndexSettings(numberOfShards, numberOfReplicas, additionalSettings);
         assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen(leaderIndex);
-
 
         logger.info("indexing [{}] docs", numberOfDocuments);
         for (int i = 0; i < numberOfDocuments; i++) {
@@ -174,7 +174,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
                 final RetentionLease retentionLease =
                         currentRetentionLeases.leases().iterator().next();
-                assertThat(retentionLease.id(), equalTo(followerUUID + "-following-" + leaderUUID));
+                assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
             }
         });
 
@@ -258,7 +258,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
                 final RetentionLease retentionLease =
                         currentRetentionLeases.leases().iterator().next();
-                assertThat(retentionLease.id(), equalTo(followerUUID + "-following-" + leaderUUID));
+                assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
                 retentionLeases.add(currentRetentionLeases);
             }
         });
@@ -286,7 +286,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
                 final RetentionLease retentionLease =
                         currentRetentionLeases.leases().iterator().next();
-                assertThat(retentionLease.id(), equalTo(followerUUID + "-following-" + leaderUUID));
+                assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
                 // we assert that retention leases are being renewed by an increase in the timestamp
                 assertThat(retentionLease.timestamp(), greaterThan(retentionLeases.get(i).leases().iterator().next().timestamp()));
             }
@@ -355,7 +355,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
                 final RetentionLease retentionLease =
                         currentRetentionLeases.leases().iterator().next();
-                assertThat(retentionLease.id(), equalTo(followerUUID + "-following-" + leaderUUID));
+                assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
                 retentionLeases.add(currentRetentionLeases);
             }
         });
@@ -386,7 +386,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
                 final RetentionLease retentionLease =
                         currentRetentionLeases.leases().iterator().next();
-                assertThat(retentionLease.id(), equalTo(followerUUID + "-following-" + leaderUUID));
+                assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
                 // we assert that retention leases are being renewed by an increase in the timestamp
                 assertThat(retentionLease.timestamp(), equalTo(retentionLeases.get(i).leases().iterator().next().timestamp()));
             }

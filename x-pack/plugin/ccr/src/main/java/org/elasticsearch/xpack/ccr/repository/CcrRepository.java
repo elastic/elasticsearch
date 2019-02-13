@@ -94,6 +94,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
+import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 
 
 /**
@@ -311,7 +312,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Index leaderIndex = new Index(shardId.getIndexName(), leaderUUID);
         ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());
 
-        final String retentionLeaseId = indexShard.shardId().getIndex().getUUID() + "-following-" + leaderUUID;
+        final String retentionLeaseId = retentionLeaseId(indexShard.shardId().getIndex().getUUID(), leaderUUID);
         logger.trace(
                 () -> new ParameterizedMessage("{} requesting leader primary to add retention lease [{}]", shardId, retentionLeaseId));
         final Optional<RetentionLeaseAlreadyExistsException> maybeAddAlready =

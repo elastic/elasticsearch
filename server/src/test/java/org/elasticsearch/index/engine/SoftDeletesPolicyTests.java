@@ -99,7 +99,9 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
                         .min()
                         .orElse(Long.MAX_VALUE);
                 long retainedSeqNo =
-                        Math.min(safeCommitCheckpoint, Math.min(minimumRetainingSequenceNumber, globalCheckpoint.get() - retainedOps)) + 1;
+                        Math.min(
+                                1 + safeCommitCheckpoint,
+                                Math.min(minimumRetainingSequenceNumber, 1 + globalCheckpoint.get() - retainedOps));
                 minRetainedSeqNo = Math.max(minRetainedSeqNo, retainedSeqNo);
             }
             assertThat(retentionQuery.getNumDims(), equalTo(1));
@@ -114,7 +116,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
                 .min()
                 .orElse(Long.MAX_VALUE);
         long retainedSeqNo =
-                Math.min(safeCommitCheckpoint, Math.min(minimumRetainingSequenceNumber, globalCheckpoint.get() - retainedOps));
+                Math.min(1 + safeCommitCheckpoint, Math.min(minimumRetainingSequenceNumber, 1 + globalCheckpoint.get() - retainedOps));
         minRetainedSeqNo = Math.max(minRetainedSeqNo, retainedSeqNo);
         assertThat(policy.getMinRetainedSeqNo(), equalTo(minRetainedSeqNo));
     }

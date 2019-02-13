@@ -1460,7 +1460,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         return map;
     }
 
-    protected static void updateMappingForNumericValuesTests(String indexName) throws Exception {
+    private static void updateMappingForNumericValuesTests(String indexName) throws Exception {
         updateMapping(indexName, builder -> {
             for(String field : fieldsNames) {
                 builder.startObject(field).field("type", field.substring(5)).endObject();

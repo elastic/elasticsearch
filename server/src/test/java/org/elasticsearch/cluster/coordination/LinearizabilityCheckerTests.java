@@ -161,12 +161,46 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         int call1 = history.invoke(null); // 1: invoke read
         history.respond(call1, 42); // 1: read returns 42
         int call2 = history.invoke(null); // 2: invoke read
-        history.respond(call2, 0); // 2: read returns 0
+        history.respond(call2, 0); // 2: read returns 0, not allowed
 
         expectThrows(IllegalArgumentException.class, () -> checker.isLinearizable(registerSpec, history));
         assertFalse(checker.isLinearizable(registerSpec, history, i -> null));
 
         history.respond(call0, null); // 0: write returns
+        assertFalse(checker.isLinearizable(registerSpec, history));
+    }
+
+    public void testRegisterObservedSequenceOfUpdatesWitLinearizableHistory() {
+        final History history = new History();
+        int call0 = history.invoke(42); // 0: invoke write 42
+        int call1 = history.invoke(43); // 1: invoke write 43
+        int call2 = history.invoke(null); // 2: invoke read
+        history.respond(call2, 42); // 1: read returns 42
+        int call3 = history.invoke(null); // 3: invoke read
+        history.respond(call3, 43); // 3: read returns 43
+        int call4 = history.invoke(null); // 4: invoke read
+        history.respond(call4, 43); // 4: read returns 43
+
+        history.respond(call0, null); // 0: write returns
+        history.respond(call1, null); // 1: write returns
+
+        assertTrue(checker.isLinearizable(registerSpec, history));
+    }
+
+    public void testRegisterObservedSequenceOfUpdatesWithNonLinearizableHistory() {
+        final History history = new History();
+        int call0 = history.invoke(42); // 0: invoke write 42
+        int call1 = history.invoke(43); // 1: invoke write 43
+        int call2 = history.invoke(null); // 2: invoke read
+        history.respond(call2, 42); // 1: read returns 42
+        int call3 = history.invoke(null); // 3: invoke read
+        history.respond(call3, 43); // 3: read returns 43
+        int call4 = history.invoke(null); // 4: invoke read
+        history.respond(call4, 42); // 4: read returns 42, not allowed
+
+        history.respond(call0, null); // 0: write returns
+        history.respond(call1, null); // 1: write returns
+
         assertFalse(checker.isLinearizable(registerSpec, history));
     }
 
@@ -224,7 +258,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         history.respond(callY1, 42); // 1: read returns 42 on key y
         int callY2 = history.invoke(new Tuple<>("y", null)); // 2: invoke read on key y
         history.respond(callX2, 0); // 2: read returns 0 on key x
-        history.respond(callY2, 0); // 2: read returns 0 on key y
+        history.respond(callY2, 0); // 2: read returns 0 on key y, not allowed
         history.respond(callX1, 42); // 1: read returns 42 on key x
 
         expectThrows(IllegalArgumentException.class, () -> checker.isLinearizable(multiRegisterSpec, history));

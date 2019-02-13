@@ -1,8 +1,8 @@
 setup:
   - skip:
       features: headers
-      version: " - 6.99.99"
-      reason: "dense_vector field was introduced in 7.0.0"
+      version: " - 7.0.99"
+      reason: "dense_vector functions were introduced in 7.1.0"
 
   - do:
       indices.create:
@@ -122,3 +122,29 @@ setup:
 - match: {hits.hits.1._id: "2"}
 - match: {hits.hits.1._score: 0.0}
 
+---
+"Dense vectors should error with sparse vector functions":
+- do:
+    index:
+      index: test-index
+      id: 1
+      body:
+        my_dense_vector: [10, 2, 0.15]
+
+- do:
+    indices.refresh: {}
+
+- do:
+    catch: bad_request
+    headers:
+      Content-Type: application/json
+    search:
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "dotProductSparse(params.query_vector, doc['my_dense_vector'])"
+              params:
+                query_vector: {"2": 0.5, "10" : 111.3}
+- match: { error.root_cause.0.type: "script_exception" }

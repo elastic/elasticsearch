@@ -120,7 +120,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorDVIndexFieldData.Builder();
+            return new VectorDVIndexFieldData.Builder(false);
         }
 
         @Override

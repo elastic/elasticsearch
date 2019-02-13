@@ -17,13 +17,16 @@
 # under the License.
 #
 
-
 class org.elasticsearch.index.query.VectorScriptDocValues {
+}
+class org.elasticsearch.index.query.VectorScriptDocValues$DenseVectorScriptDocValues {
+}
+class org.elasticsearch.index.query.VectorScriptDocValues$SparseVectorScriptDocValues {
 }
 
 static_import {
-    double cosineSimilarity(List, VectorScriptDocValues) bound_to org.elasticsearch.index.query.ScoreScriptUtils$CosineSimilarity
-    double dotProduct(List, VectorScriptDocValues) from_class org.elasticsearch.index.query.ScoreScriptUtils
-    double dotProductSparse(Map, VectorScriptDocValues)  bound_to org.elasticsearch.index.query.ScoreScriptUtils$DotProductSparse
-    double cosineSimilaritySparse(Map, VectorScriptDocValues)  bound_to org.elasticsearch.index.query.ScoreScriptUtils$CosineSimilaritySparse
+    double cosineSimilarity(List, VectorScriptDocValues.DenseVectorScriptDocValues) bound_to org.elasticsearch.index.query.ScoreScriptUtils$CosineSimilarity
+    double dotProduct(List, VectorScriptDocValues.DenseVectorScriptDocValues) from_class org.elasticsearch.index.query.ScoreScriptUtils
+    double dotProductSparse(Map, VectorScriptDocValues.SparseVectorScriptDocValues) bound_to org.elasticsearch.index.query.ScoreScriptUtils$DotProductSparse
+    double cosineSimilaritySparse(Map, VectorScriptDocValues.SparseVectorScriptDocValues) bound_to org.elasticsearch.index.query.ScoreScriptUtils$CosineSimilaritySparse
 }

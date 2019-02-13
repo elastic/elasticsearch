@@ -35,9 +35,11 @@ import org.elasticsearch.search.MultiValueMode;
 
 
 public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<VectorDVAtomicFieldData> {
+    private final boolean isDense;
 
-    public VectorDVIndexFieldData(Index index, String fieldName) {
+    public VectorDVIndexFieldData(Index index, String fieldName, boolean isDense) {
         super(index, fieldName);
+        this.isDense = isDense;
     }
 
     @Override
@@ -47,7 +49,7 @@ public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements I
 
     @Override
     public VectorDVAtomicFieldData load(LeafReaderContext context) {
-        return new VectorDVAtomicFieldData(context.reader(), fieldName);
+        return new VectorDVAtomicFieldData(context.reader(), fieldName, isDense);
     }
 
     @Override
@@ -56,11 +58,16 @@ public class VectorDVIndexFieldData extends DocValuesIndexFieldData implements I
     }
 
     public static class Builder implements IndexFieldData.Builder {
+        private final boolean isDense;
+        public Builder(boolean isDense) {
+            this.isDense = isDense;
+        }
+
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             final String fieldName = fieldType.name();
-            return new VectorDVIndexFieldData(indexSettings.getIndex(), fieldName);
+            return new VectorDVIndexFieldData(indexSettings.getIndex(), fieldName, isDense);
         }
 
     }

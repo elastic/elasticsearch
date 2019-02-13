@@ -120,7 +120,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorDVIndexFieldData.Builder();
+            return new VectorDVIndexFieldData.Builder(true);
         }
 
         @Override

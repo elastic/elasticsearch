@@ -38,7 +38,7 @@ public class ScoreScriptUtils {
      * @param queryVector the query vector parsed as {@code List<Number>} from json
      * @param dvs VectorScriptDocValues representing encoded documents' vectors
      */
-    public static double dotProduct(List<Number> queryVector, VectorScriptDocValues dvs){
+    public static double dotProduct(List<Number> queryVector, VectorScriptDocValues.DenseVectorScriptDocValues dvs){
         BytesRef value = dvs.getEncodedValue();
         if (value == null) return 0;
         float[] docVector = VectorEncoderDecoder.decodeDenseVector(value);
@@ -69,7 +69,7 @@ public class ScoreScriptUtils {
             this.queryVectorMagnitude = Math.sqrt(dotProduct);
         }
 
-        public double cosineSimilarity(VectorScriptDocValues dvs) {
+        public double cosineSimilarity(VectorScriptDocValues.DenseVectorScriptDocValues dvs) {
             BytesRef value = dvs.getEncodedValue();
             if (value == null) return 0;
             float[] docVector = VectorEncoderDecoder.decodeDenseVector(value);
@@ -134,7 +134,7 @@ public class ScoreScriptUtils {
             sortSparseDimsDoubleValues(queryDims, queryValues, n);
         }
 
-        public double dotProductSparse(VectorScriptDocValues dvs) {
+        public double dotProductSparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
             BytesRef value = dvs.getEncodedValue();
             if (value == null) return 0;
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(value);
@@ -179,7 +179,7 @@ public class ScoreScriptUtils {
             sortSparseDimsDoubleValues(queryDims, queryValues, n);
         }
 
-        public double cosineSimilaritySparse(VectorScriptDocValues dvs) {
+        public double cosineSimilaritySparse(VectorScriptDocValues.SparseVectorScriptDocValues dvs) {
             BytesRef value = dvs.getEncodedValue();
             if (value == null) return 0;
             int[] docDims = VectorEncoderDecoder.decodeSparseVectorDims(value);

@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * VectorScriptDocValues represents docValues for dense and sparse vector fields
  */
-public final class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
+public class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
     private final BinaryDocValues in;
     private BytesRef value;
@@ -53,12 +53,24 @@ public final class VectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
     @Override
     public BytesRef get(int index) {
-        throw new UnsupportedOperationException("this operation is not supported on the doc values of the vector field");
+        throw new UnsupportedOperationException("vector fields may only be used via vector functions in scripts");
     }
 
     @Override
     public int size() {
-        throw new UnsupportedOperationException("this operation is not supported on the doc values of the vector field");
+        throw new UnsupportedOperationException("vector fields may only be used via vector functions in scripts");
+    }
+
+    public static final class DenseVectorScriptDocValues extends VectorScriptDocValues {
+        public DenseVectorScriptDocValues(BinaryDocValues in) {
+            super(in);
+        }
+    }
+
+    public static final class SparseVectorScriptDocValues extends VectorScriptDocValues {
+        public SparseVectorScriptDocValues(BinaryDocValues in) {
+            super(in);
+        }
     }
 
 }

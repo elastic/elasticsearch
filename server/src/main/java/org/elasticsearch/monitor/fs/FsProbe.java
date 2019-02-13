@@ -19,6 +19,8 @@
 
 package org.elasticsearch.monitor.fs;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -26,7 +28,6 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
@@ -40,7 +41,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class FsProbe extends AbstractComponent {
+public class FsProbe {
+
+    private static final Logger logger = LogManager.getLogger(FsProbe.class);
 
     private final NodeEnvironment nodeEnv;
 

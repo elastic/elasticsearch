@@ -20,14 +20,17 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
-
 import com.microsoft.azure.storage.StorageException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.repositories.azure.AzureRepository.Repository;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
@@ -36,9 +39,9 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 
-import static org.elasticsearch.repositories.azure.AzureRepository.Repository;
-
-public class AzureBlobStore extends AbstractComponent implements BlobStore {
+public class AzureBlobStore implements BlobStore {
+    
+    private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
 
     private final AzureStorageService service;
 

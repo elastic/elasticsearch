@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
@@ -25,10 +26,11 @@ import org.elasticsearch.xpack.sql.expression.gen.processor.ChainingProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.HitExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.CoalesceProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNullProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
@@ -59,8 +61,9 @@ public final class Processors {
         entries.add(new Entry(Processor.class, BinaryLogicProcessor.NAME, BinaryLogicProcessor::new));
         entries.add(new Entry(Processor.class, NotProcessor.NAME, NotProcessor::new));
         // null
-        entries.add(new Entry(Processor.class, CoalesceProcessor.NAME, CoalesceProcessor::new));
-        entries.add(new Entry(Processor.class, IsNotNullProcessor.NAME, IsNotNullProcessor::new));
+        entries.add(new Entry(Processor.class, CheckNullProcessor.NAME, CheckNullProcessor::new));
+        entries.add(new Entry(Processor.class, ConditionalProcessor.NAME, ConditionalProcessor::new));
+        entries.add(new Entry(Processor.class, NullIfProcessor.NAME, NullIfProcessor::new));
 
         // arithmetic
         entries.add(new Entry(Processor.class, BinaryArithmeticProcessor.NAME, BinaryArithmeticProcessor::new));
@@ -76,6 +79,7 @@ public final class Processors {
         // datetime
         entries.add(new Entry(Processor.class, DateTimeProcessor.NAME, DateTimeProcessor::new));
         entries.add(new Entry(Processor.class, NamedDateTimeProcessor.NAME, NamedDateTimeProcessor::new));
+        entries.add(new Entry(Processor.class, NonIsoDateTimeProcessor.NAME, NonIsoDateTimeProcessor::new));
         entries.add(new Entry(Processor.class, QuarterProcessor.NAME, QuarterProcessor::new));
         // math
         entries.add(new Entry(Processor.class, MathProcessor.NAME, MathProcessor::new));

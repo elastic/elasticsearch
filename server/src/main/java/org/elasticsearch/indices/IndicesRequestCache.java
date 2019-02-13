@@ -34,7 +34,6 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -65,8 +64,9 @@ import java.util.function.Supplier;
  * There are still several TODOs left in this class, some easily addressable, some more complex, but the support
  * is functional.
  */
-public final class IndicesRequestCache extends AbstractComponent implements RemovalListener<IndicesRequestCache.Key,
-    BytesReference>, Closeable {
+public final class IndicesRequestCache implements RemovalListener<IndicesRequestCache.Key, BytesReference>, Closeable {
+
+    private static final Logger logger = LogManager.getLogger(IndicesRequestCache.class);
 
     /**
      * A setting to enable or disable request caching on an index level. Its dynamic by default
@@ -78,8 +78,6 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
         Setting.memorySizeSetting("indices.requests.cache.size", "1%", Property.NodeScope);
     public static final Setting<TimeValue> INDICES_CACHE_QUERY_EXPIRE =
         Setting.positiveTimeSetting("indices.requests.cache.expire", new TimeValue(0), Property.NodeScope);
-
-    private static final Logger LOGGER = LogManager.getLogger(IndicesRequestCache.class);
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
@@ -310,7 +308,7 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
             CleanupKey cleanupKey = iterator.next();
             iterator.remove();
             if (cleanupKey.readerCacheKey == null || cleanupKey.entity.isOpen() == false) {
-                // -1 indicates full cleanup, as does a closed shard
+                // null indicates full cleanup, as does a closed shard
                 currentFullClean.add(cleanupKey.entity.getCacheIdentity());
             } else {
                 currentKeysToClean.add(cleanupKey);

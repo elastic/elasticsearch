@@ -15,9 +15,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse.DOES_NOT_EXIST;
-import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse.ERROR;
-import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse.EXISTS;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -48,46 +45,42 @@ public class PipelineHttpResourceTests extends AbstractPublishableHttpResourceTe
         assertThat(byteStream.available(), is(0));
     }
 
-    public void testDoCheckExists() throws IOException {
-        final HttpEntity entity = entityForResource(EXISTS, pipelineName, minimumVersion);
+    public void testDoCheckExists() {
+        final HttpEntity entity = entityForResource(true, pipelineName, minimumVersion);
 
-        doCheckWithStatusCode(resource, "/_ingest/pipeline", pipelineName, successfulCheckStatus(), EXISTS, entity);
+        doCheckWithStatusCode(resource, "/_ingest/pipeline", pipelineName, successfulCheckStatus(), true, entity);
     }
 
-    public void testDoCheckDoesNotExist() throws IOException {
+    public void testDoCheckDoesNotExist() {
         if (randomBoolean()) {
             // it does not exist because it's literally not there
             assertCheckDoesNotExist(resource, "/_ingest/pipeline", pipelineName);
         } else {
             // it does not exist because we need to replace it
-            final HttpEntity entity = entityForResource(DOES_NOT_EXIST, pipelineName, minimumVersion);
+            final HttpEntity entity = entityForResource(false, pipelineName, minimumVersion);
 
             doCheckWithStatusCode(resource, "/_ingest/pipeline", pipelineName,
-                                  successfulCheckStatus(), DOES_NOT_EXIST, entity);
+                                  successfulCheckStatus(), false, entity);
         }
     }
 
-    public void testDoCheckError() throws IOException {
+    public void testDoCheckError() {
         if (randomBoolean()) {
             // error because of a server error
             assertCheckWithException(resource, "/_ingest/pipeline", pipelineName);
         } else {
             // error because of a malformed response
-            final HttpEntity entity = entityForResource(ERROR, pipelineName, minimumVersion);
+            final HttpEntity entity = entityForResource(null, pipelineName, minimumVersion);
 
-            doCheckWithStatusCode(resource, "/_ingest/pipeline", pipelineName, successfulCheckStatus(), ERROR, entity);
+            doCheckWithStatusCode(resource, "/_ingest/pipeline", pipelineName, successfulCheckStatus(), null, entity);
         }
     }
 
-    public void testDoPublishTrue() throws IOException {
+    public void testDoPublishTrue() {
         assertPublishSucceeds(resource, "/_ingest/pipeline", pipelineName, ByteArrayEntity.class);
     }
 
-    public void testDoPublishFalse() throws IOException {
-        assertPublishFails(resource, "/_ingest/pipeline", pipelineName, ByteArrayEntity.class);
-    }
-
-    public void testDoPublishFalseWithException() throws IOException {
+    public void testDoPublishFalseWithException() {
         assertPublishWithException(resource, "/_ingest/pipeline", pipelineName, ByteArrayEntity.class);
     }
 

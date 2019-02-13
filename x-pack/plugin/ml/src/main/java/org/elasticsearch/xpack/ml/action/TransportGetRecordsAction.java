@@ -37,18 +37,21 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
     @Override
     protected void doExecute(Task task, GetRecordsAction.Request request, ActionListener<GetRecordsAction.Response> listener) {
 
-        jobManager.getJobOrThrowIfUnknown(request.getJobId());
-
-        RecordsQueryBuilder query = new RecordsQueryBuilder()
-                .includeInterim(request.isExcludeInterim() == false)
-                .epochStart(request.getStart())
-                .epochEnd(request.getEnd())
-                .from(request.getPageParams().getFrom())
-                .size(request.getPageParams().getSize())
-                .recordScore(request.getRecordScoreFilter())
-                .sortField(request.getSort())
-                .sortDescending(request.isDescending());
-        jobResultsProvider.records(request.getJobId(), query, page ->
-                        listener.onResponse(new GetRecordsAction.Response(page)), listener::onFailure, client);
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
+                jobExists -> {
+                    RecordsQueryBuilder query = new RecordsQueryBuilder()
+                            .includeInterim(request.isExcludeInterim() == false)
+                            .epochStart(request.getStart())
+                            .epochEnd(request.getEnd())
+                            .from(request.getPageParams().getFrom())
+                            .size(request.getPageParams().getSize())
+                            .recordScore(request.getRecordScoreFilter())
+                            .sortField(request.getSort())
+                            .sortDescending(request.isDescending());
+                    jobResultsProvider.records(request.getJobId(), query, page ->
+                            listener.onResponse(new GetRecordsAction.Response(page)), listener::onFailure, client);
+                },
+                listener::onFailure
+        ));
     }
 }

@@ -2,7 +2,7 @@
 "Bulk indexing of monitoring data":
 
   - do:
-      xpack.monitoring.bulk:
+      monitoring.bulk:
         system_id:          "kibana"
         system_api_version: "6"
         interval:           "10s"
@@ -31,13 +31,14 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-kibana-*
         body: { "query": { "term" : { "type": "test_type" } } }
 
   - match: { hits.total: 2 }
 
   - do:
-      xpack.monitoring.bulk:
+      monitoring.bulk:
         system_id:          "kibana"
         system_api_version: "6"
         interval:           "123456ms"
@@ -59,6 +60,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-kibana-*
         body: { "query": { "term" : { "type": "default_type" } } }
 
@@ -68,6 +70,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-kibana-*
         body: { "query": { "term" : { "type": "custom_type" } } }
 
@@ -77,13 +80,14 @@
   # We actively ignore indexing requests made to the _data index starting with 5.5
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-data-*
 
   - match: { hits.total: 0 }
 
   # Old system_api_version should still be accepted
   - do:
-      xpack.monitoring.bulk:
+      monitoring.bulk:
         system_id:          "kibana"
         system_api_version: "2"
         interval:           "10000ms"
@@ -105,6 +109,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-kibana-*
         body: { "query": { "term" : { "type": "default_type" } } }
 
@@ -112,6 +117,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-kibana-*
         body: { "query": { "term" : { "type": "custom_type" } } }
 
@@ -120,6 +126,7 @@
   # We actively ignore indexing requests made to the _data index starting with 5.5, even for the old versions
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-data-*
 
   - match: { hits.total: 0 }
@@ -127,7 +134,7 @@
   # Missing a system_id causes it to fail
   - do:
       catch: bad_request
-      xpack.monitoring.bulk:
+      monitoring.bulk:
         system_api_version: "6"
         interval:           "10s"
         type:               "default_type"
@@ -138,7 +145,7 @@
   # Missing a system_api_version causes it to fail
   - do:
       catch: bad_request
-      xpack.monitoring.bulk:
+      monitoring.bulk:
         system_id:          "kibana"
         interval:           "10s"
         type:               "default_type"
@@ -149,7 +156,7 @@
   # Missing an interval causes it to fail
   - do:
       catch: bad_request
-      xpack.monitoring.bulk:
+      monitoring.bulk:
         system_id:          "kibana"
         system_api_version: "6"
         type:               "default_type"
@@ -161,7 +168,7 @@
 "Bulk indexing of monitoring data on closed indices should throw an export exception":
 
   - do:
-      xpack.monitoring.bulk:
+      monitoring.bulk:
         system_id:          "beats"
         system_api_version: "6"
         interval:           "5s"
@@ -184,6 +191,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .monitoring-beats-*
   - match: { hits.total: 2 }
 
@@ -193,7 +201,7 @@
 
   - do:
       catch: /export_exception/
-      xpack.monitoring.bulk:
+      monitoring.bulk:
         system_id:          "beats"
         system_api_version: "6"
         interval:           "5s"

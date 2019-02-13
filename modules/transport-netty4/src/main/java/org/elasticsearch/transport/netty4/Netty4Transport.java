@@ -36,9 +36,11 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -49,11 +51,12 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -73,6 +76,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * sending out ping requests to other nodes.
  */
 public class Netty4Transport extends TcpTransport {
+    private static final Logger logger = LogManager.getLogger(Netty4Transport.class);
 
     static {
         Netty4Utils.setup();
@@ -101,9 +105,10 @@ public class Netty4Transport extends TcpTransport {
     private volatile Bootstrap clientBootstrap;
     private volatile NioEventLoopGroup eventLoopGroup;
 
-    public Netty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
-        super("netty", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+    public Netty4Transport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
+                           PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
+                           CircuitBreakerService circuitBreakerService) {
+        super("netty", settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
         Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
         this.workerCount = WORKER_COUNT.get(settings);
 
@@ -145,22 +150,22 @@ public class Netty4Transport extends TcpTransport {
         bootstrap.group(eventLoopGroup);
         bootstrap.channel(NioSocketChannel.class);
 
-        bootstrap.option(ChannelOption.TCP_NODELAY, TCP_NO_DELAY.get(settings));
-        bootstrap.option(ChannelOption.SO_KEEPALIVE, TCP_KEEP_ALIVE.get(settings));
+        bootstrap.option(ChannelOption.TCP_NODELAY, TransportSettings.TCP_NO_DELAY.get(settings));
+        bootstrap.option(ChannelOption.SO_KEEPALIVE, TransportSettings.TCP_KEEP_ALIVE.get(settings));
 
-        final ByteSizeValue tcpSendBufferSize = TCP_SEND_BUFFER_SIZE.get(settings);
+        final ByteSizeValue tcpSendBufferSize = TransportSettings.TCP_SEND_BUFFER_SIZE.get(settings);
         if (tcpSendBufferSize.getBytes() > 0) {
             bootstrap.option(ChannelOption.SO_SNDBUF, Math.toIntExact(tcpSendBufferSize.getBytes()));
         }
 
-        final ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
+        final ByteSizeValue tcpReceiveBufferSize = TransportSettings.TCP_RECEIVE_BUFFER_SIZE.get(settings);
         if (tcpReceiveBufferSize.getBytes() > 0) {
             bootstrap.option(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
         }
 
         bootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
 
-        final boolean reuseAddress = TCP_REUSE_ADDRESS.get(settings);
+        final boolean reuseAddress = TransportSettings.TCP_REUSE_ADDRESS.get(settings);
         bootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
 
         return bootstrap;
@@ -169,9 +174,8 @@ public class Netty4Transport extends TcpTransport {
     private void createServerBootstrap(ProfileSettings profileSettings, NioEventLoopGroup eventLoopGroup) {
         String name = profileSettings.profileName;
         if (logger.isDebugEnabled()) {
-            logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], "
-                    + "receive_predictor[{}->{}]",
-                name, workerCount, profileSettings.portOrRange, profileSettings.bindHosts, profileSettings.publishHosts, compress,
+            logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], receive_predictor[{}->{}]",
+                name, workerCount, profileSettings.portOrRange, profileSettings.bindHosts, profileSettings.publishHosts,
                 receivePredictorMin, receivePredictorMax);
         }
 
@@ -216,36 +220,22 @@ public class Netty4Transport extends TcpTransport {
     static final AttributeKey<Netty4TcpServerChannel> SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-server-channel");
 
     @Override
-    protected Netty4TcpChannel initiateChannel(DiscoveryNode node, ActionListener<Void> listener) throws IOException {
+    protected Netty4TcpChannel initiateChannel(DiscoveryNode node) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         Bootstrap bootstrapWithHandler = clientBootstrap.clone();
         bootstrapWithHandler.handler(getClientChannelInitializer(node));
         bootstrapWithHandler.remoteAddress(address);
-        ChannelFuture channelFuture = bootstrapWithHandler.connect();
+        ChannelFuture connectFuture = bootstrapWithHandler.connect();
 
-        Channel channel = channelFuture.channel();
+        Channel channel = connectFuture.channel();
         if (channel == null) {
-            ExceptionsHelper.maybeDieOnAnotherThread(channelFuture.cause());
-            throw new IOException(channelFuture.cause());
+            ExceptionsHelper.maybeDieOnAnotherThread(connectFuture.cause());
+            throw new IOException(connectFuture.cause());
         }
         addClosedExceptionLogger(channel);
 
-        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, "default");
+        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, false, "default", connectFuture);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
-
-        channelFuture.addListener(f -> {
-            if (f.isSuccess()) {
-                listener.onResponse(null);
-            } else {
-                Throwable cause = f.cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    listener.onFailure(new Exception(cause));
-                } else {
-                    listener.onFailure((Exception) cause);
-                }
-            }
-        });
 
         return nettyChannel;
     }
@@ -256,14 +246,6 @@ public class Netty4Transport extends TcpTransport {
         Netty4TcpServerChannel esChannel = new Netty4TcpServerChannel(channel, name);
         channel.attr(SERVER_CHANNEL_KEY).set(esChannel);
         return esChannel;
-    }
-
-    long successfulPingCount() {
-        return successfulPings.count();
-    }
-
-    long failedPingCount() {
-        return failedPings.count();
     }
 
     @Override
@@ -309,7 +291,7 @@ public class Netty4Transport extends TcpTransport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             addClosedExceptionLogger(ch);
-            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, name);
+            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());

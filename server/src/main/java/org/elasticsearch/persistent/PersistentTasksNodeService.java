@@ -18,13 +18,14 @@
  */
 package org.elasticsearch.persistent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -48,7 +49,9 @@ import static java.util.Objects.requireNonNull;
  * This component is responsible for coordination of execution of persistent tasks on individual nodes. It runs on all
  * non-transport client nodes in the cluster and monitors cluster state changes to detect started commands.
  */
-public class PersistentTasksNodeService extends AbstractComponent implements ClusterStateListener {
+public class PersistentTasksNodeService implements ClusterStateListener {
+
+    private static final Logger logger = LogManager.getLogger(PersistentTasksNodeService.class);
 
     private final Map<Long, AllocatedPersistentTask> runningTasks = new HashMap<>();
     private final PersistentTasksService persistentTasksService;

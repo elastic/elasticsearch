@@ -97,8 +97,18 @@ public final class GeoPoint implements ToXContentFragment {
             throw new ElasticsearchParseException("failed to parse [{}], expected 2 or 3 coordinates "
                 + "but found: [{}]", vals.length);
         }
-        double lat = Double.parseDouble(vals[0].trim());
-        double lon = Double.parseDouble(vals[1].trim());
+        final double lat;
+        final double lon;
+        try {
+            lat = Double.parseDouble(vals[0].trim());
+         } catch (NumberFormatException ex) {
+            throw new ElasticsearchParseException("latitude must be a number");
+        }
+        try {
+            lon = Double.parseDouble(vals[1].trim());
+        } catch (NumberFormatException ex) {
+            throw new ElasticsearchParseException("longitude must be a number");
+        }
         if (vals.length > 2) {
             GeoPoint.assertZValue(ignoreZValue, Double.parseDouble(vals[2].trim()));
         }

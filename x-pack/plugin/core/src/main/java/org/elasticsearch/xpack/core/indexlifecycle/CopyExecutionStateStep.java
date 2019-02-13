@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionStat
  * new index has been created. Useful for actions such as shrink.
  */
 public class CopyExecutionStateStep extends ClusterStateActionStep {
-    public static final String NAME = "copy_execution_state";
+    public static final String NAME = "copy-execution-state";
 
     private static final Logger logger = LogManager.getLogger(CopyExecutionStateStep.class);
     
@@ -51,6 +51,13 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         // get target shrink index
         String targetIndexName = shrunkIndexPrefix + indexName;
         IndexMetaData targetIndexMetaData = clusterState.metaData().index(targetIndexName);
+
+        if (targetIndexMetaData == null) {
+            logger.warn("[{}] index [{}] unable to copy execution state to target index [{}] as target index does not exist",
+                getKey().getAction(), index.getName(), targetIndexName);
+            throw new IllegalStateException("unable to copy execution state from [" + index.getName() +
+                "] to [" + targetIndexName + "] as target index does not exist");
+        }
 
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
         String phase = lifecycleState.getPhase();

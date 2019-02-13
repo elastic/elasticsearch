@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -77,7 +76,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify meta _routing required exists");
         MappingMetaData mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData()
-            .index("test").mapping("type1");
+            .index("test").getMappings().get("type1");
         assertThat(mappingMd.routing().required(), equalTo(true));
 
         logger.info("--> restarting nodes...");
@@ -87,7 +86,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureYellow();
 
         logger.info("--> verify meta _routing required exists");
-        mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").mapping("type1");
+        mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").getMappings()
+                .get("type1");
         assertThat(mappingMd.routing().required(), equalTo(true));
     }
 
@@ -124,7 +124,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
+            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -168,7 +168,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
+            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -229,7 +229,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
+        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
     }
 
     public void testTwoNodesSingleDoc() throws Exception {
@@ -273,51 +273,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
     }
 
-    public void testDanglingIndices() throws Exception {
-        logger.info("--> starting two nodes");
-
-        final String node_1 = internalCluster().startNodes(2).get(0);
-
-        logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify 1 doc in the index");
-        for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
-        }
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-
-        logger.info("--> restarting the nodes");
-        internalCluster().fullRestart(new RestartCallback() {
-            @Override
-            public boolean clearData(String nodeName) {
-                return node_1.equals(nodeName);
-            }
-        });
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        // spin a bit waiting for the index to exists
-        long time = System.currentTimeMillis();
-        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(10).millis()) {
-            if (client().admin().indices().prepareExists("test").execute().actionGet().isExists()) {
-                break;
-            }
-        }
-
-        logger.info("--> verify that the dangling index exists");
-        assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify the doc is there");
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-    }
-
     /**
      * This test ensures that when an index deletion takes place while a node is offline, when that
      * node rejoins the cluster, it deletes the index locally instead of importing it as a dangling index.
@@ -349,6 +304,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 final Client client = client(otherNode);
                 client.admin().indices().prepareDelete(indexName).execute().actionGet();
                 assertFalse(client.admin().indices().prepareExists(indexName).execute().actionGet().isExists());
+                logger.info("--> index deleted");
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -395,18 +351,24 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                     .waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        IndexMetaData metaData = state.getMetaData().index("test");
-        for (NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
-            IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(Settings.builder().put(metaData.getSettings())
+
+        final IndexMetaData metaData = state.getMetaData().index("test");
+        final IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(Settings.builder().put(metaData.getSettings())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion().id)
-                 // this is invalid but should be archived
+                // this is invalid but should be archived
                 .put("index.similarity.BM25.type", "classic")
-                 // this one is not validated ahead of time and breaks allocation
+                // this one is not validated ahead of time and breaks allocation
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
-            ).build();
-            IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
-        }
-        internalCluster().fullRestart();
+        ).build();
+        internalCluster().fullRestart(new RestartCallback(){
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                final MetaStateService metaStateService = internalCluster().getInstance(MetaStateService.class, nodeName);
+                metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMeta);
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
         // ensureGreen(closedIndex) waits for the index to show up in the metadata
         // this is crucial otherwise the state call below might not contain the index yet
         ensureGreen(metaData.getIndex().getName());
@@ -457,13 +419,19 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                     .waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        IndexMetaData metaData = state.getMetaData().index("test");
-        for (NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
-            IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(metaData.getSettings()
+
+        final IndexMetaData metaData = state.getMetaData().index("test");
+        final IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(metaData.getSettings()
                 .filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false)).build();
-            IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
-        }
-        internalCluster().fullRestart();
+        internalCluster().fullRestart(new RestartCallback(){
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                final MetaStateService metaStateService = internalCluster().getInstance(MetaStateService.class, nodeName);
+                metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMeta);
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
         // ensureGreen(closedIndex) waits for the index to show up in the metadata
         // this is crucial otherwise the state call below might not contain the index yet
         ensureGreen(metaData.getIndex().getName());
@@ -494,14 +462,20 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                     .waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        MetaData metaData = state.getMetaData();
-        for (NodeEnvironment nodeEnv : internalCluster().getInstances(NodeEnvironment.class)) {
-            MetaData brokenMeta = MetaData.builder(metaData).persistentSettings(Settings.builder()
+
+        final MetaData metaData = state.getMetaData();
+        final MetaData brokenMeta = MetaData.builder(metaData).persistentSettings(Settings.builder()
                 .put(metaData.persistentSettings()).put("this.is.unknown", true)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "broken").build()).build();
-            MetaData.FORMAT.write(brokenMeta, nodeEnv.nodeDataPaths());
-        }
-        internalCluster().fullRestart();
+        internalCluster().fullRestart(new RestartCallback(){
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                final MetaStateService metaStateService = internalCluster().getInstance(MetaStateService.class, nodeName);
+                metaStateService.writeGlobalStateAndUpdateManifest("broken metadata", brokenMeta);
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
         ensureYellow("test"); // wait for state recovery
         state = client().admin().cluster().prepareState().get().getState();
         assertEquals("true", state.metaData().persistentSettings().get("archived.this.is.unknown"));

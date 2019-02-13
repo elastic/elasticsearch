@@ -143,7 +143,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
         DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
+        datafeedConfig.setParsedAggregations(AggregatorFactories.builder().addAggregator(
                 AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
 
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
@@ -162,7 +162,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
         datafeedConfig.setChunkingConfig(ChunkingConfig.newOff());
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
+        datafeedConfig.setParsedAggregations(AggregatorFactories.builder().addAggregator(
                 AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
 
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
@@ -180,7 +180,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         jobBuilder.setDataDescription(dataDescription);
         DatafeedConfig.Builder datafeedConfig = DatafeedManagerTests.createDatafeedConfig("datafeed1", "foo");
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
+        datafeedConfig.setParsedAggregations(AggregatorFactories.builder().addAggregator(
                 AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
         datafeedConfig.setChunkingConfig(ChunkingConfig.newAuto());
 
@@ -203,7 +203,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
         TermsAggregationBuilder myTerm = AggregationBuilders.terms("termAgg").field("termField").subAggregation(myField);
-        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
+        datafeedConfig.setParsedAggregations(AggregatorFactories.builder().addAggregator(
             AggregationBuilders.dateHistogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(RollupDataExtractorFactory.class)),
@@ -223,7 +223,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
         TermsAggregationBuilder myTerm = AggregationBuilders.terms("termAgg").field("termField").subAggregation(myField);
-        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
+        datafeedConfig.setParsedAggregations(AggregatorFactories.builder().addAggregator(
             AggregationBuilders.dateHistogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
@@ -263,7 +263,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
         TermsAggregationBuilder myTerm = AggregationBuilders.terms("termAgg").field("termField").subAggregation(myField);
-        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
+        datafeedConfig.setParsedAggregations(AggregatorFactories.builder().addAggregator(
             AggregationBuilders.dateHistogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> fail(),
@@ -288,7 +288,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("myField");
         TermsAggregationBuilder myTerm = AggregationBuilders.terms("termAgg").field("termField").subAggregation(myField);
-        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
+        datafeedConfig.setParsedAggregations(AggregatorFactories.builder().addAggregator(
             AggregationBuilders.dateHistogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> fail(),
@@ -312,7 +312,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         MaxAggregationBuilder myField = AggregationBuilders.max("myField").field("otherField");
         TermsAggregationBuilder myTerm = AggregationBuilders.terms("termAgg").field("termField").subAggregation(myField);
-        datafeedConfig.setAggregations(AggregatorFactories.builder().addAggregator(
+        datafeedConfig.setParsedAggregations(AggregatorFactories.builder().addAggregator(
             AggregationBuilders.dateHistogram("time").interval(600_000).subAggregation(maxTime).subAggregation(myTerm).field("time")));
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> fail(),

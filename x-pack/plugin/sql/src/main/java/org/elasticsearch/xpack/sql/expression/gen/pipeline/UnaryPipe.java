@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ChainingProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
@@ -22,8 +22,8 @@ public final class UnaryPipe extends Pipe {
     private final Pipe child;
     private final Processor action;
 
-    public UnaryPipe(Location location, Expression expression, Pipe child, Processor action) {
-        super(location, expression, singletonList(child));
+    public UnaryPipe(Source source, Expression expression, Pipe child, Processor action) {
+        super(source, expression, singletonList(child));
         this.child = child;
         this.action = action;
     }
@@ -38,7 +38,7 @@ public final class UnaryPipe extends Pipe {
         if (newChildren.size() != 1) {
             throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
         }
-        return new UnaryPipe(location(), expression(), newChildren.get(0), action);
+        return new UnaryPipe(source(), expression(), newChildren.get(0), action);
     }
 
     public Pipe child() {
@@ -70,7 +70,7 @@ public final class UnaryPipe extends Pipe {
         if (newChild == child) {
             return this;
         }
-        return new UnaryPipe(location(), expression(), newChild, action);
+        return new UnaryPipe(source(), expression(), newChild, action);
     }
 
     @Override

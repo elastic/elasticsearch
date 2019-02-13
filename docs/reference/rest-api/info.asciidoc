@@ -63,6 +63,11 @@ Example response:
       "expiry_date_in_millis" : 1542665112332
    },
    "features" : {
+      "ccr" : {
+        "description" : "Cross Cluster Replication",
+        "available" : true,
+        "enabled" : true
+      },
       "graph" : {
          "description" : "Graph Data Exploration for the Elastic Stack",
          "available" : true,
@@ -101,6 +106,11 @@ Example response:
          "description" : "Security for the Elastic Stack",
          "available" : true,
          "enabled" : false
+      },
+      "sql" : {
+         "description" : "SQL access to Elasticsearch",
+         "available" : true,
+         "enabled" : true
       },
       "watcher" : {
          "description" : "Alerting, Notification and Automation for the Elastic Stack",

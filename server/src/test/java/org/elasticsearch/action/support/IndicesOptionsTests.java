@@ -51,7 +51,7 @@ public class IndicesOptionsTests extends ESTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            Version version = randomVersionBetween(random(), Version.V_7_0_0_alpha1, null);
+            Version version = randomVersionBetween(random(), Version.V_7_0_0, null);
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean());

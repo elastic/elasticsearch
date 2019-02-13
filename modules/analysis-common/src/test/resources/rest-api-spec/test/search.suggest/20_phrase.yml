@@ -34,26 +34,24 @@ setup:
                   min_shingle_size: 2
                   max_shingle_size: 2
           mappings:
-            doc:
-              properties:
-                body:
-                  type: text
-                  analyzer: body
-                  fields:
-                    bigram:
-                      type: text
-                      analyzer: bigram
-                    ngram:
-                      type: text
-                      analyzer: ngram
-                    reverse:
-                      type: text
-                      analyzer: reverse
+            properties:
+              body:
+                type: text
+                analyzer: body
+                fields:
+                  bigram:
+                    type: text
+                    analyzer: bigram
+                  ngram:
+                    type: text
+                    analyzer: ngram
+                  reverse:
+                    type: text
+                    analyzer: reverse
 
   - do:
       bulk:
         index: test
-        type: doc
         refresh: true
         body: |
           { "index": {} }
@@ -99,6 +97,7 @@ setup:
 "sorts by score":
   - do:
       search:
+        rest_total_hits_as_int: true
         size: 0
         index: test
         body:
@@ -122,6 +121,7 @@ setup:
   # This runs the suggester without bigrams so we can be sure of the sort order
   - do:
       search:
+        rest_total_hits_as_int: true
         size: 0
         index: test
         body:
@@ -148,6 +148,7 @@ setup:
   - do:
       catch: /since it doesn't emit unigrams/
       search:
+        rest_total_hits_as_int: true
         size: 0
         index: test
         body:
@@ -160,6 +161,7 @@ setup:
   - do:
       catch: /since it doesn't emit unigrams/
       search:
+        rest_total_hits_as_int: true
         size: 0
         index: test
         body:
@@ -174,6 +176,7 @@ setup:
 "doesn't fail when asked to run on a field without unigrams when force_unigrams=false":
   - do:
       search:
+        rest_total_hits_as_int: true
         size: 0
         index: test
         body:
@@ -186,6 +189,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         size: 0
         index: test
         body:
@@ -201,6 +205,7 @@ setup:
 "reverse suggestions":
   - do:
       search:
+        rest_total_hits_as_int: true
         size: 0
         index: test
         body:
@@ -219,4 +224,3 @@ setup:
                     post_filter: reverse
 
   - match: {suggest.test.0.options.0.text: arthur king of the britons}
-

@@ -107,7 +107,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // only one action should have failed via condition
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits(), is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(1L));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
@@ -152,7 +152,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // only one action should have failed via condition
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits(), is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(1L));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());
@@ -202,7 +202,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
 
         // all actions should be successful
         final SearchResponse response = searchHistory(SearchSourceBuilder.searchSource().query(termQuery("watch_id", id)));
-        assertThat(response.getHits().getTotalHits(), is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(1L));
 
         final SearchHit hit = response.getHits().getAt(0);
         final List<Object> actions = getActionsFromHit(hit.getSourceAsMap());

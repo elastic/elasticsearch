@@ -19,6 +19,8 @@
 
 package org.elasticsearch.script;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
@@ -39,7 +41,6 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -58,7 +59,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
-public class ScriptService extends AbstractComponent implements Closeable, ClusterStateApplier {
+public class ScriptService implements Closeable, ClusterStateApplier {
+
+    private static final Logger logger = LogManager.getLogger(ScriptService.class);
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
@@ -136,8 +139,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         this.contexts = Objects.requireNonNull(contexts);
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
-            throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
-                    "Dynamic scripts can be enabled for all languages and all operations not using `script.disable_dynamic: false` in elasticsearch.yml");
+            throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with " +
+                    "fine-grained script settings. \n Dynamic scripts can be enabled for all languages and all operations not " +
+                    "using `script.disable_dynamic: false` in elasticsearch.yml");
         }
 
         this.typesAllowed = TYPES_ALLOWED_SETTING.exists(settings) ? new HashSet<>() : null;
@@ -354,7 +358,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     // TODO: remove this try-catch completely, when all script engines have good exceptions!
                     throw good; // its already good
                 } catch (Exception exception) {
-                    throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", exception);
+                    throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]",
+                            exception);
                 }
 
                 // Since the cache key is the script content itself we don't need to

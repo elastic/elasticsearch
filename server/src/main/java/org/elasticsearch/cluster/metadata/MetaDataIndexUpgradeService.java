@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -51,7 +52,9 @@ import java.util.function.UnaryOperator;
  * occurs during cluster upgrade, when dangling indices are imported into the cluster or indices
  * are restored from a repository.
  */
-public class MetaDataIndexUpgradeService extends AbstractComponent {
+public class MetaDataIndexUpgradeService {
+
+    private static final Logger logger = LogManager.getLogger(MetaDataIndexUpgradeService.class);
 
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;

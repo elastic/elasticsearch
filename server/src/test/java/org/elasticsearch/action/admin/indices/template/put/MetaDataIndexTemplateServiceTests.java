@@ -97,17 +97,6 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.get(0).getMessage(), equalTo("Alias [foobar] cannot be the same as any pattern in [foo, foobar]"));
     }
 
-    public void testIndexTemplateWithValidateEmptyMapping() throws Exception {
-        PutRequest request = new PutRequest("api", "validate_template");
-        request.patterns(Collections.singletonList("validate_template"));
-        request.putMapping("type1", "{}");
-
-        List<Throwable> errors = putTemplateDetail(request);
-        assertThat(errors.size(), equalTo(1));
-        assertThat(errors.get(0), instanceOf(MapperParsingException.class));
-        assertThat(errors.get(0).getMessage(), containsString("malformed mapping no root object found"));
-    }
-
     public void testIndexTemplateWithValidateMapping() throws Exception {
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(Collections.singletonList("te*"));
@@ -130,17 +119,6 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(errors.size(), equalTo(1));
         assertThat(errors.get(0), instanceOf(MapperParsingException.class));
         assertThat(errors.get(0).getMessage(), containsString("Failed to parse mapping "));
-    }
-
-    public void testBlankMapping() throws Exception {
-        PutRequest request = new PutRequest("api", "blank_mapping");
-        request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", "{}");
-
-        List<Throwable> errors = putTemplateDetail(request);
-        assertThat(errors.size(), equalTo(1));
-        assertThat(errors.get(0), instanceOf(MapperParsingException.class));
-        assertThat(errors.get(0).getMessage(), containsString("malformed mapping no root object found"));
     }
 
     public void testAliasInvalidFilterInvalidJson() throws Exception {

@@ -9,11 +9,12 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatFunctionProcessor.process;
@@ -26,8 +27,8 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public class Concat extends BinaryScalarFunction {
     
-    public Concat(Location location, Expression source1, Expression source2) {
-        super(location, source1, source2);
+    public Concat(Source source, Expression source1, Expression source2) {
+        super(source, source1, source2);
     }
 
     @Override
@@ -36,22 +37,22 @@ public class Concat extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = Expressions.typeMustBeString(left(), functionName(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = Expressions.typeMustBeString(left(), sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        return Expressions.typeMustBeString(right(), functionName(), ParamOrdinal.SECOND);
+        return Expressions.typeMustBeString(right(), sourceText(), ParamOrdinal.SECOND);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new ConcatFunctionPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()));
+        return new ConcatFunctionPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()));
     }
     
     @Override
-    public boolean nullable() {
-        return left().nullable() && right().nullable();
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 
     @Override
@@ -66,7 +67,7 @@ public class Concat extends BinaryScalarFunction {
     
     @Override
     protected Concat replaceChildren(Expression newLeft, Expression newRight) {
-        return new Concat(location(), newLeft, newRight);
+        return new Concat(source(), newLeft, newRight);
     }
 
     @Override

@@ -30,15 +30,15 @@ import static org.hamcrest.Matchers.is;
 public class ArrayUtilsTests extends ESTestCase {
     public void testBinarySearch() throws Exception {
         for (int j = 0; j < 100; j++) {
-            int index = Math.min(randomInt(0, 10), 9);
-            double tolerance = Math.random() * 0.01;
-            double lookForValue = randomFreq(0.9) ? -1 : Double.NaN; // sometimes we'll look for NaN
+            int index = randomIntBetween(0, 9);
+            double tolerance = randomDoubleBetween(0, 0.01, true);
+            double lookForValue = frequently() ? -1 : Double.NaN; // sometimes we'll look for NaN
             double[] array = new double[10];
             for (int i = 0; i < array.length; i++) {
                 double value;
-                if (randomFreq(0.9)) {
-                    value = Math.random() * 10;
-                    array[i] = value + ((randomFreq(0.5) ? 1 : -1) * Math.random() * tolerance);
+                if (frequently()) {
+                    value = randomDoubleBetween(0, 9, true);
+                    array[i] = value + ((randomBoolean() ? 1 : -1) * randomDouble() * tolerance);
 
                 } else {                    // sometimes we'll have NaN in the array
                     value = Double.NaN;
@@ -71,15 +71,6 @@ public class ArrayUtilsTests extends ESTestCase {
                 assertThat(bitSet.get(foundIndex), is(true));
             }
         }
-    }
-
-    private boolean randomFreq(double freq) {
-        return Math.random() < freq;
-    }
-
-    private int randomInt(int min, int max) {
-        int delta = (int) (Math.random() * (max - min));
-        return min + delta;
     }
 
     public void testConcat() {

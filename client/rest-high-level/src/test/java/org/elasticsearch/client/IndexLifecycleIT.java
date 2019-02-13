@@ -22,7 +22,7 @@ package org.elasticsearch.client;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.indexlifecycle.AllocateAction;
 import org.elasticsearch.client.indexlifecycle.DeleteAction;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
@@ -41,13 +41,14 @@ import org.elasticsearch.client.indexlifecycle.OperationMode;
 import org.elasticsearch.client.indexlifecycle.Phase;
 import org.elasticsearch.client.indexlifecycle.PhaseExecutionInfo;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyResponse;
+import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
+import org.elasticsearch.client.indexlifecycle.UnfollowAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.hamcrest.Matchers;
@@ -62,7 +63,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.indexlifecycle.LifecyclePolicyTests.createRandomPolicy;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.ClientAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
@@ -144,19 +145,20 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
     public void testExplainLifecycle() throws Exception {
         Map<String, Phase> lifecyclePhases = new HashMap<>();
-        Map<String, LifecycleAction> hotActions = Collections.singletonMap(
-            RolloverAction.NAME,
-            new RolloverAction(null, TimeValue.timeValueHours(50 * 24), null));
+        Map<String, LifecycleAction> hotActions = new HashMap<>();
+        hotActions.put(RolloverAction.NAME, new RolloverAction(null, TimeValue.timeValueHours(50 * 24), null));
         Phase hotPhase = new Phase("hot", randomFrom(TimeValue.ZERO, null), hotActions);
         lifecyclePhases.put("hot", hotPhase);
 
         Map<String, LifecycleAction> warmActions = new HashMap<>();
+        warmActions.put(UnfollowAction.NAME, new UnfollowAction());
         warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, null, Collections.singletonMap("_name", "node-1")));
         warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1000));
         lifecyclePhases.put("warm", new Phase("warm", TimeValue.timeValueSeconds(1000), warmActions));
 
         Map<String, LifecycleAction> coldActions = new HashMap<>();
+        coldActions.put(UnfollowAction.NAME, new UnfollowAction());
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null));
         lifecyclePhases.put("cold", new Phase("cold", TimeValue.timeValueSeconds(2000), coldActions));
 
@@ -182,32 +184,37 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
 
         createIndex("squash", Settings.EMPTY);
 
-        ExplainLifecycleRequest req = new ExplainLifecycleRequest();
-        req.indices("foo-01", "baz-01", "squash");
-        ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
+        // The injected Unfollow step will run pretty rapidly here, so we need
+        // to wait for it to settle into the "stable" step of waiting to be
+        // ready to roll over
+        assertBusy(() -> {
+            ExplainLifecycleRequest req = new ExplainLifecycleRequest("foo-01", "baz-01", "squash");
+            ExplainLifecycleResponse response = execute(req, highLevelClient().indexLifecycle()::explainLifecycle,
                 highLevelClient().indexLifecycle()::explainLifecycleAsync);
-        Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();
-        assertEquals(3, indexResponses.size());
-        IndexLifecycleExplainResponse fooResponse = indexResponses.get("foo-01");
-        assertNotNull(fooResponse);
-        assertTrue(fooResponse.managedByILM());
-        assertEquals("foo-01", fooResponse.getIndex());
-        assertEquals("hot", fooResponse.getPhase());
-        assertEquals("rollover", fooResponse.getAction());
-        assertEquals("attempt_rollover", fooResponse.getStep());
-        assertEquals(new PhaseExecutionInfo(policy.getName(), new Phase("", hotPhase.getMinimumAge(), hotPhase.getActions()),
+            Map<String, IndexLifecycleExplainResponse> indexResponses = response.getIndexResponses();
+            assertEquals(3, indexResponses.size());
+            IndexLifecycleExplainResponse fooResponse = indexResponses.get("foo-01");
+            assertNotNull(fooResponse);
+            assertTrue(fooResponse.managedByILM());
+            assertEquals("foo-01", fooResponse.getIndex());
+            assertEquals("hot", fooResponse.getPhase());
+            assertEquals("rollover", fooResponse.getAction());
+            assertEquals("check-rollover-ready", fooResponse.getStep());
+            assertEquals(new PhaseExecutionInfo(policy.getName(), new Phase("", hotPhase.getMinimumAge(), hotPhase.getActions()),
                 1L, expectedPolicyModifiedDate), fooResponse.getPhaseExecutionInfo());
-        IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz-01");
-        assertNotNull(bazResponse);
-        assertTrue(bazResponse.managedByILM());
-        assertEquals("baz-01", bazResponse.getIndex());
-        assertEquals("hot", bazResponse.getPhase());
-        assertEquals("rollover", bazResponse.getAction());
-        assertEquals("attempt_rollover", bazResponse.getStep());
-        IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
-        assertNotNull(squashResponse);
-        assertFalse(squashResponse.managedByILM());
-        assertEquals("squash", squashResponse.getIndex());
+            IndexLifecycleExplainResponse bazResponse = indexResponses.get("baz-01");
+            assertNotNull(bazResponse);
+            assertTrue(bazResponse.managedByILM());
+            assertEquals("baz-01", bazResponse.getIndex());
+            assertEquals("hot", bazResponse.getPhase());
+            assertEquals("rollover", bazResponse.getAction());
+            assertEquals("check-rollover-ready", bazResponse.getStep());
+            IndexLifecycleExplainResponse squashResponse = indexResponses.get("squash");
+            assertNotNull(squashResponse);
+            assertFalse(squashResponse.managedByILM());
+            assertEquals("squash", squashResponse.getIndex());
+
+        });
     }
 
     public void testDeleteLifecycle() throws IOException {
@@ -272,8 +279,8 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         RetryLifecyclePolicyRequest retryRequest = new RetryLifecyclePolicyRequest("retry");
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
             () -> execute(
-                retryRequest, highLevelClient().indexLifecycle()::retryLifecycleStep,
-                highLevelClient().indexLifecycle()::retryLifecycleStepAsync
+                retryRequest, highLevelClient().indexLifecycle()::retryLifecyclePolicy,
+                highLevelClient().indexLifecycle()::retryLifecyclePolicyAsync
             )
         );
         assertEquals(400, ex.status().getStatus());

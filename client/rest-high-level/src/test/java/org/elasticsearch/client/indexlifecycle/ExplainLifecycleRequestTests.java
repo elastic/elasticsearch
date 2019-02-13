@@ -25,17 +25,21 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class ExplainLifecycleRequestTests extends ESTestCase {
 
     public void testEqualsAndHashcode() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copy, this::mutateInstance);
     }
 
+    public void testEmptyIndices() {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, ExplainLifecycleRequest::new);
+        assertThat(exception.getMessage(), equalTo("Must at least specify one index to explain"));
+    }
+
     private ExplainLifecycleRequest createTestInstance() {
-        ExplainLifecycleRequest request = new ExplainLifecycleRequest();
-        if (randomBoolean()) {
-            request.indices(generateRandomStringArray(20, 20, false, true));
-        }
+        ExplainLifecycleRequest request = new ExplainLifecycleRequest(generateRandomStringArray(20, 20, false, false));
         if (randomBoolean()) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
@@ -45,12 +49,12 @@ public class ExplainLifecycleRequestTests extends ESTestCase {
     }
 
     private ExplainLifecycleRequest mutateInstance(ExplainLifecycleRequest instance) {
-        String[] indices = instance.indices();
+        String[] indices = instance.getIndices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
         case 0:
-            indices = randomValueOtherThanMany(i -> Arrays.equals(i, instance.indices()),
-                    () -> generateRandomStringArray(20, 10, false, true));
+            indices = randomValueOtherThanMany(i -> Arrays.equals(i, instance.getIndices()),
+                    () -> generateRandomStringArray(20, 10, false, false));
             break;
         case 1:
             indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
@@ -59,15 +63,13 @@ public class ExplainLifecycleRequestTests extends ESTestCase {
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        ExplainLifecycleRequest newRequest = new ExplainLifecycleRequest();
-        newRequest.indices(indices);
+        ExplainLifecycleRequest newRequest = new ExplainLifecycleRequest(indices);
         newRequest.indicesOptions(indicesOptions);
         return newRequest;
     }
 
     private ExplainLifecycleRequest copy(ExplainLifecycleRequest original) {
-        ExplainLifecycleRequest copy = new ExplainLifecycleRequest();
-        copy.indices(original.indices());
+        ExplainLifecycleRequest copy = new ExplainLifecycleRequest(original.getIndices());
         copy.indicesOptions(original.indicesOptions());
         return copy;
     }

@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionStateTests.createCustomMetadata;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecutionStateStep> {
     @Override
@@ -85,5 +86,26 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         assertEquals(oldIndexData.getPhase(), newIndexData.getPhase());
         assertEquals(oldIndexData.getAction(), newIndexData.getAction());
         assertEquals(ShrunkenIndexCheckStep.NAME, newIndexData.getStep());
+    }
+    public void testPerformActionWithNoTarget() {
+        CopyExecutionStateStep step = createRandomInstance();
+        String indexName = randomAlphaOfLengthBetween(5, 20);
+        Map<String, String> customMetadata = createCustomMetadata();
+
+        IndexMetaData originalIndexMetaData = IndexMetaData.builder(indexName)
+            .settings(settings(Version.CURRENT)).numberOfShards(randomIntBetween(1,5))
+            .numberOfReplicas(randomIntBetween(1,5))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, customMetadata)
+            .build();
+        ClusterState originalClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metaData(MetaData.builder()
+                .put(originalIndexMetaData, false))
+            .build();
+
+        IllegalStateException e = expectThrows(IllegalStateException.class,
+            () -> step.performAction(originalIndexMetaData.getIndex(), originalClusterState));
+
+        assertThat(e.getMessage(), equalTo("unable to copy execution state from [" +
+            indexName + "] to [" + step.getShrunkIndexPrefix() + indexName + "] as target index does not exist"));
     }
 }

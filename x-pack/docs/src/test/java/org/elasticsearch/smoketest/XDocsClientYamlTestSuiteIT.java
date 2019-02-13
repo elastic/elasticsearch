@@ -88,7 +88,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
                                 getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
                         boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                         assertThat(isAcknowledged, is(true));
-                        break;
+                        throw new AssertionError("waiting until stopped state reached started state");
                     case "stopping":
                         throw new AssertionError("waiting until stopping state reached stopped state to start again");
                     case "starting":
@@ -125,7 +125,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
      */
     @After
     public void deleteUsers() throws Exception {
-        ClientYamlTestResponse response = getAdminExecutionContext().callApi("xpack.security.get_user", emptyMap(), emptyList(),
+        ClientYamlTestResponse response = getAdminExecutionContext().callApi("security.get_user", emptyMap(), emptyList(),
                 emptyMap());
         @SuppressWarnings("unchecked")
         Map<String, Object> users = (Map<String, Object>) response.getBody();
@@ -134,7 +134,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
             Boolean reserved = metaDataMap == null ? null : (Boolean) metaDataMap.get("_reserved");
             if (reserved == null || reserved == false) {
                 logger.warn("Deleting leftover user {}", user);
-                getAdminExecutionContext().callApi("xpack.security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
+                getAdminExecutionContext().callApi("security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
             }
         }
     }

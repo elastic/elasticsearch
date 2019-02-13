@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+/**
+ * Signals that an error was encountered during the execution of a policy on an index.
+ */
 public class ErrorStep extends Step {
     public static final String NAME = "ERROR";
 

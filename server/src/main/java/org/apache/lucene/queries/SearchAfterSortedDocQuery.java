@@ -87,7 +87,7 @@ public class SearchAfterSortedDocQuery extends Query {
                     return null;
                 }
                 final DocIdSetIterator disi = new MinDocQuery.MinDocIterator(firstDoc, maxDoc);
-                return new ConstantScoreScorer(this, score(), disi);
+                return new ConstantScoreScorer(this, score(), scoreMode, disi);
             }
 
             @Override

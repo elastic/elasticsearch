@@ -118,7 +118,8 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         //Version from Lucene index
         refresh();
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(Versions.MATCH_ANY).realtime(false))
+                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field")
+                    .version(Versions.MATCH_ANY).realtime(false))
                 .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(1).realtime(false))
                 .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(2).realtime(false))
                 .get();

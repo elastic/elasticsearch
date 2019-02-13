@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[migration-api-upgrade]]
-=== Migration Upgrade API
+=== Migration upgrade API
+++++
+<titleabbrev>Migration upgrade</titleabbrev>
+++++
 
 The Migration Upgrade API performs the upgrade of internal indices to make them
 compatible with the next major version.
@@ -9,7 +12,7 @@ compatible with the next major version.
 [float]
 ==== Request
 
-`POST /_xpack/migration/upgrade/<index_name>`
+`POST /_migration/upgrade/<index_name>`
 
 [float]
 ==== Description
@@ -35,11 +38,11 @@ Indices must be upgraded one at a time.
 ==== Examples
 
 The following example submits a POST request to the
-`/_xpack/migration/upgrade/<index_name>` endpoint:
+`/_migration/upgrade/<index_name>` endpoint:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/migration/upgrade/.watches
+POST /_migration/upgrade/.watches
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:cannot create an old index in docs test]
@@ -73,7 +76,7 @@ The following example upgrades a large index asynchronously by specifying the
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/migration/upgrade/.watches?wait_for_completion=false
+POST /_migration/upgrade/.watches?wait_for_completion=false
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:cannot create an old index in docs test]

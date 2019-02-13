@@ -35,11 +35,11 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.joda.time.DateTime;
-import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -66,7 +66,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     public ExpiredForecastsRemover(Client client, ThreadPool threadPool) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.cutoffEpochMs = DateTime.now(ISOChronology.getInstance()).getMillis();
+        this.cutoffEpochMs = Instant.now(Clock.systemDefaultZone()).toEpochMilli();
     }
 
     @Override
@@ -81,6 +81,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
                 .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
                 .filter(QueryBuilders.existsQuery(ForecastRequestStats.EXPIRY_TIME.getPreferredName())));
         source.size(MAX_FORECASTS);
+        source.trackTotalHits(true);
 
         SearchRequest searchRequest = new SearchRequest(RESULTS_INDEX_PATTERN);
         searchRequest.source(source);
@@ -123,7 +124,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         List<ForecastRequestStats> forecastsToDelete = new ArrayList<>();
 
         SearchHits hits = searchResponse.getHits();
-        if (hits.getTotalHits() > MAX_FORECASTS) {
+        if (hits.getTotalHits().value > MAX_FORECASTS) {
             LOGGER.info("More than [{}] forecasts were found. This run will only delete [{}] of them", MAX_FORECASTS, MAX_FORECASTS);
         }
 

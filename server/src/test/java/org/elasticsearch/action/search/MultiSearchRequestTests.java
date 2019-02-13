@@ -41,6 +41,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
@@ -89,11 +90,36 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(7).types().length, equalTo(0));
     }
 
+    public void testFailWithUnknownKey() {
+        final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"unknown_key\" : \"open,closed\"}}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON).build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> RestMultiSearchAction.parseRequest(restRequest, true));
+        assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
+    }
+
     public void testSimpleAddWithCarriageReturn() throws Exception {
         final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"expand_wildcards\" : \"open,closed\"}}\r\n" +
             "{\"query\" : {\"match_all\" :{}}}\r\n";
         FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(requestContent), XContentType.JSON).build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
+        assertThat(request.requests().size(), equalTo(1));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(0).indicesOptions(),
+            equalTo(IndicesOptions.fromOptions(true, true, true, true, SearchRequest.DEFAULT_INDICES_OPTIONS)));
+        assertThat(request.requests().get(0).types().length, equalTo(0));
+    }
+
+    public void testDefaultIndicesOptions() throws IOException {
+        final String requestContent = "{\"index\":\"test\", \"expand_wildcards\" : \"open,closed\"}}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON)
+            .withParams(Collections.singletonMap("ignore_unavailable", "true"))
+            .build();
         MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
@@ -154,7 +180,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(2).routing(), equalTo("123"));
     }
 
-    public void testResponseErrorToXContent() throws IOException {
+    public void testResponseErrorToXContent() {
         long tookInMillis = randomIntBetween(1, 1000);
         MultiSearchResponse response = new MultiSearchResponse(
                 new MultiSearchResponse.Item[] {
@@ -203,7 +229,14 @@ public class MultiSearchRequestTests extends ESTestCase {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(new BytesArray(data), XContentType.JSON).build();
-        return RestMultiSearchAction.parseRequest(restRequest, true);
+
+        MultiSearchRequest request = new MultiSearchRequest();
+        RestMultiSearchAction.parseMultiLineRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS, true,
+            (searchRequest, parser) -> {
+                searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
+                request.add(searchRequest);
+            });
+        return request;
     }
 
     @Override
@@ -229,12 +262,12 @@ public class MultiSearchRequestTests extends ESTestCase {
                 parsedRequest.add(r);
             };
             MultiSearchRequest.readMultiLineFormat(new BytesArray(originalBytes), xContentType.xContent(),
-                    consumer, null, null, null, null, null, xContentRegistry(), true);
+                    consumer, null, null, null, null, null, null, xContentRegistry(), true);
             assertEquals(originalRequest, parsedRequest);
         }
     }
 
-    public void testEqualsAndHashcode() throws IOException {
+    public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(createMultiSearchRequest(), MultiSearchRequestTests::copyRequest, MultiSearchRequestTests::mutate);
     }
 
@@ -249,7 +282,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return mutation;
     }
 
-    private static MultiSearchRequest copyRequest(MultiSearchRequest request) throws IOException {
+    private static MultiSearchRequest copyRequest(MultiSearchRequest request) {
         MultiSearchRequest copy = new MultiSearchRequest();
         if (request.maxConcurrentSearchRequests() > 0) {
             copy.maxConcurrentSearchRequests(request.maxConcurrentSearchRequests());
@@ -261,7 +294,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return copy;
     }
 
-    private static MultiSearchRequest createMultiSearchRequest() throws IOException {
+    private static MultiSearchRequest createMultiSearchRequest() {
         int numSearchRequest = randomIntBetween(1, 128);
         MultiSearchRequest request = new MultiSearchRequest();
         for (int j = 0; j < numSearchRequest; j++) {
@@ -288,7 +321,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return request;
     }
 
-    private static SearchRequest createSimpleSearchRequest() throws IOException {
+    private static SearchRequest createSimpleSearchRequest() {
         return randomSearchRequest(() -> {
             // No need to return a very complex SearchSourceBuilder here, that is tested elsewhere
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();

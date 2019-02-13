@@ -1,0 +1,34 @@
+
+--
+:api: delete-expired-data
+:request: DeleteExpiredRequest
+:response: DeleteExpiredResponse
+--
+[id="{upid}-{api}"]
+=== Delete Expired Data API
+Delete expired {ml} data.
+The API accepts a +{request}+ and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Delete Expired Data Request
+
+A `DeleteExpiredDataRequest` object does not require any arguments.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new request.
+
+[id="{upid}-{api}-response"]
+==== Delete Expired Data Response
+
+The returned +{response}+ object indicates the acknowledgement of the request:
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+---------------------------------------------------
+<1> `getDeleted` acknowledges the deletion request.
+
+include::../execution.asciidoc[]

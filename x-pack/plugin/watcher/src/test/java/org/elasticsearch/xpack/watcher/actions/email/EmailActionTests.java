@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
@@ -44,14 +45,14 @@ import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAt
 import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpRequestAttachment;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -128,7 +129,8 @@ public class EmailActionTests extends ESTestCase {
 
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        JodaCompatibleZonedDateTime jodaJavaNow = new JodaCompatibleZonedDateTime(now.toInstant(), ZoneOffset.UTC);
 
         Wid wid = new Wid("watch1", now);
         WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
@@ -139,14 +141,14 @@ public class EmailActionTests extends ESTestCase {
                 .buildMock();
 
         Map<String, Object> triggerModel = new HashMap<>();
-        triggerModel.put("triggered_time", now);
-        triggerModel.put("scheduled_time", now);
+        triggerModel.put("triggered_time", jodaJavaNow);
+        triggerModel.put("scheduled_time", jodaJavaNow);
         Map<String, Object> ctxModel = new HashMap<>();
         ctxModel.put("id", ctx.id().value());
         ctxModel.put("watch_id", "watch1");
         ctxModel.put("payload", data);
         ctxModel.put("metadata", metadata);
-        ctxModel.put("execution_time", now);
+        ctxModel.put("execution_time", jodaJavaNow);
         ctxModel.put("trigger", triggerModel);
         ctxModel.put("vars", emptyMap());
         Map<String, Object> expectedModel = singletonMap("ctx", ctxModel);
@@ -532,7 +534,7 @@ public class EmailActionTests extends ESTestCase {
         ExecutableEmailAction executableEmailAction = new EmailActionFactory(Settings.EMPTY, emailService, engine, emailAttachmentsParser)
                 .parseExecutable(randomAlphaOfLength(3), randomAlphaOfLength(7), parser);
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid(randomAlphaOfLength(5), now);
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
         WatchExecutionContext ctx = mockExecutionContextBuilder("watch1")
@@ -558,7 +560,7 @@ public class EmailActionTests extends ESTestCase {
     }
 
     private WatchExecutionContext createWatchExecutionContext() {
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid(randomAlphaOfLength(5), now);
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
         return mockExecutionContextBuilder("watch1")

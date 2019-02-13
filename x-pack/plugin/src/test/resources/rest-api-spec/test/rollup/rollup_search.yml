@@ -6,14 +6,13 @@ setup:
         index: foo
         body:
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                partition:
-                  type: keyword
-                price:
-                  type: integer
+            properties:
+              timestamp:
+                type: date
+              partition:
+                type: keyword
+              price:
+                type: integer
 
   - do:
       headers:
@@ -51,7 +50,6 @@ setup:
         body:
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T05:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -67,7 +65,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T06:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -83,7 +80,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T07:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -99,7 +95,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -115,7 +110,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -185,6 +179,7 @@ setup:
 
   - do:
       xpack.rollup.rollup_search:
+        rest_total_hits_as_int: true
         index: "foo_rollup"
         body:
           size: 0
@@ -193,6 +188,22 @@ setup:
   - length: { hits.hits: 0 }
   - match: { hits.total: 0 }
   - is_false: aggregations
+
+---
+"Empty aggregation with new response format":
+
+  - do:
+      xpack.rollup.rollup_search:
+        index: "foo_rollup"
+        body:
+          size: 0
+          aggs: {}
+
+  - length: { hits.hits: 0 }
+  - match: { hits.total.value:    0 }
+  - match: { hits.total.relation: eq }
+  - is_false: aggregations
+
 
 
 ---
@@ -302,7 +313,6 @@ setup:
         body:
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T05:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -318,7 +328,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T06:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -334,7 +343,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T07:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -350,7 +358,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -366,7 +373,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -450,7 +456,6 @@ setup:
         body:
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T05:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -466,7 +471,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T06:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -482,7 +486,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T07:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -498,7 +501,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -514,7 +516,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -600,7 +601,6 @@ setup:
         body:
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T05:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -616,7 +616,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T06:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -632,7 +631,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T07:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -648,7 +646,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -664,7 +661,6 @@ setup:
 
           - index:
               _index: "foo_rollup"
-              _type: "_doc"
           - timestamp.date_histogram.timestamp: "2017-01-01T08:00:00Z"
             timestamp.date_histogram.interval: "1h"
             timestamp.date_histogram.time_zone: "UTC"
@@ -743,14 +739,13 @@ setup:
         index: bar
         body:
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                partition:
-                  type: keyword
-                price:
-                  type: integer
+            properties:
+              timestamp:
+                type: date
+              partition:
+                type: keyword
+              price:
+                type: integer
 
   - do:
       headers:
@@ -832,14 +827,13 @@ setup:
         index: bar
         body:
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                partition:
-                  type: keyword
-                price:
-                  type: integer
+            properties:
+              timestamp:
+                type: date
+              partition:
+                type: keyword
+              price:
+                type: integer
 
   - do:
       headers:
@@ -887,3 +881,36 @@ setup:
                  interval: "1h"
                  time_zone: "UTC"
 
+
+---
+"Search with typed_keys":
+
+  - do:
+      xpack.rollup.rollup_search:
+        index: "foo_rollup"
+        typed_keys: true
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "1h"
+                time_zone: "UTC"
+              aggs:
+                the_max:
+                  max:
+                    field: "price"
+
+  - match: { aggregations.date_histogram#histo.buckets.0.key_as_string: "2017-01-01T05:00:00.000Z" }
+  - match: { aggregations.date_histogram#histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.date_histogram#histo.buckets.0.max#the_max.value: 1 }
+  - match: { aggregations.date_histogram#histo.buckets.1.key_as_string: "2017-01-01T06:00:00.000Z" }
+  - match: { aggregations.date_histogram#histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.date_histogram#histo.buckets.1.max#the_max.value: 2 }
+  - match: { aggregations.date_histogram#histo.buckets.2.key_as_string: "2017-01-01T07:00:00.000Z" }
+  - match: { aggregations.date_histogram#histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.date_histogram#histo.buckets.2.max#the_max.value: 3 }
+  - match: { aggregations.date_histogram#histo.buckets.3.key_as_string: "2017-01-01T08:00:00.000Z" }
+  - match: { aggregations.date_histogram#histo.buckets.3.doc_count: 20 }
+  - match: { aggregations.date_histogram#histo.buckets.3.max#the_max.value: 4 }

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -51,7 +52,7 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             indexRequest.source(calendar.toXContent(builder,
-                    new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"))));
+                    new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"))));
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise calendar with id [" + calendar.getId() + "]", e);
         }

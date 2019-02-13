@@ -170,22 +170,22 @@ public class StringTests extends ScriptTestCase {
         ClassCastException expected = expectScriptThrows(ClassCastException.class, false, () -> {
             assertEquals("cc", exec("return (String)(char)\"cc\""));
         });
-        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
+        assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
         expected = expectScriptThrows(ClassCastException.class, false, () -> {
             assertEquals("cc", exec("return (String)(char)'cc'"));
         });
-        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
+        assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
         expected = expectScriptThrows(ClassCastException.class, () -> {
             assertEquals('c', exec("String s = \"cc\"; (char)s"));
         });
-        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
+        assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
         expected = expectScriptThrows(ClassCastException.class, () -> {
             assertEquals('c', exec("String s = 'cc'; (char)s"));
         });
-        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
+        assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
     }
 
     public void testDefConcat() {

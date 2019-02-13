@@ -152,7 +152,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
         // Checks that the HTTP exporter has successfully exported some data
         assertBusy(() -> {
             try {
-                assertThat(client().prepareSearch(MONITORING_PATTERN).setSize(0).get().getHits().getTotalHits(), greaterThan(0L));
+                assertThat(client().prepareSearch(MONITORING_PATTERN).setSize(0).get().getHits().getTotalHits().value, greaterThan(0L));
             } catch (Exception e) {
                 fail("exception when checking for monitoring documents: " + e.getMessage());
             }

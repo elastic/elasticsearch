@@ -75,6 +75,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32190")
     public void testRoundRobinWithFailures() throws Exception {
         assumeTrue("at least one ldap server should be present for this test", ldapServers.length > 1);
         logger.debug("using [{}] ldap servers, urls {}", ldapServers.length, ldapUrls());
@@ -240,7 +241,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).put(settings).build();
         RealmConfig config = new RealmConfig(REALM_IDENTIFIER, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
-        return new TestSessionFactory(config, new SSLService(Settings.EMPTY, TestEnvironment.newEnvironment(config.globalSettings())),
+        return new TestSessionFactory(config, new SSLService(Settings.EMPTY, TestEnvironment.newEnvironment(config.settings())),
                 threadPool);
     }
 

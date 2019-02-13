@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,7 +38,9 @@ import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappi
  * <p>
  * This class is NOT thread safe.
  */
-public class JobRenormalizedResultsPersister extends AbstractComponent {
+public class JobRenormalizedResultsPersister {
+
+    private static final Logger logger = LogManager.getLogger(JobRenormalizedResultsPersister.class);
 
     /**
      * Execute bulk requests when they reach this size

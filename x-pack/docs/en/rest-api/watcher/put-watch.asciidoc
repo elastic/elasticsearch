@@ -1,6 +1,9 @@
 [role="xpack"]
 [[watcher-api-put-watch]]
-=== Put Watch API
+=== Put watch API
+++++
+<titleabbrev>Put watch</titleabbrev>
+++++
 
 The PUT watch API either registers a new watch in {watcher} or update an
 existing one.
@@ -8,7 +11,7 @@ existing one.
 [float]
 ==== Request
 
-`PUT _xpack/watcher/watch/<watch_id>`
+`PUT _watcher/watch/<watch_id>`
 
 [float]
 ==== Description
@@ -20,8 +23,8 @@ trigger engine.
 
 IMPORTANT:  Putting a watch must be done via this API only. Do not put a watch
             directly to the `.watches` index using the Elasticsearch Index API.
-            If {security} is enabled, make sure no `write` privileges are
-            granted to anyone over the `.watches` index.
+            If {es} {security-features} are enabled, make sure no `write`
+            privileges are granted to anyone over the `.watches` index.
 
 When adding a watch you can also define its initial
 {xpack-ref}/how-watcher-works.html#watch-active-state[active state]. You do that
@@ -77,9 +80,9 @@ information, see {xpack-ref}/security-privileges.html[Security Privileges].
 [float]
 ==== Security Integration
 
-When {security} is enabled, your watch will only be able to index or search on
-indices for which the user that stored the watch, has privileges. If the user is
-able to read index `a`, but not index `b`, the same will apply, when the watch
+When {es} {security-features} are enabled, your watch can index or search only
+on indices for which the user that stored the watch has privileges. If the user
+is able to read index `a`, but not index `b`, the same will apply, when the watch
 is executed.
 
 [float]
@@ -96,7 +99,7 @@ characteristics:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/my-watch
+PUT _watcher/watch/my-watch
 {
   "trigger" : {
     "schedule" : { "cron" : "0 0/1 * * * ?" }
@@ -151,7 +154,7 @@ it to be inactive by default:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/watcher/watch/my-watch?active=false
+PUT _watcher/watch/my-watch?active=false
 --------------------------------------------------
 
 NOTE: If you omit the `active` parameter, the watch is active by default.

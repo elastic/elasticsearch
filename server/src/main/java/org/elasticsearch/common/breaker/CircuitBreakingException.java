@@ -40,7 +40,7 @@ public class CircuitBreakingException extends ElasticsearchException {
         super(in);
         byteLimit = in.readLong();
         bytesWanted = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             durability = in.readEnum(CircuitBreaker.Durability.class);
         } else {
             durability = CircuitBreaker.Durability.PERMANENT;
@@ -63,7 +63,7 @@ public class CircuitBreakingException extends ElasticsearchException {
         super.writeTo(out);
         out.writeLong(byteLimit);
         out.writeLong(bytesWanted);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeEnum(durability);
         }
     }

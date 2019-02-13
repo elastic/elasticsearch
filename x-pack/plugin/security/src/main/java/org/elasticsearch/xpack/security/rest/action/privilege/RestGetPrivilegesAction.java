@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,16 +38,25 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetPrivilegesAction.class));
+
     public RestGetPrivilegesAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(GET, "/_xpack/security/privilege/", this);
-        controller.registerHandler(GET, "/_xpack/security/privilege/{application}", this);
-        controller.registerHandler(GET, "/_xpack/security/privilege/{application}/{privilege}", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/privilege/", this,
+            GET, "/_xpack/security/privilege/", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/privilege/{application}", this,
+            GET, "/_xpack/security/privilege/{application}", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            GET, "/_security/privilege/{application}/{privilege}", this,
+            GET, "/_xpack/security/privilege/{application}/{privilege}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_get_privileges_action";
+        return "security_get_privileges_action";
     }
 
     @Override

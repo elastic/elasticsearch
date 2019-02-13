@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.MinDocQuery;
@@ -73,6 +75,7 @@ import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDo
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
  */
 public class QueryPhase implements SearchPhase {
+    private static final Logger LOGGER = LogManager.getLogger(QueryPhase.class);
 
     private final AggregationPhase aggregationPhase;
     private final SuggestPhase suggestPhase;
@@ -99,6 +102,11 @@ public class QueryPhase implements SearchPhase {
                     new DocValueFormat[0]);
             return;
         }
+
+        if (LOGGER.isTraceEnabled()) {
+            LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
+        }
+
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
@@ -158,7 +166,6 @@ public class QueryPhase implements SearchPhase {
                         }
                         // ... and stop collecting after ${size} matches
                         searchContext.terminateAfter(searchContext.size());
-                        searchContext.trackTotalHits(false);
                     } else if (canEarlyTerminate(reader, searchContext.sort())) {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
@@ -169,7 +176,6 @@ public class QueryPhase implements SearchPhase {
                                 .build();
                             query = bq;
                         }
-                        searchContext.trackTotalHits(false);
                     }
                 }
             }

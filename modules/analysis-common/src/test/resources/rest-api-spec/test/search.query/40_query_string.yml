@@ -5,17 +5,15 @@
           index:  test
           body:
             mappings:
-              test:
-                properties:
-                  field:
-                    type: text
-                  number:
-                    type: integer
+              properties:
+                field:
+                  type: text
+                number:
+                  type: integer
 
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { field: foo bar}
 
@@ -33,6 +31,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test
         q: field:bars
         analyzer: snowball
@@ -42,7 +41,6 @@
   - do:
       explain:
         index:  test
-        type:   test
         id:     1
         q: field:bars
         analyzer: snowball

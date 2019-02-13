@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.security.rest.action.saml;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,6 +37,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements RestHandler {
 
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(RestSamlAuthenticateAction.class));
     static class Input {
         String content;
         List<String> ids;
@@ -58,12 +62,15 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
     public RestSamlAuthenticateAction(Settings settings, RestController controller,
                                       XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(POST, "/_xpack/security/saml/authenticate", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            POST, "/_security/saml/authenticate", this,
+            POST, "/_xpack/security/saml/authenticate", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_security_saml_authenticate_action";
+        return "security_saml_authenticate_action";
     }
 
     @Override

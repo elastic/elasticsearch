@@ -50,6 +50,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.TopHits;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -67,19 +68,21 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             result = testCase(query, topHits("_name"));
         }
         SearchHits searchHits = ((TopHits) result).getHits();
-        assertEquals(3L, searchHits.getTotalHits());
+        assertEquals(3L, searchHits.getTotalHits().value);
         assertEquals("3", searchHits.getAt(0).getId());
         assertEquals("type", searchHits.getAt(0).getType());
         assertEquals("2", searchHits.getAt(1).getId());
         assertEquals("type", searchHits.getAt(1).getType());
         assertEquals("1", searchHits.getAt(2).getId());
         assertEquals("type", searchHits.getAt(2).getType());
+        assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits)result)));
     }
 
     public void testNoResults() throws Exception {
         TopHits result = (TopHits) testCase(new MatchNoDocsQuery(), topHits("_name").sort("string", SortOrder.DESC));
         SearchHits searchHits = ((TopHits) result).getHits();
-        assertEquals(0L, searchHits.getTotalHits());
+        assertEquals(0L, searchHits.getTotalHits().value);
+        assertFalse(AggregationInspectionHelper.hasValue(((InternalTopHits)result)));
     }
 
     /**
@@ -103,25 +106,29 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         // The "a" bucket
         TopHits hits = (TopHits) terms.getBucketByKey("a").getAggregations().get("top");
         SearchHits searchHits = (hits).getHits();
-        assertEquals(2L, searchHits.getTotalHits());
+        assertEquals(2L, searchHits.getTotalHits().value);
         assertEquals("2", searchHits.getAt(0).getId());
         assertEquals("1", searchHits.getAt(1).getId());
+        assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("a").getAggregations().get("top"))));
 
         // The "b" bucket
         searchHits = ((TopHits) terms.getBucketByKey("b").getAggregations().get("top")).getHits();
-        assertEquals(2L, searchHits.getTotalHits());
+        assertEquals(2L, searchHits.getTotalHits().value);
         assertEquals("3", searchHits.getAt(0).getId());
         assertEquals("1", searchHits.getAt(1).getId());
+        assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("b").getAggregations().get("top"))));
 
         // The "c" bucket
         searchHits = ((TopHits) terms.getBucketByKey("c").getAggregations().get("top")).getHits();
-        assertEquals(1L, searchHits.getTotalHits());
+        assertEquals(1L, searchHits.getTotalHits().value);
         assertEquals("2", searchHits.getAt(0).getId());
+        assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("c").getAggregations().get("top"))));
 
         // The "d" bucket
         searchHits = ((TopHits) terms.getBucketByKey("d").getAggregations().get("top")).getHits();
-        assertEquals(1L, searchHits.getTotalHits());
+        assertEquals(1L, searchHits.getTotalHits().value);
         assertEquals("3", searchHits.getAt(0).getId());
+        assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("d").getAggregations().get("top"))));
     }
 
     private static final MappedFieldType STRING_FIELD_TYPE = new KeywordFieldMapper.KeywordFieldType();
@@ -196,7 +203,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                 .build();
         AggregationBuilder agg = AggregationBuilders.topHits("top_hits");
         TopHits result = searchAndReduce(searcher, query, agg, STRING_FIELD_TYPE);
-        assertEquals(3, result.getHits().totalHits);
+        assertEquals(3, result.getHits().getTotalHits().value);
         reader.close();
         directory.close();
     }

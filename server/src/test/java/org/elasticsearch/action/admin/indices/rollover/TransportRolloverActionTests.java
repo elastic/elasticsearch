@@ -165,7 +165,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 assertEquals(sourceAlias, ((AliasAction.Remove) action).getAlias());
                 foundRemove = true;
             } else {
-                throw new AssertionError("Unknow index [" + action.getIndex() + "]");
+                throw new AssertionError("Unknown index [" + action.getIndex() + "]");
             }
         }
         assertTrue(foundAdd);
@@ -195,7 +195,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 assertFalse(addAction.writeIndex());
                 foundRemoveWrite = true;
             } else {
-                throw new AssertionError("Unknow index [" + action.getIndex() + "]");
+                throw new AssertionError("Unknown index [" + action.getIndex() + "]");
             }
         }
         assertTrue(foundAddWrite);

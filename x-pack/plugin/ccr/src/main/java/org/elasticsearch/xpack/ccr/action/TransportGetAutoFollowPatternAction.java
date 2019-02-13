@@ -72,7 +72,11 @@ public class TransportGetAutoFollowPatternAction
     static Map<String, AutoFollowPattern> getAutoFollowPattern(MetaData metaData, String name) {
         AutoFollowMetadata autoFollowMetadata = metaData.custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
-            throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", name);
+            if (name == null) {
+                return Collections.emptyMap();
+            } else {
+                throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", name);
+            }
         }
 
         if (name == null) {

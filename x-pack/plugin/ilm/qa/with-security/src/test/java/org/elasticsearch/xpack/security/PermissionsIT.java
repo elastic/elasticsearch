@@ -111,12 +111,19 @@ public class PermissionsIT extends ESRestTestCase {
                 Map<String, Object> indexExplain = (Map<String, Object>) ((Map<String, Object>) mapResponse.get("indices")).get("not-ilm");
                 assertThat(indexExplain.get("managed"), equalTo(true));
                 assertThat(indexExplain.get("step"), equalTo("ERROR"));
-                assertThat(indexExplain.get("failed_step"), equalTo("delete"));
+                assertThat(indexExplain.get("failed_step"), equalTo("wait-for-shard-history-leases"));
                 Map<String, String> stepInfo = (Map<String, String>) indexExplain.get("step_info");
                 assertThat(stepInfo.get("type"), equalTo("security_exception"));
-                assertThat(stepInfo.get("reason"), equalTo("action [indices:admin/delete] is unauthorized for user [test_ilm]"));
+                assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized for user [test_ilm]"));
             }
         });
+    }
+
+    public void testCanViewExplainOnUnmanagedIndex() throws Exception {
+        createIndexAsAdmin("view-only-ilm", indexSettingsWithPolicy, "");
+        Request request = new Request("GET", "/view-only-ilm/_ilm/explain");
+        // test_ilm user has permissions to view
+        assertOK(client().performRequest(request));
     }
 
     private void createNewSingletonPolicy(String policy, String phaseName, LifecycleAction action) throws IOException {

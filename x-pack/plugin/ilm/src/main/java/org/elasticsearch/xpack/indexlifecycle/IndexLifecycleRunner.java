@@ -11,6 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
@@ -42,21 +44,28 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 public class IndexLifecycleRunner {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);
+    private static final ToXContent.Params STACKTRACE_PARAMS =
+        new ToXContent.MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
+    private final ThreadPool threadPool;
     private PolicyStepsRegistry stepRegistry;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
 
-    public IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ClusterService clusterService, LongSupplier nowSupplier) {
+    public IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ClusterService clusterService,
+                                ThreadPool threadPool, LongSupplier nowSupplier) {
         this.stepRegistry = stepRegistry;
         this.clusterService = clusterService;
         this.nowSupplier = nowSupplier;
+        this.threadPool = threadPool;
     }
 
     /**
@@ -164,7 +173,8 @@ public class IndexLifecycleRunner {
         }
         if (currentStep instanceof AsyncActionStep) {
             logger.debug("[{}] running policy with async action step [{}]", index, currentStep.getKey());
-            ((AsyncActionStep) currentStep).performAction(indexMetaData, currentState, new AsyncActionStep.Listener() {
+            ((AsyncActionStep) currentStep).performAction(indexMetaData, currentState,
+                new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext()), new AsyncActionStep.Listener() {
 
                 @Override
                 public void onResponse(boolean complete) {
@@ -271,11 +281,13 @@ public class IndexLifecycleRunner {
      * @param nextStepKey    The next step to move the index into
      * @param nowSupplier    The current-time supplier for updating when steps changed
      * @param stepRegistry   The steps registry to check a step-key's existence in the index's current policy
+     * @param forcePhaseDefinitionRefresh When true, step information will be recompiled from the latest version of the
+     *                                    policy. Otherwise, existing phase definition is used.
      * @return The updated cluster state where the index moved to <code>nextStepKey</code>
      */
     static ClusterState moveClusterStateToStep(String indexName, ClusterState currentState, StepKey currentStepKey,
                                                StepKey nextStepKey, LongSupplier nowSupplier,
-                                               PolicyStepsRegistry stepRegistry) {
+                                               PolicyStepsRegistry stepRegistry, boolean forcePhaseDefinitionRefresh) {
         IndexMetaData idxMeta = currentState.getMetaData().index(indexName);
         Settings indexSettings = idxMeta.getSettings();
         String indexPolicySetting = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
@@ -295,18 +307,19 @@ public class IndexLifecycleRunner {
                 "] with policy [" + indexPolicySetting + "] does not exist");
         }
 
-        return IndexLifecycleRunner.moveClusterStateToNextStep(idxMeta.getIndex(), currentState, currentStepKey, nextStepKey, nowSupplier);
+        return IndexLifecycleRunner.moveClusterStateToNextStep(idxMeta.getIndex(), currentState, currentStepKey,
+            nextStepKey, nowSupplier, forcePhaseDefinitionRefresh);
     }
 
     static ClusterState moveClusterStateToNextStep(Index index, ClusterState clusterState, StepKey currentStep, StepKey nextStep,
-                                                   LongSupplier nowSupplier) {
+                                                   LongSupplier nowSupplier, boolean forcePhaseDefinitionRefresh) {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
         IndexLifecycleMetadata ilmMeta = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()
             .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         LifecycleExecutionState newLifecycleState = moveExecutionStateToNextStep(policyMetadata,
-            lifecycleState, currentStep, nextStep, nowSupplier);
+            lifecycleState, currentStep, nextStep, nowSupplier, forcePhaseDefinitionRefresh);
         ClusterState.Builder newClusterStateBuilder = newClusterStateWithLifecycleState(index, clusterState, newLifecycleState);
 
         return newClusterStateBuilder.build();
@@ -320,11 +333,11 @@ public class IndexLifecycleRunner {
             .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings()));
         XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
         causeXContentBuilder.startObject();
-        ElasticsearchException.generateThrowableXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause);
+        ElasticsearchException.generateThrowableXContent(causeXContentBuilder, STACKTRACE_PARAMS, cause);
         causeXContentBuilder.endObject();
         LifecycleExecutionState nextStepState = moveExecutionStateToNextStep(policyMetadata,
             LifecycleExecutionState.fromIndexMetadata(idxMeta), currentStep, new StepKey(currentStep.getPhase(),
-                currentStep.getAction(), ErrorStep.NAME), nowSupplier);
+                currentStep.getAction(), ErrorStep.NAME), nowSupplier, false);
         LifecycleExecutionState.Builder failedState = LifecycleExecutionState.builder(nextStepState);
         failedState.setFailedStep(currentStep.getName());
         failedState.setStepInfo(BytesReference.bytes(causeXContentBuilder).utf8ToString());
@@ -343,9 +356,9 @@ public class IndexLifecycleRunner {
             StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
             String failedStep = lifecycleState.getFailedStep();
             if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName())
-                && Strings.isNullOrEmpty(failedStep) == false) {
+                    && Strings.isNullOrEmpty(failedStep) == false) {
                 StepKey nextStepKey = new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
-                newState = moveClusterStateToStep(index, currentState, currentStepKey, nextStepKey, nowSupplier, stepRegistry);
+                newState = moveClusterStateToStep(index, currentState, currentStepKey, nextStepKey, nowSupplier, stepRegistry, true);
             } else {
                 throw new IllegalArgumentException("cannot retry an action for an index ["
                     + index + "] that has not encountered an error when running a Lifecycle Policy");
@@ -357,7 +370,8 @@ public class IndexLifecycleRunner {
     private static LifecycleExecutionState moveExecutionStateToNextStep(LifecyclePolicyMetadata policyMetadata,
                                                                         LifecycleExecutionState existingState,
                                                                         StepKey currentStep, StepKey nextStep,
-                                                                        LongSupplier nowSupplier) {
+                                                                        LongSupplier nowSupplier,
+                                                                        boolean forcePhaseDefinitionRefresh) {
         long nowAsMillis = nowSupplier.getAsLong();
         LifecycleExecutionState.Builder updatedState = LifecycleExecutionState.builder(existingState);
         updatedState.setPhase(nextStep.getPhase());
@@ -369,7 +383,7 @@ public class IndexLifecycleRunner {
         updatedState.setFailedStep(null);
         updatedState.setStepInfo(null);
 
-        if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
+        if (currentStep.getPhase().equals(nextStep.getPhase()) == false || forcePhaseDefinitionRefresh) {
             final String newPhaseDefinition;
             final Phase nextPhase;
             if ("new".equals(nextStep.getPhase()) || TerminalPolicyStep.KEY.equals(nextStep)) {
@@ -492,6 +506,7 @@ public class IndexLifecycleRunner {
         boolean notChanged = true;
 
         notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
+        notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.getKey()));
         notChanged &= Strings.isNullOrEmpty(newSettings.remove(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey()));
         long newSettingsVersion = notChanged ? indexMetadata.getSettingsVersion() : 1 + indexMetadata.getSettingsVersion();
 

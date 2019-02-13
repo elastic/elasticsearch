@@ -20,19 +20,18 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.JoinHelper;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
-import org.elasticsearch.discovery.zen.UnicastZenPing;
-import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
-import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -40,10 +39,8 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
@@ -58,88 +55,13 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
-    public void testIsolatedUnicastNodes() throws Exception {
-        internalCluster().setHostsListContainsOnlyFirstNode(true);
-        List<String> nodes = startCluster(4);
-        // Figure out what is the elected master node
-        final String unicastTarget = nodes.get(0);
-
-        Set<String> unicastTargetSide = new HashSet<>();
-        unicastTargetSide.add(unicastTarget);
-
-        Set<String> restOfClusterSide = new HashSet<>();
-        restOfClusterSide.addAll(nodes);
-        restOfClusterSide.remove(unicastTarget);
-
-        // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
-        // includes all the other nodes that have pinged it and the issue doesn't manifest
-        ZenPing zenPing = ((TestZenDiscovery) internalCluster().getInstance(Discovery.class)).getZenPing();
-        if (zenPing instanceof UnicastZenPing) {
-            ((UnicastZenPing) zenPing).clearTemporalResponses();
-        }
-
-        // Simulate a network issue between the unicast target node and the rest of the cluster
-        NetworkDisruption networkDisconnect = new NetworkDisruption(new TwoPartitions(unicastTargetSide, restOfClusterSide),
-                new NetworkDisconnect());
-        setDisruptionScheme(networkDisconnect);
-        networkDisconnect.startDisrupting();
-        // Wait until elected master has removed that the unlucky node...
-        ensureStableCluster(3, nodes.get(1));
-
-        // The isolate master node must report no master, so it starts with pinging
-        assertNoMaster(unicastTarget);
-        networkDisconnect.stopDisrupting();
-        // Wait until the master node sees all 3 nodes again.
-        ensureStableCluster(4);
-    }
-
-    /**
-     * A 4 node cluster with m_m_n set to 3 and each node has one unicast endpoint. One node partitions from the master node.
-     * The temporal unicast responses is empty. When partition is solved the one ping response contains a master node.
-     * The rejoining node should take this master node and connect.
-     */
-    public void testUnicastSinglePingResponseContainsMaster() throws Exception {
-        internalCluster().setHostsListContainsOnlyFirstNode(true);
-        List<String> nodes = startCluster(4);
-        // Figure out what is the elected master node
-        final String masterNode = internalCluster().getMasterName();
-        logger.info("---> legit elected master node={}", masterNode);
-        List<String> otherNodes = new ArrayList<>(nodes);
-        otherNodes.remove(masterNode);
-        otherNodes.remove(nodes.get(0)); // <-- Don't isolate the node that is in the unicast endpoint for all the other nodes.
-        final String isolatedNode = otherNodes.get(0);
-
-        // Forcefully clean temporal response lists on all nodes. Otherwise the node in the unicast host list
-        // includes all the other nodes that have pinged it and the issue doesn't manifest
-        ZenPing zenPing = ((TestZenDiscovery) internalCluster().getInstance(Discovery.class)).getZenPing();
-        if (zenPing instanceof UnicastZenPing) {
-            ((UnicastZenPing) zenPing).clearTemporalResponses();
-        }
-
-        // Simulate a network issue between the unlucky node and elected master node in both directions.
-        NetworkDisruption networkDisconnect = new NetworkDisruption(new TwoPartitions(masterNode, isolatedNode),
-                new NetworkDisconnect());
-        setDisruptionScheme(networkDisconnect);
-        networkDisconnect.startDisrupting();
-        // Wait until elected master has removed that the unlucky node...
-        ensureStableCluster(3, masterNode);
-
-        // The isolate master node must report no master, so it starts with pinging
-        assertNoMaster(isolatedNode);
-        networkDisconnect.stopDisrupting();
-        // Wait until the master node sees all 4 nodes again.
-        ensureStableCluster(4);
-        // The elected master shouldn't have changed, since the isolated node never could have elected himself as
-        // master since m_m_n of 3 could never be satisfied.
-        assertMaster(masterNode, nodes);
-    }
-
     /**
      * Test cluster join with issues in cluster state publishing *
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37685")
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
-        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
-        String nonMasterNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
+        String masterNode = internalCluster().startMasterOnlyNode();
+        String nonMasterNode = internalCluster().startDataOnlyNode();
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
@@ -159,15 +81,18 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         TransportService localTransportService =
                 internalCluster().getInstance(TransportService.class, discoveryNodes.getLocalNode().getName());
         if (randomBoolean()) {
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME);
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME,
+                PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME);
         } else {
-            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.COMMIT_ACTION_NAME);
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.COMMIT_ACTION_NAME,
+                PublicationTransportHandler.COMMIT_STATE_ACTION_NAME);
         }
 
         logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, masterNode);
         final CountDownLatch countDownLatch = new CountDownLatch(2);
         nonMasterTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
-            if (action.equals(MembershipAction.DISCOVERY_JOIN_ACTION_NAME)) {
+            if (action.equals(MembershipAction.DISCOVERY_JOIN_ACTION_NAME) ||
+                action.equals(JoinHelper.JOIN_ACTION_NAME)) {
                 countDownLatch.countDown();
             }
             connection.sendRequest(requestId, action, request, options);
@@ -188,7 +113,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         internalCluster().stopRandomNonMasterNode();
     }
 
-    public void testClusterFormingWithASlowNode() throws Exception {
+    public void testClusterFormingWithASlowNode() {
 
         SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(random(), 0, 0, 1000, 2000);
 
@@ -203,6 +128,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37539")
     public void testElectMasterWithLatestVersion() throws Exception {
         final Set<String> nodes = new HashSet<>(internalCluster().startNodes(3));
         ensureStableCluster(3);
@@ -219,9 +145,13 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3);
         final String preferredMasterName = internalCluster().getMasterName();
         final DiscoveryNode preferredMaster = internalCluster().clusterService(preferredMasterName).localNode();
-        for (String node : nodes) {
-            DiscoveryNode discoveryNode = internalCluster().clusterService(node).localNode();
-            assertThat(discoveryNode.getId(), greaterThanOrEqualTo(preferredMaster.getId()));
+        final Discovery discovery = internalCluster().getInstance(Discovery.class);
+        // only Zen1 guarantees that node with lowest id is elected
+        if (discovery instanceof ZenDiscovery) {
+            for (String node : nodes) {
+                DiscoveryNode discoveryNode = internalCluster().clusterService(node).localNode();
+                assertThat(discoveryNode.getId(), greaterThanOrEqualTo(preferredMaster.getId()));
+            }
         }
 
         logger.info("--> preferred master is {}", preferredMaster);

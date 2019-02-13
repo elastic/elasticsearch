@@ -175,11 +175,12 @@ public class NativeUsersStore {
                     client.prepareSearch(SECURITY_INDEX_NAME)
                         .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), USER_DOC_TYPE))
                         .setSize(0)
+                        .setTrackTotalHits(true)
                         .request(),
                     new ActionListener<SearchResponse>() {
                         @Override
                         public void onResponse(SearchResponse response) {
-                            listener.onResponse(response.getHits().getTotalHits());
+                            listener.onResponse(response.getHits().getTotalHits().value);
                         }
 
                         @Override
@@ -341,7 +342,9 @@ public class NativeUsersStore {
                     new ActionListener<UpdateResponse>() {
                         @Override
                         public void onResponse(UpdateResponse updateResponse) {
-                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                                || updateResponse.getResult() == DocWriteResponse.Result.NOOP
+                                : "Expected 'UPDATED' or 'NOOP' result [" + updateResponse + "] for request [" + putUserRequest + "]";
                             clearRealmCache(putUserRequest.username(), listener, false);
                         }
 
@@ -576,13 +579,14 @@ public class NativeUsersStore {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareSearch(SECURITY_INDEX_NAME)
+                        .setTrackTotalHits(true)
                         .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE))
                         .setFetchSource(true).request(),
                     new ActionListener<SearchResponse>() {
                         @Override
                         public void onResponse(SearchResponse searchResponse) {
                             Map<String, ReservedUserInfo> userInfos = new HashMap<>();
-                            assert searchResponse.getHits().getTotalHits() <= 10 :
+                            assert searchResponse.getHits().getTotalHits().value <= 10 :
                                 "there are more than 10 reserved users we need to change this to retrieve them all!";
                             for (SearchHit searchHit : searchResponse.getHits().getHits()) {
                                 Map<String, Object> sourceMap = searchHit.getSourceAsMap();

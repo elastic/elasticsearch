@@ -9,13 +9,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.TimeZone;
 import java.util.function.Function;
 
 public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
@@ -31,8 +29,8 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
             this.apply = apply;
         }
 
-        public final String extract(Long millis, String tzId) {
-            return extract(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId)), tzId);
+        public final String extract(ZonedDateTime dateTime) {
+            return apply.apply(dateTime);
         }
 
         public final String extract(ZonedDateTime millis, String tzId) {
@@ -47,8 +45,8 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
 
     private final NameExtractor extractor;
 
-    public NamedDateTimeProcessor(NameExtractor extractor, TimeZone timeZone) {
-        super(timeZone);
+    public NamedDateTimeProcessor(NameExtractor extractor, ZoneId zoneId) {
+        super(zoneId);
         this.extractor = extractor;
     }
 
@@ -73,13 +71,13 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
     }
 
     @Override
-    public Object doProcess(long millis) {
-        return extractor.extract(millis, timeZone().getID());
+    public Object doProcess(ZonedDateTime dateTime) {
+        return extractor.extract(dateTime);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(extractor, timeZone());
+        return Objects.hash(extractor, zoneId());
     }
 
     @Override
@@ -89,7 +87,7 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
         }
         NamedDateTimeProcessor other = (NamedDateTimeProcessor) obj;
         return Objects.equals(extractor, other.extractor)
-                && Objects.equals(timeZone(), other.timeZone());
+                && Objects.equals(zoneId(), other.zoneId());
     }
 
     @Override

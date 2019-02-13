@@ -125,9 +125,6 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         if (randomBoolean()) {
             builder.setFinishedTime(new Date(randomNonNegativeLong()));
         }
-        if (randomBoolean()) {
-            builder.setEstablishedModelMemory(randomNonNegativeLong());
-        }
         builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
         builder.setAnalysisLimits(AnalysisLimitsTests.createRandomized());
 

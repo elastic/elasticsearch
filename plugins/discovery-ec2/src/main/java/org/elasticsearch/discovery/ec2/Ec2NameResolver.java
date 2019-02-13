@@ -20,10 +20,12 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.util.EC2MetadataUtils;
-import org.elasticsearch.core.internal.io.IOUtils;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -51,7 +53,9 @@ import java.nio.charset.StandardCharsets;
  *
  * @author Paul_Loy (keteracel)
  */
-class Ec2NameResolver extends AbstractComponent implements CustomNameResolver {
+class Ec2NameResolver implements CustomNameResolver {
+    
+    private static final Logger logger = LogManager.getLogger(Ec2NameResolver.class);
 
     /**
      * enum that can be added to over time with more meta-data types (such as ipv6 when this is available)

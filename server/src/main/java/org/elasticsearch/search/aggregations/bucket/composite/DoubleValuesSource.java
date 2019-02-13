@@ -103,12 +103,30 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         return compareValues(currentValue, afterValue);
     }
 
+    @Override
+    int hashCode(int slot) {
+        if (missingBucket && bits.get(slot) == false) {
+            return 0;
+        } else {
+            return Double.hashCode(values.get(slot));
+        }
+    }
+
+    @Override
+    int hashCodeCurrent() {
+        if (missingCurrentValue) {
+            return 0;
+        } else {
+            return Double.hashCode(currentValue);
+        }
+    }
+
     private int compareValues(double v1, double v2) {
         return Double.compare(v1, v2) * reverseMul;
     }
 
     @Override
-    void setAfter(Comparable<?> value) {
+    void setAfter(Comparable value) {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value instanceof Number) {
@@ -151,7 +169,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable<?> value, LeafReaderContext context, LeafBucketCollector next) {
+    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) {
         if (value.getClass() != Double.class) {
             throw new IllegalArgumentException("Expected Double, got " + value.getClass());
         }

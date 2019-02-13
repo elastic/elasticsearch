@@ -1,6 +1,6 @@
 {
   "index_patterns": [ ".monitoring-es-${monitoring.template.version}-*" ],
-  "version": 7000001,
+  "version": 7000099,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 0,
@@ -971,6 +971,9 @@
             "follower_mapping_version": {
               "type": "long"
             },
+            "follower_settings_version": {
+              "type": "long"
+            },
             "total_read_time_millis": {
               "type": "long"
             },
@@ -1025,6 +1028,17 @@
             },
             "time_since_last_read_millis": {
               "type": "long"
+            },
+            "fatal_exception": {
+              "type": "object",
+              "properties": {
+                "type" : {
+                  "type": "keyword"
+                },
+                "reason": {
+                  "type": "text"
+                }
+              }
             }
           }
         },
@@ -1045,6 +1059,9 @@
                 "leader_index": {
                   "type": "keyword"
                 },
+                "timestamp": {
+                  "type": "long"
+                },
                 "auto_follow_exception": {
                   "type": "object",
                   "properties": {
@@ -1055,6 +1072,20 @@
                       "type": "text"
                     }
                   }
+                }
+              }
+            },
+            "auto_followed_clusters": {
+              "type": "nested",
+              "properties": {
+                "cluster_name": {
+                  "type": "keyword"
+                },
+                "time_since_last_check_millis": {
+                  "type": "long"
+                },
+                "last_seen_metadata_version": {
+                  "type": "long"
                 }
               }
             }

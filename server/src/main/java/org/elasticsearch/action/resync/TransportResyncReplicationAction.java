@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -100,6 +101,18 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             final long pre60NodeCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
             listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint));
         }
+    }
+
+    @Override
+    protected ClusterBlockLevel globalBlockLevel() {
+        // resync should never be blocked because it's an internal action
+        return null;
+    }
+
+    @Override
+    protected ClusterBlockLevel indexBlockLevel() {
+        // resync should never be blocked because it's an internal action
+        return null;
     }
 
     @Override

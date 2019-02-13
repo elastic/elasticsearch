@@ -5,29 +5,32 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.ioException;
 
-public class HistoryStore extends AbstractComponent {
+public class HistoryStore {
 
     public static final String DOC_TYPE = "doc";
+
+    private static final Logger logger = LogManager.getLogger(HistoryStore.class);
 
     private final BulkProcessor bulkProcessor;
 
@@ -77,7 +80,7 @@ public class HistoryStore extends AbstractComponent {
      * @return true, if history store is ready to be started
      */
     public static boolean validate(ClusterState state) {
-        String currentIndex = HistoryStoreField.getHistoryIndexNameForTime(DateTime.now(DateTimeZone.UTC));
+        String currentIndex = HistoryStoreField.getHistoryIndexNameForTime(ZonedDateTime.now(ZoneOffset.UTC));
         IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(currentIndex, state.metaData());
         return indexMetaData == null || (indexMetaData.getState() == IndexMetaData.State.OPEN &&
             state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive());

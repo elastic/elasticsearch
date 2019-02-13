@@ -1,0 +1,35 @@
+--
+:api: ccr-pause-follow
+:request: PauseFollowRequest
+:response: AcknowledgedResponse
+--
+
+[id="{upid}-{api}"]
+=== Pause Follow API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Pause Follow API allows you to pause following by follow index name.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of follow index.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the pause follow request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the pause follow was acknowledge.
+
+include::../execution.asciidoc[]
+
+

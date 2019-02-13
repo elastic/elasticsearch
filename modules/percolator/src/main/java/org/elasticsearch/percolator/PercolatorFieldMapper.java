@@ -409,7 +409,15 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
-        Query query = toQuery(queryShardContext, isMapUnmappedFieldAsText(), queryBuilder);
+
+        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new QueryShardContext(queryShardContext) {
+
+            @Override
+            public boolean convertNowRangeToMatchAll() {
+                return true;
+            }
+        });
+        Query query = toQuery(queryShardContext, isMapUnmappedFieldAsText(), queryBuilderForProcessing);
         processQuery(query, context);
     }
 

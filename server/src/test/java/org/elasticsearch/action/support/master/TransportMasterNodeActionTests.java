@@ -38,8 +38,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -54,8 +56,10 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -86,7 +90,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = transport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+        transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -126,7 +130,34 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
     }
 
-    class Response extends ActionResponse {}
+    class Response extends ActionResponse {
+        private long identity = randomLong();
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return identity == response.identity;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(identity);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeLong(identity);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            identity = in.readLong();
+        }
+    }
 
     class Action extends TransportMasterNodeAction<Request, Response> {
         Action(String actionName, TransportService transportService, ClusterService clusterService,
@@ -176,8 +207,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
-                    throws Exception {
+            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (masterOperationFailure) {
                     listener.onFailure(exception);
                 } else {
@@ -420,7 +450,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
                 Exception failure = randomBoolean()
-                        ? new Discovery.FailedToCommitClusterStateException("Fake error")
+                        ? new FailedToCommitClusterStateException("Fake error")
                         : new NotMasterException("Fake error");
                 listener.onFailure(failure);
             }

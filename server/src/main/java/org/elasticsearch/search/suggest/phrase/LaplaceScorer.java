@@ -29,8 +29,8 @@ final class LaplaceScorer extends WordScorer {
     private double alpha;
 
     LaplaceScorer(IndexReader reader, Terms terms, String field,
-            double realWordLikelyhood, BytesRef separator, double alpha) throws IOException {
-        super(reader, terms, field, realWordLikelyhood, separator);
+            double realWordLikelihood, BytesRef separator, double alpha) throws IOException {
+        super(reader, terms, field, realWordLikelihood, separator);
         this.alpha = alpha;
     }
 

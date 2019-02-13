@@ -19,6 +19,8 @@
 
 package org.elasticsearch.repositories.fs;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -41,11 +43,13 @@ import java.util.function.Function;
  * <dl>
  * <dt>{@code location}</dt><dd>Path to the root of repository. This is mandatory parameter.</dd>
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
- * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
+ * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size.
+ *      Defaults to not chucked.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
 public class FsRepository extends BlobStoreRepository {
+    private static final Logger logger = LogManager.getLogger(FsRepository.class);
 
     public static final String TYPE = "fs";
 

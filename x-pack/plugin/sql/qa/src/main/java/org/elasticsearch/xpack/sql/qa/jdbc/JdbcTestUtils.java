@@ -6,20 +6,28 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.sql.action.CliFormatter;
+import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 
-import java.sql.JDBCType;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
 
 public abstract class JdbcTestUtils {
 
     public static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
+
+    public static final String JDBC_TIMEZONE = "timezone";
+    
+    public static ZoneId UTC = ZoneId.of("Z");
 
     public static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
@@ -111,7 +119,7 @@ public abstract class JdbcTestUtils {
 
         for (int i = 1; i <= columns; i++) {
             cols.add(new ColumnInfo(metaData.getTableName(i), metaData.getColumnName(i), metaData.getColumnTypeName(i),
-                    JDBCType.valueOf(metaData.getColumnType(i)), metaData.getColumnDisplaySize(i)));
+                    metaData.getColumnDisplaySize(i)));
         }
 
 
@@ -120,18 +128,16 @@ public abstract class JdbcTestUtils {
         while (rs.next()) {
             List<Object> entry = new ArrayList<>(columns);
             for (int i = 1; i <= columns; i++) {
-                Object value = rs.getObject(i);
-                // timestamp to string is similar but not ISO8601 - fix it
-                if (value instanceof Timestamp) {
-                    Timestamp ts = (Timestamp) value;
-                    value = ts.toInstant().toString();
-                }
-                entry.add(value);
+                entry.add(rs.getObject(i));
             }
             data.add(entry);
         }
 
-        CliFormatter formatter = new CliFormatter(cols, data);
+        BasicFormatter formatter = new BasicFormatter(cols, data, CLI);
         logger.info("\n" + formatter.formatWithHeader(cols, data));
+    }
+    
+    public static String of(long millis) {
+        return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC));
     }
 }

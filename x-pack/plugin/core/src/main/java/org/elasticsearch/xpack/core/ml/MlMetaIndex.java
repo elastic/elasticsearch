@@ -21,8 +21,6 @@ public final class MlMetaIndex {
      */
     public static final String INDEX_NAME = ".ml-meta";
 
-    public static final String INCLUDE_TYPE_KEY = "include_type";
-
     public static final String TYPE = "doc";
 
     private MlMetaIndex() {}
@@ -31,6 +29,7 @@ public final class MlMetaIndex {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
             builder.startObject(TYPE);
+                ElasticsearchMappings.addMetaInformation(builder);
                 ElasticsearchMappings.addDefaultMapping(builder);
                 builder.startObject(ElasticsearchMappings.PROPERTIES)
                     .startObject(Calendar.ID.getPreferredName())

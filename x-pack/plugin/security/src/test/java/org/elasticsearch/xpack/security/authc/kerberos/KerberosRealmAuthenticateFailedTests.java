@@ -122,7 +122,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
     public void testDelegatedAuthorizationFailedToResolve() throws Exception {
         final String username = randomPrincipalName();
         final MockLookupRealm otherRealm = new MockLookupRealm(new RealmConfig(new RealmConfig.RealmIdentifier("mock", "other_realm"),
-            Settings.EMPTY, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
+            globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings)));
         final User lookupUser = new User(randomAlphaOfLength(5));
         otherRealm.registerUser(lookupUser);
 

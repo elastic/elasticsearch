@@ -213,7 +213,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
             factory.script(mockScript("doc[" + field + "] + 1"));
             break;
         default:
-            throw new AssertionError("Unknow random operation [" + choice + "]");
+            throw new AssertionError("Unknown random operation [" + choice + "]");
         }
     }
 

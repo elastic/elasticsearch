@@ -7,8 +7,12 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
+/**
+ * Performs an action which must be performed asynchronously because it may take time to complete.
+ */
 public abstract class AsyncActionStep extends Step {
 
     private Client client;
@@ -26,7 +30,8 @@ public abstract class AsyncActionStep extends Step {
         return true;
     }
 
-    public abstract void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState, Listener listener);
+    public abstract void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
+                                       ClusterStateObserver observer, Listener listener);
 
     public interface Listener {
 

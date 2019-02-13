@@ -3,7 +3,6 @@
   - do:
       index:
         index:   test
-        type:    test
         id:      1
         body:    {"text": "test"}
   - do:
@@ -18,16 +17,17 @@
   - do:
       get:
         index: test
-        type:  test
         id:    1
   - match: {_version: 2}
 
 ---
 "update_by_query fails to update documents with version number equal to zero":
+  - skip:
+      version: "6.7.0 - "
+      reason: reindex moved to rely on sequence numbers for concurrency control
   - do:
       index:
         index:        index1
-        type:         type1
         id:           1
         version:      0 # Starting version is zero
         version_type: external
@@ -45,6 +45,5 @@
   - do:
       get:
         index: index1
-        type:  type1
         id:    1
   - match: {_version: 0}

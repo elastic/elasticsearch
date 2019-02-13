@@ -17,7 +17,7 @@
   - do:
       headers:
         Authorization: Bearer ${token}
-      xpack.security.authenticate: {}
+      security.authenticate: {}
 
   - match: { username: "token_user" }
   - match: { roles.0:  "superuser" }
@@ -27,6 +27,7 @@
       headers:
         Authorization: Bearer ${token}
       search:
+        rest_total_hits_as_int: true
         index: token_index
 
   - match: { hits.total: 6 }
@@ -35,6 +36,7 @@
   - do:
       headers:
         Authorization: Bearer boom
-      catch: /missing authentication token/
+      catch: /missing authentication credentials/
       search:
+        rest_total_hits_as_int: true
         index: token_index

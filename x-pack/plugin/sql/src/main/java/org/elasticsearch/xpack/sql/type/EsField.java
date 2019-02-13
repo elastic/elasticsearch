@@ -99,7 +99,7 @@ public class EsField {
             return false;
         }
         EsField field = (EsField) o;
-        return aggregatable == field.aggregatable && esDataType == field.esDataType 
+        return aggregatable == field.aggregatable && esDataType == field.esDataType
                 && Objects.equals(name, field.name)
                 && Objects.equals(properties, field.properties);
     }

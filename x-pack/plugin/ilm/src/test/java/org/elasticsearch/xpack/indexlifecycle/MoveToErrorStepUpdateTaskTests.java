@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -86,7 +87,8 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         ElasticsearchException.generateThrowableXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause);
         causeXContentBuilder.endObject();
         String expectedCauseValue = BytesReference.bytes(causeXContentBuilder).utf8ToString();
-        assertThat(lifecycleState.getStepInfo(), equalTo(expectedCauseValue));
+        assertThat(lifecycleState.getStepInfo(),
+            containsString("{\"type\":\"exception\",\"reason\":\"THIS IS AN EXPECTED CAUSE\",\"stack_trace\":\""));
     }
 
     public void testExecuteNoopDifferentStep() throws IOException {

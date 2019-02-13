@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
@@ -52,7 +53,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.aggregations.top_tweeters.buckets" , "doc_count", op,
                         numberOfDocumentsWatchingFor, quantifier, Clock.systemUTC());
 
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         Condition.Result result = condition.execute(ctx);
 
         boolean met = quantifier.eval(Arrays.<Object>asList(numberOfDocuments, numberOfDocuments), numberOfDocumentsWatchingFor, op);
@@ -76,7 +77,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         response = client().prepareSearch(index)
                 .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3)).get();
 
-        ctx = mockExecutionContext("_name", new Payload.XContent(response));
+        ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         result = condition.execute(ctx);
 
         met = quantifier.eval(Arrays.<Object>asList(numberOfDocumentsWatchingFor, numberOfDocuments), numberOfDocumentsWatchingFor, op);

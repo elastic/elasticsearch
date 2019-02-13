@@ -328,14 +328,16 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     public void testIgnoreUnmapped() throws IOException {
-        final GeoDistanceQueryBuilder queryBuilder = new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
+        final GeoDistanceQueryBuilder queryBuilder =
+            new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
         queryBuilder.ignoreUnmapped(true);
         QueryShardContext shardContext = createShardContext();
         Query query = queryBuilder.toQuery(shardContext);
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
-        final GeoDistanceQueryBuilder failingQueryBuilder = new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
+        final GeoDistanceQueryBuilder failingQueryBuilder =
+            new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(shardContext));
         assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));

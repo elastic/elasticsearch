@@ -7,8 +7,6 @@ JAVAMETHOD (?:(<init>)|[a-zA-Z$_][a-zA-Z$_0-9]*)
 JAVASTACKTRACEPART %{SPACE}at %{JAVACLASS:class}\.%{JAVAMETHOD:method}\(%{JAVAFILE:file}(?::%{NUMBER:line})?\)
 # Java Logs
 JAVATHREAD (?:[A-Z]{2}-Processor[\d]+)
-JAVACLASS (?:[a-zA-Z0-9-]+\.)+[A-Za-z0-9$]+
-JAVAFILE (?:[A-Za-z0-9_.-]+)
 JAVASTACKTRACEPART at %{JAVACLASS:class}\.%{WORD:method}\(%{JAVAFILE:file}:%{NUMBER:line}\)
 JAVALOGMESSAGE (.*)
 # MMM dd, yyyy HH:mm:ss eg: Jan 9, 2014 7:13:13 AM

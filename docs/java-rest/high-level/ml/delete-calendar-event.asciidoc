@@ -1,0 +1,36 @@
+--
+:api: delete-calendar-event
+:request: DeleteCalendarEventRequest
+:response: AcknowledgedResponse
+--
+[id="{upid}-{api}"]
+=== Delete Calendar Event API
+Removes a scheduled event from an existing {ml} calendar.
+The API accepts a +{request}+ and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Delete Calendar Event Request
+
+A +{request}+ is constructed referencing a non-null
+calendar ID, and eventId which to remove from the calendar
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The ID of the calendar from which to remove the jobs
+<2> The eventId to remove from the calendar
+
+[id="{upid}-{api}-response"]
+====  Delete Calendar Event Response
+
+The returned +{response}+ acknowledges the success of the request:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Acknowledgement of the request and its success
+
+include::../execution.asciidoc[]

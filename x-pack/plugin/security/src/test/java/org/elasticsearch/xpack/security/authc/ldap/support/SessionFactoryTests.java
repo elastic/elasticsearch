@@ -124,10 +124,11 @@ public class SessionFactoryTests extends ESTestCase {
     private SessionFactory createSessionFactory() {
         Settings global = Settings.builder().put("path.home", createTempDir()).build();
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "_name");
-        final RealmConfig realmConfig = new RealmConfig(realmIdentifier, mergeSettings(
+        final RealmConfig realmConfig = new RealmConfig(realmIdentifier,
                 Settings.builder()
                         .put(getFullSettingKey(realmIdentifier, SessionFactorySettings.URLS_SETTING), "ldap://localhost:389")
-                        .build(), global),
+                        .put(global)
+                        .build(),
                 TestEnvironment.newEnvironment(global), new ThreadContext(Settings.EMPTY));
         return new SessionFactory(realmConfig, null, threadPool) {
 
@@ -136,9 +137,5 @@ public class SessionFactoryTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
-    }
-
-    private Settings mergeSettings(Settings local, Settings global) {
-        return Settings.builder().put(global).put(local).build();
     }
 }

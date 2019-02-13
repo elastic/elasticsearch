@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 abstract class LeafQuery extends Query {
-    LeafQuery(Location location) {
-        super(location);
+    LeafQuery(Source source) {
+        super(source);
     }
 
     @Override
@@ -20,7 +20,7 @@ abstract class LeafQuery extends Query {
     }
 
     @Override
-    public Query addNestedField(String path, String field, boolean hasDocValues) {
+    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
         // No leaf queries are nested
         return this;
     }

@@ -28,9 +28,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.time.JavaDateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -147,7 +146,6 @@ public class IndexNameExpressionResolver {
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[]{MetaData.ALL};
         }
-        Set<String> originalIndexExpression = Sets.newHashSet(indexExpressions);
         MetaData metaData = context.getState().metaData();
         IndicesOptions options = context.getOptions();
         final boolean failClosed = options.forbidClosedIndices() && options.ignoreUnavailable() == false;
@@ -197,7 +195,7 @@ public class IndexNameExpressionResolver {
                         " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
                         " indices without one being designated as a write index");
                 }
-                if (addIndex(writeIndex, context, originalIndexExpression)) {
+                if (addIndex(writeIndex, context)) {
                     concreteIndices.add(writeIndex.getIndex());
                 }
             } else {
@@ -216,12 +214,12 @@ public class IndexNameExpressionResolver {
                         if (failClosed) {
                             throw new IndexClosedException(index.getIndex());
                         } else {
-                            if (options.forbidClosedIndices() == false && addIndex(index, context, originalIndexExpression)) {
+                            if (options.forbidClosedIndices() == false && addIndex(index, context)) {
                                 concreteIndices.add(index.getIndex());
                             }
                         }
                     } else if (index.getState() == IndexMetaData.State.OPEN) {
-                        if (addIndex(index, context, originalIndexExpression)) {
+                        if (addIndex(index, context)) {
                             concreteIndices.add(index.getIndex());
                         }
                     } else {
@@ -239,13 +237,8 @@ public class IndexNameExpressionResolver {
         return concreteIndices.toArray(new Index[concreteIndices.size()]);
     }
 
-    private static boolean addIndex(IndexMetaData metaData, Context context, Set<String> originalIndices) {
-        if (context.options.ignoreThrottled()) {
-            if (originalIndices.contains(metaData.getIndex().getName()) == false) {
-                return IndexSettings.INDEX_SEARCH_THROTTLED.get(metaData.getSettings()) == false;
-            }
-        }
-        return true;
+    private static boolean addIndex(IndexMetaData metaData, Context context) {
+        return (context.options.ignoreThrottled() && IndexSettings.INDEX_SEARCH_THROTTLED.get(metaData.getSettings())) == false;
     }
 
     private static IllegalArgumentException aliasesNotSupportedException(String expression) {
@@ -826,7 +819,7 @@ public class IndexNameExpressionResolver {
 
     static final class DateMathExpressionResolver implements ExpressionResolver {
 
-        private static final DateFormatter DEFAULT_DATE_FORMATTER = DateFormatters.forPattern("uuuu.MM.dd");
+        private static final DateFormatter DEFAULT_DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
         private static final String EXPRESSION_LEFT_BOUND = "<";
         private static final String EXPRESSION_RIGHT_BOUND = ">";
         private static final char LEFT_BOUND = '{';
@@ -919,18 +912,19 @@ public class IndexNameExpressionResolver {
                                     int formatPatternTimeZoneSeparatorIndex = patternAndTZid.indexOf(TIME_ZONE_BOUND);
                                     if (formatPatternTimeZoneSeparatorIndex != -1) {
                                         dateFormatterPattern = patternAndTZid.substring(0, formatPatternTimeZoneSeparatorIndex);
-                                        timeZone = ZoneId.of(patternAndTZid.substring(formatPatternTimeZoneSeparatorIndex + 1));
+                                        timeZone = DateUtils.of(patternAndTZid.substring(formatPatternTimeZoneSeparatorIndex + 1));
                                     } else {
                                         dateFormatterPattern = patternAndTZid;
                                         timeZone = ZoneOffset.UTC;
                                     }
-                                    dateFormatter = DateFormatters.forPattern(dateFormatterPattern);
+                                    dateFormatter = DateFormatter.forPattern(dateFormatterPattern);
                                 }
-                                DateFormatter formatter = dateFormatter.withZone(timeZone);
-                                DateMathParser dateMathParser = new JavaDateMathParser(formatter);
-                                long millis = dateMathParser.parse(mathExpression, context::getStartTime, false, timeZone);
 
-                                String time = formatter.format(Instant.ofEpochMilli(millis));
+                                DateFormatter formatter = dateFormatter.withZone(timeZone);
+                                DateMathParser dateMathParser = formatter.toDateMathParser();
+                                Instant instant = dateMathParser.parse(mathExpression, context::getStartTime, false, timeZone);
+
+                                String time = formatter.format(instant);
                                 beforePlaceHolderSb.append(time);
                                 inPlaceHolderSb = new StringBuilder();
                                 inPlaceHolder = false;

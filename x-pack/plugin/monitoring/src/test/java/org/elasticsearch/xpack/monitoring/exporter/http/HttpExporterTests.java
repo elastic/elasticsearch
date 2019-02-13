@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -25,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter.Config;
 import org.junit.Before;
 import org.mockito.InOrder;
@@ -434,12 +438,50 @@ public class HttpExporterTests extends ESTestCase {
         final RestClient client = mock(RestClient.class);
         final Sniffer sniffer = randomFrom(mock(Sniffer.class), null);
         final NodeFailureListener listener = mock(NodeFailureListener.class);
-        final HttpResource resource = new MockHttpResource(exporterName(), true, PublishableHttpResource.CheckResponse.ERROR, false);
+        // this is configured to throw an error when the resource is checked
+        final HttpResource resource = new MockHttpResource(exporterName(), true, null, false);
 
         try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource)) {
             verify(listener).setResource(resource);
 
-            assertThat(exporter.openBulk(), nullValue());
+            final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
+            final ActionListener<ExportBulk> bulkListener = ActionListener.wrap(
+                bulk -> fail("[onFailure] should have been invoked by failed resource check"),
+                e -> awaitResponseAndClose.countDown()
+            );
+
+            exporter.openBulk(bulkListener);
+
+            // wait for it to actually respond
+            assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testHttpExporterReturnsNullForOpenBulkIfNotReady() throws Exception {
+        final Config config = createConfig(Settings.EMPTY);
+        final RestClient client = mock(RestClient.class);
+        final Sniffer sniffer = randomFrom(mock(Sniffer.class), null);
+        final NodeFailureListener listener = mock(NodeFailureListener.class);
+        // always has to check, and never succeeds checks but it does not throw an exception (e.g., version check fails)
+        final HttpResource resource = new MockHttpResource(exporterName(), true, false, false);
+
+        try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource)) {
+            verify(listener).setResource(resource);
+
+            final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
+            final ActionListener<ExportBulk> bulkListener = ActionListener.wrap(
+                bulk -> {
+                    assertThat(bulk, nullValue());
+
+                    awaitResponseAndClose.countDown();
+                },
+                e -> fail(e.getMessage())
+            );
+
+            exporter.openBulk(bulkListener);
+
+            // wait for it to actually respond
+            assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
         }
     }
 
@@ -454,9 +496,20 @@ public class HttpExporterTests extends ESTestCase {
         try (HttpExporter exporter = new HttpExporter(config, client, sniffer, threadContext, listener, resource)) {
             verify(listener).setResource(resource);
 
-            final HttpExportBulk bulk = exporter.openBulk();
+            final CountDownLatch awaitResponseAndClose = new CountDownLatch(1);
+            final ActionListener<ExportBulk> bulkListener = ActionListener.wrap(
+                bulk -> {
+                    assertThat(bulk.getName(), equalTo(exporterName()));
 
-            assertThat(bulk.getName(), equalTo(exporterName()));
+                    awaitResponseAndClose.countDown();
+                },
+                e -> fail(e.getMessage())
+            );
+
+            exporter.openBulk(bulkListener);
+
+            // wait for it to actually respond
+            assertTrue(awaitResponseAndClose.await(15, TimeUnit.SECONDS));
         }
     }
 

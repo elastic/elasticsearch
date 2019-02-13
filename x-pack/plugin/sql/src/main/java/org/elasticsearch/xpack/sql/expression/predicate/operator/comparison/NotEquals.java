@@ -6,15 +6,15 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
-public class NotEquals extends BinaryComparison implements BinaryOperator.Negateable {
+public class NotEquals extends BinaryComparison implements Negatable<BinaryComparison> {
 
-    public NotEquals(Location location, Expression left, Expression right) {
-        super(location, left, right, BinaryComparisonOperation.NEQ);
+    public NotEquals(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryComparisonOperation.NEQ);
     }
 
     @Override
@@ -24,16 +24,16 @@ public class NotEquals extends BinaryComparison implements BinaryOperator.Negate
 
     @Override
     protected NotEquals replaceChildren(Expression newLeft, Expression newRight) {
-        return new NotEquals(location(), newLeft, newRight);
+        return new NotEquals(source(), newLeft, newRight);
     }
 
     @Override
     public NotEquals swapLeftAndRight() {
-        return new NotEquals(location(), right(), left());
+        return new NotEquals(source(), right(), left());
     }
 
     @Override
-    public BinaryOperator<?, ?, ?, ?> negate() {
-        return new Equals(location(), left(), right());
+    public BinaryComparison negate() {
+        return new Equals(source(), left(), right());
     }
 }

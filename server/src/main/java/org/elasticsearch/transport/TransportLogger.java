@@ -51,6 +51,10 @@ public final class TransportLogger {
     void logOutboundMessage(TcpChannel channel, BytesReference message) {
         if (logger.isTraceEnabled()) {
             try {
+                if (message.get(0) != 'E') {
+                    // This is not an Elasticsearch transport message.
+                    return;
+                }
                 BytesReference withoutHeader = message.slice(HEADER_SIZE, message.length() - HEADER_SIZE);
                 String logMessage = format(channel, withoutHeader, "WRITE");
                 logger.trace(logMessage);

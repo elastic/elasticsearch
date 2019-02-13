@@ -60,7 +60,7 @@ public class RestNodesActionTests extends ESTestCase {
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
 
-        ClusterStateResponse clusterStateResponse = new ClusterStateResponse(clusterName, clusterState, randomNonNegativeLong());
+        ClusterStateResponse clusterStateResponse = new ClusterStateResponse(clusterName, clusterState, randomNonNegativeLong(), false);
         NodesInfoResponse nodesInfoResponse = new NodesInfoResponse(clusterName, Collections.emptyList(), Collections.emptyList());
         NodesStatsResponse nodesStatsResponse = new NodesStatsResponse(clusterName, Collections.emptyList(), Collections.emptyList());
 

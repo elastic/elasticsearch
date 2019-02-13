@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
@@ -135,9 +134,5 @@ public abstract class SamlTestCase extends ESTestCase {
         final ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class, runnable);
         assertThat("Exception " + exception + " should be a SAML exception", SamlUtils.isSamlException(exception), is(true));
         return exception;
-    }
-
-    protected Settings mergeSettings(Settings local, Settings global) {
-        return Settings.builder().put(global).put(local).build();
     }
 }

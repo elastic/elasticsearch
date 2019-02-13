@@ -101,7 +101,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         this.collectMode = collectMode;
         this.filter = filterBuilder == null
                 ? null
-                : filterBuilder.toFilter(context.getQueryShardContext());
+                : filterBuilder.toQuery(context.getQueryShardContext());
         IndexSearcher searcher = context.searcher();
         this.supersetNumDocs = filter == null
                 // Important - need to use the doc count that includes deleted docs
@@ -200,8 +200,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             // each shard and as
             // such are impossible to differentiate from non-significant terms
             // at that early stage.
-            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.numberOfShards() == 1));
+            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
         final long maxOrd = getMaxOrd(valuesSource, context.searcher());
         SubAggCollectionMode cm = collectMode;
@@ -227,8 +226,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
             DocValueFormat format = config.format();
             if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
-                throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
-                        + "settings as they can only be applied to string fields. Use an array of values for include/exclude clauses");
+                throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style "
+                        + "include/exclude settings as they can only be applied to string fields. Use an array of values for "
+                        + "include/exclude clauses");
             }
 
             return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, context, parent, cm,
@@ -237,7 +237,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         if ((includeExclude != null) && (includeExclude.isRegexBased())) {
             throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
-                    + "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses used to filter numeric fields");
+                    + "settings as they can only be applied to string fields. Use an array of numeric values for include/exclude clauses "
+                    + "used to filter numeric fields");
         }
 
         if (valuesSource instanceof ValuesSource.Numeric) {
@@ -329,7 +330,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
-                        aggregationContext, parent, subAggCollectMode, remapGlobalOrd, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
+                        aggregationContext, parent, remapGlobalOrd, significanceHeuristic, termsAggregatorFactory, pipelineAggregators,
+                        metaData);
 
             }
         };

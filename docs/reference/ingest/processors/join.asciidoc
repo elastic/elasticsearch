@@ -1,0 +1,26 @@
+[[join-processor]]
+=== Join Processor
+Joins each element of an array into a single string using a separator character between each element.
+Throws an error when the field is not an array.
+
+[[join-options]]
+.Join Options
+[options="header"]
+|======
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to be separated
+| `separator`       | yes       | -        | The separator character
+| `target_field`    | no        | `field`  | The field to assign the joined value to, by default `field` is updated in-place
+include::common-options.asciidoc[]
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "join": {
+    "field": "joined_array_field",
+    "separator": "-"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

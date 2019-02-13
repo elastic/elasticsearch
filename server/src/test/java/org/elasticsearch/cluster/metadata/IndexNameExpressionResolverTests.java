@@ -1357,10 +1357,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(state,
                 IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED, "ind*", "test-index");
-            assertEquals(2, indices.length);
+            assertEquals(1, indices.length);
             Arrays.sort(indices, Comparator.comparing(Index::getName));
             assertEquals("index", indices[0].getName());
-            assertEquals("test-index", indices[1].getName());
         }
 
         {
@@ -1368,10 +1367,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
                     IndicesOptions.Option.IGNORE_THROTTLED),
                     EnumSet.of(IndicesOptions.WildcardStates.OPEN)), "ind*", "test-index");
-            assertEquals(2, indices.length);
+            assertEquals(1, indices.length);
             Arrays.sort(indices, Comparator.comparing(Index::getName));
             assertEquals("index", indices[0].getName());
-            assertEquals("test-index", indices[1].getName());
         }
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(state,

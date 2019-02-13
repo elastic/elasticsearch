@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.apache.logging.log4j.Logger;
@@ -29,13 +30,18 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
 
     public RestWatcherStatsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, URI_BASE + "/stats", this);
-        controller.registerHandler(GET, URI_BASE + "/stats/{metric}", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+            GET, "/_watcher/stats", this,
+            GET, URI_BASE + "/watcher/stats", deprecationLogger);
+        controller.registerWithDeprecatedHandler(
+            GET, "/_watcher/stats/{metric}", this,
+            GET, URI_BASE + "/watcher/stats/{metric}", deprecationLogger);
     }
 
     @Override
     public String getName() {
-        return "xpack_watcher_stats_action";
+        return "watcher_stats";
     }
 
     @Override

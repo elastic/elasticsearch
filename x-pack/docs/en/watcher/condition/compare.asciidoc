@@ -43,7 +43,7 @@ search result>> is greater than or equal to 5:
 {
   "condition" : {
     "compare" : {
-      "ctx.payload.hits.total" : { <1>
+      "ctx.payload.hits.total.value" : { <1>
         "gte" : 5 <2>
       }
   }

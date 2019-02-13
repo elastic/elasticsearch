@@ -79,12 +79,12 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         SearchResponse searchResponse = client.prepareSearch(expression)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get();
-        assertThat(searchResponse.getHits().getTotalHits(), is(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
 
         MultiSearchResponse multiSearchResponse = client.prepareMultiSearch()
                 .add(client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()).request())
                 .get();
-        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits(), is(1L));
+        assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
 
         UpdateResponse updateResponse = client.prepareUpdate(expression, "type", response.getId())
                 .setDoc(Requests.INDEX_CONTENT_TYPE, "new", "field")

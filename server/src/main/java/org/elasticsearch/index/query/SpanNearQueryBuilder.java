@@ -38,6 +38,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
+
 /**
  * Matches spans which are near one another. One can specify slop, the maximum number
  * of intervening unmatched positions, as well as whether matches are required to be in-order.
@@ -166,9 +168,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         QueryBuilder query = parseInnerQueryBuilder(parser);
                         if (query instanceof SpanQueryBuilder == false) {
-                            throw new ParsingException(parser.getTokenLocation(), "spanNear [clauses] must be of type span query");
+                            throw new ParsingException(parser.getTokenLocation(), "span_near [clauses] must be of type span query");
                         }
-                        clauses.add((SpanQueryBuilder) query);
+                        final SpanQueryBuilder clause = (SpanQueryBuilder) query;
+                        checkNoBoost(NAME, currentFieldName, parser, clause);
+                        clauses.add(clause);
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
@@ -339,11 +343,6 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
         @Override
         public Query toQuery(QueryShardContext context) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Query toFilter(QueryShardContext context) throws IOException {
             throw new UnsupportedOperationException();
         }
 

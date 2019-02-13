@@ -195,17 +195,24 @@ public abstract class BytesReference implements Comparable<BytesReference>, ToXC
      * Returns BytesReference composed of the provided ByteBuffers.
      */
     public static BytesReference fromByteBuffers(ByteBuffer[] buffers) {
-        ByteBufferReference[] references = new ByteBufferReference[buffers.length];
-        for (int i = 0; i < references.length; ++i) {
-            references[i] = new ByteBufferReference(buffers[i]);
-        }
+        int bufferCount = buffers.length;
+        if (bufferCount == 0) {
+            return BytesArray.EMPTY;
+        } else if (bufferCount == 1) {
+            return new ByteBufferReference(buffers[0]);
+        } else {
+            ByteBufferReference[] references = new ByteBufferReference[bufferCount];
+            for (int i = 0; i < bufferCount; ++i) {
+                references[i] = new ByteBufferReference(buffers[i]);
+            }
 
-        return new CompositeBytesReference(references);
+            return new CompositeBytesReference(references);
+        }
     }
 
     @Override
     public int compareTo(final BytesReference other) {
-        return compareIterators(this, other, (a, b) -> a.compareTo(b));
+        return compareIterators(this, other, BytesRef::compareTo);
     }
 
     /**

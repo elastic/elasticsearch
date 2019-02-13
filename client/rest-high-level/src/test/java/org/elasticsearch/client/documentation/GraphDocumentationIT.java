@@ -43,11 +43,11 @@ public class GraphDocumentationIT extends ESRestHighLevelClientTestCase {
     @Before
     public void indexDocuments() throws IOException {
         // Create chain of doc IDs across indices 1->2->3
-        Request doc1 = new Request(HttpPut.METHOD_NAME, "/index1/type/1");
+        Request doc1 = new Request(HttpPut.METHOD_NAME, "/index1/_doc/1");
         doc1.setJsonEntity("{ \"participants\":[1,2], \"text\":\"let's start projectx\", \"attachment_md5\":\"324FHDGHFDG4564\"}");
         client().performRequest(doc1);
         
-        Request doc2 = new Request(HttpPut.METHOD_NAME, "/index2/type/2");
+        Request doc2 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/2");
         doc2.setJsonEntity("{\"participants\":[2,3,4], \"text\":\"got something you both may be interested in\"}");
         client().performRequest(doc2);        
 

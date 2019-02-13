@@ -239,7 +239,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
                 writeIndex = in.readOptionalBoolean();
             }
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
                 originalAliases = in.readStringArray();
             }
         }
@@ -256,7 +256,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
                 out.writeOptionalBoolean(writeIndex);
             }
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 out.writeStringArray(originalAliases);
             }
         }

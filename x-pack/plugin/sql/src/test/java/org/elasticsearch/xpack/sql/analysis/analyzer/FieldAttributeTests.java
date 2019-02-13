@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
@@ -17,13 +18,13 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
@@ -40,16 +41,18 @@ public class FieldAttributeTests extends ESTestCase {
     private IndexResolution getIndexResult;
     private FunctionRegistry functionRegistry;
     private Analyzer analyzer;
+    private Verifier verifier;
 
     public FieldAttributeTests() {
         parser = new SqlParser();
         functionRegistry = new FunctionRegistry();
+        verifier = new Verifier(new Metrics());
 
         Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"));
+        analyzer = new Analyzer(TestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
     }
 
     private LogicalPlan plan(String sql) {
@@ -166,7 +169,7 @@ public class FieldAttributeTests extends ESTestCase {
 
         EsIndex index = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(index);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"));
+        analyzer = new Analyzer(TestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
 
         VerificationException ex = expectThrows(VerificationException.class, () -> plan("SELECT test.bar FROM test"));
         assertEquals(

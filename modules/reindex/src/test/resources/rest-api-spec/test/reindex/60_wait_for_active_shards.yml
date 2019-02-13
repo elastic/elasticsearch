@@ -9,7 +9,6 @@
   - do:
       index:
         index:       src
-        type:        test
         id:          1
         body:        {"text": "test"}
   - do:
@@ -43,5 +42,4 @@
   - do:
       get:
         index: dest
-        type:  test
         id:    1

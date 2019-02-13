@@ -402,8 +402,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
     @SuppressWarnings("unchecked")
     private void assertCheckForResource(final RestClient client, final Logger logger,
-                                        final String resourceBasePath, final String resourceName,
-                                        final String resourceType,
+                                        final String resourceBasePath, final String resourceName, final String resourceType,
                                         final Boolean expected, final Response response)
             throws IOException {
         final CheckedFunction<Response, Boolean, IOException> responseChecker = mock(CheckedFunction.class);

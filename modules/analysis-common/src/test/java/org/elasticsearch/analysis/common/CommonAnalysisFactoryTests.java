@@ -197,7 +197,6 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("length", null);
         filters.put("limit", LimitTokenCountFilterFactory.class);
         filters.put("ngram", null);
-        filters.put("nGram", null);
         filters.put("persian_normalization", null);
         filters.put("porter_stem", null);
         filters.put("reverse", ReverseStringFilterFactory.class);
@@ -235,7 +234,6 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         tokenizers.put("thai", null);
 
         // TODO drop aliases once they are moved to module
-        tokenizers.put("nGram", tokenizers.get("ngram"));
         tokenizers.put("edgeNGram", tokenizers.get("edge_ngram"));
         tokenizers.put("PathHierarchy", tokenizers.get("path_hierarchy"));
 

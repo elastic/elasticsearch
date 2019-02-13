@@ -258,7 +258,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("min_hash", MinHashTokenFilterFactory::new);
         filters.put("multiplexer", MultiplexerTokenFilterFactory::new);
         filters.put("ngram", NGramTokenFilterFactory::new);
-        filters.put("nGram", NGramTokenFilterFactory::new);
         filters.put("pattern_capture", requiresAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
         filters.put("pattern_replace", requiresAnalysisSettings(PatternReplaceTokenFilterFactory::new));
         filters.put("persian_normalization", PersianNormalizationFilterFactory::new);
@@ -301,7 +300,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.put("simple_pattern", SimplePatternTokenizerFactory::new);
         tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
         tokenizers.put("thai", ThaiTokenizerFactory::new);
-        tokenizers.put("nGram", NGramTokenizerFactory::new);
         tokenizers.put("ngram", NGramTokenizerFactory::new);
         tokenizers.put("edgeNGram", EdgeNGramTokenizerFactory::new);
         tokenizers.put("edge_ngram", EdgeNGramTokenizerFactory::new);
@@ -438,14 +436,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                         LimitTokenCountFilterFactory.DEFAULT_MAX_TOKEN_COUNT,
                         LimitTokenCountFilterFactory.DEFAULT_CONSUME_ALL_TOKENS)));
         filters.add(PreConfiguredTokenFilter.singleton("ngram", false, false, reader -> new NGramTokenFilter(reader, 1, 2, false)));
-        filters.add(PreConfiguredTokenFilter.singletonWithVersion("nGram", false, false, (reader, version) -> {
-            if (version.onOrAfter(org.elasticsearch.Version.V_6_4_0)) {
-                deprecationLogger.deprecatedAndMaybeLog("nGram_deprecation",
-                        "The [nGram] token filter name is deprecated and will be removed in a future version. "
-                                + "Please change the filter name to [ngram] instead.");
-            }
-            return new NGramTokenFilter(reader, 1, 2, false);
-        }));
         filters.add(PreConfiguredTokenFilter.singleton("persian_normalization", true, PersianNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("porter_stem", false, PorterStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("reverse", false, ReverseStringFilter::new));
@@ -510,7 +500,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", XLowerCaseTokenizer::new));
 
         // Temporary shim for aliases. TODO deprecate after they are moved
-        tokenizers.add(PreConfiguredTokenizer.singleton("nGram", NGramTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("edgeNGram",
             () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE)));
         tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new));

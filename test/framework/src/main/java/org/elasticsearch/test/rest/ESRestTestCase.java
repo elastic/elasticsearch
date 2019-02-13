@@ -256,13 +256,13 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static RequestOptions expectWarnings(String... warnings) {
         return expectVersionSpecificWarnings(consumer -> consumer.current(warnings));
     }
-    
+
     /**
-     * Creates RequestOptions designed to ignore [types removal] warnings but nothing else 
+     * Creates RequestOptions designed to ignore [types removal] warnings but nothing else
      * @deprecated this method is only required while we deprecate types and can be removed in 8.0
      */
     @Deprecated
-    public static RequestOptions allowTypeRemovalWarnings() {
+    public static RequestOptions allowTypesRemovalWarnings() {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.setWarningsHandler(new WarningsHandler() {
                 @Override
@@ -277,7 +277,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             });
         return builder.build();
-    }    
+    }
 
     /**
      * Construct an HttpHost from the given host and port

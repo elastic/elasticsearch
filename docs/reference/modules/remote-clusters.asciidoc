@@ -49,13 +49,17 @@ cluster:
     remote:
         cluster_one: <1>
             seeds: 127.0.0.1:9300
+            transport.ping_schedule: 30s <2>
         cluster_two: <1>
             seeds: 127.0.0.1:9301
+            transport.compression: true <3>
 
 --------------------------------
 <1> `cluster_one` and `cluster_two` are arbitrary _cluster aliases_ representing
 the connection to each cluster. These names are subsequently used to distinguish
 between local and remote indices.
+<2> A keep-alive ping is configured for cluster_one in this example.
+<3> Compression is explicitly enabled for requests to cluster_two in this example.
 
 The equivalent example using the <<cluster-update-settings,cluster settings
 API>> to add remote clusters to all nodes in the cluster would look like the
@@ -71,12 +75,14 @@ PUT _cluster/settings
         "cluster_one": {
           "seeds": [
             "127.0.0.1:9300"
-          ]
+          ],
+          "transport.ping_schedule": "30s"
         },
         "cluster_two": {
           "seeds": [
             "127.0.0.1:9301"
-          ]
+          ],
+          "transport.compression": true
         },
         "cluster_three": {
           "seeds": [
@@ -91,6 +97,38 @@ PUT _cluster/settings
 // CONSOLE
 // TEST[setup:host]
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
+
+Compression and ping schedule can be dynamically updated. However, seeds must be
+re-included in the settings update request. Updating the compression or ping schedule
+settings requires that all the existing node connections be closed and re-opened. This
+can cause in-flight requests to fail. This example would update these settings:
+
+[source,js]
+--------------------------------
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "cluster_one": {
+          "seeds": [
+            "127.0.0.1:9300"
+          ],
+          "transport.ping_schedule": "60s"
+        },
+        "cluster_two": {
+          "seeds": [
+            "127.0.0.1:9301"
+          ],
+          "transport.compression": false
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// CONSOLE
+// TEST[continued]
 
 A remote cluster can be deleted from the cluster settings by setting its seeds
 to `null`:

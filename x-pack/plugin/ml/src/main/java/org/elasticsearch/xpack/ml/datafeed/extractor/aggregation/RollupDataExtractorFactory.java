@@ -56,7 +56,6 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             job.getDataDescription().getTimeField(),
             job.getAnalysisConfig().analysisFields(),
             datafeedConfig.getIndices(),
-            datafeedConfig.getTypes(),
             datafeedConfig.getParsedQuery(),
             datafeedConfig.getParsedAggregations(),
             Intervals.alignToCeil(start, histogramInterval),

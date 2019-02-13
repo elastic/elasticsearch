@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.time.ZoneId;
@@ -17,8 +17,8 @@ import java.time.ZoneId;
  */
 public class DayName extends NamedDateTimeFunction {
     
-    public DayName(Location location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, NameExtractor.DAY_NAME);
+    public DayName(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, NameExtractor.DAY_NAME);
     }
 
     @Override
@@ -28,6 +28,6 @@ public class DayName extends NamedDateTimeFunction {
 
     @Override
     protected DayName replaceChild(Expression newChild) {
-        return new DayName(location(), newChild, zoneId());
+        return new DayName(source(), newChild, zoneId());
     }
 }

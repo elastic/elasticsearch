@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -32,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -48,6 +49,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
@@ -61,7 +63,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
-public class ReplicationTrackerTests extends ESTestCase {
+public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     
     public void testEmptyShards() {
         final ReplicationTracker tracker = newTracker(AllocationId.newInitializing());
@@ -74,27 +76,6 @@ public class ReplicationTrackerTests extends ESTestCase {
             allocations.put(AllocationId.newInitializing(), (long) randomInt(1000));
         }
         return allocations;
-    }
-
-    private static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final AllocationId primaryId) {
-        final ShardId shardId = new ShardId("test", "_na_", 0);
-        final ShardRouting primaryShard =
-                TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(10), null, true, ShardRoutingState.STARTED, primaryId);
-        return routingTable(initializingIds, primaryShard);
-    }
-
-    private static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final ShardRouting primaryShard) {
-        assert !initializingIds.contains(primaryShard.allocationId());
-        ShardId shardId = new ShardId("test", "_na_", 0);
-        IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
-        for (AllocationId initializingId : initializingIds) {
-            builder.addShard(TestShardRouting.newShardRouting(
-                    shardId, randomAlphaOfLength(10), null, false, ShardRoutingState.INITIALIZING, initializingId));
-        }
-
-        builder.addShard(primaryShard);
-
-        return builder.build();
     }
 
     private static Set<String> ids(Set<AllocationId> allocationIds) {
@@ -428,12 +409,7 @@ public class ReplicationTrackerTests extends ESTestCase {
     private AtomicLong updatedGlobalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
 
     private ReplicationTracker newTracker(final AllocationId allocationId) {
-        return new ReplicationTracker(
-                new ShardId("test", "_na_", 0),
-                allocationId.getId(),
-                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
-                UNASSIGNED_SEQ_NO,
-                updatedGlobalCheckpoint::set);
+        return newTracker(allocationId, updatedGlobalCheckpoint::set, () -> 0L);
     }
 
     public void testWaitForAllocationIdToBeInSyncCanBeInterrupted() throws BrokenBarrierException, InterruptedException {
@@ -707,12 +683,16 @@ public class ReplicationTrackerTests extends ESTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
 
         FakeClusterState clusterState = initialState();
-        final AllocationId primaryAllocationId = clusterState.routingTable.primaryShard().allocationId();
+        final AllocationId aId = clusterState.routingTable.primaryShard().allocationId();
         final LongConsumer onUpdate = updatedGlobalCheckpoint -> {};
-        ReplicationTracker oldPrimary =
-                new ReplicationTracker(shardId, primaryAllocationId.getId(), indexSettings, UNASSIGNED_SEQ_NO, onUpdate);
-        ReplicationTracker newPrimary =
-                new ReplicationTracker(shardId, primaryAllocationId.getRelocationId(), indexSettings, UNASSIGNED_SEQ_NO, onUpdate);
+        final long primaryTerm = randomNonNegativeLong();
+        final long globalCheckpoint = UNASSIGNED_SEQ_NO;
+        final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onNewRetentionLease =
+                (leases, listener) -> {};
+        ReplicationTracker oldPrimary = new ReplicationTracker(
+                shardId, aId.getId(), indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);
+        ReplicationTracker newPrimary = new ReplicationTracker(
+                shardId, aId.getRelocationId(), indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);
 
         Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
 

@@ -95,7 +95,7 @@ public class GetUsersResponse {
     public static final ParseField ENABLED = new ParseField("enabled");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ParsedUser, String> USER_PARSER = new ConstructingObjectParser<>("user_info",
+    public static final ConstructingObjectParser<ParsedUser, String> USER_PARSER = new ConstructingObjectParser<>("user_info", true,
         (constructorObjects) -> {
             int i = 0;
             final String username = (String) constructorObjects[i++];

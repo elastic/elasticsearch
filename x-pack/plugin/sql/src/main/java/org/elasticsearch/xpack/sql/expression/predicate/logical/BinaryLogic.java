@@ -7,16 +7,17 @@ package org.elasticsearch.xpack.sql.expression.predicate.logical;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boolean, BinaryLogicOperation> {
 
-    protected BinaryLogic(Location location, Expression left, Expression right, BinaryLogicOperation operation) {
-        super(location, left, right, operation);
+    protected BinaryLogic(Source source, Expression left, Expression right, BinaryLogicOperation operation) {
+        super(source, left, right, operation);
     }
 
     @Override
@@ -26,17 +27,17 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
 
     @Override
     protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
-        return Expressions.typeMustBeBoolean(e, functionName(), paramOrdinal);
+        return Expressions.typeMustBeBoolean(e, sourceText(), paramOrdinal);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new BinaryLogicPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
+        return new BinaryLogicPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         // Cannot fold null due to 3vl, constant folding will do any possible folding.
-        return false;
+        return Nullability.UNKNOWN;
     }
 }

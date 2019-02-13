@@ -31,10 +31,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.discovery.zen.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.NodesFaultDetection;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -42,7 +42,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledFuture;
 
 import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
@@ -71,11 +70,10 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     private final TimeValue reconnectInterval;
 
-    private volatile ScheduledFuture<?> backgroundFuture = null;
+    private volatile Scheduler.Cancellable backgroundCancellable = null;
 
     @Inject
     public NodeConnectionsService(Settings settings, ThreadPool threadPool, TransportService transportService) {
-        super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.reconnectInterval = NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(settings);
@@ -188,19 +186,21 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         @Override
         public void onAfter() {
             if (lifecycle.started()) {
-                backgroundFuture = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, this);
+                backgroundCancellable = threadPool.schedule(this, reconnectInterval, ThreadPool.Names.GENERIC);
             }
         }
     }
 
     @Override
     protected void doStart() {
-        backgroundFuture = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ConnectionChecker());
+        backgroundCancellable = threadPool.schedule(new ConnectionChecker(), reconnectInterval, ThreadPool.Names.GENERIC);
     }
 
     @Override
     protected void doStop() {
-        FutureUtils.cancel(backgroundFuture);
+        if (backgroundCancellable != null) {
+            backgroundCancellable.cancel();
+        }
     }
 
     @Override

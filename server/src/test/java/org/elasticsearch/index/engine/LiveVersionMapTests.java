@@ -392,7 +392,7 @@ public class LiveVersionMapTests extends ESTestCase {
     public void testPruneTombstonesWhileLocked() throws InterruptedException, IOException {
         LiveVersionMap map = new LiveVersionMap();
         BytesRef uid = uid("1");
-        ;
+
         try (Releasable ignore = map.acquireLock(uid)) {
             map.putDeleteUnderLock(uid, new DeleteVersionValue(0, 0, 0, 0));
             map.beforeRefresh(); // refresh otherwise we won't prune since it's tracked by the current map

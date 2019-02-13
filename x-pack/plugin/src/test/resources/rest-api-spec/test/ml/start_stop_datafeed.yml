@@ -6,16 +6,15 @@ setup:
         index: airline-data
         body:
           mappings:
-            response:
-              properties:
-                time:
-                  type: date
-                airline:
-                  type: keyword
-                airport:
-                  type: text
-                responsetime:
-                  type: float
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              airport:
+                type: text
+              responsetime:
+                type: float
 
   - do:
       headers:
@@ -48,8 +47,7 @@ setup:
         body:  >
           {
             "job_id":"start-stop-datafeed-job",
-            "indexes":"airline-data",
-            "types":"response"
+            "indexes":"airline-data"
           }
 
 ---
@@ -222,8 +220,7 @@ setup:
         body:  >
           {
             "job_id":"start-stop-datafeed-job-field-without-mappings",
-            "indexes":"airline-data",
-            "types":"response"
+            "indexes":"airline-data"
           }
 
   - do:
@@ -330,8 +327,7 @@ setup:
         body:  >
           {
             "job_id":"start-stop-datafeed-job-foo-1",
-            "indexes":"airline-data",
-            "types":"response"
+            "indexes":"airline-data"
           }
 
   - do:
@@ -340,8 +336,7 @@ setup:
         body:  >
           {
             "job_id":"start-stop-datafeed-job-foo-2",
-            "indexes":"airline-data",
-            "types":"response"
+            "indexes":"airline-data"
           }
 
   - do:
@@ -350,8 +345,7 @@ setup:
         body:  >
           {
             "job_id":"start-stop-datafeed-job-bar-1",
-            "indexes":"airline-data",
-            "types":"response"
+            "indexes":"airline-data"
           }
 
   - do:

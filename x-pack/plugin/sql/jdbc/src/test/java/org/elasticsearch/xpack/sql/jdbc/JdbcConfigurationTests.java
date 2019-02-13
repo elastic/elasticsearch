@@ -6,9 +6,16 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.client.SslConfig;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.PAGE_TIMEOUT;
@@ -130,5 +137,153 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertThat(ci.pageTimeout(), equalTo(4L));
     }
 
-
+    public void testSSLPropertiesInUrl() throws Exception {
+        Map<String, String> urlPropMap = sslProperties();
+        
+        Properties allProps = new Properties();
+        allProps.putAll(urlPropMap);
+        String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
+        
+        assertSslConfig(allProps, ci("jdbc:es://test?" + sslUrlProps.toString()).sslConfig());
+    }
+    
+    public void testSSLPropertiesInUrlAndProperties() throws Exception {
+        Map<String, String> urlPropMap = new HashMap<>(4);
+        urlPropMap.put("ssl", "false");
+        urlPropMap.put("ssl.protocol", "SSLv3");
+        urlPropMap.put("ssl.keystore.location", "/abc/xyz");
+        urlPropMap.put("ssl.keystore.pass", "mypass");
+        
+        Map<String, String> propMap = new HashMap<>(4);
+        propMap.put("ssl.keystore.type", "PKCS12");
+        propMap.put("ssl.truststore.location", "/foo/bar");
+        propMap.put("ssl.truststore.pass", "anotherpass");
+        propMap.put("ssl.truststore.type", "jks");
+        
+        Properties props = new Properties();
+        props.putAll(propMap);
+        String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
+        
+        Properties allProps = new Properties();
+        allProps.putAll(urlPropMap);
+        allProps.putAll(propMap);
+        assertSslConfig(allProps, JdbcConfiguration.create("jdbc:es://test?" + sslUrlProps.toString(), props, 0).sslConfig());
+    }
+    
+    public void testSSLPropertiesOverride() throws Exception {
+        Map<String, String> urlPropMap = sslProperties();
+        Map<String, String> propMap = new HashMap<>(8);
+        propMap.put("ssl", "false");
+        propMap.put("ssl.protocol", "TLS");
+        propMap.put("ssl.keystore.location", "/xyz");
+        propMap.put("ssl.keystore.pass", "different_mypass");
+        propMap.put("ssl.keystore.type", "JKS");
+        propMap.put("ssl.truststore.location", "/baz");
+        propMap.put("ssl.truststore.pass", "different_anotherpass");
+        propMap.put("ssl.truststore.type", "PKCS11");
+        
+        Properties props = new Properties();
+        props.putAll(propMap);
+        String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
+        assertSslConfig(props, JdbcConfiguration.create("jdbc:es://test?" + sslUrlProps.toString(), props, 0).sslConfig());
+    }
+    
+    public void testDriverConfigurationWithSSLInURL() {
+        Map<String, String> urlPropMap = sslProperties();
+        
+        Properties allProps = new Properties();
+        allProps.putAll(urlPropMap);
+        String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
+        
+        try {
+            DriverManager.getDriver("jdbc:es://test?" + sslUrlProps);
+        } catch (SQLException sqle) {
+            fail("Driver registration should have been successful. Error: " + sqle);
+        }
+    }
+    
+    public void testDataSourceConfigurationWithSSLInURL() throws SQLException, URISyntaxException {
+        Map<String, String> urlPropMap = sslProperties();
+        
+        Properties allProps = new Properties();
+        allProps.putAll(urlPropMap);
+        String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));
+        
+        EsDataSource dataSource = new EsDataSource();
+        String address = "jdbc:es://test?" + sslUrlProps;
+        dataSource.setUrl(address);
+        JdbcConnection connection = null;
+        
+        try {
+            connection = (JdbcConnection) dataSource.getConnection();
+        } catch (SQLException sqle) {
+            fail("Connection creation should have been successful. Error: " + sqle);
+        }
+        
+        assertEquals(address, connection.getURL());
+        assertSslConfig(allProps, connection.cfg.sslConfig());
+    }
+    
+    public void testTyposInSslConfigInUrl(){
+        assertJdbcSqlExceptionFromUrl("ssl.protocl", "ssl.protocol");
+        assertJdbcSqlExceptionFromUrl("sssl", "ssl");
+        assertJdbcSqlExceptionFromUrl("ssl.keystore.lction", "ssl.keystore.location");
+        assertJdbcSqlExceptionFromUrl("ssl.keystore.pss", "ssl.keystore.pass");
+        assertJdbcSqlExceptionFromUrl("ssl.keystore.typ", "ssl.keystore.type");
+        assertJdbcSqlExceptionFromUrl("ssl.trustsore.location", "ssl.truststore.location");
+        assertJdbcSqlExceptionFromUrl("ssl.tuststore.pass", "ssl.truststore.pass");
+        assertJdbcSqlExceptionFromUrl("ssl.ruststore.type", "ssl.truststore.type");
+    }
+    
+    public void testTyposInSslConfigInProperties() {
+        assertJdbcSqlExceptionFromProperties("ssl.protocl", "ssl.protocol");
+        assertJdbcSqlExceptionFromProperties("sssl", "ssl");
+        assertJdbcSqlExceptionFromProperties("ssl.keystore.lction", "ssl.keystore.location");
+        assertJdbcSqlExceptionFromProperties("ssl.keystore.pss", "ssl.keystore.pass");
+        assertJdbcSqlExceptionFromProperties("ssl.keystore.typ", "ssl.keystore.type");
+        assertJdbcSqlExceptionFromProperties("ssl.trustsore.location", "ssl.truststore.location");
+        assertJdbcSqlExceptionFromProperties("ssl.tuststore.pass", "ssl.truststore.pass");
+        assertJdbcSqlExceptionFromProperties("ssl.ruststore.type", "ssl.truststore.type");
+    }
+    
+    private Map<String, String> sslProperties() {
+        Map<String, String> sslPropertiesMap = new HashMap<>(8);
+        // always using "false" so that the SSLContext doesn't actually start verifying the keystore and trustore
+        // locations, as we don't have file permissions to access them.
+        sslPropertiesMap.put("ssl", "false");
+        sslPropertiesMap.put("ssl.protocol", "SSLv3");
+        sslPropertiesMap.put("ssl.keystore.location", "/abc/xyz");
+        sslPropertiesMap.put("ssl.keystore.pass", "mypass");
+        sslPropertiesMap.put("ssl.keystore.type", "PKCS12");
+        sslPropertiesMap.put("ssl.truststore.location", "/foo/bar");
+        sslPropertiesMap.put("ssl.truststore.pass", "anotherpass");
+        sslPropertiesMap.put("ssl.truststore.type", "jks");
+        
+        return sslPropertiesMap;
+    }
+    
+    private void assertSslConfig(Properties allProperties, SslConfig sslConfig) throws URISyntaxException {
+        // because SslConfig doesn't expose its internal properties (and it shouldn't),
+        // we compare a newly created SslConfig with the one from the JdbcConfiguration with the equals() method
+        SslConfig mockSslConfig = new SslConfig(allProperties, new URI("http://test:9200/"));
+        assertEquals(mockSslConfig, sslConfig);
+    }
+    
+    private void assertJdbcSqlExceptionFromUrl(String wrongSetting, String correctSetting) {
+        String url = "jdbc:es://test?" + wrongSetting + "=foo";
+        assertJdbcSqlException(wrongSetting, correctSetting, url, null);
+    }
+    
+    private void assertJdbcSqlExceptionFromProperties(String wrongSetting, String correctSetting) {
+        String url = "jdbc:es://test";
+        Properties props = new Properties();
+        props.put(wrongSetting, correctSetting);
+        assertJdbcSqlException(wrongSetting, correctSetting, url, props);
+    }
+    
+    private void assertJdbcSqlException(String wrongSetting, String correctSetting, String url, Properties props) {
+        JdbcSQLException ex = expectThrows(JdbcSQLException.class, 
+                () -> JdbcConfiguration.create(url, props, 0));
+        assertEquals("Unknown parameter [" + wrongSetting + "] ; did you mean [" + correctSetting + "]", ex.getMessage());
+    }
 }

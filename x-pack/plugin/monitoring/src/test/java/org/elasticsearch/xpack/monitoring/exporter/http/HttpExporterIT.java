@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -39,12 +40,13 @@ import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
-import org.joda.time.format.DateTimeFormat;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -57,6 +59,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.indexName;
@@ -273,17 +276,18 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
             assertMonitorVersion(secondWebServer);
 
+            String resourcePrefix = "/_template/";
             for (Tuple<String, String> template : monitoringTemplates(includeOldTemplates)) {
                 MockRequest recordedRequest = secondWebServer.takeRequest();
                 assertThat(recordedRequest.getMethod(), equalTo("GET"));
-                assertThat(recordedRequest.getUri().getPath(), equalTo("/_template/" + template.v1()));
-                assertThat(recordedRequest.getUri().getQuery(), equalTo(resourceVersionQueryString()));
+                assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
+                assertMonitorVersionQueryString(resourcePrefix, recordedRequest.getUri().getQuery());
 
                 if (missingTemplate.equals(template.v1())) {
                     recordedRequest = secondWebServer.takeRequest();
                     assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-                    assertThat(recordedRequest.getUri().getPath(), equalTo("/_template/" + template.v1()));
-                    assertThat(recordedRequest.getUri().getQuery(), equalTo(resourceVersionQueryString()));
+                    assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
+                    assertMonitorVersionQueryString(resourcePrefix, recordedRequest.getUri().getQuery());
                     assertThat(recordedRequest.getBody(), equalTo(template.v2()));
                 }
             }
@@ -350,7 +354,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                                remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
         MockRequest recordedRequest = assertBulk(webServer);
 
-        String indexName = indexName(DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC(), doc.getSystem(), doc.getTimestamp());
+        DateFormatter formatter = DateFormatter.forPattern("yyyy.MM.dd").withZone(ZoneOffset.UTC);
+        String indexName = indexName(formatter, doc.getSystem(), doc.getTimestamp());
 
         byte[] bytes = recordedRequest.getBody().getBytes(StandardCharsets.UTF_8);
         Map<String, Object> data = XContentHelper.convertToMap(new BytesArray(bytes), false, XContentType.JSON).v2();
@@ -358,7 +363,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         Map<String, Object> index = (Map<String, Object>) data.get("index");
         assertThat(index.get("_index"), equalTo(indexName));
 
-        String newTimeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM");
+        String newTimeFormat = randomFrom("yy", "yyyy", "yyyy.MM", "yyyy-MM", "MM.yyyy", "MM");
 
         final Settings newSettings = Settings.builder()
                 .put(settings)
@@ -373,8 +378,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         doc = newRandomMonitoringDoc();
         export(newSettings, Collections.singletonList(doc));
 
+        DateFormatter newTimeFormatter = DateFormatter.forPattern(newTimeFormat).withZone(ZoneOffset.UTC);
+
         String expectedMonitoringIndex = ".monitoring-es-" + TEMPLATE_VERSION + "-"
-                + DateTimeFormat.forPattern(newTimeFormat).withZoneUTC().print(doc.getTimestamp());
+                + newTimeFormatter.format(Instant.ofEpochMilli(doc.getTimestamp()));
 
         assertMonitorResources(webServer, true, includeOldTemplates, true,
                                true, true, true);
@@ -457,7 +464,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
             assertThat(getRequest.getMethod(), equalTo("GET"));
             assertThat(getRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-            assertThat(getRequest.getUri().getQuery(), equalTo(resourceVersionQueryString()));
+            assertMonitorVersionQueryString(resourcePrefix, getRequest.getUri().getQuery());
             assertHeaders(getRequest, customHeaders);
 
             if (alreadyExists == false) {
@@ -465,10 +472,18 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
                 assertThat(putRequest.getMethod(), equalTo("PUT"));
                 assertThat(putRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-                assertThat(putRequest.getUri().getQuery(), equalTo(resourceVersionQueryString()));
+                assertMonitorVersionQueryString(resourcePrefix, getRequest.getUri().getQuery());
                 assertThat(putRequest.getBody(), equalTo(resource.v2()));
                 assertHeaders(putRequest, customHeaders);
             }
+        }
+    }
+
+    private void assertMonitorVersionQueryString(String resourcePrefix, String query) {
+        if (resourcePrefix.startsWith("/_template")) {
+            assertThat(query, equalTo(INCLUDE_TYPE_NAME_PARAMETER + "=true&" + resourceVersionQueryString()));
+        } else {
+            assertThat(query, equalTo(resourceVersionQueryString()));
         }
     }
 

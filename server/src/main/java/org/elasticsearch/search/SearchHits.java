@@ -26,7 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -43,31 +42,27 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public final class SearchHits implements Streamable, ToXContentFragment, Iterable<SearchHit> {
-
+public final class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit> {
     public static SearchHits empty() {
+        return empty(true);
+    }
+
+    public static SearchHits empty(boolean withTotalHits) {
         // We shouldn't use static final instance, since that could directly be returned by native transport clients
-        return new SearchHits(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0);
+        return new SearchHits(EMPTY, withTotalHits ? new TotalHits(0, Relation.EQUAL_TO) : null, 0);
     }
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
 
-    private SearchHit[] hits;
-
-    private Total totalHits;
-
-    private float maxScore;
-
+    private final SearchHit[] hits;
+    private final Total totalHits;
+    private final float maxScore;
     @Nullable
-    private SortField[] sortFields;
+    private final SortField[] sortFields;
     @Nullable
-    private String collapseField;
+    private final String collapseField;
     @Nullable
-    private Object[] collapseValues;
-
-    SearchHits() {
-
-    }
+    private final Object[] collapseValues;
 
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
         this(hits, totalHits, maxScore, null, null, null);
@@ -81,6 +76,55 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
         this.sortFields = sortFields;
         this.collapseField = collapseField;
         this.collapseValues = collapseValues;
+    }
+
+    public SearchHits(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            totalHits = new Total(in);
+        } else {
+            // track_total_hits is false
+            totalHits = null;
+        }
+        maxScore = in.readFloat();
+        int size = in.readVInt();
+        if (size == 0) {
+            hits = EMPTY;
+        } else {
+            hits = new SearchHit[size];
+            for (int i = 0; i < hits.length; i++) {
+                hits[i] = new SearchHit(in);
+            }
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
+            collapseField = in.readOptionalString();
+            collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
+        } else {
+            sortFields = null;
+            collapseField = null;
+            collapseValues = null;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        final boolean hasTotalHits = totalHits != null;
+        out.writeBoolean(hasTotalHits);
+        if (hasTotalHits) {
+            totalHits.writeTo(out);
+        }
+        out.writeFloat(maxScore);
+        out.writeVInt(hits.length);
+        if (hits.length > 0) {
+            for (SearchHit hit : hits) {
+                hit.writeTo(out);
+            }
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+            out.writeOptionalArray(Lucene::writeSortField, sortFields);
+            out.writeOptionalString(collapseField);
+            out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
+        }
     }
 
     /**
@@ -151,7 +195,7 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.HITS);
-        boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HIT_AS_INT_PARAM, false);
+        boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
         if (totalHitAsInt) {
             long total = totalHits == null ? -1 : totalHits.in.value;
             builder.field(Fields.TOTAL, total);
@@ -219,58 +263,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
         return new SearchHits(hits.toArray(new SearchHit[0]), totalHits, maxScore);
     }
 
-    public static SearchHits readSearchHits(StreamInput in) throws IOException {
-        SearchHits hits = new SearchHits();
-        hits.readFrom(in);
-        return hits;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            totalHits = new Total(in);
-        } else {
-            // track_total_hits is false
-            totalHits = null;
-        }
-        maxScore = in.readFloat();
-        int size = in.readVInt();
-        if (size == 0) {
-            hits = EMPTY;
-        } else {
-            hits = new SearchHit[size];
-            for (int i = 0; i < hits.length; i++) {
-                hits[i] = SearchHit.readSearchHit(in);
-            }
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
-            collapseField = in.readOptionalString();
-            collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        final boolean hasTotalHits = totalHits != null;
-        out.writeBoolean(hasTotalHits);
-        if (hasTotalHits) {
-            totalHits.writeTo(out);
-        }
-        out.writeFloat(maxScore);
-        out.writeVInt(hits.length);
-        if (hits.length > 0) {
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
-            }
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeOptionalArray(Lucene::writeSortField, sortFields);
-            out.writeOptionalString(collapseField);
-            out.writeOptionalArray(Lucene::writeSortValue, collapseValues);
-        }
-    }
-
     @Override
     public boolean equals(Object obj) {
         if (obj == null || getClass() != obj.getClass()) {
@@ -329,12 +321,17 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
     private static class Total implements Writeable, ToXContentFragment {
         final TotalHits in;
 
+        Total(TotalHits in) {
+            this.in = Objects.requireNonNull(in);
+        }
+
         Total(StreamInput in) throws IOException {
             this.in = Lucene.readTotalHits(in);
         }
 
-        Total(TotalHits in) {
-            this.in = Objects.requireNonNull(in);
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            Lucene.writeTotalHits(out, in);
         }
 
         @Override
@@ -349,11 +346,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
         @Override
         public int hashCode() {
             return Objects.hash(in.value, in.relation);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            Lucene.writeTotalHits(out, in);
         }
 
         @Override

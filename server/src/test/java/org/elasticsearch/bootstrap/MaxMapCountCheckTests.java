@@ -76,12 +76,12 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
         /*
          * There are two ways that memory maps are allowed:
          *  - by default
-         *  - mmapfs is explicitly allowed
-         * We want to test that if mmapfs is allowed then the max map count check is enforced.
+         *  - mmap is explicitly allowed
+         * We want to test that if mmap is allowed then the max map count check is enforced.
          */
         final List<Settings> settingsThatAllowMemoryMap = new ArrayList<>();
         settingsThatAllowMemoryMap.add(Settings.EMPTY);
-        settingsThatAllowMemoryMap.add(Settings.builder().put("node.store.allow_mmapfs", true).build());
+        settingsThatAllowMemoryMap.add(Settings.builder().put("node.store.allow_mmap", true).build());
 
         for (final Settings settingThatAllowsMemoryMap : settingsThatAllowMemoryMap) {
             assertFailure(check.check(createTestContext(settingThatAllowsMemoryMap, MetaData.EMPTY_META_DATA)));
@@ -89,8 +89,8 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
     }
 
     public void testMaxMapCountCheckNotEnforcedIfMemoryMapNotAllowed() {
-        // nothing should happen if current vm.max_map_count is under the limit but mmapfs is not allowed
-        final Settings settings = Settings.builder().put("node.store.allow_mmapfs", false).build();
+        // nothing should happen if current vm.max_map_count is under the limit but mmap is not allowed
+        final Settings settings = Settings.builder().put("node.store.allow_mmap", false).build();
         final BootstrapContext context = createTestContext(settings, MetaData.EMPTY_META_DATA);
         final BootstrapCheck.BootstrapCheckResult result = check.check(context);
         assertTrue(result.isSuccess());

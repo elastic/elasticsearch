@@ -186,7 +186,7 @@ public class Setting<T> implements ToXContentObject {
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
-        this(key, defaultValue, parser, (v, s) -> {}, properties);
+        this(key, defaultValue, parser, v -> {}, properties);
     }
 
     /**
@@ -246,7 +246,7 @@ public class Setting<T> implements ToXContentObject {
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Setting<T> fallbackSetting, Function<String, T> parser, Property... properties) {
-        this(key, fallbackSetting, fallbackSetting::getRaw, parser, (v, m) -> {}, properties);
+        this(key, fallbackSetting, fallbackSetting::getRaw, parser, v -> {}, properties);
     }
 
     /**
@@ -355,6 +355,14 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Validate the current setting value only without dependencies with {@link Setting.Validator#validate(Object)}.
+     * @param settings a settings object for settings that has a default value depending on another setting if available
+     */
+    void validateWithoutDependencies(Settings settings) {
+        validator.validate(get(settings, false));
+    }
+
+    /**
      * Returns the default value string representation for this setting.
      * @param settings a settings object for settings that has a default value depending on another setting if available
      */
@@ -414,6 +422,7 @@ public class Setting<T> implements ToXContentObject {
                 } else {
                     map = Collections.emptyMap();
                 }
+                validator.validate(parsed);
                 validator.validate(parsed, map);
             }
             return parsed;
@@ -805,8 +814,10 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * Represents a validator for a setting. The {@link #validate(Object, Map)} method is invoked with the value of this setting and a map
-     * from the settings specified by {@link #settings()}} to their values. All these values come from the same {@link Settings} instance.
+     * Represents a validator for a setting. The {@link #validate(Object)} method is invoked early in the update setting process with the
+     * value of this setting for a fail-fast validation. Later on, the {@link #validate(Object, Map)} method is invoked with the value of
+     * this setting and a map from the settings specified by {@link #settings()}} to their values. All these values come from the same
+     * {@link Settings} instance.
      *
      * @param <T> the type of the {@link Setting}
      */
@@ -814,17 +825,28 @@ public class Setting<T> implements ToXContentObject {
     public interface Validator<T> {
 
         /**
-         * The validation routine for this validator.
+         * Validate this setting's value in isolation.
+         *
+         * @param value the value of this setting
+         */
+        void validate(T value);
+
+        /**
+         * Validate this setting against its dependencies, specified by {@link #settings()}. The default implementation does nothing,
+         * accepting any value as valid as long as it passes the validation in {@link #validate(Object)}.
          *
          * @param value    the value of this setting
          * @param settings a map from the settings specified by {@link #settings()}} to their values
          */
-        void validate(T value, Map<Setting<T>, T> settings);
+        default void validate(T value, Map<Setting<T>, T> settings) {
+        }
 
         /**
-         * The settings needed by this validator.
+         * The settings on which the validity of this setting depends. The values of the specified settings are passed to
+         * {@link #validate(Object, Map)}. By default this returns an empty iterator, indicating that this setting does not depend on any
+         * other settings.
          *
-         * @return the settings needed to validate; these can be used for cross-settings validation
+         * @return the settings on which the validity of this setting depends.
          */
         default Iterator<Setting<T>> settings() {
             return Collections.emptyIterator();
@@ -1021,8 +1043,8 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, s -> "", Function.identity(), properties);
     }
 
-    public static Setting<String> simpleString(String key, Function<String, String> parser, Property... properties) {
-        return new Setting<>(key, s -> "", parser, properties);
+    public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {
+        return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
     }
 
     public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
@@ -1035,10 +1057,6 @@ public class Setting<T> implements ToXContentObject {
             final Function<String, String> parser,
             final Property... properties) {
         return new Setting<>(key, fallback, parser, properties);
-    }
-
-    public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {
-        return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
     }
 
     /**
@@ -1279,9 +1297,9 @@ public class Setting<T> implements ToXContentObject {
             super(
                     new ListKey(key),
                     fallbackSetting,
-                    (s) -> Setting.arrayToParsableString(defaultStringValue.apply(s)),
+                    s -> Setting.arrayToParsableString(defaultStringValue.apply(s)),
                     parser,
-                    (v,s) -> {},
+                    v -> {},
                     properties);
             this.defaultStringValue = defaultStringValue;
         }
@@ -1339,7 +1357,7 @@ public class Setting<T> implements ToXContentObject {
                 fallbackSetting,
                 fallbackSetting::getRaw,
                 minTimeValueParser(key, minValue),
-                (v, s) -> {},
+                v -> {},
                 properties);
     }
 

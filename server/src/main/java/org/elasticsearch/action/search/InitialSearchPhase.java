@@ -90,8 +90,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                                 final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
-        SearchShardTarget shardTarget = new SearchShardTarget(nodeId, shardIt.shardId(), shardIt.getClusterAlias(),
-                shardIt.getOriginalIndices());
+        SearchShardTarget shardTarget = shardIt.newSearchShardTarget(nodeId);
         onShardFailure(shardIndex, shardTarget, e);
 
         if (totalOps.incrementAndGet() == expectedTotalOps) {
@@ -161,14 +160,6 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
     }
 
-    private void maybeFork(final Thread thread, final Runnable runnable) {
-        if (thread == Thread.currentThread()) {
-            fork(runnable);
-        } else {
-            runnable.run();
-        }
-    }
-
     private void fork(final Runnable runnable) {
         executor.execute(new AbstractRunnable() {
             @Override
@@ -233,10 +224,18 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     }
 
     private void executeNext(PendingExecutions pendingExecutions, Thread originalThread) {
+        executeNext(pendingExecutions == null ? null : pendingExecutions::finishAndRunNext, originalThread);
+    }
+
+    protected void executeNext(Runnable runnable, Thread originalThread) {
         if (throttleConcurrentRequests) {
-            maybeFork(originalThread, pendingExecutions::finishAndRunNext);
+            if (originalThread == Thread.currentThread()) {
+                fork(runnable);
+            } else {
+                runnable.run();
+            }
         } else {
-            assert pendingExecutions == null;
+            assert runnable == null;
         }
     }
 
@@ -257,28 +256,26 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             Runnable r = () -> {
                 final Thread thread = Thread.currentThread();
                 try {
-                    executePhaseOnShard(shardIt, shard, new SearchActionListener<FirstResult>(new SearchShardTarget(shard.currentNodeId(),
-                        shardIt.shardId(), shardIt.getClusterAlias(), shardIt.getOriginalIndices()), shardIndex) {
-                        @Override
-                        public void innerOnResponse(FirstResult result) {
-                            try {
-                                onShardResult(result, shardIt);
-                            } finally {
-                                executeNext(pendingExecutions, thread);
+                    executePhaseOnShard(shardIt, shard,
+                        new SearchActionListener<FirstResult>(shardIt.newSearchShardTarget(shard.currentNodeId()), shardIndex) {
+                            @Override
+                            public void innerOnResponse(FirstResult result) {
+                                try {
+                                    onShardResult(result, shardIt);
+                                } finally {
+                                    executeNext(pendingExecutions, thread);
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onFailure(Exception t) {
-                            try {
-                                onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, t);
-                            } finally {
-                                executeNext(pendingExecutions, thread);
+                            @Override
+                            public void onFailure(Exception t) {
+                                try {
+                                    onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, t);
+                                } finally {
+                                    executeNext(pendingExecutions, thread);
+                                }
                             }
-                        }
-                    });
-
-
+                        });
                 } catch (final Exception e) {
                     try {
                         /*

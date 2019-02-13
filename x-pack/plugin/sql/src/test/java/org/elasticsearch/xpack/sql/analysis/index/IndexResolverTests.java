@@ -15,9 +15,10 @@ import org.elasticsearch.xpack.sql.type.TypesTests;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class IndexResolverTests extends ESTestCase {
 
@@ -153,7 +154,7 @@ public class IndexResolverTests extends ESTestCase {
             if (entry.getValue().size() > 1) {
                 for (EsIndex index : indices) {
                     EsField field = index.mapping().get(fieldName);
-                    UpdateableFieldCapabilities fieldCaps = (UpdateableFieldCapabilities) caps.get(field.getDataType().esType);
+                    UpdateableFieldCapabilities fieldCaps = (UpdateableFieldCapabilities) caps.get(field.getDataType().typeName);
                     fieldCaps.indices.add(index.name());
                 }
                 //TODO: what about nonAgg/SearchIndices?
@@ -170,7 +171,7 @@ public class IndexResolverTests extends ESTestCase {
             map = new HashMap<>();
             merged.put(fieldName, map);
         }
-        FieldCapabilities caps = map.computeIfAbsent(field.getDataType().esType,
+        FieldCapabilities caps = map.computeIfAbsent(field.getDataType().typeName,
                 esType -> new UpdateableFieldCapabilities(fieldName, esType,
                 isSearchable(field.getDataType()),
                         isAggregatable(field.getDataType())));
@@ -189,7 +190,7 @@ public class IndexResolverTests extends ESTestCase {
     }
 
     private static boolean isAggregatable(DataType type) {
-        return type.isNumeric() || type == DataType.KEYWORD || type == DataType.DATE;
+        return type.isNumeric() || type == DataType.KEYWORD || type == DataType.DATETIME;
     }
 
     private static class UpdateableFieldCapabilities extends FieldCapabilities {
@@ -218,14 +219,14 @@ public class IndexResolverTests extends ESTestCase {
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "%s,%s->%s", getName(), getType(), indices);
+            return format("{},{}->{}", getName(), getType(), indices);
         }
     }
 
     private static <K, V> void assertEqualsMaps(Map<K, V> left, Map<K, V> right) {
         for (Entry<K, V> entry : left.entrySet()) {
             V rv = right.get(entry.getKey());
-            assertEquals(String.format(Locale.ROOT, "Key [%s] has different values", entry.getKey()), entry.getValue(), rv);
+            assertEquals(format("Key [{}] has different values", entry.getKey()), entry.getValue(), rv);
         }
     }
     

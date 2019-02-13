@@ -43,7 +43,7 @@ public class GetAutoFollowPatternResponseTests extends ESTestCase {
             this::createTestInstance,
             GetAutoFollowPatternResponseTests::toXContent,
             GetAutoFollowPatternResponse::fromXContent)
-            .supportsUnknownFields(false)
+            .supportsUnknownFields(true)
             .test();
     }
 

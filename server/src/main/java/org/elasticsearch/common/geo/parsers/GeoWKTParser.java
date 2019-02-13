@@ -198,7 +198,7 @@ public class GeoWKTParser {
             throws IOException, ElasticsearchParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
-            return null;
+            return new MultiPointBuilder();
         }
         return new MultiPointBuilder(parseCoordinateList(stream, ignoreZValue, coerce));
     }
@@ -242,7 +242,7 @@ public class GeoWKTParser {
             throws IOException, ElasticsearchParseException {
         String token = nextEmptyOrOpen(stream);
         if (token.equals(EMPTY)) {
-            return null;
+            return new MultiLineStringBuilder();
         }
         MultiLineStringBuilder builder = new MultiLineStringBuilder();
         builder.linestring(parseLine(stream, ignoreZValue, coerce));

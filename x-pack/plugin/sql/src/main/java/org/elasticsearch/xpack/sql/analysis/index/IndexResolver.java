@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DateEsField;
 import org.elasticsearch.xpack.sql.type.EsField;
@@ -62,9 +61,9 @@ public class IndexResolver {
     public enum IndexType {
 
         INDEX("BASE TABLE"),
-        ALIAS("ALIAS"),
+        ALIAS("VIEW"),
         // value for user types unrecognized
-        UNKNOWN("UKNOWN");
+        UNKNOWN("UNKNOWN");
 
         public static final EnumSet<IndexType> VALID = EnumSet.of(INDEX, ALIAS);
 
@@ -351,12 +350,18 @@ public class IndexResolver {
             EsField parent = flattedMapping.get(parentName);
             if (parent == null) {
                 Map<String, FieldCapabilities> map = globalCaps.get(parentName);
+                Function<String, EsField> fieldFunction;
+
+                // lack of parent implies the field is an alias
                 if (map == null) {
-                    throw new SqlIllegalArgumentException("Cannot find field {}; this is likely a bug", parentName);
+                    // as such, create the field manually
+                    fieldFunction = s -> createField(s, DataType.OBJECT.name(), new TreeMap<>(), false);
+                } else {
+                    FieldCapabilities parentCap = map.values().iterator().next();
+                    fieldFunction = s -> createField(s, parentCap.getType(), new TreeMap<>(), parentCap.isAggregatable());
                 }
-                FieldCapabilities parentCap = map.values().iterator().next();
-                parent = createField(parentName, globalCaps, hierarchicalMapping, flattedMapping,
-                        s -> createField(s, parentCap.getType(), new TreeMap<>(), parentCap.isAggregatable()));
+                
+                parent = createField(parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction);
             }
             parentProps = parent.getProperties();
         }
@@ -368,7 +373,7 @@ public class IndexResolver {
 
         return esField;
     }
-    
+
     private static EsField createField(String fieldName, String typeName, Map<String, EsField> props, boolean isAggregateable) {
         DataType esType = DataType.fromTypeName(typeName);
         switch (esType) {
@@ -379,7 +384,7 @@ public class IndexResolver {
                 // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
                 boolean normalized = false;
                 return new KeywordEsField(fieldName, props, isAggregateable, length, normalized);
-            case DATE:
+            case DATETIME:
                 return new DateEsField(fieldName, props, isAggregateable);
             case UNSUPPORTED:
                 return new UnsupportedEsField(fieldName, typeName);

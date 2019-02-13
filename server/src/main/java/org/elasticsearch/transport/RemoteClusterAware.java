@@ -57,7 +57,8 @@ public abstract class RemoteClusterAware {
 
     static {
         // remove search.remote.* settings in 8.0.0
-        assert Version.CURRENT.major < 8;
+        // TODO https://github.com/elastic/elasticsearch/issues/38556
+        // assert Version.CURRENT.major < 8;
     }
 
     public static final Setting.AffixSetting<List<String>> SEARCH_REMOTE_CLUSTERS_SEEDS =
@@ -121,7 +122,6 @@ public abstract class RemoteClusterAware {
                         if (Strings.hasLength(s)) {
                             parsePort(s);
                         }
-                        return s;
                     },
                     Setting.Property.Deprecated,
                     Setting.Property.Dynamic,
@@ -346,7 +346,7 @@ public abstract class RemoteClusterAware {
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {
-        return clusterAlias != null ? clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + indexName : indexName;
+        return clusterAlias == null || LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)
+            ? indexName : clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + indexName;
     }
-
 }

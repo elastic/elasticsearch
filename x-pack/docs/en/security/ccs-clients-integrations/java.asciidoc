@@ -105,9 +105,10 @@ import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
         .put("cluster.name", "myClusterName")
         .put("xpack.security.user", "transport_client_user:x-pack-test-password")
-        .put("xpack.ssl.key", "/path/to/client.key")
-        .put("xpack.ssl.certificate", "/path/to/client.crt")
-        .put("xpack.ssl.certificate_authorities", "/path/to/ca.crt")
+        .put("xpack.security.transport.ssl.enabled", true)
+        .put("xpack.security.transport.ssl.key", "/path/to/client.key")
+        .put("xpack.security.transport.ssl.certificate", "/path/to/client.crt")
+        .put("xpack.security.transport.ssl.certificate_authorities", "/path/to/ca.crt")
         ...
         .build());
 --------------------------------------------------------------------------------------------------
@@ -125,9 +126,10 @@ import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
         .put("cluster.name", "myClusterName")
         .put("xpack.security.user", "transport_client_user:x-pack-test-password")
-        .put("xpack.ssl.key", "/path/to/client.key")
-        .put("xpack.ssl.certificate", "/path/to/client.crt")
-        .put("xpack.ssl.certificate_authorities", "/path/to/ca.crt")
+        .put("xpack.security.transport.ssl.enabled", true)
+        .put("xpack.security.transport.ssl.key", "/path/to/client.key")
+        .put("xpack.security.transport.ssl.certificate", "/path/to/client.crt")
+        .put("xpack.security.transport.ssl.certificate_authorities", "/path/to/ca.crt")
         .put("xpack.security.transport.ssl.enabled", "true")
         ...
         .build())
@@ -155,7 +157,7 @@ import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
         .put("cluster.name", "myClusterName")
         .put("xpack.security.user", "test_user:x-pack-test-password")
-        .put("xpack.ssl.certificate_authorities", "/path/to/ca.crt")
+        .put("xpack.security.transport.ssl.certificate_authorities", "/path/to/ca.crt")
         .put("xpack.security.transport.ssl.enabled", "true")
         ...
         .build())
@@ -164,7 +166,7 @@ TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()
 ------------------------------------------------------------------------------------------------------
 
 NOTE: If you are using a public CA that is already trusted by the Java runtime,
-      you do not need to set the `xpack.ssl.certificate_authorities`.
+      you do not need to set the `xpack.security.transport.ssl.certificate_authorities`.
 
 [float]
 [[connecting-anonymously]]

@@ -1,5 +1,3 @@
-import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
-
 /*
  * This project is named sql-cli because it is in the "org.elasticsearch.plugin"
  * group and it'd be super confusing for it to just be called "cli" there.
@@ -80,7 +78,7 @@ forbiddenApisMain {
     signaturesFiles += files('src/forbidden/cli-signatures.txt')
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
     // jLine's optional dependencies
     'org.apache.sshd.client.SshClient',
     'org.apache.sshd.client.auth.keyboard.UserInteraction',
@@ -109,7 +107,7 @@ thirdPartyAudit.excludes = [
     'org.mozilla.universalchardet.UniversalDetector',
     'org.fusesource.jansi.internal.Kernel32$FOCUS_EVENT_RECORD',
     'org.fusesource.jansi.internal.Kernel32$MOUSE_EVENT_RECORD',
-]
+)
 
 task runcli {
     description = 'Run the CLI and connect to elasticsearch running on 9200'

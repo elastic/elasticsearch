@@ -32,8 +32,7 @@ public class TokensInvalidationResultTests extends ESTestCase {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertThat(Strings.toString(builder),
                 equalTo(
-                    "{\"created\":false," +
-                        "\"invalidated_tokens\":2," +
+                    "{\"invalidated_tokens\":2," +
                         "\"previously_invalidated_tokens\":2," +
                         "\"error_count\":2," +
                         "\"error_details\":[" +
@@ -64,8 +63,7 @@ public class TokensInvalidationResultTests extends ESTestCase {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertThat(Strings.toString(builder),
                 equalTo(
-                    "{\"created\":true," +
-                        "\"invalidated_tokens\":2," +
+                    "{\"invalidated_tokens\":2," +
                         "\"previously_invalidated_tokens\":0," +
                         "\"error_count\":0" +
                         "}"));

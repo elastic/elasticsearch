@@ -63,7 +63,7 @@ public class NdJsonFileStructureFinder implements FileStructureFinder {
                 .setJavaTimestampFormats(timeField.v2().javaTimestampFormats)
                 .setNeedClientTimezone(needClientTimeZone)
                 .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, timeField.v1(),
-                    timeField.v2().jodaTimestampFormats, needClientTimeZone));
+                    timeField.v2().javaTimestampFormats, needClientTimeZone));
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =

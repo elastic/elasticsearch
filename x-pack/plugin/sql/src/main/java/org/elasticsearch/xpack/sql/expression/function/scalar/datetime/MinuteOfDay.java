@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.time.ZoneId;
@@ -17,8 +17,8 @@ import java.time.ZoneId;
  */
 public class MinuteOfDay extends DateTimeFunction {
 
-    public MinuteOfDay(Location location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.MINUTE_OF_DAY);
+    public MinuteOfDay(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.MINUTE_OF_DAY);
     }
 
     @Override
@@ -28,7 +28,7 @@ public class MinuteOfDay extends DateTimeFunction {
 
     @Override
     protected MinuteOfDay replaceChild(Expression newChild) {
-        return new MinuteOfDay(location(), newChild, zoneId());
+        return new MinuteOfDay(source(), newChild, zoneId());
     }
 
     @Override

@@ -42,13 +42,11 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public final class InvalidateTokenResponse {
 
-    public static final ParseField CREATED = new ParseField("created");
     public static final ParseField INVALIDATED_TOKENS = new ParseField("invalidated_tokens");
     public static final ParseField PREVIOUSLY_INVALIDATED_TOKENS = new ParseField("previously_invalidated_tokens");
     public static final ParseField ERROR_COUNT = new ParseField("error_count");
     public static final ParseField ERRORS = new ParseField("error_details");
 
-    private final boolean created;
     private final int invalidatedTokens;
     private final int previouslyInvalidatedTokens;
     private List<ElasticsearchException> errors;
@@ -57,19 +55,17 @@ public final class InvalidateTokenResponse {
     private static final ConstructingObjectParser<InvalidateTokenResponse, Void> PARSER = new ConstructingObjectParser<>(
         "tokens_invalidation_result", true,
         // we parse but do not use the count of errors as we implicitly have this in the size of the Exceptions list
-        args -> new InvalidateTokenResponse((boolean) args[0], (int) args[1], (int) args[2], (List<ElasticsearchException>) args[4]));
+        args -> new InvalidateTokenResponse((int) args[0], (int) args[1], (List<ElasticsearchException>) args[3]));
 
     static {
-        PARSER.declareBoolean(constructorArg(), CREATED);
         PARSER.declareInt(constructorArg(), INVALIDATED_TOKENS);
         PARSER.declareInt(constructorArg(), PREVIOUSLY_INVALIDATED_TOKENS);
         PARSER.declareInt(constructorArg(), ERROR_COUNT);
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), ERRORS);
     }
 
-    public InvalidateTokenResponse(boolean created, int invalidatedTokens, int previouslyInvalidatedTokens,
+    public InvalidateTokenResponse(int invalidatedTokens, int previouslyInvalidatedTokens,
                                    @Nullable List<ElasticsearchException> errors) {
-        this.created = created;
         this.invalidatedTokens = invalidatedTokens;
         this.previouslyInvalidatedTokens = previouslyInvalidatedTokens;
         if (null == errors) {
@@ -77,10 +73,6 @@ public final class InvalidateTokenResponse {
         } else {
             this.errors = Collections.unmodifiableList(errors);
         }
-    }
-
-    public boolean isCreated() {
-        return created;
     }
 
     public int getInvalidatedTokens() {
@@ -104,15 +96,14 @@ public final class InvalidateTokenResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InvalidateTokenResponse that = (InvalidateTokenResponse) o;
-        return created == that.created &&
-            invalidatedTokens == that.invalidatedTokens &&
+        return invalidatedTokens == that.invalidatedTokens &&
             previouslyInvalidatedTokens == that.previouslyInvalidatedTokens &&
             Objects.equals(errors, that.errors);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(created, invalidatedTokens, previouslyInvalidatedTokens, errors);
+        return Objects.hash(invalidatedTokens, previouslyInvalidatedTokens, errors);
     }
 
     public static InvalidateTokenResponse fromXContent(XContentParser parser) throws IOException {

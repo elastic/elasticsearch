@@ -1,9 +1,7 @@
 import org.elasticsearch.gradle.MavenFilteringHack
 
 import java.nio.file.Files
-import java.nio.file.Path
 import java.nio.file.Paths
-import java.nio.file.StandardCopyOption
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask;
 
 apply plugin: 'elasticsearch.esplugin'
@@ -125,7 +123,7 @@ artifacts {
     testArtifacts testJar
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   //commons-logging optional dependencies
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
@@ -133,7 +131,7 @@ thirdPartyAudit.excludes = [
   //commons-logging provided dependencies
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener'
-]
+)
 
 // xpack modules are installed in real clusters as the meta plugin, so
 // installing them as individual plugins for integ tests doesn't make sense,

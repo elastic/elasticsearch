@@ -23,7 +23,7 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.sql.expression.literal.Intervals.intervalType;
 import static org.elasticsearch.xpack.sql.expression.literal.Intervals.of;
 import static org.elasticsearch.xpack.sql.expression.literal.Intervals.parseInterval;
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY_TO_HOUR;
 import static org.elasticsearch.xpack.sql.type.DataType.INTERVAL_DAY_TO_MINUTE;
@@ -83,7 +83,7 @@ public class IntervalsTests extends ESTestCase {
 
     public void testSecondInterval() throws Exception {
         int randomSeconds = randomNonNegativeInt();
-        int randomMillis = randomBoolean() ? (randomBoolean() ? 0 : 999999999) : randomInt(999999999);
+        int randomMillis = randomBoolean() ? (randomBoolean() ? 0 : 999) : randomInt(999);
         String value = format(Locale.ROOT, "%s%d.%d", sign, randomSeconds, randomMillis);
         TemporalAmount amount = parseInterval(EMPTY, value, INTERVAL_SECOND);
         assertEquals(maybeNegate(sign, Duration.ofSeconds(randomSeconds).plusMillis(randomMillis)), amount);
@@ -128,7 +128,7 @@ public class IntervalsTests extends ESTestCase {
         int randomSecond = randomInt(59);
 
         boolean withMillis = randomBoolean();
-        int randomMilli = withMillis ? randomInt(999999999) : 0;
+        int randomMilli = withMillis ? randomInt(999) : 0;
         String millisString = withMillis ? "." + randomMilli : "";
 
         String value = format(Locale.ROOT, "%s%d %d:%d:%d%s", sign, randomDay, randomHour, randomMinute, randomSecond, millisString);
@@ -151,7 +151,7 @@ public class IntervalsTests extends ESTestCase {
         int randomSecond = randomInt(59);
 
         boolean withMillis = randomBoolean();
-        int randomMilli = withMillis ? randomInt(999999999) : 0;
+        int randomMilli = withMillis ? randomInt(999) : 0;
         String millisString = withMillis ? "." + randomMilli : "";
 
         String value = format(Locale.ROOT, "%s%d:%d:%d%s", sign, randomHour, randomMinute, randomSecond, millisString);
@@ -165,7 +165,7 @@ public class IntervalsTests extends ESTestCase {
         int randomSecond = randomInt(59);
 
         boolean withMillis = randomBoolean();
-        int randomMilli = withMillis ? randomInt(999999999) : 0;
+        int randomMilli = withMillis ? randomInt(999) : 0;
         String millisString = withMillis ? "." + randomMilli : "";
 
         String value = format(Locale.ROOT, "%s%d:%d%s", sign, randomMinute, randomSecond, millisString);
@@ -186,11 +186,11 @@ public class IntervalsTests extends ESTestCase {
 
     public void testMillisTooBig() throws Exception {
         int randomSeconds = randomNonNegativeInt();
-        int millisTooLarge = 1234567890;
+        int millisTooLarge = 1234;
         String value = format(Locale.ROOT, "%s%d.%d", sign, randomSeconds, millisTooLarge);
         ParsingException pe = expectThrows(ParsingException.class, () -> parseInterval(EMPTY, value, INTERVAL_SECOND));
         assertEquals("line -1:0: Invalid [INTERVAL SECOND] value [" + value + "]: [MILLISECOND] unit has illegal value [" + millisTooLarge
-                + "], expected a positive number up to [999999999]", pe.getMessage());
+                + "], expected a positive number up to [999]", pe.getMessage());
     }
 
     public void testDayToMinuteTooBig() throws Exception {

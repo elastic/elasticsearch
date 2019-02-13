@@ -269,7 +269,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     @Override
-    protected boolean isCachable(PercolateQueryBuilder queryBuilder) {
+    protected boolean isCacheable(PercolateQueryBuilder queryBuilder) {
         return false;
     }
 

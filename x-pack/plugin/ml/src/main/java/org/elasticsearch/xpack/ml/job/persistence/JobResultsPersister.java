@@ -228,7 +228,7 @@ public class JobResultsPersister {
      */
     public void persistQuantiles(Quantiles quantiles) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
-        persistable.persist(AnomalyDetectorsIndex.jobStateIndexName()).actionGet();
+        persistable.persist(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).actionGet();
     }
 
     /**
@@ -237,7 +237,7 @@ public class JobResultsPersister {
     public void persistQuantiles(Quantiles quantiles, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<IndexResponse> listener) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
         persistable.setRefreshPolicy(refreshPolicy);
-        persistable.persist(AnomalyDetectorsIndex.jobStateIndexName(), listener);
+        persistable.persist(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), listener);
     }
 
     /**
@@ -305,7 +305,7 @@ public class JobResultsPersister {
      * @param jobId The job Id
      * */
     public void commitStateWrites(String jobId) {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
+        String indexName = AnomalyDetectorsIndex.jobStateIndexPattern();
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);

@@ -8,14 +8,10 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -34,17 +30,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class NetworkDisruptionIT extends BaseMlIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
-                .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
-                .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
-                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
-                .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but not too long so test won't time out
-                .build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -93,8 +78,9 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         assertEquals(newJobNode, finalJobNode);
 
         // The job running on the original node should have been killed, and hence should not have persisted quantiles
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId())))
+                .setTrackTotalHits(true)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
         assertEquals(0L, searchResponse.getHits().getTotalHits().value);
 
@@ -103,8 +89,9 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         assertTrue(closeJobResponse.isClosed());
 
         // The relocated job was closed rather than killed, and hence should have persisted quantiles
-        searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+        searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId())))
+                .setTrackTotalHits(true)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
         assertEquals(1L, searchResponse.getHits().getTotalHits().value);
     }

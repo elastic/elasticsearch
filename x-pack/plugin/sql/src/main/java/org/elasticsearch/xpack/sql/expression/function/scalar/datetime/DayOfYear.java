@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.time.ZoneId;
@@ -17,8 +17,8 @@ import java.time.ZoneId;
  * Extract the day of the year from a datetime.
  */
 public class DayOfYear extends DateTimeFunction {
-    public DayOfYear(Location location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.DAY_OF_YEAR);
+    public DayOfYear(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.DAY_OF_YEAR);
     }
 
     @Override
@@ -28,7 +28,7 @@ public class DayOfYear extends DateTimeFunction {
 
     @Override
     protected UnaryScalarFunction replaceChild(Expression newChild) {
-        return new DayOfYear(location(), newChild, zoneId());
+        return new DayOfYear(source(), newChild, zoneId());
     }
 
     @Override

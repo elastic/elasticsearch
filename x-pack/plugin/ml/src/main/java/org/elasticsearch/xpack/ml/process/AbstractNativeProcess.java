@@ -23,12 +23,14 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 /**
  * Abstract class for implementing a native process.
@@ -48,7 +50,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private final ZonedDateTime startTime;
     private final int numberOfFields;
     private final List<Path> filesToDelete;
-    private final Runnable onProcessCrash;
+    private final Consumer<String> onProcessCrash;
     private volatile Future<?> logTailFuture;
     private volatile Future<?> stateProcessorFuture;
     private volatile boolean processCloseInitiated;
@@ -57,7 +59,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
 
     protected AbstractNativeProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
                                     OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
-                                    Runnable onProcessCrash) {
+                                    Consumer<String> onProcessCrash) {
         this.jobId = jobId;
         cppLogHandler = new CppLogMessageHandler(jobId, logStream);
         this.processInStream = new BufferedOutputStream(processInStream);
@@ -90,8 +92,9 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                     // by a user or other process (e.g. the Linux OOM killer)
 
                     String errors = cppLogHandler.getErrors();
-                    LOGGER.error("[{}] {} process stopped unexpectedly: {}", jobId, getName(), errors);
-                    onProcessCrash.run();
+                    String fullError = String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly: %s", jobId, getName(), errors);
+                    LOGGER.error(fullError);
+                    onProcessCrash.accept(fullError);
                 }
             }
         });

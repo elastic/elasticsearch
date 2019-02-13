@@ -195,8 +195,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             // each shard and as
             // such are impossible to differentiate from non-significant terms
             // at that early stage.
-            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.numberOfShards() == 1));
+            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
 
         if (valuesSource instanceof ValuesSource.Bytes) {

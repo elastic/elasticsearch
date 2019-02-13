@@ -22,16 +22,16 @@ Transport Layer Security (TLS), see
 The API returns a list that includes certificates from all TLS contexts
 including:
 
-* Default {es} TLS settings
 * Settings for transport and HTTP interfaces
 * TLS settings that are used within authentication realms
 * TLS settings for remote monitoring exporters
 
 The list includes certificates that are used for configuring trust, such as
-those configured in the `xpack.ssl.truststore` and
-`xpack.ssl.certificate_authorities` settings. It also includes certificates that
-that are used for configuring server identity, such as `xpack.ssl.keystore` and
-`xpack.ssl.certificate` settings.
+those configured in the `xpack.security.transport.ssl.truststore` and
+`xpack.security.transport.ssl.certificate_authorities` settings. It also
+includes certificates that are used for configuring server identity, such as
+`xpack.security.http.ssl.keystore` and
+`xpack.security.http.ssl.certificate` settings.
 
 The list does not include certificates that are sourced from the default SSL
 context of the Java Runtime Environment (JRE), even if those certificates are in

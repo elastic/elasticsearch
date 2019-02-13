@@ -19,16 +19,16 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.apache.lucene.geo.Line;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.LineString;
-
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geo.geometry.Line;
+import org.elasticsearch.geo.geometry.MultiLine;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LineString;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ import java.util.List;
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 
-public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuilder> {
+public class LineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geo.geometry.Geometry, LineStringBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
     /**
@@ -125,15 +125,15 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuild
     }
 
     @Override
-    public Object buildLucene() {
+    public org.elasticsearch.geo.geometry.Geometry buildGeometry() {
         // decompose linestrings crossing dateline into array of Lines
         Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[this.coordinates.size()]);
         if (wrapdateline) {
-            ArrayList<Line> linestrings = decomposeLucene(coordinates, new ArrayList<>());
+            List<Line> linestrings = decomposeGeometry(coordinates, new ArrayList<>());
             if (linestrings.size() == 1) {
                 return linestrings.get(0);
             } else {
-                return linestrings.toArray(new Line[linestrings.size()]);
+                return new MultiLine(linestrings);
             }
         }
         return new Line(Arrays.stream(coordinates).mapToDouble(i->normalizeLat(i.y)).toArray(),
@@ -149,7 +149,7 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuild
         return strings;
     }
 
-    static ArrayList<Line> decomposeLucene(Coordinate[] coordinates, ArrayList<Line> lines) {
+    static List<Line> decomposeGeometry(Coordinate[] coordinates, List<Line> lines) {
         for (Coordinate[] part : decompose(+DATELINE, coordinates)) {
             for (Coordinate[] line : decompose(-DATELINE, part)) {
                 lines.add(new Line(Arrays.stream(line).mapToDouble(i->normalizeLat(i.y)).toArray(),

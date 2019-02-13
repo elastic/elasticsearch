@@ -20,7 +20,6 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.joda.Joda;
 import org.joda.time.DateTime;
 
 import java.time.Instant;
@@ -87,7 +86,8 @@ public interface DateFormatter {
      * Return the given millis-since-epoch formatted with this format.
      */
     default String formatMillis(long millis) {
-        return format(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC));
+        ZoneId zone = zone() != null ? zone() : ZoneOffset.UTC;
+        return format(Instant.ofEpochMilli(millis).atZone(zone));
     }
 
     /**
@@ -121,7 +121,9 @@ public interface DateFormatter {
     ZoneId zone();
 
     /**
-     * Return a {@link DateMathParser} built from this formatter.
+     * Create a DateMathParser from the existing formatter
+     *
+     * @return The DateMathParser object
      */
     DateMathParser toDateMathParser();
 
@@ -129,13 +131,14 @@ public interface DateFormatter {
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
-        if (input.startsWith("8") == false) {
-            return Joda.forPattern(input);
+
+        // support the 6.x BWC compatible way of parsing java 8 dates
+        if (input.startsWith("8")) {
+            input = input.substring(1);
         }
 
-        // force java 8 date format
         List<DateFormatter> formatters = new ArrayList<>();
-        for (String pattern : Strings.delimitedListToStringArray(input.substring(1), "||")) {
+        for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
             if (Strings.hasLength(pattern) == false) {
                 throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
             }
@@ -145,7 +148,7 @@ public interface DateFormatter {
         if (formatters.size() == 1) {
             return formatters.get(0);
         }
-        return new DateFormatters.MergedDateFormatter(input, formatters);
 
+        return DateFormatters.merge(input, formatters);
     }
 }

@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.threadpool.Scheduler;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 public class TimeoutCheckerTests extends FileStructureTestCase {
 
@@ -20,7 +20,7 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
 
     @Before
     public void createScheduler() {
-        scheduler = new ScheduledThreadPoolExecutor(1);
+        scheduler = new Scheduler.SafeScheduledThreadPoolExecutor(1);
     }
 
     @After
@@ -72,6 +72,9 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
             } finally {
                 TimeoutChecker.watchdog.unregister();
             }
+        } finally {
+            // ensure the interrupted flag is cleared to stop it making subsequent tests fail
+            Thread.interrupted();
         }
     }
 
@@ -89,6 +92,9 @@ public class TimeoutCheckerTests extends FileStructureTestCase {
                 assertEquals("Aborting grok captures test during [should timeout] as it has taken longer than the timeout of [" +
                     timeout + "]", e.getMessage());
             });
+        } finally {
+            // ensure the interrupted flag is cleared to stop it making subsequent tests fail
+            Thread.interrupted();
         }
     }
 }

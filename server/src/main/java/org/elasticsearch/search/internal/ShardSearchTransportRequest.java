@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,16 +48,12 @@ import java.util.Map;
  */
 public class ShardSearchTransportRequest extends TransportRequest implements ShardSearchRequest, IndicesRequest {
 
-    private OriginalIndices originalIndices;
-
-    private ShardSearchLocalRequest shardSearchLocalRequest;
-
-    public ShardSearchTransportRequest(){
-    }
+    private final OriginalIndices originalIndices;
+    private final ShardSearchLocalRequest shardSearchLocalRequest;
 
     public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int numberOfShards,
                                        AliasFilter aliasFilter, float indexBoost, long nowInMillis,
-                                       String clusterAlias, String[] indexRoutings) {
+                                       @Nullable String clusterAlias, String[] indexRoutings) {
         this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, numberOfShards, aliasFilter, indexBoost,
             nowInMillis, clusterAlias, indexRoutings);
         this.originalIndices = originalIndices;
@@ -64,8 +61,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
 
     public ShardSearchTransportRequest(StreamInput in) throws IOException {
         super(in);
-        shardSearchLocalRequest = new ShardSearchLocalRequest();
-        shardSearchLocalRequest.innerReadFrom(in);
+        shardSearchLocalRequest = new ShardSearchLocalRequest(in);
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -74,10 +70,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         super.writeTo(out);
         shardSearchLocalRequest.innerWriteTo(out, false);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-    }
-
-    public void searchType(SearchType searchType) {
-        shardSearchLocalRequest.setSearchType(searchType);
     }
 
     @Override
@@ -152,7 +144,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public Boolean allowPartialSearchResults() {
+    public boolean allowPartialSearchResults() {
         return shardSearchLocalRequest.allowPartialSearchResults();
     }
 
@@ -179,16 +171,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public BytesReference cacheKey() throws IOException {
         return shardSearchLocalRequest.cacheKey();
-    }
-
-    @Override
-    public void setProfile(boolean profile) {
-        shardSearchLocalRequest.setProfile(profile);
-    }
-
-    @Override
-    public boolean isProfile() {
-        return shardSearchLocalRequest.isProfile();
     }
 
     @Override

@@ -77,7 +77,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         terms = in.readString();
         regex = in.readString();
         maxMatchingLength = in.readLong();
-        examples = new TreeSet<>(in.readList(StreamInput::readString));
+        examples = new TreeSet<>(in.readStringList());
         if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             grokPattern = in.readOptionalString();
         }
@@ -90,7 +90,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         out.writeString(terms);
         out.writeString(regex);
         out.writeLong(maxMatchingLength);
-        out.writeStringList(new ArrayList<>(examples));
+        out.writeStringCollection(examples);
         if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeOptionalString(grokPattern);
         }

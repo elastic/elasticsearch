@@ -51,6 +51,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
@@ -399,8 +400,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         String detailedMessage = detail.getMessage();
         assertTrue(detailedMessage,
             detailedMessage.startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
-        assertTrue(detailedMessage, detailedMessage.endsWith("because not all primary shards are active for the following indices " +
-            "[.ml-state,.ml-anomalies-shared]]"));
+        assertThat(detailedMessage, containsString("because not all primary shards are active for the following indices"));
+        assertThat(detailedMessage, containsString(".ml-state"));
+        assertThat(detailedMessage, containsString(".ml-anomalies-shared"));
 
         logger.info("Start data node");
         String nonMlNode = internalCluster().startNode(Settings.builder()

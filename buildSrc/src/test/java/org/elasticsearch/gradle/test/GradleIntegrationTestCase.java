@@ -43,7 +43,7 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         if (index.equals(index.stream().sorted().collect(Collectors.toList())) == false) {
             fail("Expected the following lines to appear in this order:\n" +
                 Stream.of(lines).map(line -> "   - `" + line + "`").collect(Collectors.joining("\n")) +
-                "\nBut they did not. Output is:\n\n```" + output + "\n```\n"
+                "\nTBut the order was different. Output is:\n\n```" + output + "\n```\n"
             );
         }
     }
@@ -144,8 +144,16 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
     }
 
     protected String getLocalTestRepoPath() {
-        String property = System.getProperty("test.local-test-repo-path");
-        Objects.requireNonNull(property, "test.local-test-repo-path not passed to tests");
+        return getLocalTestPath("test.local-test-repo-path");
+    }
+
+    protected String getLocalTestDownloadsPath() {
+        return getLocalTestPath("test.local-test-downloads-path");
+    }
+
+    private String getLocalTestPath(String propertyName) {
+        String property = System.getProperty(propertyName);
+        Objects.requireNonNull(property, propertyName + " not passed to tests");
         File file = new File(property);
         assertTrue("Expected " + property + " to exist, but it did not!", file.exists());
         if (File.separator.equals("\\")) {

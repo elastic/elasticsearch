@@ -72,6 +72,11 @@ setup:
       ml.get_jobs:
         job_id: mixed-cluster-job
 
+  - do:
+      indices.exists_alias:
+        name: ".ml-state-write"
+  - is_true: ''
+
 ---
 "Test job with no model memory limit has established model memory after reopening":
   - do:

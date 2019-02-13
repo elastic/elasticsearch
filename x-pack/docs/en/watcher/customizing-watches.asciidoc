@@ -49,7 +49,7 @@ initial payload.
 A <<input-search, search>> input contains a `request` object that specifies the
 indices you want to search, the {ref}/search-request-search-type.html[search type],
 and the search request body. The `body` field of a search input is the same as
-the body of an Elasticsearch `_search` request, making the full Elaticsearch
+the body of an Elasticsearch `_search` request, making the full Elasticsearch
 Query DSL available for you to use.
 
 For example, the following `search` input loads the latest VIX quote:

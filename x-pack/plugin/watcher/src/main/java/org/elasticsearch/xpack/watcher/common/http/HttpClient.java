@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.watcher.common.http;
 import org.apache.http.Header;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
+import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.NameValuePair;
+import org.apache.http.ProtocolException;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.Credentials;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -19,6 +21,7 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.methods.HttpRequestWrapper;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIUtils;
 import org.apache.http.client.utils.URLEncodedUtils;
@@ -31,11 +34,21 @@ import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultRedirectStrategy;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.protocol.HttpContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -59,6 +72,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class HttpClient implements Closeable {
 
@@ -69,20 +83,29 @@ public class HttpClient implements Closeable {
     private static final int MAX_CONNECTIONS = 500;
     private static final Logger logger = LogManager.getLogger(HttpClient.class);
 
+    private final AtomicReference<CharacterRunAutomaton> whitelistAutomaton = new AtomicReference<>();
     private final CloseableHttpClient client;
     private final HttpProxy settingsProxy;
     private final TimeValue defaultConnectionTimeout;
     private final TimeValue defaultReadTimeout;
     private final ByteSizeValue maxResponseSize;
     private final CryptoService cryptoService;
+    private final SSLService sslService;
 
-    public HttpClient(Settings settings, SSLService sslService, CryptoService cryptoService) {
+    public HttpClient(Settings settings, SSLService sslService, CryptoService cryptoService, ClusterService clusterService) {
         this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
         this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
         this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
         this.settingsProxy = getProxyFromSettings(settings);
         this.cryptoService = cryptoService;
+        this.sslService = sslService;
 
+        setWhitelistAutomaton(HttpSettings.HOSTS_WHITELIST.get(settings));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(HttpSettings.HOSTS_WHITELIST, this::setWhitelistAutomaton);
+        this.client = createHttpClient();
+    }
+
+    private CloseableHttpClient createHttpClient() {
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
         // ssl setup
@@ -95,12 +118,54 @@ public class HttpClient implements Closeable {
         clientBuilder.evictExpiredConnections();
         clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
         clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
+        clientBuilder.setRedirectStrategy(new DefaultRedirectStrategy() {
+            @Override
+            public boolean isRedirected(org.apache.http.HttpRequest request, org.apache.http.HttpResponse response,
+                                        HttpContext context) throws ProtocolException {
+                boolean isRedirected = super.isRedirected(request, response, context);
+                if (isRedirected) {
+                    String host = response.getHeaders("Location")[0].getValue();
+                    if (isWhitelisted(host) == false) {
+                        throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
+                            HttpSettings.HOSTS_WHITELIST.getKey() + "], will not redirect");
+                    }
+                }
 
-        client = clientBuilder.build();
+                return isRedirected;
+            }
+        });
+
+        clientBuilder.addInterceptorFirst((HttpRequestInterceptor) (request, context) -> {
+            if (request instanceof HttpRequestWrapper == false) {
+                throw new ElasticsearchException("unable to check request [{}/{}] for white listing", request,
+                    request.getClass().getName());
+            }
+
+            HttpRequestWrapper wrapper = ((HttpRequestWrapper) request);
+            final String host;
+            if (wrapper.getTarget() != null) {
+                host = wrapper.getTarget().toURI();
+            } else {
+                host = wrapper.getOriginal().getRequestLine().getUri();
+            }
+
+            if (isWhitelisted(host) == false) {
+                throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
+                    HttpSettings.HOSTS_WHITELIST.getKey() + "], will not connect");
+            }
+        });
+
+        return clientBuilder.build();
+    }
+
+    private void setWhitelistAutomaton(List<String> whiteListedHosts) {
+        whitelistAutomaton.set(createAutomaton(whiteListedHosts));
     }
 
     public HttpResponse execute(HttpRequest request) throws IOException {
-        URI uri = createURI(request);
+        Tuple<HttpHost, URI> tuple = createURI(request);
+        final URI uri = tuple.v2();
+        final HttpHost httpHost = tuple.v1();
 
         HttpRequestBase internalRequest;
         if (request.method == HttpMethod.HEAD) {
@@ -150,7 +215,7 @@ public class HttpClient implements Closeable {
             // preemptive auth, no need to wait for a 401 first
             AuthCache authCache = new BasicAuthCache();
             BasicScheme basicAuth = new BasicScheme();
-            authCache.put(new HttpHost(request.host, request.port, request.scheme.scheme()), basicAuth);
+            authCache.put(httpHost, basicAuth);
             localContext.setAuthCache(authCache);
         }
 
@@ -171,7 +236,7 @@ public class HttpClient implements Closeable {
 
         internalRequest.setConfig(config.build());
 
-        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(internalRequest, localContext))) {
+        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(httpHost, internalRequest, localContext))) {
             // headers
             Header[] headers = response.getAllHeaders();
             Map<String, String[]> responseHeaders = new HashMap<>(headers.length);
@@ -248,7 +313,7 @@ public class HttpClient implements Closeable {
         return HttpProxy.NO_PROXY;
     }
 
-    private URI createURI(HttpRequest request) {
+    private Tuple<HttpHost, URI> createURI(HttpRequest request) {
         // this could be really simple, as the apache http client has a UriBuilder class, however this class is always doing
         // url path escaping, and we have done this already, so this would result in double escaping
         try {
@@ -258,7 +323,23 @@ public class HttpClient implements Closeable {
             URI uri = URIUtils.createURI(request.scheme.scheme(), request.host, request.port, request.path,
                     Strings.isNullOrEmpty(format) ? null : format, null);
 
-            return uri;
+            if (uri.isAbsolute() == false) {
+                throw new IllegalStateException("URI [" + uri.toASCIIString() + "] must be absolute");
+            }
+            final HttpHost httpHost = URIUtils.extractHost(uri);
+            // what a mess that we need to do this to workaround https://issues.apache.org/jira/browse/HTTPCLIENT-1968
+            // in some cases the HttpClient will re-write the URI which drops the escaping for
+            // slashes within a path. This rewriting is done to obtain a relative URI when
+            // a proxy is not being used. To avoid this we can handle making it relative ourselves
+            if (request.path != null && request.path.contains("%2F")) {
+                final boolean isUsingProxy = (request.proxy != null && request.proxy.equals(HttpProxy.NO_PROXY) == false) ||
+                    HttpProxy.NO_PROXY.equals(settingsProxy) == false;
+                if (isUsingProxy == false) {
+                    // we need a relative uri
+                    uri = URIUtils.createURI(null, null, -1, request.path, Strings.isNullOrEmpty(format) ? null : format, null);
+                }
+            }
+            return new Tuple<>(httpHost, uri);
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e);
         }
@@ -285,6 +366,24 @@ public class HttpClient implements Closeable {
         public String getMethod() {
             return methodName;
         }
+
     }
 
+    private boolean isWhitelisted(String host) {
+        return whitelistAutomaton.get().run(host);
+    }
+
+    private static final CharacterRunAutomaton MATCH_ALL_AUTOMATON = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton("*"));
+    // visible for testing
+    static CharacterRunAutomaton createAutomaton(List<String> whiteListedHosts) {
+        if (whiteListedHosts.isEmpty()) {
+            // the default is to accept everything, this should change in the next major version, being 8.0
+            // we could emit depreciation warning here, if the whitelist is empty
+            return MATCH_ALL_AUTOMATON;
+        }
+
+        Automaton whiteListAutomaton = Regex.simpleMatchToAutomaton(whiteListedHosts.toArray(Strings.EMPTY_ARRAY));
+        whiteListAutomaton = MinimizationOperations.minimize(whiteListAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        return new CharacterRunAutomaton(whiteListAutomaton);
+    }
 }

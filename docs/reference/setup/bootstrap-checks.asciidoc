@@ -157,9 +157,9 @@ and is enforced on Linux only. To pass the maximum map count check, you
 must configure `vm.max_map_count` via `sysctl` to be at least `262144`.
 
 Alternatively, the maximum map count check is only needed if you are using
-`mmapfs` as the <<index-modules-store,store type>> for your indices. If you
-<<allow-mmapfs,do not allow>> the use of `mmapfs` then this bootstrap check will
-not be enforced.
+`mmapfs` or `hybridfs` as the <<index-modules-store,store type>> for your
+indices. If you <<allow-mmap,do not allow>> the use of `mmap` then this
+bootstrap check will not be enforced.
 
 === Client JVM check
 
@@ -252,6 +252,6 @@ This bootstrap check ensures that discovery is not running with the default
 configuration. It can be satisfied by setting at least one of the following
 properties:
 
-- `discovery.zen.ping.unicast.hosts`
-- `discovery.zen.hosts_provider`
+- `discovery.seed_hosts`
+- `discovery.seed_providers`
 - `cluster.initial_master_nodes`

@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.util.Graphviz;
@@ -50,8 +50,8 @@ public class Explain extends Command {
     private final Format format;
     private final Type type;
 
-    public Explain(Location location, LogicalPlan plan, Type type, Format format, boolean verify) {
-        super(location);
+    public Explain(Source source, LogicalPlan plan, Type type, Format format, boolean verify) {
+        super(source);
         this.plan = plan;
         this.verify = verify;
         this.format = format == null ? Format.TEXT : format;
@@ -81,7 +81,7 @@ public class Explain extends Command {
 
     @Override
     public List<Attribute> output() {
-        return singletonList(new FieldAttribute(location(), "plan", new KeywordEsField("plan")));
+        return singletonList(new FieldAttribute(source(), "plan", new KeywordEsField("plan")));
     }
 
     @Override

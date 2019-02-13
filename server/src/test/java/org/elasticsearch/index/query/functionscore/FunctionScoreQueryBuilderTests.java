@@ -797,7 +797,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
-    protected boolean isCachable(FunctionScoreQueryBuilder queryBuilder) {
+    protected boolean isCacheable(FunctionScoreQueryBuilder queryBuilder) {
         FilterFunctionBuilder[] filterFunctionBuilders = queryBuilder.filterFunctionBuilders();
         for (FilterFunctionBuilder builder : filterFunctionBuilders) {
             if (builder.getScoreFunction() instanceof ScriptScoreFunctionBuilder) {

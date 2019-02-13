@@ -48,15 +48,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -88,7 +88,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     private static DatafeedConfig.Builder createRandomizedDatafeedConfigBuilder(String jobId, long bucketSpanMillis) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(randomValidDatafeedId(), jobId);
         builder.setIndices(randomStringList(1, 10));
-        builder.setTypes(randomStringList(0, 10));
         if (randomBoolean()) {
             builder.setParsedQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
@@ -396,7 +395,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testBuild_GivenScriptFieldsAndAggregations() {
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", "job1");
         datafeed.setIndices(Collections.singletonList("my_index"));
-        datafeed.setTypes(Collections.singletonList("my_type"));
         datafeed.setScriptFields(Collections.singletonList(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10),
                 mockScript(randomAlphaOfLength(10)), randomBoolean())));
         datafeed.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("foo")));
@@ -409,7 +407,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testHasAggregations_GivenNull() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
         DatafeedConfig datafeedConfig = builder.build();
 
         assertThat(datafeedConfig.hasAggregations(), is(false));
@@ -418,7 +415,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testHasAggregations_NonEmpty() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         builder.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(
                 AggregationBuilders.dateHistogram("time").interval(300000).subAggregation(maxTime).field("time")));
@@ -430,7 +426,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testBuild_GivenEmptyAggregations() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
         builder.setParsedAggregations(new AggregatorFactories.Builder());
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::build);
@@ -441,7 +436,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testBuild_GivenHistogramWithDefaultInterval() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         builder.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(
                 AggregationBuilders.histogram("time").subAggregation(maxTime).field("time"))
@@ -455,7 +449,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testBuild_GivenDateHistogramWithInvalidTimeZone() {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
-                .interval(300000L).timeZone(DateTimeZone.forTimeZone(TimeZone.getTimeZone("EST"))).subAggregation(maxTime);
+                .interval(300000L).timeZone(ZoneId.of("CET")).subAggregation(maxTime);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> createDatafeedWithDateHistogram(dateHistogram));
 
@@ -656,7 +650,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 new Script("params.bytes > 0 ? params.bytes : null"));
         DateHistogramAggregationBuilder dateHistogram =
             AggregationBuilders.dateHistogram("histogram_buckets")
-                .field("timestamp").interval(300000).timeZone(DateTimeZone.UTC)
+                .field("timestamp").interval(300000).timeZone(ZoneOffset.UTC)
                 .subAggregation(maxTime)
                 .subAggregation(avgAggregationBuilder)
                 .subAggregation(derivativePipelineAggregationBuilder)
@@ -707,7 +701,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 new Script("params.bytes > 0 ? params.bytes : null"));
         DateHistogramAggregationBuilder dateHistogram =
             AggregationBuilders.dateHistogram("histogram_buckets")
-                .field("timestamp").interval(300000).timeZone(DateTimeZone.UTC)
+                .field("timestamp").interval(300000).timeZone(ZoneOffset.UTC)
                 .subAggregation(maxTime)
                 .subAggregation(avgAggregationBuilder)
                 .subAggregation(derivativePipelineAggregationBuilder)
@@ -770,7 +764,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     private static DatafeedConfig.Builder createDatafeedBuilderWithDateHistogram(DateHistogramAggregationBuilder dateHistogram) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder().addAggregator(dateHistogram);
         DatafeedConfig.validateAggregations(aggs);
         builder.setParsedAggregations(aggs);
@@ -784,7 +777,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) throws IOException {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, 10)) {
+        switch (between(0, 9)) {
         case 0:
             builder.setId(instance.getId() + randomValidDatafeedId());
             break;
@@ -807,11 +800,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             builder.setIndices(indices);
             break;
         case 5:
-            List<String> types = new ArrayList<>(instance.getTypes());
-            types.add(randomAlphaOfLengthBetween(1, 20));
-            builder.setTypes(types);
-            break;
-        case 6:
             BoolQueryBuilder query = new BoolQueryBuilder();
             if (instance.getParsedQuery() != null) {
                query.must(instance.getParsedQuery());
@@ -819,7 +807,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             query.filter(new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
             builder.setParsedQuery(query);
             break;
-        case 7:
+        case 6:
             if (instance.hasAggregations()) {
                 builder.setAggregations(null);
             } else {
@@ -834,16 +822,16 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 }
             }
             break;
-        case 8:
+        case 7:
             ArrayList<ScriptField> scriptFields = new ArrayList<>(instance.getScriptFields());
             scriptFields.add(new ScriptField(randomAlphaOfLengthBetween(1, 10), new Script("foo"), true));
             builder.setScriptFields(scriptFields);
             builder.setAggregations(null);
             break;
-        case 9:
+        case 8:
             builder.setScrollSize(instance.getScrollSize() + between(1, 100));
             break;
-        case 10:
+        case 9:
             if (instance.getChunkingConfig() == null || instance.getChunkingConfig().getMode() == Mode.AUTO) {
                 ChunkingConfig newChunkingConfig = ChunkingConfig.newManual(new TimeValue(randomNonNegativeLong()));
                 builder.setChunkingConfig(newChunkingConfig);

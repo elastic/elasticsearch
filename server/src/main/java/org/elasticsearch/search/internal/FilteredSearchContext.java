@@ -322,13 +322,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext trackTotalHits(boolean trackTotalHits) {
-        return in.trackTotalHits(trackTotalHits);
+    public SearchContext trackTotalHitsUpTo(int trackTotalHitsUpTo) {
+        return in.trackTotalHitsUpTo(trackTotalHitsUpTo);
     }
 
     @Override
-    public boolean trackTotalHits() {
-        return in.trackTotalHits();
+    public int trackTotalHitsUpTo() {
+        return in.trackTotalHitsUpTo();
     }
 
     @Override
@@ -420,6 +420,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void version(boolean version) {
         in.version(version);
+    }
+
+    @Override
+    public boolean seqNoAndPrimaryTerm() {
+        return in.seqNoAndPrimaryTerm();
+    }
+
+    @Override
+    public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        in.seqNoAndPrimaryTerm(seqNoAndPrimaryTerm);
     }
 
     @Override

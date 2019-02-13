@@ -182,6 +182,8 @@ public class MigrationClientDocumentationIT extends ESRestHighLevelClientTestCas
             deprecationInfoResponse.getNodeSettingsIssues(); // <2>
         Map<String, List<DeprecationInfoResponse.DeprecationIssue>> indexIssues =
             deprecationInfoResponse.getIndexSettingsIssues(); // <3>
+        List<DeprecationInfoResponse.DeprecationIssue> mlIssues =
+            deprecationInfoResponse.getMlSettingsIssues(); // <4>
         // end::get-deprecation-info-response
 
         // tag::get-deprecation-info-execute-listener
@@ -195,6 +197,8 @@ public class MigrationClientDocumentationIT extends ESRestHighLevelClientTestCas
                         deprecationInfoResponse.getNodeSettingsIssues();
                     Map<String, List<DeprecationInfoResponse.DeprecationIssue>> indexIssues =
                         deprecationInfoResponse.getIndexSettingsIssues();
+                    List<DeprecationInfoResponse.DeprecationIssue> mlIssues =
+                        deprecationInfoResponse.getMlSettingsIssues();
                 }
 
                 @Override

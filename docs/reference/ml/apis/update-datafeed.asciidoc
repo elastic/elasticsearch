@@ -68,11 +68,6 @@ The following properties can be updated after the {dfeed} is created:
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
-`types`::
-  (array) A list of types to search for within the specified indices.
-  For example: `[]`. This property is provided for backwards compatibility with
-  releases earlier than 6.0.0. For more information, see <<removal-of-types>>.
-
 For more information about these properties,
 see <<ml-datafeed-resource>>.
 
@@ -120,7 +115,6 @@ with the updated values:
   "job_id": "total-requests",
   "query_delay": "83474ms",
   "indices": ["server-metrics"],
-  "types": [],
   "query": {
     "term": {
       "level": {

@@ -38,14 +38,14 @@ import java.util.List;
 
 //TODO public for tests
 public final class NoisyChannelSpellChecker {
-    public static final double REAL_WORD_LIKELYHOOD = 0.95d;
+    public static final double REAL_WORD_LIKELIHOOD = 0.95d;
     public static final int DEFAULT_TOKEN_LIMIT = 10;
     private final double realWordLikelihood;
     private final boolean requireUnigram;
     private final int tokenLimit;
 
     public NoisyChannelSpellChecker() {
-        this(REAL_WORD_LIKELYHOOD);
+        this(REAL_WORD_LIKELIHOOD);
     }
 
     public NoisyChannelSpellChecker(double nonErrorLikelihood) {

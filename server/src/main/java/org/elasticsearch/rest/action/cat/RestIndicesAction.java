@@ -409,18 +409,28 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             }
 
-            // the index is present in the cluster state but is not returned in the indices stats API
-            if (indexStats == null) {
+            // the open index is present in the cluster state but is not returned in the indices stats API
+            if (indexStats == null && state != IndexMetaData.State.CLOSE) {
                 // the index stats API is called last, after cluster state and cluster health. If the index stats
-                // has not resolved the same indices as the initial cluster state call, then the indices might
+                // has not resolved the same open indices as the initial cluster state call, then the indices might
                 // have been removed in the meantime or, more likely, are unauthorized. This is because the cluster
                 // state exposes everything, even unauthorized indices, which are not exposed in APIs.
                 // We ignore such an index instead of displaying it with an empty stats.
                 continue;
             }
 
-            final CommonStats primaryStats = indexStats.getPrimaries();
-            final CommonStats totalStats = indexStats.getTotal();
+            final CommonStats primaryStats;
+            final CommonStats totalStats;
+
+            if (state == IndexMetaData.State.CLOSE) {
+                // empty stats for closed indices, but their names are displayed
+                assert indexStats == null;
+                primaryStats = new CommonStats();
+                totalStats = new CommonStats();
+            } else {
+                primaryStats = indexStats.getPrimaries();
+                totalStats = indexStats.getTotal();
+            }
 
             table.startRow();
             table.addCell(state == IndexMetaData.State.OPEN ?
@@ -609,8 +619,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getSuggestCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getSuggestCount());
 
-            table.addCell(indexStats.getTotal().getTotalMemory());
-            table.addCell(indexStats.getPrimaries().getTotalMemory());
+            table.addCell(totalStats.getTotalMemory());
+            table.addCell(primaryStats.getTotalMemory());
 
             table.addCell(searchThrottled);
 

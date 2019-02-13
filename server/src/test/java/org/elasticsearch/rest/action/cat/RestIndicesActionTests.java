@@ -60,9 +60,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.usage.UsageService;
 
-import java.lang.reflect.Array;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -189,18 +189,13 @@ public class RestIndicesActionTests extends ESTestCase {
         );
     }
 
-    private <T> T[] removeRandomElement(T[] array) {
+    private IndexMetaData[] removeRandomElement(IndexMetaData[] array) {
         assert array != null;
         assert array.length > 0;
-        @SuppressWarnings("unchecked")
-        final T[] smallerArray = (T[]) Array.newInstance(array.getClass().getComponentType(), array.length - 1);
-        final int index = randomIntBetween(0, array.length - 1);
-        if (index > 0) {
-            System.arraycopy(array, 0, smallerArray, 0, index);
-        }
-        if (index < array.length - 1) {
-            System.arraycopy(array, index + 1, smallerArray, index, array.length - index - 1);
-        }
-        return smallerArray;
+        final List<IndexMetaData> collectionLessAnItem = new ArrayList<>();
+        collectionLessAnItem.addAll(Arrays.asList(array));
+        final int toRemoveIndex = randomIntBetween(0, array.length - 1);
+        collectionLessAnItem.remove(toRemoveIndex);
+        return collectionLessAnItem.toArray(new IndexMetaData[0]);
     }
 }

@@ -166,7 +166,6 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35450")
     public void testClusterHealthYellowClusterLevel() throws IOException {
         createIndex("index", Settings.EMPTY);
         createIndex("index2", Settings.EMPTY);
@@ -176,15 +175,19 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
 
         logger.info("Shard stats\n{}", EntityUtils.toString(
                 client().performRequest(new Request("GET", "/_cat/shards")).getEntity()));
-        assertYellowShards(response);
         assertThat(response.getIndices().size(), equalTo(0));
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35450")
     public void testClusterHealthYellowIndicesLevel() throws IOException {
-        createIndex("index", Settings.EMPTY);
-        createIndex("index2", Settings.EMPTY);
-        ClusterHealthRequest request = new ClusterHealthRequest();
+        String firstIndex = "index";
+        String secondIndex = "index2";
+        // including another index that we do not assert on, to ensure that we are not
+        // accidentally asserting on entire cluster state
+        String ignoredIndex = "tasks";
+        createIndex(firstIndex, Settings.EMPTY);
+        createIndex(secondIndex, Settings.EMPTY);
+        createIndex(ignoredIndex, Settings.EMPTY);
+        ClusterHealthRequest request = new ClusterHealthRequest(firstIndex, secondIndex);
         request.timeout("5s");
         request.level(ClusterHealthRequest.Level.INDICES);
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
@@ -210,11 +213,9 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getDelayedUnassignedShards(), equalTo(0));
         assertThat(response.getInitializingShards(), equalTo(0));
         assertThat(response.getUnassignedShards(), equalTo(2));
-        assertThat(response.getActiveShardsPercent(), equalTo(50d));
     }
 
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35450")
     public void testClusterHealthYellowSpecificIndex() throws IOException {
         createIndex("index", Settings.EMPTY);
         createIndex("index2", Settings.EMPTY);
@@ -234,7 +235,6 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getDelayedUnassignedShards(), equalTo(0));
         assertThat(response.getInitializingShards(), equalTo(0));
         assertThat(response.getUnassignedShards(), equalTo(1));
-        assertThat(response.getActiveShardsPercent(), equalTo(50d));
         assertThat(response.getIndices().size(), equalTo(1));
         Map.Entry<String, ClusterIndexHealth> index = response.getIndices().entrySet().iterator().next();
         assertYellowIndex(index.getKey(), index.getValue(), false);

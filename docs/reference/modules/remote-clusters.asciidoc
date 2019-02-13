@@ -52,7 +52,7 @@ cluster:
             transport.ping_schedule: 30s <2>
         cluster_two: <1>
             seeds: 127.0.0.1:9301
-            transport.compression: true <3>
+            transport.compress: true <3>
 
 --------------------------------
 <1> `cluster_one` and `cluster_two` are arbitrary _cluster aliases_ representing
@@ -82,7 +82,7 @@ PUT _cluster/settings
           "seeds": [
             "127.0.0.1:9301"
           ],
-          "transport.compression": true
+          "transport.compress": true
         },
         "cluster_three": {
           "seeds": [
@@ -120,7 +120,7 @@ PUT _cluster/settings
           "seeds": [
             "127.0.0.1:9301"
           ],
-          "transport.compression": false
+          "transport.compress": false
         }
       }
     }

@@ -315,7 +315,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         final String retentionLeaseId = retentionLeaseId(indexShard.shardId().getIndex().getUUID(), leaderUUID);
         logger.trace(
-                () -> new ParameterizedMessage("{} requesting leader primary to add retention lease [{}]", shardId, retentionLeaseId));
+                () -> new ParameterizedMessage("{} requesting leader to add retention lease [{}]", shardId, retentionLeaseId));
         final Optional<RetentionLeaseAlreadyExistsException> maybeAddAlready =
                 addRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
         maybeAddAlready.ifPresent(addAlready -> {
@@ -324,7 +324,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     renewRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
             maybeRenewNotFound.ifPresent(renewNotFound -> {
                 logger.trace(() -> new ParameterizedMessage(
-                        "{} retention lease not found while attempting to renew, attempting a final add", shardId), renewNotFound);
+                        "{} retention lease not found while attempting to renew, requesting a final add", shardId), renewNotFound);
                 final Optional<RetentionLeaseAlreadyExistsException> maybeFallbackAddAlready =
                         addRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
                 maybeFallbackAddAlready.ifPresent(fallbackAddAlready -> {
@@ -356,7 +356,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         } catch (Exception e) {
             throw new IndexShardRestoreFailedException(indexShard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
         } finally {
-            logger.trace("{} stopping background renewing retention lease at the end of recovery", shardId);
+            logger.trace("{} stopping background retention lease renewing at the end of recovery", shardId);
             renewable.cancel();
         }
     }

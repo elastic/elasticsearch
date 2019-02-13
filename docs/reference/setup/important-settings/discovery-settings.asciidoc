@@ -17,16 +17,17 @@ the available loopback addresses and will scan local ports 9300 to 9305 to try
 to connect to other nodes running on the same server. This provides an auto-
 clustering experience without having to do any configuration.
 
-When the moment comes to form a cluster with nodes on other servers, you must
-use the `discovery.seed_hosts` setting to provide a seed list of
-other nodes in the cluster that are master-eligible and likely to be live and
-contactable.  This setting should normally contain the addresses of all the
-master-eligible nodes in the cluster.
-This setting contains either an array of hosts or a comma-delimited string. Each
-value should be in the form of `host:port` or `host` (where `port` defaults to
-the setting `transport.profiles.default.port` falling back to `transport.port`
-if not set). Note that IPv6 hosts must be bracketed. The default for this
-setting is `127.0.0.1, [::1]`
+When you want to form a cluster with nodes on other hosts, you must use the
+`discovery.seed_hosts` setting to provide a list of other nodes in the cluster
+that are master-eligible and likely to be live and contactable in order to seed
+the <<modules-discovery-hosts-providers,discovery process>>. This setting
+should normally contain the addresses of all the master-eligible nodes in the
+cluster.  This setting contains either an array of hosts or a comma-delimited
+string. Each value should be in the form of `host:port` or `host` (where `port`
+defaults to the setting `transport.profiles.default.port` falling back to
+`transport.port` if not set). Note that IPv6 hosts must be bracketed. The
+default for this setting is `127.0.0.1, [::1]`.
+
 [float]
 [[initial_master_nodes]]
 ==== `cluster.initial_master_nodes`

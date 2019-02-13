@@ -201,13 +201,15 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             return (GeoShapeFieldType)fieldType;
         }
 
-        private void setupFieldTypeDeprecatedParameters() {
+        private void setupFieldTypeDeprecatedParameters(BuilderContext context) {
             GeoShapeFieldType ft = fieldType();
             if (deprecatedParameters.strategy != null) {
                 ft.setStrategy(deprecatedParameters.strategy);
             }
             if (deprecatedParameters.tree != null) {
                 ft.setTree(deprecatedParameters.tree);
+            } else if (context.indexCreatedVersion().before(Version.V_6_6_0)) {
+                ft.setTree(DeprecatedParameters.PrefixTrees.GEOHASH);
             }
             if (deprecatedParameters.treeLevels != null) {
                 ft.setTreeLevels(deprecatedParameters.treeLevels);
@@ -275,7 +277,7 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
             }
 
             // setup the deprecated parameters and the prefix tree configuration
-            setupFieldTypeDeprecatedParameters();
+            setupFieldTypeDeprecatedParameters(context);
             setupPrefixTrees();
         }
 
@@ -524,7 +526,9 @@ public class LegacyGeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType().tree().equals(DeprecatedParameters.Defaults.TREE) == false) {
+        if (includeDefaults
+            || (fieldType().tree().equals(indexCreatedVersion.onOrAfter(Version.V_6_6_0) ?
+                    DeprecatedParameters.Defaults.TREE : DeprecatedParameters.PrefixTrees.GEOHASH)) == false) {
             builder.field(DeprecatedParameters.Names.TREE.getPreferredName(), fieldType().tree());
         }
 

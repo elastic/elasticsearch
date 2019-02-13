@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 
 import java.util.Locale;
@@ -172,10 +173,12 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertThat(active, is(status.state().isActive()));
 
         String timestamp = source.getValue("status.state.timestamp");
-        assertThat(timestamp, is(status.state().getTimestamp().toString()));
+        assertThat(timestamp, WatcherTestUtils.isSameDate(status.state().getTimestamp()));
 
         String lastChecked = source.getValue("status.last_checked");
-        assertThat(lastChecked, is(status.lastChecked().toString()));
+        assertThat(lastChecked, WatcherTestUtils.isSameDate(status.lastChecked()));
+        String lastMetCondition = source.getValue("status.last_met_condition");
+        assertThat(lastMetCondition, WatcherTestUtils.isSameDate(status.lastMetCondition()));
 
         Integer version = source.getValue("status.version");
         int expectedVersion = (int) (status.version() - 1);
@@ -196,4 +199,6 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertThat(mappingSource.getValue("doc.properties.status.properties.status"), is(nullValue()));
         assertThat(mappingSource.getValue("doc.properties.status.properties.status.properties.active"), is(nullValue()));
     }
+
+
 }

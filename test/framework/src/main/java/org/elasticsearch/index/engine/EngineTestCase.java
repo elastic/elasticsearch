@@ -997,8 +997,9 @@ public abstract class EngineTestCase extends ESTestCase {
                     }
                 }
             }
-            docs.sort(Comparator.comparing(DocIdSeqNoAndTerm::getId)
-                .thenComparingLong(DocIdSeqNoAndTerm::getSeqNo).thenComparingLong(DocIdSeqNoAndTerm::getPrimaryTerm));
+            docs.sort(Comparator.comparingLong(DocIdSeqNoAndTerm::getSeqNo)
+                .thenComparingLong(DocIdSeqNoAndTerm::getPrimaryTerm)
+                .thenComparing((DocIdSeqNoAndTerm::getId)));
             return docs;
         }
     }
@@ -1086,6 +1087,12 @@ public abstract class EngineTestCase extends ESTestCase {
         assert engine instanceof InternalEngine : "only InternalEngines have translogs, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;
         return internalEngine.getTranslog();
+    }
+
+    public static boolean hasSnapshottedCommits(Engine engine) {
+        assert engine instanceof InternalEngine : "only InternalEngines have snapshotted commits, got: " + engine.getClass();
+        InternalEngine internalEngine = (InternalEngine) engine;
+        return internalEngine.hasSnapshottedCommits();
     }
 
     public static final class PrimaryTermSupplier implements LongSupplier {

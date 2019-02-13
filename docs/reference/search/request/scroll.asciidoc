@@ -90,7 +90,7 @@ order, this is the most efficient option:
 
 [source,js]
 --------------------------------------------------
-GET /_search?scroll=1m
+GET /twitter/_search?scroll=1m
 {
   "sort": [
     "_doc"

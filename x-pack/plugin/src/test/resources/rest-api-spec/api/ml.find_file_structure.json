@@ -1,7 +1,7 @@
 {
   "ml.find_file_structure": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html",
-    "state" : "experimental",
+    "stability" : "experimental",
     "methods": [ "POST" ],
     "url": {
       "path": "/_ml/find_file_structure",

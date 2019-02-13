@@ -1,7 +1,7 @@
 {
     "sql.translate": {
       "documentation": "Translate SQL into Elasticsearch queries",
-      "state" : "beta",
+      "stability" : "beta",
       "methods": [ "POST", "GET" ],
       "url": {
         "path": "/_sql/translate",

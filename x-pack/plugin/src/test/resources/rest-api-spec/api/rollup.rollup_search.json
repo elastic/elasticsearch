@@ -1,7 +1,7 @@
 {
   "rollup.rollup_search": {
     "documentation": "",
-    "state" : "experimental",
+    "stability" : "experimental",
     "methods": [ "GET", "POST" ],
     "url": {
       "path": "/{index}/_rollup_search",

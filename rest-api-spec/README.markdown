@@ -10,7 +10,7 @@ Example for the ["Create Index"](http://www.elastic.co/guide/en/elasticsearch/re
 {
   "indices.create": {
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-index.html",
-    "state": "stable",
+    "stability": "stable",
     "methods": ["PUT", "POST"],
     "url": {
       "path": "/{index}",
@@ -40,7 +40,7 @@ The specification contains:
 
 * The _name_ of the API (`indices.create`), which usually corresponds to the client calls
 * Link to the documentation at <http://elastic.co>
-* `state` indicating the state of the API, defaults to `stable`
+* `stability` indicating the state of the API, defaults to `stable`
     * `private` this API should not be be implemented by clients
     * `experimental` highly likely to break in the near future (minor/path), no bwc guarantees. 
     Possibly removed in the future.

@@ -1,7 +1,7 @@
 {
   "rollup.stop_job": {
     "documentation": "",
-    "state" : "experimental",
+    "stability" : "experimental",
     "methods": [ "POST" ],
     "url": {
       "path": "/_rollup/job/{id}/_stop",

@@ -51,9 +51,9 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER), Settings.FORMAT_PARAMS));
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(RestGetIndexTemplateAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of get index " +
-        "template requests will change in 7.0. Please start using the include_type_name parameter set to false " +
-        "to move to the new, typeless response format that will become the default.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The parameter include_type_name " +
+        "should be explicitly specified in get template requests to prepare for 7.0. In 7.0 include_type_name " +
+        "will default to 'false', which means responses will omit the type name in mapping definitions.";
 
     public RestGetIndexTemplateAction(final Settings settings, final RestController controller) {
         super(settings);
@@ -72,7 +72,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
         final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
-        if (request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) == false) {
             deprecationLogger.deprecatedAndMaybeLog("get_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));

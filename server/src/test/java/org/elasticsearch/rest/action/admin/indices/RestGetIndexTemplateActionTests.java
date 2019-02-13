@@ -21,10 +21,10 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.RestActionTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -33,26 +33,30 @@ import java.util.Map;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.mockito.Mockito.mock;
 
-public class RestGetIndicesActionTests extends ESTestCase {
+public class RestGetIndexTemplateActionTests extends RestActionTestCase {
+    private RestGetIndexTemplateAction action;
+
+    @Before
+    public void setUpAction() {
+        action = new RestGetIndexTemplateAction(Settings.EMPTY, controller());
+    }
 
     public void testIncludeTypeName() throws IOException {
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index")
-            .build();
-
-        RestGetIndicesAction handler = new RestGetIndicesAction(Settings.EMPTY, mock(RestController.class));
-        handler.prepareRequest(deprecatedRequest, mock(NodeClient.class));
-        assertWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE);
+                .withMethod(RestRequest.Method.GET)
+                .withPath("/_template/_some_template")
+                .build();
+        action.prepareRequest(deprecatedRequest, mock(NodeClient.class));
+        assertWarnings(RestGetIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
 
         Map<String, String> params = new HashMap<>();
         params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
 
         RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index")
+            .withPath("/_template/_some_template")
             .withParams(params)
             .build();
-        handler.prepareRequest(validRequest, mock(NodeClient.class));
+        action.prepareRequest(validRequest, mock(NodeClient.class));
     }
 }

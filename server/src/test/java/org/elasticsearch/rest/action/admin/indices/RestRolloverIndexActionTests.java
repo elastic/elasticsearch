@@ -37,16 +37,16 @@ import java.util.Map;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.mockito.Mockito.mock;
 
-public class RestPutIndexTemplateActionTests extends RestActionTestCase {
-    private RestPutIndexTemplateAction action;
+public class RestRolloverIndexActionTests extends RestActionTestCase {
+    private RestRolloverIndexAction action;
 
     @Before
     public void setUpAction() {
-        action = new RestPutIndexTemplateAction(Settings.EMPTY, controller());
+        action = new RestRolloverIndexAction(Settings.EMPTY, controller());
     }
 
     public void testIncludeTypeName() throws IOException {
-        XContentBuilder typedContent = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
                 .startObject("mappings")
                     .startObject("my_doc")
                         .startObject("properties")
@@ -55,28 +55,25 @@ public class RestPutIndexTemplateActionTests extends RestActionTestCase {
                         .endObject()
                     .endObject()
                 .endObject()
-                .startObject("aliases")
-                    .startObject("read_alias").endObject()
-                .endObject()
             .endObject();
 
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
                 .withMethod(RestRequest.Method.PUT)
-                .withPath("/_template/_some_template")
-                .withContent(BytesReference.bytes(typedContent), XContentType.JSON)
+                .withPath("/_rollover/logs")
+                .withContent(BytesReference.bytes(content), XContentType.JSON)
                 .build();
         action.prepareRequest(deprecatedRequest, mock(NodeClient.class));
-        assertWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(RestRolloverIndexAction.TYPES_DEPRECATION_MESSAGE);
 
         Map<String, String> params = new HashMap<>();
         params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
 
         RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.PUT)
-            .withPath("/_template/_some_template")
+            .withPath("/_rollover/logs")
             .withParams(params)
-            .withContent(BytesReference.bytes(typedContent), XContentType.JSON)
+            .withContent(BytesReference.bytes(content), XContentType.JSON)
             .build();
         action.prepareRequest(validRequest, mock(NodeClient.class));
-    }    
+    }
 }

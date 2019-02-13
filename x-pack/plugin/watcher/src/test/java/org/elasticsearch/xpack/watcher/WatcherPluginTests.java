@@ -17,6 +17,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -79,7 +80,7 @@ public class WatcherPluginTests extends ESTestCase {
         assertThat(Watcher.getWatcherThreadPoolSize(noDataNodeSettings), is(1));
     }
 
-    public void testWatcherDisabledTests() {
+    public void testWatcherDisabledTests() throws IOException {
         Settings settings = Settings.builder()
                 .put("xpack.watcher.enabled", false)
                 .put("path.home", createTempDir())
@@ -102,6 +103,8 @@ public class WatcherPluginTests extends ESTestCase {
 
         // also no component creation if not enabled
         assertThat(watcher.createComponents(null, null, null, null, null, null, null, null, null), hasSize(0));
+
+        watcher.close();
     }
 
     public void testReload() {

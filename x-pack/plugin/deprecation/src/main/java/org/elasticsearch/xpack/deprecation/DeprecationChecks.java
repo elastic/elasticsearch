@@ -31,7 +31,10 @@ public class DeprecationChecks {
     }
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
-        Collections.emptyList();
+        Collections.unmodifiableList(Arrays.asList(
+            ClusterDeprecationChecks::checkUserAgentPipelines
+        ));
+
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(

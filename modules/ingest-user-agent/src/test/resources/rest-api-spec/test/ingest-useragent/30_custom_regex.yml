@@ -10,6 +10,7 @@
               {
                 "user_agent" : {
                   "field": "field1",
+                  "ecs": true,
                   "regex_file": "test-regexes.yml"
                 }
               }

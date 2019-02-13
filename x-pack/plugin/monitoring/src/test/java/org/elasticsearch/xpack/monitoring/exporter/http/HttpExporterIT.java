@@ -281,13 +281,13 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 MockRequest recordedRequest = secondWebServer.takeRequest();
                 assertThat(recordedRequest.getMethod(), equalTo("GET"));
                 assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
-                assertMonitorVersionQueryString(resourcePrefix, recordedRequest.getUri().getQuery());
+                assertMonitorVersionQueryString(recordedRequest.getUri().getQuery(), new String[0]);
 
                 if (missingTemplate.equals(template.v1())) {
                     recordedRequest = secondWebServer.takeRequest();
                     assertThat(recordedRequest.getMethod(), equalTo("PUT"));
                     assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
-                    assertMonitorVersionQueryString(resourcePrefix, recordedRequest.getUri().getQuery());
+                    assertMonitorVersionQueryString(recordedRequest.getUri().getQuery(), new String[]{ INCLUDE_TYPE_NAME_PARAMETER + "=true" });
                     assertThat(recordedRequest.getBody(), equalTo(template.v2()));
                 }
             }
@@ -464,7 +464,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
             assertThat(getRequest.getMethod(), equalTo("GET"));
             assertThat(getRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-            assertMonitorVersionQueryString(resourcePrefix, getRequest.getUri().getQuery());
+            assertMonitorVersionQueryString(getRequest.getUri().getQuery(), new String[0]);
             assertHeaders(getRequest, customHeaders);
 
             if (alreadyExists == false) {
@@ -472,19 +472,21 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
                 assertThat(putRequest.getMethod(), equalTo("PUT"));
                 assertThat(putRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-                assertMonitorVersionQueryString(resourcePrefix, getRequest.getUri().getQuery());
+                assertMonitorVersionQueryString(putRequest.getUri().getQuery(), new String[]{ INCLUDE_TYPE_NAME_PARAMETER + "=true" });
                 assertThat(putRequest.getBody(), equalTo(resource.v2()));
                 assertHeaders(putRequest, customHeaders);
             }
         }
     }
 
-    private void assertMonitorVersionQueryString(String resourcePrefix, String query) {
-        if (resourcePrefix.startsWith("/_template")) {
-            assertThat(query, equalTo(INCLUDE_TYPE_NAME_PARAMETER + "=true&" + resourceVersionQueryString()));
-        } else {
-            assertThat(query, equalTo(resourceVersionQueryString()));
+    private void assertMonitorVersionQueryString(String query, String[] parameters) {
+        String queryString = "";
+        for (String param : parameters) {
+            queryString += param + "&";
         }
+        queryString += resourceVersionQueryString();
+
+        assertThat(query, equalTo(queryString));
     }
 
     private void assertMonitorWatches(final MockWebServer webServer,

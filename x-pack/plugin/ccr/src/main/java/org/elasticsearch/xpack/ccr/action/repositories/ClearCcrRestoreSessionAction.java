@@ -27,7 +27,7 @@ public class ClearCcrRestoreSessionAction extends Action<ClearCcrRestoreSessionR
     ClearCcrRestoreSessionAction.ClearCcrRestoreSessionResponse, ClearCcrRestoreSessionRequestBuilder> {
 
     public static final ClearCcrRestoreSessionAction INSTANCE = new ClearCcrRestoreSessionAction();
-    private static final String NAME = "internal:admin/ccr/restore/session/clear";
+    public static final String NAME = "internal:admin/ccr/restore/session/clear";
 
     private ClearCcrRestoreSessionAction() {
         super(NAME);

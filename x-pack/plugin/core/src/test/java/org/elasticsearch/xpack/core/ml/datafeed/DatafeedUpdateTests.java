@@ -5,14 +5,20 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -21,6 +27,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -108,6 +115,52 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
+    private static final String MULTIPLE_AGG_DEF_DATAFEED = "{\n" +
+        "    \"datafeed_id\": \"farequote-datafeed\",\n" +
+        "    \"job_id\": \"farequote\",\n" +
+        "    \"frequency\": \"1h\",\n" +
+        "    \"indices\": [\"farequote1\", \"farequote2\"],\n" +
+        "    \"aggregations\": {\n" +
+        "    \"buckets\": {\n" +
+        "      \"date_histogram\": {\n" +
+        "        \"field\": \"time\",\n" +
+        "        \"interval\": \"360s\",\n" +
+        "        \"time_zone\": \"UTC\"\n" +
+        "      },\n" +
+        "      \"aggregations\": {\n" +
+        "        \"time\": {\n" +
+        "          \"max\": {\"field\": \"time\"}\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }\n" +
+        "  }," +
+        "    \"aggs\": {\n" +
+        "    \"buckets2\": {\n" +
+        "      \"date_histogram\": {\n" +
+        "        \"field\": \"time\",\n" +
+        "        \"interval\": \"360s\",\n" +
+        "        \"time_zone\": \"UTC\"\n" +
+        "      },\n" +
+        "      \"aggregations\": {\n" +
+        "        \"time\": {\n" +
+        "          \"max\": {\"field\": \"time\"}\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }\n" +
+        "  }\n" +
+        "}";
+
+    public void testMultipleDefinedAggParse() throws IOException {
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)) {
+            XContentParseException ex = expectThrows(XContentParseException.class,
+                () -> DatafeedUpdate.PARSER.apply(parser, null));
+            assertThat(ex.getMessage(), equalTo("[32:3] [datafeed_update] failed to parse field [aggs]"));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause().getMessage(), equalTo("Found two aggregation definitions: [aggs] and [aggregations]"));
+        }
     }
 
     public void testApply_failBecauseTargetDatafeedHasDifferentId() {
@@ -208,6 +261,22 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
             assertThat(datafeed, not(equalTo(updatedDatafeed)));
         }
+    }
+
+    public void testEmptyQueryMap() {
+        DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder("empty_query_map");
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> builder.setQuery(Collections.emptyMap()));
+        assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ex.getMessage(), equalTo("Datafeed [empty_query_map] query is not parsable"));
+    }
+
+    public void testEmptyAggMap() {
+        DatafeedUpdate.Builder builder = new DatafeedUpdate.Builder("empty_agg_map");
+        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+            () -> builder.setAggregations(Collections.emptyMap()));
+        assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ex.getMessage(), equalTo("Datafeed [empty_agg_map] aggregations are not parsable"));
     }
 
     @Override

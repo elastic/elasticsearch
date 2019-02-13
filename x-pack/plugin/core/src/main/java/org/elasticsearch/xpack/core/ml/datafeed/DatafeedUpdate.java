@@ -57,8 +57,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         PARSER.declareString((builder, val) -> builder.setFrequency(
                 TimeValue.parseTimeValue(val, DatafeedConfig.FREQUENCY.getPreferredName())), DatafeedConfig.FREQUENCY);
         PARSER.declareObject(Builder::setQuery, (p, c) -> p.mapOrdered(), DatafeedConfig.QUERY);
-        PARSER.declareObject(Builder::setAggregations, (p, c) -> p.mapOrdered(), DatafeedConfig.AGGREGATIONS);
-        PARSER.declareObject(Builder::setAggregations,(p, c) -> p.mapOrdered(), DatafeedConfig.AGGS);
+        PARSER.declareObject(Builder::setAggregationsSafe, (p, c) -> p.mapOrdered(), DatafeedConfig.AGGREGATIONS);
+        PARSER.declareObject(Builder::setAggregationsSafe,(p, c) -> p.mapOrdered(), DatafeedConfig.AGGS);
         PARSER.declareObject(Builder::setScriptFields, (p, c) -> {
                 List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
                 while (p.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -119,7 +119,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             }
         }
         if (in.getVersion().before(Version.V_7_1_0)) {
-            this.query = QUERY_TRANSFORMER.toMap(in.readNamedWriteable(QueryBuilder.class));
+            this.query = QUERY_TRANSFORMER.toMap(in.readOptionalNamedWriteable(QueryBuilder.class));
             this.aggregations = AGG_TRANSFORMER.toMap(in.readOptionalWriteable(AggregatorFactories.Builder::new));
         } else {
             this.query = in.readMap();
@@ -169,7 +169,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             out.writeStringCollection(Collections.emptyList());
         }
         if (out.getVersion().before(Version.V_7_1_0)) {
-            out.writeNamedWriteable(lazyQueryParser.apply(query, id, new ArrayList<>()));
+            out.writeOptionalNamedWriteable(lazyQueryParser.apply(query, id, new ArrayList<>()));
             out.writeOptionalWriteable(lazyAggParser.apply(aggregations, id, new ArrayList<>()));
         } else {
             out.writeMap(query);
@@ -448,9 +448,19 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             }
         }
 
+        private void setAggregationsSafe(Map<String, Object> aggregations) {
+            if (this.aggregations != null) {
+                throw ExceptionsHelper.badRequestException("Found two aggregation definitions: [aggs] and [aggregations]");
+            }
+            setAggregations(aggregations);
+        }
+
         public void setAggregations(Map<String, Object> aggregations) {
             this.aggregations = aggregations;
             try {
+                if (aggregations != null && aggregations.isEmpty()) {
+                    throw new Exception("[aggregations] are empty");
+                }
                 AGG_TRANSFORMER.fromMap(aggregations);
             } catch(Exception ex) {
                 String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, id);

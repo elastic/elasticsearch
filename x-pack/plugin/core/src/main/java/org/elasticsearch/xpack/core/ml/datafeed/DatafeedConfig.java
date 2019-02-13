@@ -153,8 +153,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         parser.declareString((builder, val) ->
             builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())), FREQUENCY);
         parser.declareObject((builder, val) -> builder.setQuery(val, ignoreUnknownFields), (p, c) -> p.mapOrdered(), QUERY);
-        parser.declareObject((builder, val) -> builder.setAggregations(val, ignoreUnknownFields), (p, c) -> p.mapOrdered(), AGGREGATIONS);
-        parser.declareObject((builder, val) -> builder.setAggregations(val, ignoreUnknownFields), (p, c) -> p.mapOrdered(), AGGS);
+        parser.declareObject((builder, val) -> builder.setAggregationsSafe(val, ignoreUnknownFields), (p, c) -> p.mapOrdered(),
+            AGGREGATIONS);
+        parser.declareObject((builder, val) -> builder.setAggregationsSafe(val, ignoreUnknownFields), (p, c) -> p.mapOrdered(),
+            AGGS);
         parser.declareObject(Builder::setScriptFields, (p, c) -> {
             List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -662,6 +664,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
         }
 
+        private void setAggregationsSafe(Map<String, Object> aggregations, boolean lenient) {
+            if (this.aggregations != null) {
+                throw ExceptionsHelper.badRequestException("Found two aggregation definitions: [aggs] and [aggregations]");
+            }
+            setAggregations(aggregations, lenient);
+        }
+
         void setAggregations(Map<String, Object> aggregations) {
             setAggregations(aggregations, true);
         }
@@ -669,6 +678,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         void setAggregations(Map<String, Object> aggregations, boolean lenient) {
             this.aggregations = aggregations;
             try {
+                if (aggregations != null && aggregations.isEmpty()) {
+                    throw new Exception("[aggregations] are empty");
+                }
                 AGG_TRANSFORMER.fromMap(aggregations);
             } catch (Exception ex) {
                 String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, id);

@@ -157,11 +157,11 @@ public class LocalCheckpointTracker {
             return true;
         }
         final long bitSetKey = getBitSetKey(seqNo);
-        final CountedBitSet bitSet;
+        final int bitSetOffset = seqNoToBitSetOffset(seqNo);
         synchronized (this) {
-            bitSet = processedSeqNo.get(bitSetKey);
+            final CountedBitSet bitSet = processedSeqNo.get(bitSetKey);
+            return bitSet != null && bitSet.get(bitSetOffset);
         }
-        return bitSet != null && bitSet.get(seqNoToBitSetOffset(seqNo));
     }
 
     /**

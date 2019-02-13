@@ -27,6 +27,7 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -186,13 +187,15 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
         verifyListener(null);
 
-        parameters.putAll(resource.getDefaultParameters());
+        Map <String, String> allParameters = new TreeMap<>();
+        allParameters.putAll(resource.getDefaultParameters());
+        allParameters.putAll(parameters);
 
         final ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
         verify(client).performRequestAsync(request.capture(), any(ResponseListener.class));
         assertThat(request.getValue().getMethod(), is("PUT"));
         assertThat(request.getValue().getEndpoint(), is(endpoint));
-        assertThat(request.getValue().getParameters(), is(parameters));
+        assertThat(request.getValue().getParameters(), is(allParameters));
         assertThat(request.getValue().getEntity(), instanceOf(bodyType));
     }
 
@@ -284,11 +287,13 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
         verify(client).performRequestAsync(request.capture(), any(ResponseListener.class));
 
-        parameters.putAll(resource.getDefaultParameters());
+        Map <String, String> allParameters = new TreeMap<>();
+        allParameters.putAll(resource.getDefaultParameters());
+        allParameters.putAll(parameters);
 
         assertThat(request.getValue().getMethod(), is("PUT"));
         assertThat(request.getValue().getEndpoint(), is(endpoint));
-        assertThat(request.getValue().getParameters(), is(parameters));
+        assertThat(request.getValue().getParameters(), is(allParameters));
         assertThat(request.getValue().getEntity(), instanceOf(bodyType));
     }
 

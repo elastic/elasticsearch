@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.apache.lucene.document.Document;
@@ -23,7 +42,11 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.*;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Stats;
+import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
@@ -302,10 +325,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             });
     }
 
-    public void testPartiallyUnmapped() throws IOException {
-        // TODO: Figure out how to combine a mapped index and an unmapped index
-    }
-
     public void testDocCountDerivativeWithGaps() throws IOException {
         setupValueCounts();
         Query query = new MatchAllDocsQuery();
@@ -405,7 +424,6 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                 }
             });
     }
-
 
     public void testDocCountDerivativeWithGaps_insertZeros() throws IOException {
         setupValueCounts();

@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -165,7 +164,6 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.isTimedOut(), equalTo(false));
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        assertNoIndices(response);
     }
 
     @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35450")
@@ -215,7 +213,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getActiveShardsPercent(), equalTo(50d));
     }
 
-    
+
     @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35450")
     public void testClusterHealthYellowSpecificIndex() throws IOException {
         createIndex("index", Settings.EMPTY);
@@ -281,18 +279,6 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.isTimedOut(), equalTo(true));
         assertThat(response.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
-        assertNoIndices(response);
     }
 
-    private static void assertNoIndices(ClusterHealthResponse response) {
-        assertThat(response.getIndices(), equalTo(emptyMap()));
-        assertThat(response.getActivePrimaryShards(), equalTo(0));
-        assertThat(response.getNumberOfDataNodes(), equalTo(1));
-        assertThat(response.getNumberOfNodes(), equalTo(1));
-        assertThat(response.getActiveShards(), equalTo(0));
-        assertThat(response.getDelayedUnassignedShards(), equalTo(0));
-        assertThat(response.getInitializingShards(), equalTo(0));
-        assertThat(response.getUnassignedShards(), equalTo(0));
-        assertThat(response.getActiveShardsPercent(), equalTo(100d));
-    }
 }

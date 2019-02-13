@@ -189,16 +189,16 @@ by a unique ID
 
 Because a search request may be executed against one or more shards in an index, and a search may cover
 one or more indices, the top level element in the profile response is an array of `shard` objects.
-Each shard object lists it's `id` which uniquely identifies the shard.  The ID's format is
+Each shard object lists its `id` which uniquely identifies the shard.  The ID's format is
 `[nodeID][indexName][shardID]`.
 
 The profile itself may consist of one or more "searches", where a search is a query executed against the underlying
-Lucene index.  Most Search Requests submitted by the user will only execute a single `search` against the Lucene index.
+Lucene index.  Most search requests submitted by the user will only execute a single `search` against the Lucene index.
 But occasionally multiple searches will be executed, such as including a global aggregation (which needs to execute
 a secondary "match_all" query for the global context).
 
 Inside each `search` object there will be two arrays of profiled information:
-a `query` array and a `collector` array.  Alongside the `search` object is an `aggregations` object that contains the profile information for the aggregations. In the future, more sections may be added, such as `suggest`, `highlight`, etc
+a `query` array and a `collector` array.  Alongside the `search` object is an `aggregations` object that contains the profile information for the aggregations. In the future, more sections may be added, such as `suggest`, `highlight`, etc.
 
 There will also be a `rewrite` metric showing the total time spent rewriting the query (in nanoseconds).
 
@@ -325,12 +325,12 @@ The meaning of the stats are as follows:
 `build_scorer`::
 
     This parameter shows how long it takes to build a Scorer for the query.  A Scorer is the mechanism that
-    iterates over matching documents generates a score per-document (e.g. how well does "foo" match the document?).
+    iterates over matching documents and generates a score per-document (e.g. how well does "foo" match the document?).
     Note, this records the time required to generate the Scorer object, not actually score the documents.  Some
     queries have faster or slower initialization of the Scorer, depending on optimizations, complexity, etc.
     {empty} +
     {empty} +
-    This may also showing timing associated with caching, if enabled and/or applicable for the query
+    This may also show timing associated with caching, if enabled and/or applicable for the query
 
 `next_doc`::
 
@@ -350,7 +350,7 @@ The meaning of the stats are as follows:
 
 `matches`::
 
-    Some queries, such as phrase queries, match documents using a "Two Phase" process.  First, the document is
+    Some queries, such as phrase queries, match documents using a "two-phase" process.  First, the document is
     "approximately" matched, and if it matches approximately, it is checked a second time with a more rigorous
     (and expensive) process.  The second phase verification is what the `matches` statistic measures.
     {empty} +
@@ -365,7 +365,7 @@ The meaning of the stats are as follows:
 
 `score`::
 
-    This records the time taken to score a particular document via it's Scorer
+    This records the time taken to score a particular document via its Scorer
 
 `*_count`::
     Records the number of invocations of the particular method.  For example, `"next_doc_count": 2,`
@@ -375,7 +375,7 @@ The meaning of the stats are as follows:
 ==== `collectors` Section
 
 The Collectors portion of the response shows high-level execution details. Lucene works by defining a "Collector"
-which is responsible for coordinating the traversal, scoring and collection of matching documents.  Collectors
+which is responsible for coordinating the traversal, scoring, and collection of matching documents.  Collectors
 are also how a single query can record aggregation results, execute unscoped "global" queries, execute post-query
 filters, etc.
 
@@ -403,16 +403,16 @@ Looking at the previous example:
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
 We see a single collector named `SimpleTopScoreDocCollector` wrapped into `CancellableCollector`. `SimpleTopScoreDocCollector` is the default "scoring and sorting"
-`Collector` used by Elasticsearch.  The `reason` field attempts to give a plain english description of the class name.  The
+`Collector` used by Elasticsearch.  The `reason` field attempts to give a plain English description of the class name.  The
 `time_in_nanos` is similar to the time in the Query tree: a wall-clock time inclusive of all children.  Similarly, `children` lists
 all sub-collectors. The `CancellableCollector` that wraps `SimpleTopScoreDocCollector` is used by Elasticsearch to detect if the current
 search was cancelled and stop collecting documents as soon as it occurs.
 
-It should be noted that Collector times are **independent** from the Query times.  They are calculated, combined
+It should be noted that Collector times are **independent** from the Query times.  They are calculated, combined,
 and normalized independently!  Due to the nature of Lucene's execution, it is impossible to "merge" the times
 from the Collectors into the Query section, so they are displayed in separate portions.
 
-For reference, the various collector reason's are:
+For reference, the various collector reasons are:
 
 [horizontal]
 `search_sorted`::
@@ -438,7 +438,7 @@ For reference, the various collector reason's are:
 `search_multi`::
 
     A collector that wraps several other collectors.  This is seen when combinations of search, aggregations,
-    global aggs and post_filters are combined in a single search.
+    global aggs, and post_filters are combined in a single search.
 
 `search_timeout`::
 
@@ -454,7 +454,7 @@ For reference, the various collector reason's are:
 `global_aggregation`::
 
     A collector that executes an aggregation against the global query scope, rather than the specified query.
-    Because the global scope is necessarily different from the executed query, it must execute it's own
+    Because the global scope is necessarily different from the executed query, it must execute its own
     match_all query (which you will see added to the Query section) to collect your entire dataset
 
 
@@ -621,9 +621,9 @@ And the response:
 // TESTRESPONSE[s/\.\.\.//]
 // TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 // TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[test\]\[0\]"/"id": $body.profile.shards.0.id/]
-<1> The ``"aggregations"` portion has been omitted because it will be covered in the next section
+<1> The `"aggregations"` portion has been omitted because it will be covered in the next section
 
-As you can see, the output is significantly verbose from before.  All the major portions of the query are
+As you can see, the output is significantly more verbose than before.  All the major portions of the query are
 represented:
 
 1. The first `TermQuery` (user:test) represents the main `term` query
@@ -635,14 +635,14 @@ The Collector tree is fairly straightforward, showing how a single CancellableCo
 
 ==== Understanding MultiTermQuery output
 
-A special note needs to be made about the `MultiTermQuery` class of queries.  This includes wildcards, regex and fuzzy
+A special note needs to be made about the `MultiTermQuery` class of queries.  This includes wildcards, regex, and fuzzy
 queries.  These queries emit very verbose responses, and are not overly structured.
 
 Essentially, these queries rewrite themselves on a per-segment basis.  If you imagine the wildcard query `b*`, it technically
 can match any token that begins with the letter "b".  It would be impossible to enumerate all possible combinations,
-so Lucene rewrites the query in context of the segment being evaluated.  E.g. one segment may contain the tokens
+so Lucene rewrites the query in context of the segment being evaluated, e.g., one segment may contain the tokens
 `[bar, baz]`, so the query rewrites to a BooleanQuery combination of "bar" and "baz".  Another segment may only have the
-token `[bakery]`, so query rewrites to a single TermQuery for "bakery".
+token `[bakery]`, so the query rewrites to a single TermQuery for "bakery".
 
 Due to this dynamic, per-segment rewriting, the clean tree structure becomes distorted and no longer follows a clean
 "lineage" showing how one query rewrites into the next.  At present time, all we can do is apologize, and suggest you
@@ -702,7 +702,7 @@ GET /twitter/_search
 // TEST[s/_search/_search\?filter_path=profile.shards.aggregations/]
 // TEST[continued]
 
-Which yields the following aggregation profile output
+This yields the following aggregation profile output:
 
 [source,js]
 --------------------------------------------------
@@ -770,7 +770,7 @@ Which yields the following aggregation profile output
 
 From the profile structure we can see that the `my_scoped_agg` is internally being run as a `LongTermsAggregator` (because the field it is
 aggregating, `likes`, is a numeric field).  At the same level, we see a `GlobalAggregator` which comes from `my_global_agg`.  That
-aggregation then has a child `LongTermsAggregator` which from the second terms aggregation on `likes`.
+aggregation then has a child `LongTermsAggregator` which comes from the second term's aggregation on `likes`.
 
 The `time_in_nanos` field shows the time executed by each aggregation, and is inclusive of all children.  While the overall time is useful,
 the `breakdown` field will give detailed stats about how the time was spent.
@@ -832,7 +832,7 @@ The meaning of the stats are as follows:
 ==== Performance Notes
 
 Like any profiler, the Profile API introduces a non-negligible overhead to search execution.  The act of instrumenting
-low-level method calls such as `collect`, `advance` and `next_doc` can be fairly expensive, since these methods are called
+low-level method calls such as `collect`, `advance`, and `next_doc` can be fairly expensive, since these methods are called
 in tight loops.  Therefore, profiling should not be enabled in production settings by default, and should not
 be compared against non-profiled query times.  Profiling is just a diagnostic tool.
 
@@ -844,11 +844,11 @@ not have a drastic effect compared to other components in the profiled query.
 ==== Limitations
 
 - Profiling currently does not measure the search fetch phase nor the network overhead
-- Profiling also does not account for time spent in the queue, merging shard responses on the coordinating node or
-additional work like e.g. building global ordinals (an internal data structure used to speed up search)
+- Profiling also does not account for time spent in the queue, merging shard responses on the coordinating node, or
+additional work such as building global ordinals (an internal data structure used to speed up search)
 - Profiling statistics are currently not available for suggestions, highlighting, `dfs_query_then_fetch`
 - Profiling of the reduce phase of aggregation is currently not available
 - The Profiler is still highly experimental. The Profiler is instrumenting parts of Lucene that were
 never designed to be exposed in this manner, and so all results should be viewed as a best effort to provide detailed
-diagnostics.  We hope to improve this over time. If you find obviously wrong numbers, strange query structures or
+diagnostics.  We hope to improve this over time. If you find obviously wrong numbers, strange query structures, or
 other bugs, please report them!

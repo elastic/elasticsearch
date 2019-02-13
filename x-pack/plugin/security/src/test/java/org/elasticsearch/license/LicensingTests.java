@@ -301,13 +301,15 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     private void disableLicensing() throws InterruptedException {
-        // do this in an await busy since there is a chance that the enabled action is not held in place by a node and the node
-        // throws an exception while we wait for things to stabilize!
+        // This method first makes sure licensing is enabled everywhere so that we can execute
+        // monitoring actions to ensure we have a stable cluster and only then do we disable.
+        // This is done in an await busy since there is a chance that the enabling of the license
+        // is overwritten by some other cluster activity and the node throws an exception while we
+        // wait for things to stabilize!
         final boolean success = awaitBusy(() -> {
             try {
                 for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
                     if (licenseState.isAuthAllowed() == false) {
-                        // this is odd but first let's enable licensing everywhere, so we can monitor
                         enableLicensing(OperationMode.BASIC);
                         break;
                     }
@@ -322,6 +324,7 @@ public class LicensingTests extends SecurityIntegTestCase {
                     licenseState.update(OperationMode.BASIC, false, null);
                 }
             } catch (Exception e) {
+                logger.error("Caught exception while disabling license", e);
                 return false;
             }
             return true;
@@ -330,8 +333,9 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     private void enableLicensing(License.OperationMode operationMode) throws InterruptedException {
-        // do this in an await busy since there is a chance that the enabled action is not held in place by a node and the node
-        // throws an exception while we wait for things to stabilize!
+        // do this in an await busy since there is a chance that the enabling of the license is
+        // overwritten by some other cluster activity and the node throws an exception while we
+        // wait for things to stabilize!
         final boolean success = awaitBusy(() -> {
             try {
                 // first update the license so we can execute monitoring actions

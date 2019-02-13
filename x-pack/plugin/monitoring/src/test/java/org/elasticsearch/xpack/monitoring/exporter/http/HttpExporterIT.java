@@ -473,7 +473,9 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
                 assertThat(putRequest.getMethod(), equalTo("PUT"));
                 assertThat(putRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-                final String[] parameters = resourcePrefix.startsWith("/_template") ? new String[]{INCLUDE_TYPE_NAME_PARAMETER + "=true"} : new String[0];
+                final String[] parameters = resourcePrefix.startsWith("/_template")
+                    ? new String[]{INCLUDE_TYPE_NAME_PARAMETER + "=true"}
+                    : new String[0];
                 assertMonitorVersionQueryString(putRequest.getUri().getQuery(), parameters);
                 assertThat(putRequest.getBody(), equalTo(resource.v2()));
                 assertHeaders(putRequest, customHeaders);

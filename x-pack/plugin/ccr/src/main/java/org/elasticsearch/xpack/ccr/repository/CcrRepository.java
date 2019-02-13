@@ -313,7 +313,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
         final String retentionLeaseId = indexShard.shardId().getIndex().getUUID() + "-following-" + leaderUUID;
         logger.trace(
-                () -> new ParameterizedMessage("{} requesting leader primary to add retention lease [" + retentionLeaseId + "]", shardId));
+                () -> new ParameterizedMessage("{} requesting leader primary to add retention lease [{}]", shardId, retentionLeaseId));
         final Optional<RetentionLeaseAlreadyExistsException> maybeAddAlready =
                 addRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
         maybeAddAlready.ifPresent(addAlready -> {

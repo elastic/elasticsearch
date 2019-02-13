@@ -41,7 +41,6 @@ public class TemplateHttpResource extends PublishableHttpResource {
     static {
         Map<String, String> parameters = new TreeMap<>();
         parameters.put("filter_path", FILTER_PATH_RESOURCE_VERSION);
-        parameters.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
         PARAMETERS = Collections.unmodifiableMap(parameters);
     }
 

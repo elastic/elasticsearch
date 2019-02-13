@@ -356,7 +356,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(shard.shouldPeriodicallyFlush());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(190 /* size of the operation + two generations header&footer*/, ByteSizeUnit.BYTES)).build()).get();
+                // TODO reinstate old value for setting if retention leases don't cause flushes any more
+                new ByteSizeValue(160 /* size of the current generation */, ByteSizeUnit.BYTES)).build()).get();
         client().prepareIndex("test", "test", "0")
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
@@ -439,8 +440,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final boolean flush = randomBoolean();
         final Settings settings;
         if (flush) {
-            // size of the operation plus two generations of overhead.
-            settings = Settings.builder().put("index.translog.flush_threshold_size", "180b").build();
+            // TODO reinstate old value for setting if retention leases don't cause flushes any more
+            // size of the operation
+            settings = Settings.builder().put("index.translog.flush_threshold_size", "161b").build();
         } else {
             // size of the operation plus header and footer
             settings = Settings.builder().put("index.translog.generation_threshold_size", "117b").build();
@@ -507,7 +509,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         // A flush stats may include the new total count but the old period count - assert eventually.
         assertBusy(() -> {
             final FlushStats flushStats = client().admin().indices().prepareStats("test").clear().setFlush(true).get().getTotal().flush;
-            assertThat(flushStats.getPeriodic(), allOf(equalTo(flushStats.getTotal()), greaterThan(0L)));
+            // TODO reinstate old value if peer retention leases don't cause flushes
+            assertThat(flushStats.getPeriodic(), allOf(equalTo(flushStats.getTotal() - 1), greaterThan(0L)));
         });
         assertBusy(() -> assertThat(indexService.getShard(0).shouldPeriodicallyFlush(), equalTo(false)));
         settings = Settings.builder().put("index.translog.flush_threshold_size", (String) null).build();
@@ -516,7 +519,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareIndex("test", "doc", UUIDs.randomBase64UUID()).setSource("{}", XContentType.JSON).get();
         client().admin().indices().prepareFlush("test").setForce(randomBoolean()).setWaitIfOngoing(true).get();
         final FlushStats flushStats = client().admin().indices().prepareStats("test").clear().setFlush(true).get().getTotal().flush;
-        assertThat(flushStats.getTotal(), greaterThan(flushStats.getPeriodic()));
+        // TODO reinstate old value if peer retention leases don't cause flushes
+        assertThat(flushStats.getTotal(), greaterThan(flushStats.getPeriodic() + 1));
     }
 
     public void testShardHasMemoryBufferOnTranslogRecover() throws Throwable {
@@ -671,7 +675,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 Arrays.asList(listeners),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
-                cbs);
+                cbs,
+                () -> {});
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {

@@ -557,6 +557,11 @@ public class InternalEngine extends Engine {
         return indexWriter.getFlushingBytes() + versionMap.getRefreshingBytes();
     }
 
+    @Override
+    public long getMinimumSeqNoForPeerRecovery() throws IOException {
+        return combinedDeletionPolicy.getMinimumSeqNoForPeerRecovery();
+    }
+
     /**
      * Reads the current stored translog ID from the last commit data.
      */
@@ -1650,7 +1655,10 @@ public class InternalEngine extends Engine {
         final long translogGenerationOfLastCommit =
             Long.parseLong(lastCommittedSegmentInfos.userData.get(Translog.TRANSLOG_GENERATION_KEY));
         final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
-        if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
+        final long translogSize = translog.sizeInBytesByMinGen(translogGenerationOfLastCommit);
+        if (translogSize < flushThreshold) {
+            logger.trace("not flushing translog: sizeInBytesByMinGen({}) = {} < {}",
+                translogGenerationOfLastCommit, translogSize, flushThreshold);
             return false;
         }
         /*

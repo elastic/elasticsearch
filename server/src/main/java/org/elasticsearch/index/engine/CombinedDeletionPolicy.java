@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
@@ -218,6 +219,10 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
      */
     public static String commitDescription(IndexCommit commit) throws IOException {
         return String.format(Locale.ROOT, "CommitPoint{segment[%s], userData[%s]}", commit.getSegmentsFileName(), commit.getUserData());
+    }
+
+    long getMinimumSeqNoForPeerRecovery() throws IOException {
+        return Store.loadSeqNoInfo(safeCommit).localCheckpoint;
     }
 
     /**

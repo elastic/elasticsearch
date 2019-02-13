@@ -215,6 +215,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
+    private final Runnable peerRecoveryRetentionLeaseRenewer;
+
     @Nullable
     private RecoveryState recoveryState;
 
@@ -273,7 +275,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final List<IndexingOperationListener> listeners,
             final Runnable globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
-            final CircuitBreakerService circuitBreakerService) throws IOException {
+            final CircuitBreakerService circuitBreakerService,
+            final Runnable peerRecoveryRetentionLeaseRenewer) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -327,6 +330,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         threadPool::absoluteTimeInMillis,
                         (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, retentionLeases, listener));
         this.replicationTracker = replicationTracker;
+        this.peerRecoveryRetentionLeaseRenewer = peerRecoveryRetentionLeaseRenewer;
 
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
@@ -477,6 +481,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the master started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                        addPeerRecoveryRetentionLeaseForPrimary();
                     }
                 } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
@@ -519,6 +524,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             assert getOperationPrimaryTerm() == newPrimaryTerm;
                             try {
                                 replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                                addPeerRecoveryRetentionLeaseForPrimary();
                                 /*
                                  * If this shard was serving as a replica shard when another shard was promoted to primary then
                                  * its Lucene index was reset during the primary term transition. In particular, the Lucene index
@@ -2392,6 +2398,48 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public boolean isRelocatedPrimary() {
         assert shardRouting.primary() : "only call isRelocatedPrimary on primary shard";
         return replicationTracker.isRelocated();
+    }
+
+    public void addPeerRecoveryRetentionLease(String nodeId, long startingSeqNo, Runnable onCompletion) {
+        replicationTracker.addPeerRecoveryRetentionLease(nodeId, startingSeqNo, onCompletion);
+    }
+
+    public void renewPeerRecoveryRetentionLeaseForNode(String nodeId, long minimumSeqNoForPeerRecovery) {
+        logger.info("renewPeerRecoveryRetentionLeaseForNode({}, {})", nodeId, minimumSeqNoForPeerRecovery);
+        replicationTracker.renewPeerRecoveryRetentionLease(nodeId, minimumSeqNoForPeerRecovery);
+    }
+
+    public void renewPeerRecoveryRetentionLease() {
+        peerRecoveryRetentionLeaseRenewer.run();
+    }
+
+    private void addPeerRecoveryRetentionLeaseForPrimary() throws IOException {
+        assert shardRouting.primary() : "only call addPeerRecoveryRetentionLeaseForPrimary on the primary";
+
+        // Today we can't call addPeerRecoveryRetentionLease() on this thread. It doesn't have to happen immediately,
+        // because it's a best-effort thing, so just fire it off in the background. This lease could possibly be installed in
+        // replicationTracker.activatePrimaryMode() except that it doesn't yet know the current node ID or appropriate seqno, and
+        // may not be able to sync the leases with the replicas there.
+        // TODO revisit this.
+
+        final Engine engine = getEngineOrNull();
+        if (engine != null) {
+            final long minimumSeqNoForPeerRecovery = engine.getMinimumSeqNoForPeerRecovery();
+            threadPool.generic().execute(() ->
+                addPeerRecoveryRetentionLease(shardRouting.currentNodeId(), minimumSeqNoForPeerRecovery, () -> {}));
+        }
+    }
+
+    public long getMinimumSeqNoForPeerRecovery() {
+        final Engine engine = getEngineOrNull();
+        if (engine == null) {
+            throw new ElasticsearchException("minimum sequence number for peer recovery is unavailable");
+        }
+        try {
+            return engine.getMinimumSeqNoForPeerRecovery();
+        } catch (IOException e) {
+            throw new ElasticsearchException("error getting minimum sequence number for peer recovery", e);
+        }
     }
 
     class ShardEventListener implements Engine.EventListener {

@@ -154,8 +154,9 @@ import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING
 import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
 import static org.elasticsearch.discovery.DiscoveryModule.ZEN_DISCOVERY_TYPE;
 import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
-import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
+import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
+import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
@@ -2500,6 +2501,38 @@ public final class InternalTestCluster extends TestCluster {
                     env.shardLock(id, TimeUnit.SECONDS.toMillis(5)).close();
                 } catch (ShardLockObtainFailedException ex) {
                     fail("Shard " + id + " is still locked after 5 sec waiting");
+                }
+            }
+        }
+
+        if (size() > 0) {
+            assertThat(client().admin().indices().prepareFlush().get().getFailedShards(), equalTo(0));
+            for (NodeAndClient nodeAndClient : nodes.values()) {
+                final IndicesService indicesService = getInstance(IndicesService.class, nodeAndClient.name);
+                for (final IndexService indexService : indicesService) {
+                    for (final IndexShard indexShard : indexService) {
+                        if (indexShard.routingEntry().primary()) {
+                            indexShard.renewPeerRecoveryRetentionLease();
+                        }
+                    }
+                }
+            }
+
+            for (NodeAndClient nodeAndClient : nodes.values()) {
+                try {
+                    assertBusy(() -> {
+                        final IndicesService indicesService = getInstance(IndicesService.class, nodeAndClient.name);
+                        for (final IndexService indexService : indicesService) {
+                            if (INDEX_SOFT_DELETES_SETTING.get(indexService.getIndexSettings().getSettings())) {
+                                for (final IndexShard indexShard : indexService) {
+                                    assertFalse("cleaned up history for " + indexShard + " on " + nodeAndClient.getName(),
+                                        indexShard.hasCompleteHistoryOperations("after test", indexShard.seqNoStats().getMaxSeqNo() - 1));
+                                }
+                            }
+                        }
+                    });
+                } catch (Exception e) {
+                    throw new AssertionError("unexpected exception in assertBusy", e);
                 }
             }
         }

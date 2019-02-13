@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService;
@@ -465,11 +466,18 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                 ).get();
                 client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
                 if (softDeleteEnabled) { // We need an extra flush to advance the min_retained_seqno of the SoftDeletesPolicy
                     client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
+                    // expire retention lease for replica; since number_of_replicas is 0 it is no longer needed
+                    internalCluster().getInstance(IndicesService.class, primaryNode).indexServiceSafe(resolveIndex("test", primaryNode))
+                        .forEach(IndexShard::renewPeerRecoveryRetentionLease);
                 }
+                client(primaryNode).admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                ).get();
                 return super.onNodeStopped(nodeName);
             }
         });

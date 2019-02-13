@@ -451,6 +451,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public long getMinimumSeqNoForPeerRecovery() {
+        return seqNoStats.getMaxSeqNo();
+    }
+
+    @Override
     public void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
 
     }

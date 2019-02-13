@@ -21,6 +21,7 @@ package org.elasticsearch.index.seqno;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -56,6 +57,8 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+
+import static java.lang.Math.max;
 
 /**
  * This class is responsible for tracking the replication group with its progress and safety markers (local and global checkpoints).
@@ -187,6 +190,20 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
+     * There are some special leases corresponding with shard copies in this cluster, for whom we track a retention lease so that we keep
+     * hold of enough history to bring them back online with an operations-based recovery later.
+     */
+    private static final String PEER_RECOVERY_LEASE_ID_PREFIX = "peer_recovery/";
+
+    private static String getPeerRecoveryLeaseId(String nodeId) {
+        return PEER_RECOVERY_LEASE_ID_PREFIX + nodeId;
+    }
+
+    public static boolean isPeerRecoveryLease(RetentionLease retentionLease) {
+        return retentionLease.id().startsWith(PEER_RECOVERY_LEASE_ID_PREFIX);
+    }
+
+    /**
      * If the expire leases parameter is false, gets all retention leases tracked on this shard and otherwise first calculates
      * expiration of existing retention leases, and then gets all non-expired retention leases tracked on this shard. Note that only the
      * primary shard calculates which leases are expired, and if any have expired, syncs the retention leases to any replicas. If the
@@ -239,6 +256,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             if (retentionLeases.contains(id)) {
                 throw new RetentionLeaseAlreadyExistsException(id);
             }
+            // should we abort if we have already discarded operations >= retainingSequenceNumber?
             retentionLease = new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
             retentionLeases = new RetentionLeases(
                     operationPrimaryTerm,
@@ -315,6 +333,106 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert primaryMode == false;
         if (retentionLeases.supersedes(this.retentionLeases)) {
             this.retentionLeases = retentionLeases;
+        }
+    }
+
+    public synchronized void renewPeerRecoveryRetentionLease(String nodeId, long minimumSeqNoForPeerRecovery) {
+        if (isPrimaryMode() == false) {
+            return;
+        }
+
+        for (final ShardRouting shardRouting : routingTable.shards()) {
+            if (shardRouting.currentNodeId().equals(nodeId) == false) {
+                continue;
+            }
+
+            if (shardRouting.active()) {
+                final String leaseId = getPeerRecoveryLeaseId(nodeId);
+                final RetentionLease retentionLease = retentionLeases.get(leaseId);
+                if (retentionLease != null) {
+                    if (retentionLease.retainingSequenceNumber() < minimumSeqNoForPeerRecovery) {
+                        renewRetentionLease(leaseId, max(0L, minimumSeqNoForPeerRecovery), "peer recovery");
+                    }
+                } else {
+                    // These leases should never expire, because by default they last for hours, we renew them every few minutes while the
+                    // replica is healthy, and we ensure they exist before starting a replica. But if they do expire
+                    // (e.g. index.soft_deletes.retention.lease is set to a very small value) then we should create them again.
+                    logger.warn("lease for peer recovery to {} unexpectedly expired before renewal", shardRouting);
+
+                    // TODO is it ok to do this under the mutex?
+                    addRetentionLease(leaseId, max(0L, minimumSeqNoForPeerRecovery), "peer recovery",
+                        new ActionListener<ReplicationResponse>() {
+                            @Override
+                            public void onResponse(ReplicationResponse replicationResponse) {
+                                // this operation is fire-and-forget
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.debug(new ParameterizedMessage("exception creating new retention lease for peer recovery to {}",
+                                    shardRouting), e);
+                                // this operation is fire-and-forget
+                            }
+                        });
+                }
+
+                if (shardRouting.primary() && routingTable.allShardsStarted()) {
+                    final Set<String> expectedPeerRecoveryLeaseIds
+                        = routingTable.shards().stream().map(sr -> getPeerRecoveryLeaseId(sr.currentNodeId())).collect(Collectors.toSet());
+
+                    retentionLeases.leases().stream().filter(l -> l.id().startsWith(PEER_RECOVERY_LEASE_ID_PREFIX)
+                        && expectedPeerRecoveryLeaseIds.contains(l.id()) == false)
+                        .forEach(rl -> removeRetentionLease(rl.id(), new ActionListener<ReplicationResponse>() {
+                            @Override
+                            public void onResponse(ReplicationResponse replicationResponse) {
+                                // this operation is fire-and-forget
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.debug(new ParameterizedMessage("exception removing stale retention lease {}",
+                                    rl.id()), e);
+                                // this operation is fire-and-forget
+                            }
+                        }));
+                }
+            }
+
+            return;
+        }
+
+        logger.debug("attempted to renew peer recovery retention lease for node {} but no corresponding shard routing found", nodeId);
+    }
+
+    public synchronized void addPeerRecoveryRetentionLease(String nodeId, long startingSeqNo, Runnable onCompletion) {
+        if (primaryMode == false) {
+            logger.debug("cannot add peer-recovery retention lease on a replica {}", nodeId);
+            onCompletion.run();
+            return;
+        }
+
+        final String leaseId = getPeerRecoveryLeaseId(nodeId);
+        final RetentionLease retentionLease = retentionLeases.get(leaseId);
+        if (retentionLease != null) {
+            if (retentionLease.retainingSequenceNumber() < startingSeqNo) {
+                renewRetentionLease(leaseId, max(0L, startingSeqNo), "peer recovery");
+            }
+            onCompletion.run();
+        } else {
+            // TODO is it ok to do this under the mutex?
+            addRetentionLease(leaseId, max(0L, startingSeqNo), "peer recovery", new ActionListener<ReplicationResponse>() {
+                @Override
+                public void onResponse(ReplicationResponse replicationResponse) {
+                    onCompletion.run();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // TODO do we care?
+                    logger.debug(new ParameterizedMessage("exception creating new retention lease for peer recovery to {}", nodeId), e);
+                    onCompletion.run();
+                }
+            });
         }
     }
 

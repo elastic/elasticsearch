@@ -608,11 +608,13 @@ public class IndicesService extends AbstractLifecycleComponent
             final RepositoriesService repositoriesService,
             final Consumer<IndexShard.ShardFailure> onShardFailure,
             final Consumer<ShardId> globalCheckpointSyncer,
-            final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
+            final RetentionLeaseSyncer retentionLeaseSyncer,
+            final Consumer<ShardId> peerRecoveryRetentionLeaseRenewer) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer,
+            peerRecoveryRetentionLeaseRenewer);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService,
             (type, mapping) -> {
@@ -874,6 +876,9 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexMetaData metaData;
             try {
                 metaData = metaStateService.loadIndexState(index);
+                if (metaData == null) {
+                    throw new ElasticsearchException("no index metadata loaded for " + index);
+                }
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, " +
                     "folders will be left on disk", index), e);

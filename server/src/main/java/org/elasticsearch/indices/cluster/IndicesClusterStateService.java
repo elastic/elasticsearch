@@ -56,6 +56,7 @@ import org.elasticsearch.index.IndexComponent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
+import org.elasticsearch.index.seqno.PeerRecoveryRetentionLeaseRenewalAction;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
@@ -127,6 +128,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final PrimaryReplicaSyncer primaryReplicaSyncer;
     private final Consumer<ShardId> globalCheckpointSyncer;
     private final RetentionLeaseSyncer retentionLeaseSyncer;
+    private final Consumer<ShardId> peerRecoveryRetentionLeaseRenewer;
 
     @Inject
     public IndicesClusterStateService(
@@ -145,7 +147,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final PrimaryReplicaSyncer primaryReplicaSyncer,
             final GlobalCheckpointSyncAction globalCheckpointSyncAction,
             final RetentionLeaseSyncAction retentionLeaseSyncAction,
-            final RetentionLeaseBackgroundSyncAction retentionLeaseBackgroundSyncAction) {
+            final RetentionLeaseBackgroundSyncAction retentionLeaseBackgroundSyncAction,
+            final PeerRecoveryRetentionLeaseRenewalAction peerRecoveryRetentionLeaseRenewalAction) {
         this(
                 settings,
                 (AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>>) indicesService,
@@ -174,7 +177,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     public void backgroundSync(final ShardId shardId, final RetentionLeases retentionLeases) {
                         Objects.requireNonNull(retentionLeaseBackgroundSyncAction).backgroundSync(shardId, retentionLeases);
                     }
-                });
+                }, peerRecoveryRetentionLeaseRenewalAction::renewPeerRecoveryRetentionLease);
     }
 
     // for tests
@@ -193,7 +196,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final SnapshotShardsService snapshotShardsService,
             final PrimaryReplicaSyncer primaryReplicaSyncer,
             final Consumer<ShardId> globalCheckpointSyncer,
-            final RetentionLeaseSyncer retentionLeaseSyncer) {
+            final RetentionLeaseSyncer retentionLeaseSyncer,
+            final Consumer<ShardId> peerRecoveryRetentionLeaseRenewer) {
         this.settings = settings;
         this.buildInIndexListener =
                 Arrays.asList(
@@ -213,6 +217,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
+        this.peerRecoveryRetentionLeaseRenewer = peerRecoveryRetentionLeaseRenewer;
     }
 
     @Override
@@ -602,7 +607,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     repositoriesService,
                     failedShardHandler,
                     globalCheckpointSyncer,
-                    retentionLeaseSyncer);
+                    retentionLeaseSyncer,
+                    peerRecoveryRetentionLeaseRenewer);
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
         }
@@ -907,6 +913,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param onShardFailure         a callback when this shard fails
          * @param globalCheckpointSyncer a callback when this shard syncs the global checkpoint
          * @param retentionLeaseSyncer   a callback when this shard syncs retention leases
+         * @param peerRecoveryRetentionLeaseRenewer a callback when this shard renews peer recovery retention leases for each copy
          * @return a new shard
          * @throws IOException if an I/O exception occurs when creating the shard
          */
@@ -918,7 +925,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 RepositoriesService repositoriesService,
                 Consumer<IndexShard.ShardFailure> onShardFailure,
                 Consumer<ShardId> globalCheckpointSyncer,
-                RetentionLeaseSyncer retentionLeaseSyncer) throws IOException;
+                RetentionLeaseSyncer retentionLeaseSyncer,
+                Consumer<ShardId> peerRecoveryRetentionLeaseRenewer) throws IOException;
 
         /**
          * Returns shard for the specified id if it exists otherwise returns <code>null</code>.

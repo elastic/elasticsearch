@@ -265,6 +265,8 @@ public abstract class Engine implements Closeable {
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
     }
 
+    public abstract long getMinimumSeqNoForPeerRecovery() throws IOException;
+
     /**
      * Performs the pre-closing checks on the {@link Engine}.
      *

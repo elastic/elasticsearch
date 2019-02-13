@@ -31,7 +31,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
@@ -750,9 +749,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         for (MockTransportService mockTransportService : Arrays.asList(redMockTransportService, blueMockTransportService)) {
             mockTransportService.addSendBehavior(masterTransportService, (connection, requestId, action, request, options) -> {
                 logger.info("--> sending request {} on {}", action, connection.getNode());
-                if ((primaryRelocation && finalized.get()) == false) {
-                    assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);
-                }
                 connection.sendRequest(requestId, action, request, options);
             });
         }

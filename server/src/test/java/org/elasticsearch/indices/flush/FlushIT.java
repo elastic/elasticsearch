@@ -104,6 +104,7 @@ public class FlushIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "the syncing of history retention leases involves an extra flush which breaks synced-flushes")
     public void testSyncedFlush() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)).get();

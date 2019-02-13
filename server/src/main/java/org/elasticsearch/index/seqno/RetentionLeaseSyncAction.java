@@ -27,6 +27,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -107,8 +108,9 @@ public class RetentionLeaseSyncAction extends
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
-            execute(
-                    new RetentionLeaseSyncAction.Request(shardId, retentionLeases),
+            final Request request = new Request(shardId, retentionLeases);
+            request.waitForActiveShards(ActiveShardCount.ONE);
+            execute(request,
                     ActionListener.wrap(
                             listener::onResponse,
                             e -> {

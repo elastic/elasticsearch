@@ -155,6 +155,9 @@ public class ReplicationOperation<
         }
     }
 
+    protected void handleReplicaResponse(final ShardRouting shard, final ReplicaResponse response) {
+    }
+
     private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest,
                                   final long globalCheckpoint, final long maxSeqNoOfUpdatesOrDeletes) {
         if (logger.isTraceEnabled()) {
@@ -177,6 +180,7 @@ public class ReplicationOperation<
                     final String message = String.format(Locale.ROOT, "primary failed updating local checkpoint for replica %s", shard);
                     primary.failShard(message, e);
                 }
+                handleReplicaResponse(shard, response);
                 decPendingAndFinishIfNeeded();
             }
 
@@ -195,6 +199,11 @@ public class ReplicationOperation<
                 replicasProxy.failShardIfNeeded(shard, message,
                     replicaException, ReplicationOperation.this::decPendingAndFinishIfNeeded,
                     ReplicationOperation.this::onPrimaryDemoted, throwable -> decPendingAndFinishIfNeeded());
+            }
+
+            @Override
+            public String toString() {
+                return "[" + replicaRequest + "][" + shard + "]";
             }
         });
     }

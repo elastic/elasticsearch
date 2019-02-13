@@ -2327,7 +2327,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static Index resolveIndex(String index) {
-        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices(index).get();
+        return resolveIndex(index, null);
+    }
+
+    public static Index resolveIndex(String index, String viaNode) {
+        GetIndexResponse getIndexResponse = client(viaNode).admin().indices().prepareGetIndex().setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
         return new Index(index, uuid);

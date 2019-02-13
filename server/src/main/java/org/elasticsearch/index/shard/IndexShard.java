@@ -779,7 +779,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             if (logger.isTraceEnabled()) {
                 // don't use index.source().utf8ToString() here source might not be valid UTF-8
-                logger.trace("index [{}][{}] (seq# [{}])",  index.type(), index.id(), index.seqNo());
+                logger.trace("index [{}][{}] seq# [{}] allocation-id {}",
+                    index.type(), index.id(), index.seqNo(), routingEntry().allocationId());
             }
             result = engine.index(index);
         } catch (Exception e) {

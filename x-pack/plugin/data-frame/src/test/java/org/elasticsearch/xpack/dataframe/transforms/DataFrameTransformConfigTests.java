@@ -6,12 +6,20 @@
 
 package org.elasticsearch.xpack.dataframe.transforms;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;
+
+import static org.elasticsearch.test.TestMatchers.matchesPattern;
 
 public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformConfig> {
 
@@ -53,5 +61,39 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
     @Override
     protected Reader<DataFrameTransformConfig> instanceReader() {
         return DataFrameTransformConfig::new;
+    }
+
+    public void testDefaultMatchAll( ) throws IOException {
+        String pivotTransform = "{"
+                + " \"source\" : \"src\","
+                + " \"dest\" : \"dest\","
+                + " \"pivot\" : {"
+                + " \"group_by\": [ {"
+                + "   \"id\": {"
+                + "     \"terms\": {"
+                + "       \"field\": \"id\""
+                + "} } } ],"
+                + " \"aggs\": {"
+                + "   \"avg\": {"
+                + "     \"avg\": {"
+                + "       \"field\": \"points\""
+                + "} } } } }";
+
+        DataFrameTransformConfig dataFrameTransformConfig = createDataFrameTransformConfigFromString(pivotTransform, "test_match_all");
+        assertNotNull(dataFrameTransformConfig.getQueryConfig());
+        assertTrue(dataFrameTransformConfig.getQueryConfig().isValid());
+
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            XContentBuilder content = dataFrameTransformConfig.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            String pivotTransformWithIdAndDefaults = Strings.toString(content);
+
+            assertThat(pivotTransformWithIdAndDefaults, matchesPattern(".*\"match_all\"\\s*:\\s*\\{\\}.*"));
+        }
+    }
+
+    private DataFrameTransformConfig createDataFrameTransformConfigFromString(String json, String id) throws IOException {
+        final XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(),
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        return DataFrameTransformConfig.fromXContent(parser, id, false);
     }
 }

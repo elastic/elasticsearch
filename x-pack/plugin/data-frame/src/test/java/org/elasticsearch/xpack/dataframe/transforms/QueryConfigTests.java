@@ -101,6 +101,36 @@ public class QueryConfigTests extends AbstractSerializingDataFrameTestCase<Query
         }
     }
 
+    public void testFailOnEmptyQuery() throws IOException {
+        String source = "";
+
+        // lenient, passes but reports invalid
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            QueryConfig query = QueryConfig.fromXContent(parser, true);
+            assertFalse(query.isValid());
+        }
+
+        // strict throws
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            expectThrows(IllegalArgumentException.class, () -> QueryConfig.fromXContent(parser, false));
+        }
+    }
+
+    public void testFailOnEmptyQueryClause() throws IOException {
+        String source = "{}";
+
+        // lenient, passes but reports invalid
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            QueryConfig query = QueryConfig.fromXContent(parser, true);
+            assertFalse(query.isValid());
+        }
+
+        // strict throws
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            expectThrows(IllegalArgumentException.class, () -> QueryConfig.fromXContent(parser, false));
+        }
+    }
+
     public void testDeprecation() throws IOException {
         String source = "{\"" + MockDeprecatedQueryBuilder.NAME + "\" : {}}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {

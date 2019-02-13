@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -155,13 +156,22 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     /**
      * Returns null if the provided factory and his parents are compatible with
      * this aggregator or the instance of the parent's factory that is incompatible with
-     * the composite aggregation.
+     * the composite aggregation. A composite aggregation can be used as a child of a nested
+     * aggregation and as a child of a filter only if the parent of the filter is a
+     * nested aggregation.
+     *
+     * @return null if compatible
      */
     private AggregatorFactory<?> checkParentIsNullOrNested(AggregatorFactory<?> factory) {
         if (factory == null) {
             return null;
-        } else if (factory instanceof NestedAggregatorFactory) {
-            return checkParentIsNullOrNested(factory.getParent());
+        } else if (factory instanceof NestedAggregatorFactory &&
+            factory.getParent() == null) {
+            return null;
+        } else if (factory instanceof FilterAggregatorFactory &&
+            factory.getParent() instanceof NestedAggregatorFactory &&
+            factory.getParent().getParent() == null) {
+            return null;
         } else {
             return factory;
         }

@@ -32,6 +32,10 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
+import com.amazonaws.util.Md5Utils;
+import com.amazonaws.util.BinaryUtils;
+import com.amazonaws.SdkClientException;
+
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -50,6 +54,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static java.lang.Math.toIntExact;
 import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
 import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MULTIPART;
 import static org.elasticsearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
@@ -186,6 +191,16 @@ class S3BlobContainer extends AbstractBlobContainer {
         md.setContentLength(blobSize);
         if (blobStore.serverSideEncryption()) {
             md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+        }
+        try {
+	    int readLimit = toIntExact(blobSize);
+	    input.mark(readLimit);
+	    byte[] md5 = Md5Utils.computeMD5Hash(input);
+	    input.reset();
+	    String md5Base64 = BinaryUtils.toBase64(md5);
+            md.setHeader("Content-MD5", md5Base64);
+        } catch ( Exception e ) {
+            throw new SdkClientException("Couldn't compute md5 sum", e);
         }
         final PutObjectRequest putRequest = new PutObjectRequest(blobStore.bucket(), blobName, input, md);
         putRequest.setStorageClass(blobStore.getStorageClass());

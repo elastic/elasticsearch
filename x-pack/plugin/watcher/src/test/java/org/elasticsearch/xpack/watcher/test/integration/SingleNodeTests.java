@@ -28,7 +28,6 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36782")
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, maxNumDataNodes = 1, supportsDedicatedMasters = false)
 public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
 

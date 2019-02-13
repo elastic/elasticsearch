@@ -380,11 +380,15 @@ public class ExecutionService {
 
     private void logWatchRecord(WatchExecutionContext ctx, Exception e) {
         // failed watches stack traces are only logged in debug, otherwise they should be checked out in the history
-        if (logger.isDebugEnabled()) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to execute watch [{}]", ctx.id().watchId()), e);
-        } else {
-            logger.warn("failed to execute watch [{}]", ctx.id().watchId());
-        }
+        //if (logger.isDebugEnabled()) {
+        //    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to execute watch [{}]", ctx.id().watchId()), e);
+        //} else {
+        //    logger.warn("failed to execute watch [{}]", ctx.id().watchId());
+        //}
+
+        // TODO: allow this to show the warning message with the exception for debugging related to
+        // TODO: https://github.com/elastic/elasticsearch/issues/36782
+        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to execute watch [{}]", ctx.id().watchId()), e);
     }
 
     /*

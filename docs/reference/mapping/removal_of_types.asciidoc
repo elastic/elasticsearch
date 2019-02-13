@@ -259,9 +259,10 @@ Elasticsearch 6.x::
 
 * In 6.7, the index creation, index template, and mapping APIs support a query
   string parameter (`include_type_name`) which indicates whether requests and
-  responses should include a type name. It defaults to `true`, and not setting
-  `include_type_name=false` will result in a deprecation warning. Indices which
-  don't have an explicit type will use the dummy type name `_doc`.
+  responses should include a type name. It defaults to `true`, and should be set
+  to an explicit value to prepare to upgrade to 7.0. Not setting `include_type_name`
+  will result in a deprecation warning. Indices which don't have an explicit type will
+  use the dummy type name `_doc`.
 
 Elasticsearch 7.x::
 
@@ -271,8 +272,8 @@ Elasticsearch 7.x::
   for auto-generated ids.
 
 * The `include_type_name` parameter in the index creation, index template,
-  and mapping APIs will default to `false`. Setting the parameter will result
-  in a deprecation warning.
+  and mapping APIs will default to `false`. Setting the parameter at all will
+  result in a deprecation warning.
 
 * The `_default_` mapping type is removed.
 
@@ -438,12 +439,16 @@ documents to it using typeless `index` calls, and load documents with typeless
 ==== Indices APIs
 
 Index creation, index template, and mapping APIs support a new `include_type_name`
-url parameter that specifies whether mapping definitions in requests and responses
+URL parameter that specifies whether mapping definitions in requests and responses
 should contain the type name. The parameter defaults to `true` in version 6.7 to
 match the pre-7.0 behavior of using type names in mappings. It defaults to `false`
 in version 7.0 and will be removed in version 8.0.
 
-See some examples of interactions with Elasticsearch with this option provided:
+It should be set explicitly in 6.7 to prepare to upgrade to 7.0. To avoid deprecation
+warnings in 6.7, the parameter can be set to either `true` or `false`. In 7.0, setting
+`include_type_name` at all will result in a deprecation warning.
+
+See some examples of interactions with Elasticsearch with this option set to `false`:
 
 [source,js]
 --------------------------------------------------
@@ -631,8 +636,9 @@ GET index/_doc/1
 [float]
 ==== Index templates
 
-It is recommended to make index templates typeless before upgrading to 7.0 by
-re-adding them with `include_type_name` set to `false`.
+It is recommended to make index templates typeless by re-adding them with
+`include_type_name` set to `false`. Under the hood, typeless templates will use
+the dummy type `_doc` when creating indices.
 
 In case typeless templates are used with typed index creation calls or typed
 templates are used with typeless index creation calls, the template will still

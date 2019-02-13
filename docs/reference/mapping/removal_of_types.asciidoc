@@ -257,9 +257,10 @@ Elasticsearch 6.x::
 
 * In 6.7, the index creation, index template, and mapping APIs support a query
   string parameter (`include_type_name`) which indicates whether requests and
-  responses should include a type name. It defaults to `true`, and not setting
-  `include_type_name=false` will result in a deprecation warning. Indices which
-  don't have an explicit type will use the dummy type name `_doc`.
+  responses should include a type name. It defaults to `true`, and should be set
+  to an explicit value to prepare to upgrade to 7.0. Not setting `include_type_name`
+  will result in a deprecation warning. Indices which don't have an explicit type will
+  use the dummy type name `_doc`.
 
 Elasticsearch 7.x::
 
@@ -269,8 +270,8 @@ Elasticsearch 7.x::
   for auto-generated ids.
 
 * The `include_type_name` parameter in the index creation, index template,
-  and mapping APIs will default to `false`. Setting the parameter will result
-  in a deprecation warning.
+  and mapping APIs will default to `false`. Setting the parameter at all will
+  result in a deprecation warning.
 
 * The `_default_` mapping type is removed.
 

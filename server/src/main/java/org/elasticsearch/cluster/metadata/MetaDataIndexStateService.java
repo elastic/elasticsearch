@@ -170,7 +170,26 @@ public class MetaDataIndexStateService {
                                         @Override
                                         public void clusterStateProcessed(final String source,
                                                                           final ClusterState oldState, final ClusterState newState) {
-                                            listener.onResponse(new AcknowledgedResponse(acknowledged));
+
+                                            final AcknowledgedResponse response = new AcknowledgedResponse(acknowledged);
+                                            final String[] indices = results.entrySet().stream()
+                                                .filter(result -> result.getValue().isAcknowledged())
+                                                .map(result -> result.getKey().getName())
+                                                .filter(index -> newState.routingTable().hasIndex(index))
+                                                .toArray(String[]::new);
+
+                                            if (indices.length > 0) {
+                                                activeShardsObserver.waitForActiveShards(indices, request.waitForActiveShards(),
+                                                    request.ackTimeout(), shardsAcknowledged -> {
+                                                        if (shardsAcknowledged == false) {
+                                                            logger.debug("[{}] indices closed, but the operation timed out while waiting " +
+                                                                "for enough shards to be started.", Arrays.toString(indices));
+                                                        }
+                                                        listener.onResponse(response);
+                                                    }, listener::onFailure);
+                                            } else {
+                                                listener.onResponse(response);
+                                            }
                                         }
                                     }),
                                     listener::onFailure)

@@ -112,7 +112,8 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed(indexName);
 
         // Second close should be acked too
-        assertBusy(() -> assertAcked(client().admin().indices().prepareClose(indexName)));
+        final ActiveShardCount activeShardCount = randomFrom(ActiveShardCount.NONE, ActiveShardCount.DEFAULT, ActiveShardCount.ALL);
+        assertBusy(() -> assertAcked(client().admin().indices().prepareClose(indexName).setWaitForActiveShards(activeShardCount)));
         assertIndexIsClosed(indexName);
     }
 
@@ -126,7 +127,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertThat(clusterState.metaData().indices().get(indexName).getState(), is(IndexMetaData.State.OPEN));
         assertThat(clusterState.routingTable().allShards().stream().allMatch(ShardRouting::unassigned), is(true));
 
-        assertBusy(() -> assertAcked(client().admin().indices().prepareClose(indexName)));
+        assertBusy(() -> assertAcked(client().admin().indices().prepareClose(indexName).setWaitForActiveShards(ActiveShardCount.NONE)));
         assertIndexIsClosed(indexName);
     }
 

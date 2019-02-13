@@ -423,7 +423,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case "ip":
                 return DataType.IP;
             default:
-                throw new ParsingException(source(ctx), "Does not recognize type {}", type);
+                throw new ParsingException(source(ctx), "Does not recognize type [{}]", ctx.getText());
         }
     }
 
@@ -443,7 +443,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 dataType = DataType.fromOdbcType(convertDataType);
                 if (dataType == null) {
                     throw new ParsingException(source(convertTc.dataType()), "Invalid data type [{}] provided", convertDataType);
-    }
+                }
             } else {
                 try {
                     dataType = DataType.valueOf(convertDataType);
@@ -453,6 +453,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             }
             return new Cast(source(convertTc), expression(convertTc.expression()), dataType);
         }
+    }
+
+    @Override
+    public Object visitCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx) {
+        return new Cast(source(ctx), expression(ctx.valueExpression()), typedParsing(ctx.dataType(), DataType.class));
     }
 
     @Override

@@ -669,10 +669,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public void close() throws IOException {
-        bulkProcessor.flush();
+        if (enabled) {
+            bulkProcessor.flush();
+        }
         IOUtils.closeWhileHandlingException(httpClient);
         try {
-            if (bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
+            if (enabled && bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
                 logger.warn("failed to properly close watcher bulk processor");
             }
         } catch (InterruptedException e) {

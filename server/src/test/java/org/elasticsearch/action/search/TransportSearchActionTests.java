@@ -25,11 +25,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -72,10 +74,10 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,7 +89,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -103,106 +104,96 @@ public class TransportSearchActionTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testMergeShardsIterators() {
-        String localClusterAlias = randomBoolean() ? null : "local";
-        OriginalIndices localIndices = new OriginalIndices(new String[]{"local"}, SearchRequest.DEFAULT_INDICES_OPTIONS);
-        List<SearchShardIterator> expected = new ArrayList<>();
-        int numLocalIterators = randomIntBetween(0, 10);
-        List<ShardIterator> localShardIterators = new ArrayList<>(numLocalIterators);
-        Map<Index, Integer> indices = new LinkedHashMap<>();
-        for (int i = 0; i < numLocalIterators; i++) {
-            ShardId shardId;
-            if (i > 0 && randomBoolean()) {
-                //add shards for already used indices
-                Map.Entry<Index, Integer> entry = randomFrom(indices.entrySet());
-                Index index = entry.getKey();
-                Integer shard = entry.getValue();
-                entry.setValue(++shard);
-                shardId = new ShardId(index, shard);
-            } else {
-                //add new indices
-                Index index = new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10));
-                indices.put(index, 0);
-                shardId = new ShardId(index, 0);
-            }
-            List<ShardRouting> shardRoutings = randomShardRoutings(shardId);
-            PlainShardIterator plainShardIterator = new PlainShardIterator(shardId, shardRoutings);
-            localShardIterators.add(plainShardIterator);
-            expected.add(new SearchShardIterator(localClusterAlias, shardId, shardRoutings, localIndices));
-        }
-
-        OriginalIndices remoteOriginalIndices = new OriginalIndices(new String[]{"remote"}, SearchRequest.DEFAULT_INDICES_OPTIONS);
-        int numClusters = randomIntBetween(1, 3);
-        String[] clusters = new String[numClusters];
-        for (int i = 0; i < numClusters; i++) {
-            clusters[i] = randomAlphaOfLengthBetween(5, 10);
-        }
-        Map<Index, Integer> remoteIndices = new HashMap<>();
-        int numRemoteIterators = randomIntBetween(0, 10);
-        List<SearchShardIterator> remoteShardIterators = new ArrayList<>(numRemoteIterators);
-        for (int i = 0; i < numRemoteIterators; i++) {
-            ShardId shardId;
-            String clusterAlias = randomFrom(clusters);
-            if (indices.size() > 0 && randomBoolean()) {
-                Map.Entry<Index, Integer> entry = randomFrom(indices.entrySet());
-                Index index;
-                if (randomBoolean()) {
-                    //randomly reuse the same index, including uuid, to simulate case where the same cluster is registered twice
-                    index = entry.getKey();
-                } else {
-                    String indexName = entry.getKey().getName();
-                    //include the clusterAlias in the uuid to simplify disambiguation when indices have
-                    //the same name but are on different clusters. In practice uuid will differ
-                    index = new Index(indexName, indexName + "-" + clusterAlias);
-                }
-                Integer shard = remoteIndices.compute(index, (key, value) -> value == null ? 0 : ++value);
-                shardId = new ShardId(index, shard);
-            } else {
-                Index index = new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10));
-                remoteIndices.put(index, 0);
-                shardId = new ShardId(index, 0);
-            }
-            List<ShardRouting> shardRoutings = randomShardRoutings(shardId);
-            SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, shardId, shardRoutings, remoteOriginalIndices);
-            remoteShardIterators.add(shardIterator);
-            expected.add(shardIterator);
-        }
-
-        GroupShardsIterator<ShardIterator> localShardsIterator = new GroupShardsIterator<>(localShardIterators);
-        GroupShardsIterator<SearchShardIterator> searchShardIterators = TransportSearchAction.mergeShardsIterators(localShardsIterator,
-                localIndices, localClusterAlias, remoteShardIterators);
-        assertEquals(numRemoteIterators + numLocalIterators, searchShardIterators.size());
-
-        expected.sort((o1, o2) -> {
-            int compare = o1.shardId().compareTo(o2.shardId());
-            if (compare != 0) {
-                return compare;
-            }
-            if (o1.getClusterAlias() == null && o2.getClusterAlias() == null) {
-                return 0;
-            }
-            if (o1.getClusterAlias() == null) {
-                return -1;
-            }
-            if (o2.getClusterAlias() == null) {
-                return 1;
-            }
-            return o1.getClusterAlias().compareTo(o2.getClusterAlias());
-        });
-
-        List<SearchShardIterator> result = new ArrayList<>();
-        searchShardIterators.forEach(result::add);
-        assertEquals(expected, result);
+    private static SearchShardIterator createSearchShardIterator(int id, Index index,
+                                                                 OriginalIndices originalIndices, String clusterAlias) {
+        ShardId shardId = new ShardId(index, id);
+        List<ShardRouting> shardRoutings = GroupShardsIteratorTests.randomShardRoutings(shardId);
+        return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices);
     }
 
-    private static List<ShardRouting> randomShardRoutings(ShardId shardId) {
-        List<ShardRouting> shardRoutings = new ArrayList<>();
-        shardRoutings.add(TestShardRouting.newShardRouting(shardId, randomAlphaOfLengthBetween(5, 10), true, STARTED));
-        int numReplicas = randomIntBetween(0, 2);
-        for (int j = 0; j < numReplicas; j++) {
-            shardRoutings.add(TestShardRouting.newShardRouting(shardId, randomAlphaOfLengthBetween(5, 10), false, STARTED));
+    public void testMergeShardsIterators() {
+        Index[] indices = new Index[randomIntBetween(1, 10)];
+        for (int i = 0; i < indices.length; i++) {
+            if (randomBoolean() && i > 0) {
+                Index existingIndex = indices[randomIntBetween(0, i - 1)];
+                indices[i] = new Index(existingIndex.getName(), randomAlphaOfLength(10));
+            } else {
+                indices[i] = new Index(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10));
+            }
         }
-        return shardRoutings;
+        Arrays.sort(indices, (o1, o2) -> {
+            int nameCompareTo = o1.getName().compareTo(o2.getName());
+            if (nameCompareTo == 0) {
+                return o1.getUUID().compareTo(o2.getUUID());
+            }
+            return nameCompareTo;
+        });
+        String[] remoteClusters = new String[randomIntBetween(1, 3)];
+        for (int i = 0; i < remoteClusters.length; i++) {
+            remoteClusters[i] = randomAlphaOfLengthBetween(5, 10);
+        }
+        Arrays.sort(remoteClusters);
+
+        List<SearchShardIterator> expected = new ArrayList<>();
+        String localClusterAlias = randomAlphaOfLengthBetween(5, 10);
+        OriginalIndices localIndices = OriginalIndicesTests.randomOriginalIndices();
+        List<ShardIterator> localShardIterators = new ArrayList<>();
+        List<SearchShardIterator> remoteShardIterators = new ArrayList<>();
+        int numShards = randomIntBetween(0, 10);
+        for (int i = 0; i < numShards; i++) {
+            int numIndices = randomIntBetween(0, indices.length);
+            for (int j = 0; j < numIndices; j++) {
+                Index index = indices[j];
+                boolean localIndex = randomBoolean();
+                if (localIndex) {
+                    SearchShardIterator localIterator = createSearchShardIterator(i, index, localIndices, localClusterAlias);
+                    localShardIterators.add(new PlainShardIterator(localIterator.shardId(), localIterator.getShardRoutings()));
+                    if (rarely()) {
+                        String remoteClusterAlias = randomFrom(remoteClusters);
+                        //simulate scenario where the local cluster is also registered as a remote one
+                        SearchShardIterator remoteIterator = createSearchShardIterator(i, index,
+                            OriginalIndicesTests.randomOriginalIndices(), remoteClusterAlias);
+                        remoteShardIterators.add(remoteIterator);
+                        assert remoteClusterAlias.equals(localClusterAlias) == false;
+                        if (remoteClusterAlias.compareTo(localClusterAlias) < 0) {
+                            expected.add(remoteIterator);
+                            expected.add(localIterator);
+                        } else {
+                            expected.add(localIterator);
+                            expected.add(remoteIterator);
+                        }
+                    } else {
+                        expected.add(localIterator);
+                    }
+                } else if (rarely()) {
+                    int numClusters = randomIntBetween(1, remoteClusters.length);
+                    for (int k = 0; k < numClusters; k++) {
+                        //simulate scenario where the same cluster is registered multiple times with different aliases
+                        String clusterAlias = remoteClusters[k];
+                        SearchShardIterator iterator = createSearchShardIterator(i, index, OriginalIndicesTests.randomOriginalIndices(),
+                            clusterAlias);
+                        expected.add(iterator);
+                        remoteShardIterators.add(iterator);
+                    }
+                } else {
+                    SearchShardIterator iterator = createSearchShardIterator(i, index, OriginalIndicesTests.randomOriginalIndices(),
+                        randomFrom(remoteClusters));
+                    expected.add(iterator);
+                    remoteShardIterators.add(iterator);
+                }
+            }
+        }
+
+        Collections.shuffle(localShardIterators, random());
+        Collections.shuffle(remoteShardIterators, random());
+
+        GroupShardsIterator<SearchShardIterator> groupShardsIterator = TransportSearchAction.mergeShardsIterators(
+            new GroupShardsIterator<>(localShardIterators), localIndices, localClusterAlias, remoteShardIterators);
+        List<SearchShardIterator> result = new ArrayList<>();
+        for (SearchShardIterator searchShardIterator : groupShardsIterator) {
+            result.add(searchShardIterator);
+        }
+        assertEquals(expected, result);
     }
 
     public void testProcessRemoteShards() {

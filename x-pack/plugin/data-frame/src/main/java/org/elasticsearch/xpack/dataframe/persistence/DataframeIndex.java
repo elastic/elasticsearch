@@ -75,9 +75,9 @@ public final class DataframeIndex {
 
     private static XContentBuilder addMetaData(XContentBuilder builder, String id) throws IOException {
         builder.startObject(META);
+        builder.field(DataFrameField.CREATED_BY, DataFrameField.DATA_FRAME_SIGNATURE);
         builder.startObject(DataFrameField.META_FIELDNAME);
         builder.field(DataFrameField.CREATION_DATE_MILLIS, System.currentTimeMillis());
-        builder.field(DataFrameField.CREATED_BY, DataFrameField.DATA_FRAME_SIGNATURE);
         builder.startObject(DataFrameField.VERSION);
         builder.field(DataFrameField.CREATED, Version.CURRENT);
         builder.endObject();

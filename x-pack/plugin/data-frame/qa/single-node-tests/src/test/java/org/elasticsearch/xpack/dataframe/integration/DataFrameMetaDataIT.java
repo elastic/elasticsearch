@@ -53,7 +53,7 @@ public class DataFrameMetaDataIT extends DataFrameRestTestCase {
         assertEquals("test_meta",
                 XContentMapValues.extractValue("pivot_reviews.mappings._meta._data_frame.transform", mappingAsMap));
         assertEquals("data-frame-transform",
-                XContentMapValues.extractValue("pivot_reviews.mappings._meta._data_frame.created_by", mappingAsMap));
+                XContentMapValues.extractValue("pivot_reviews.mappings._meta.created_by", mappingAsMap));
     }
 
 }

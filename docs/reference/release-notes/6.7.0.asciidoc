@@ -140,7 +140,6 @@ Authorization::
 * Create snapshot role {pull}35820[#35820] (issue: {issue}34454[#34454])
 
 CCR::
-* Integrate retention leases to recovery from remote [OPEN] {pull}38829[#38829] (issue: {issue}37165[#37165])
 * Enable removal of retention leases {pull}38751[#38751] (issue: {issue}37165[#37165])
 * Concurrent file chunk fetching for CCR restore {pull}38495[#38495]
 * Tighten mapping syncing in ccr remote restore {pull}38071[#38071] (issues: {issue}36879[#36879], {issue}37887[#37887])
@@ -217,6 +216,8 @@ Features/Watcher::
 * Move watcher to use seq# and primary term for concurrency control {pull}37977[#37977] (issues: {issue}10708[#10708], {issue}37872[#37872])
 
 Infra/Core::
+* Use DateFormatter in monitoring instead of joda code {pull}38309[#38309]
+* Use dateformatter in ingest-common to log deprecations {pull}38099[#38099]
 * Add simple method to write collection of writeables {pull}37448[#37448] (issue: {issue}37398[#37398])
 * Date/Time parsing: Use java time API instead of exception handling {pull}37222[#37222]
 * [API] spelling: interruptible {pull}37049[#37049] (issue: {issue}37035[#37035])
@@ -506,10 +507,3 @@ Infra/Core::
 
 
 
-[[upgrade-6.7.0]]
-[float]
-=== Upgrades
-
-Infra/Core::
-* Use DateFormatter in monitoring instead of joda code {pull}38309[#38309]
-* Use dateformatter in ingest-common to log deprecations {pull}38099[#38099]

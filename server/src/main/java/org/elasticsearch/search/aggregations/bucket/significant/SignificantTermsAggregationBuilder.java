@@ -133,7 +133,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         super(in, ValuesSourceType.ANY);
         bucketCountThresholds = new BucketCountThresholds(in);
         executionHint = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             collectMode = in.readOptionalWriteable(SubAggCollectionMode::readFromStream);
         } else {
             collectMode = SubAggCollectionMode.DEPTH_FIRST;
@@ -163,7 +163,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     protected void innerWriteTo(StreamOutput out) throws IOException {
         bucketCountThresholds.writeTo(out);
         out.writeOptionalString(executionHint);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalWriteable(collectMode);
         } else {
             out.writeOptionalWriteable(SubAggCollectionMode.DEPTH_FIRST);

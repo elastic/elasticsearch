@@ -115,16 +115,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
             factory.backgroundFilter(QueryBuilders.termsQuery("foo", "bar"));
         }
         if (randomBoolean()) {
-            int collectMode = randomInt(1);
-            switch (collectMode) {
-                case 0:
-                    factory.collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST);
-                    break;
-                case 1:
-                    factory.collectMode(Aggregator.SubAggCollectionMode.DEPTH_FIRST);
-                    break;
-            }
-
+            factory.collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()));
         }
         return factory;
     }

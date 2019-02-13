@@ -259,19 +259,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 + config.fieldContext().field() + "]. It can only be applied to numeric or string fields.");
     }
 
-    /**
-     * Get the maximum global ordinal value for the provided {@link ValuesSource} or -1
-     * if the values source is not an instance of {@link ValuesSource.Bytes.WithOrdinals}.
-     */
-    static long getMaxOrd(ValuesSource source, IndexSearcher searcher) throws IOException {
-        if (source instanceof ValuesSource.Bytes.WithOrdinals) {
-            ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) source;
-            return valueSourceWithOrdinals.globalMaxOrd(searcher);
-        } else {
-            return -1;
-        }
-    }
-
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {
@@ -330,7 +317,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
-                        aggregationContext, parent, remapGlobalOrd, significanceHeuristic, termsAggregatorFactory, pipelineAggregators,
+                        aggregationContext, parent, subAggCollectMode, remapGlobalOrd, significanceHeuristic, termsAggregatorFactory, pipelineAggregators,
                         metaData);
 
             }

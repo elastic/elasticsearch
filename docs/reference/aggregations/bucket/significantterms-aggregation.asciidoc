@@ -542,6 +542,12 @@ It is possible (although rarely required) to filter the values for which buckets
 `exclude` parameters which are based on a regular expression string or arrays of exact terms. This functionality mirrors the features
 described in the <<search-aggregations-bucket-terms-aggregation,terms aggregation>> documentation.
 
+==== Collect Mode
+
+It is possible to defer calculation of child aggregations.
+For more information, see
+<<search-aggregations-bucket-terms-aggregation-collect,`Terms aggregation collection mode`>>.
+
 ==== Execution hint
 
 There are different mechanisms by which terms aggregations can be executed:
@@ -578,39 +584,3 @@ GET /_search
 <1> the possible values are `map`, `global_ordinals`
 
 Please note that Elasticsearch will ignore this execution hint if it is not applicable.
-
-==== Collection mode
-
-Deferring calculation of child aggregations
-
-The possibility to deffer the calculation of child aggregations is allowed specifying or accepting
-the default behavior in the same way it works for terms aggregations
-<<search-aggregations-bucket-significantterms-aggregation,collect mode>> strategy.
-
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "aggs" : {
-        "tags" : {
-             "significant_terms" : {
-                 "field" : "tags",
-                 "collect_mode" : "breadth_first" <1>
-             }
-         }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-<1> the possible values are `breadth_first`, `depth_first`
-
-Breadth-first should be used only when you expect more buckets to be generated than documents
-landing in the buckets. Breadth-first works by caching document data at the bucket level, and
-then replaying those documents to child aggregations after the pruning phase.
-The memory requirement of a breadth-first aggregation is linear to the number of documents
-in each bucket prior to pruning. For many aggregations, the number of documents in each bucket
-is very large. Think of a histogram with monthly intervals: you might have thousands or hundreds
-of thousands of documents per bucket. This makes breadth-first a bad choice, and is why
-depth-first is the default.

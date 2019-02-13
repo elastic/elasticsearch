@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -44,8 +45,10 @@ import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -89,7 +92,9 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
@@ -985,6 +990,60 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     }
 
     public void testIndexFallBehind() throws Exception {
+        runFallBehindTest(
+                () -> {
+                    // we have to remove the retention leases on the leader shards to ensure the follower falls behind
+                    final ClusterStateResponse followerIndexClusterState =
+                            followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices("index2").get();
+                    final String followerUUID = followerIndexClusterState.getState().metaData().index("index2").getIndexUUID();
+                    final ClusterStateResponse leaderIndexClusterState =
+                            leaderClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices("index1").get();
+                    final String leaderUUID = leaderIndexClusterState.getState().metaData().index("index1").getIndexUUID();
+
+                    final RoutingTable leaderRoutingTable = leaderClient()
+                            .admin()
+                            .cluster()
+                            .prepareState()
+                            .clear()
+                            .setIndices("index1")
+                            .setRoutingTable(true)
+                            .get()
+                            .getState()
+                            .routingTable();
+
+                    for (ObjectCursor<IndexShardRoutingTable> shardRoutingTable : leaderRoutingTable.index("index1").shards().values()) {
+                        final ShardId shardId = shardRoutingTable.value.shardId();
+                        leaderClient().execute(
+                                RetentionLeaseActions.Remove.INSTANCE,
+                                new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId(followerUUID, leaderUUID)))
+                                .get();
+                    }
+                },
+                exceptions -> assertThat(exceptions.size(), greaterThan(0)));
+    }
+
+    public void testIndexDoesNotFallBehind() throws Exception {
+        runFallBehindTest(
+                () -> {},
+                exceptions -> assertThat(exceptions.size(), equalTo(0)));
+    }
+
+    /**
+     * Runs a fall behind test. In this test, we construct a situation where a follower is paused. While the follower is paused we index
+     * more documents that was causes soft deletes into the leader, flush them, and run a force merge. This is to set up a situation where
+     * the operations will not necessarily be there. With retention leases in place, we would actually expect the operations to be there.
+     * After pausing the follower, the specified callback is executed. This gives a test an opportunity to set up assumptions. For example,
+     * a test might remove all the retention leases on the leader to set up a situation where the follower will fall behind when it is
+     * resumed because the operations will no longer be held on the leader. The specified exceptions callback is invoked after resuming the
+     * follower to give a test an opportunity to assert on the resource not found exceptions (either present or not present).
+     *
+     * @param afterPausingFollower the callback to run after pausing the follower
+     * @param exceptionConsumer    the callback to run on a collection of resource not found exceptions after resuming the follower
+     * @throws Exception
+     */
+    private void runFallBehindTest(
+            final CheckedRunnable<Exception> afterPausingFollower,
+            final Consumer<Collection<ResourceNotFoundException>> exceptionConsumer) throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
                 singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -1011,31 +1070,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         pauseFollow("index2");
 
-        // we have to remove the retention leases on the leader shards to ensure the follower falls behind
-        final ClusterStateResponse followerIndexClusterState =
-                followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices("index2").get();
-        final String followerUUID = followerIndexClusterState.getState().metaData().index("index2").getIndexUUID();
-        final ClusterStateResponse leaderIndexClusterState =
-                leaderClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices("index1").get();
-        final String leaderUUID = leaderIndexClusterState.getState().metaData().index("index1").getIndexUUID();
-
-        final RoutingTable leaderRoutingTable = leaderClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .clear()
-                .setIndices("index1")
-                .setRoutingTable(true)
-                .get()
-                .getState()
-                .routingTable();
-        for (int i = 0; i < numberOfPrimaryShards; i++) {
-            final ShardId shardId = leaderRoutingTable.index("index1").shard(i).shardId();
-            leaderClient().execute(
-                    RetentionLeaseActions.Remove.INSTANCE,
-                    new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId(followerUUID, leaderUUID)))
-                    .get();
-        }
+        afterPausingFollower.run();
 
         for (int i = 0; i < numDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i * 2);
@@ -1053,19 +1088,18 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertBusy(() -> {
             List<ShardFollowNodeTaskStatus> statuses = getFollowTaskStatuses("index2");
             Set<ResourceNotFoundException> exceptions = statuses.stream()
-                .map(ShardFollowNodeTaskStatus::getFatalException)
-                .filter(Objects::nonNull)
-                .map(ExceptionsHelper::unwrapCause)
-                .filter(e -> e instanceof ResourceNotFoundException)
-                .map(e -> (ResourceNotFoundException) e)
-                .filter(e -> e.getMetadataKeys().contains("es.requested_operations_missing"))
-                .collect(Collectors.toSet());
-            assertThat(exceptions.size(), greaterThan(0));
+                    .map(ShardFollowNodeTaskStatus::getFatalException)
+                    .filter(Objects::nonNull)
+                    .map(ExceptionsHelper::unwrapCause)
+                    .filter(e -> e instanceof ResourceNotFoundException)
+                    .map(e -> (ResourceNotFoundException) e)
+                    .filter(e -> e.getMetadataKeys().contains("es.requested_operations_missing"))
+                    .collect(Collectors.toSet());
+            exceptionConsumer.accept(exceptions);
         });
 
         followerClient().admin().indices().prepareClose("index2").get();
         pauseFollow("index2");
-
 
         final PutFollowAction.Request followRequest2 = putFollow("index1", "index2");
         PutFollowAction.Response response2 = followerClient().execute(PutFollowAction.INSTANCE, followRequest2).get();

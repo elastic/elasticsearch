@@ -33,7 +33,7 @@ Use of 'Y' (year-of-era) will change to 'y' in the next major version of
 Elasticsearch. Prefix your date format with '8' to use the new specifier.
 ----------
 
-So, instead of using `YYYY.MM.dd` you should use `8yyyy.MM.dd`
+So, instead of using `YYYY.MM.dd` you should use `8yyyy.MM.dd`.
 
 You can find more information about available formatting strings in the
 https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html[DateTimeFormatter javadocs].
@@ -56,7 +56,7 @@ but an upper-case `Y` in java time.
 [float]
 ==== Using time zones in the Java client
 
-Timezones have to specified as java time based zone objects. This means,
+Timezones have to be specified as java time based zone objects. This means,
 instead of using a `org.joda.time.DateTimeZone` the use of
 `java.time.ZoneId` is required.
 
@@ -109,5 +109,5 @@ and should be replaced.
 * `getWeekyear()` should be replaced with `get(WeekFields.ISO.weekBasedYear())`
 * `getYearOfCentury()` should be replaced with `get(ChronoField.YEAR_OF_ERA) % 100`
 * `getYearOfEra()` should be replaced with `get(ChronoField.YEAR_OF_ERA)`
-* `toString(String)` should be replaced with `a DateTimeFormatter`
-* `toString(String,Locale)` should be replaced with `a DateTimeFormatter`
+* `toString(String)` should be replaced with a `DateTimeFormatter`
+* `toString(String,Locale)` should be replaced with a `DateTimeFormatter`

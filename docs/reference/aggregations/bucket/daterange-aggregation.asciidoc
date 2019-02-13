@@ -165,33 +165,93 @@ as follows:
 
 The count of pattern letters determines the format.
 
-Text:: The text style is determined based on the number of pattern letters used. Less than 4 pattern letters will use the short form. Exactly 4 pattern letters will use the full form. Exactly 5 pattern letters will use the narrow form. Pattern letters `L', 'c', and 'q' specify the stand-alone form of the text styles.
+Text:: The text style is determined based on the number of pattern letters
+used. Less than 4 pattern letters will use the short form. Exactly 4
+pattern letters will use the full form. Exactly 5 pattern letters will use
+the narrow form. Pattern letters `L`, `c`, and `q` specify the stand-alone
+form of the text styles.
 
-Number:: If the count of letters is one, then the value is output using the minimum number of digits and without padding. Otherwise, the count of digits is used as the width of the output field, with the value zero-padded as necessary. The following pattern letters have constraints on the count of letters. Only one letter of `c' and 'F' can be specified. Up to two letters of 'd', 'H', 'h', 'K', 'k', 'm', and 's' can be specified. Up to three letters of 'D' can be specified.
+Number:: If the count of letters is one, then the value is output using
+the minimum number of digits and without padding. Otherwise, the count of
+digits is used as the width of the output field, with the value
+zero-padded as necessary. The following pattern letters have constraints
+on the count of letters. Only one letter of `c` and `F` can be specified.
+Up to two letters of `d`, `H`, `h`, `K`, `k`, `m`, and `s` can be
+specified. Up to three letters of `D` can be specified.
 
-Number/Text:: If the count of pattern letters is 3 or greater, use the Text rules above. Otherwise use the Number rules above.
+Number/Text:: If the count of pattern letters is 3 or greater, use the
+Text rules above. Otherwise use the Number rules above.
 
-Fraction:: Outputs the nano-of-second field as a fraction-of-second. The nano-of-second value has nine digits, thus the count of pattern letters is from 1 to 9. If it is less than 9, then the nano-of-second value is truncated, with only the most significant digits being output.
+Fraction:: Outputs the nano-of-second field as a fraction-of-second. The
+nano-of-second value has nine digits, thus the count of pattern letters is
+from 1 to 9. If it is less than 9, then the nano-of-second value is
+truncated, with only the most significant digits being output.
 
-Year:: The count of letters determines the minimum field width below which padding is used. If the count of letters is two, then a reduced two digit form is used. For printing, this outputs the rightmost two digits. For parsing, this will parse using the base value of 2000, resulting in a year within the range 2000 to 2099 inclusive. If the count of letters is less than four (but not two), then the sign is only output for negative years as per SignStyle.NORMAL. Otherwise, the sign is output if the pad width is exceeded, as per SignStyle.EXCEEDS_PAD.
+Year:: The count of letters determines the minimum field width below which
+padding is used. If the count of letters is two, then a reduced two digit
+form is used. For printing, this outputs the rightmost two digits. For
+parsing, this will parse using the base value of 2000, resulting in a year
+within the range 2000 to 2099 inclusive. If the count of letters is less
+than four (but not two), then the sign is only output for negative years
+as per `SignStyle.NORMAL`. Otherwise, the sign is output if the pad width is
+exceeded, as per `SignStyle.EXCEEDS_PAD`.
 
-ZoneId:: This outputs the time-zone ID, such as `Europe/Paris`. If the count of letters is two, then the time-zone ID is output. Any other count of letters throws IllegalArgumentException.
+ZoneId:: This outputs the time-zone ID, such as `Europe/Paris`. If the
+count of letters is two, then the time-zone ID is output. Any other count
+of letters throws `IllegalArgumentException`.
 
-Zone names:: This outputs the display name of the time-zone ID. If the count of letters is one, two or three, then the short name is output. If the count of letters is four, then the full name is output. Five or more letters throws IllegalArgumentException.
+Zone names:: This outputs the display name of the time-zone ID. If the
+count of letters is one, two or three, then the short name is output. If
+the count of letters is four, then the full name is output. Five or more
+letters throws `IllegalArgumentException`.
 
-Offset X and x:: This formats the offset based on the number of pattern letters. One letter outputs just the hour, such as `+01`, unless the minute is non-zero in which case the minute is also output, such as `+0130`. Two letters outputs the hour and minute, without a colon, such as `+0130`. Three letters outputs the hour and minute, with a colon, such as `+01:30`. Four letters outputs the hour and minute and optional second, without a colon, such as `+013015`. Five letters outputs the hour and minute and optional second, with a colon, such as `+01:30:15`. Six or more letters throws IllegalArgumentException. Pattern letter `X` (upper case) will output `Z` when the offset to be output would be zero, whereas pattern letter `x` (lower case) will output `+00`, `+0000`, or `+00:00`.
+Offset X and x:: This formats the offset based on the number of pattern
+letters. One letter outputs just the hour, such as `+01`, unless the
+minute is non-zero in which case the minute is also output, such as
+`+0130`. Two letters outputs the hour and minute, without a colon, such as
+`+0130`. Three letters outputs the hour and minute, with a colon, such as
+`+01:30`. Four letters outputs the hour and minute and optional second,
+without a colon, such as `+013015`. Five letters outputs the hour and
+minute and optional second, with a colon, such as `+01:30:15`. Six or
+more letters throws `IllegalArgumentException`. Pattern letter `X` (upper
+case) will output `Z` when the offset to be output would be zero,
+whereas pattern letter `x` (lower case) will output `+00`, `+0000`, or
+`+00:00`.
 
-Offset O:: This formats the localized offset based on the number of pattern letters. One letter outputs the short form of the localized offset, which is localized offset text, such as `GMT`, with hour without leading zero, optional 2-digit minute and second if non-zero, and colon, for example `GMT+8`. Four letters outputs the full form, which is localized offset text, such as `GMT, with 2-digit hour and minute field, optional second field if non-zero, and colon, for example `GMT+08:00`. Any other count of letters throws IllegalArgumentException.
+Offset O:: This formats the localized offset based on the number of
+pattern letters. One letter outputs the short form of the localized
+offset, which is localized offset text, such as `GMT`, with hour without
+leading zero, optional 2-digit minute and second if non-zero, and colon,
+for example `GMT+8`. Four letters outputs the full form, which is
+localized offset text, such as `GMT, with 2-digit hour and minute
+field, optional second field if non-zero, and colon, for example
+`GMT+08:00`. Any other count of letters throws
+`IllegalArgumentException`.
 
-Offset Z:: This formats the offset based on the number of pattern letters. One, two or three letters outputs the hour and minute, without a colon, such as `+0130`. The output will be `+0000` when the offset is zero. Four letters outputs the full form of localized offset, equivalent to four letters of Offset-O. The output will be the corresponding localized offset text if the offset is zero. Five letters outputs the hour, minute, with optional second if non-zero, with colon. It outputs `Z` if the offset is zero. Six or more letters throws IllegalArgumentException.
+Offset Z:: This formats the offset based on the number of pattern letters.
+One, two or three letters outputs the hour and minute, without a colon,
+such as `+0130`. The output will be `+0000` when the offset is zero.
+Four letters outputs the full form of localized offset, equivalent to
+four letters of Offset-O. The output will be the corresponding localized
+offset text if the offset is zero. Five letters outputs the hour,
+minute, with optional second if non-zero, with colon. It outputs `Z` if
+the offset is zero. Six or more letters throws IllegalArgumentException.
 
-Optional section:: The optional section markers work exactly like calling DateTimeFormatterBuilder.optionalStart() and DateTimeFormatterBuilder.optionalEnd().
+Optional section:: The optional section markers work exactly like calling
+`DateTimeFormatterBuilder.optionalStart()` and
+`DateTimeFormatterBuilder.optionalEnd()`.
 
-Pad modifier:: Modifies the pattern that immediately follows to be padded with spaces. The pad width is determined by the number of pattern letters. This is the same as calling DateTimeFormatterBuilder.padNext(int).
+Pad modifier:: Modifies the pattern that immediately follows to be padded
+with spaces. The pad width is determined by the number of pattern letters.
+This is the same as calling `DateTimeFormatterBuilder.padNext(int)`.
 
 For example, `ppH` outputs the hour-of-day padded on the left with spaces to a width of 2.
 
-Any unrecognized letter is an error. Any non-letter character, other than `[`, `]`, `{`, `}`, `#` and the single quote will be output directly. Despite this, it is recommended to use single quotes around all characters that you want to output directly to ensure that future changes do not break your application.
+Any unrecognized letter is an error. Any non-letter character, other than
+`[`, `]`, `{`, `}`, `#` and the single quote will be output directly.
+Despite this, it is recommended to use single quotes around all characters
+that you want to output directly to ensure that future changes do not
+break your application.
 
 
 [[time-zones]]

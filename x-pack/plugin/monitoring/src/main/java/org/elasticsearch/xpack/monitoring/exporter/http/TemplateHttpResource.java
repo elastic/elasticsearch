@@ -78,7 +78,7 @@ public class TemplateHttpResource extends PublishableHttpResource {
     @Override
     protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
         versionCheckForResource(client, listener, logger,
-                                "/_template", templateName,  "monitoring template",
+                                "/_template", templateName, "monitoring template",
                                 resourceOwnerName, "monitoring cluster",
                                 XContentType.JSON.xContent(), MonitoringTemplateUtils.LAST_UPDATED_VERSION);
     }

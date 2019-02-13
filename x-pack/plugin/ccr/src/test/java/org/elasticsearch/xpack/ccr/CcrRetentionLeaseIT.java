@@ -233,80 +233,85 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 leaderClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(leaderIndex).get();
         final String leaderUUID = leaderIndexClusterState.getState().metaData().index(leaderIndex).getIndexUUID();
 
-        // ensure that a retention lease has been put in place on each shard, and grab a copy of them
-        final List<RetentionLeases> retentionLeases = new ArrayList<>();
-        assertBusy(() -> {
-            retentionLeases.clear();
-            final IndicesStatsResponse stats =
-                    leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
-            assertNotNull(stats.getShards());
-            assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
-            final List<ShardStats> shardStats = Arrays.stream(stats.getShards())
-                    .sorted((s, t) -> {
-                        if (s.getShardRouting().shardId().id() == t.getShardRouting().shardId().id()) {
-                            return Boolean.compare(s.getShardRouting().primary(), t.getShardRouting().primary());
-                        } else {
-                            return Integer.compare(s.getShardRouting().shardId().id(), t.getShardRouting().shardId().id());
-                        }
-                    })
-                    .collect(Collectors.toList());
-            for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
-                final RetentionLeases currentRetentionLeases = shardStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
-                final ClusterStateResponse followerIndexClusterState =
-                        followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
-                final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
-                final RetentionLease retentionLease =
-                        currentRetentionLeases.leases().iterator().next();
-                assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
-                retentionLeases.add(currentRetentionLeases);
-            }
-        });
+        try {
+            // ensure that a retention lease has been put in place on each shard, and grab a copy of them
+            final List<RetentionLeases> retentionLeases = new ArrayList<>();
+            assertBusy(() -> {
+                retentionLeases.clear();
+                final IndicesStatsResponse stats =
+                        leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
+                assertNotNull(stats.getShards());
+                assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
+                final List<ShardStats> shardStats = Arrays.stream(stats.getShards())
+                        .sorted((s, t) -> {
+                            if (s.getShardRouting().shardId().id() == t.getShardRouting().shardId().id()) {
+                                return Boolean.compare(s.getShardRouting().primary(), t.getShardRouting().primary());
+                            } else {
+                                return Integer.compare(s.getShardRouting().shardId().id(), t.getShardRouting().shardId().id());
+                            }
+                        })
+                        .collect(Collectors.toList());
+                for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
+                    final RetentionLeases currentRetentionLeases = shardStats.get(i).getRetentionLeaseStats().retentionLeases();
+                    assertThat(currentRetentionLeases.leases(), hasSize(1));
+                    final ClusterStateResponse followerIndexClusterState =
+                            followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
+                    final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
+                    final RetentionLease retentionLease =
+                            currentRetentionLeases.leases().iterator().next();
+                    assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
+                    retentionLeases.add(currentRetentionLeases);
+                }
+            });
 
-        // now ensure that the retention leases are being renewed
-        assertBusy(() -> {
-            final IndicesStatsResponse stats =
-                    leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
-            assertNotNull(stats.getShards());
-            assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
-            final List<ShardStats> shardStats = Arrays.stream(stats.getShards())
-                    .sorted((s, t) -> {
-                        if (s.getShardRouting().shardId().id() == t.getShardRouting().shardId().id()) {
-                            return Boolean.compare(s.getShardRouting().primary(), t.getShardRouting().primary());
-                        } else {
-                            return Integer.compare(s.getShardRouting().shardId().id(), t.getShardRouting().shardId().id());
-                        }
-                    })
-                    .collect(Collectors.toList());
-            for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
-                final RetentionLeases currentRetentionLeases = shardStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
-                final ClusterStateResponse followerIndexClusterState =
-                        followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
-                final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
-                final RetentionLease retentionLease =
-                        currentRetentionLeases.leases().iterator().next();
-                assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
-                // we assert that retention leases are being renewed by an increase in the timestamp
-                assertThat(retentionLease.timestamp(), greaterThan(retentionLeases.get(i).leases().iterator().next().timestamp()));
+            // now ensure that the retention leases are being renewed
+            assertBusy(() -> {
+                final IndicesStatsResponse stats =
+                        leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
+                assertNotNull(stats.getShards());
+                assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
+                final List<ShardStats> shardStats = Arrays.stream(stats.getShards())
+                        .sorted((s, t) -> {
+                            if (s.getShardRouting().shardId().id() == t.getShardRouting().shardId().id()) {
+                                return Boolean.compare(s.getShardRouting().primary(), t.getShardRouting().primary());
+                            } else {
+                                return Integer.compare(s.getShardRouting().shardId().id(), t.getShardRouting().shardId().id());
+                            }
+                        })
+                        .collect(Collectors.toList());
+                for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
+                    final RetentionLeases currentRetentionLeases = shardStats.get(i).getRetentionLeaseStats().retentionLeases();
+                    assertThat(currentRetentionLeases.leases(), hasSize(1));
+                    final ClusterStateResponse followerIndexClusterState =
+                            followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
+                    final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
+                    final RetentionLease retentionLease =
+                            currentRetentionLeases.leases().iterator().next();
+                    assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
+                    // we assert that retention leases are being renewed by an increase in the timestamp
+                    assertThat(retentionLease.timestamp(), greaterThan(retentionLeases.get(i).leases().iterator().next().timestamp()));
+                }
+            });
+            latch.countDown();
+        } finally {
+            for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getDataNodes().values()) {
+                final MockTransportService senderTransportService =
+                        (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
+                senderTransportService.clearAllRules();
             }
-        });
-
-        for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getDataNodes().values()) {
-            final MockTransportService senderTransportService =
-                    (MockTransportService) getFollowerCluster().getInstance(TransportService.class, senderNode.value.getName());
-            senderTransportService.clearAllRules();
         }
-
-        latch.countDown();
 
         final RestoreInfo restoreInfo = future.actionGet();
 
-        assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
+        assertEquals(restoreInfo.totalShards(), restoreInfo.
+
+                successfulShards());
+
         assertEquals(0, restoreInfo.failedShards());
-        for (int i = 0; i < numberOfDocuments; ++i) {
+        for (int i = 0; i < numberOfDocuments; i++) {
             assertExpectedDocument(followerIndex, i);
         }
+
     }
 
     public void testRetentionLeasesAreNotBeingRenewedAfterRecoveryCompletes() throws Exception {

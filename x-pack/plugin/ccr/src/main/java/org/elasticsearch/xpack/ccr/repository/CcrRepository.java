@@ -355,6 +355,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         } catch (Exception e) {
             throw new IndexShardRestoreFailedException(indexShard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
         } finally {
+            logger.trace("{} stopping background renewing retention lease at the end of recovery", shardId);
             renewable.cancel();
         }
     }

@@ -135,9 +135,6 @@ public class VersionCollection {
 
         Map<Version, UnreleasedVersionInfo> unreleased = new HashMap<>();
         for (Version unreleasedVersion : getUnreleased()) {
-            if (unreleasedVersion.equals(currentVersion)) {
-                continue;
-            }
             unreleased.put(unreleasedVersion,
                 new UnreleasedVersionInfo(unreleasedVersion, getBranchFor(unreleasedVersion), getGradleProjectNameFor(unreleasedVersion)));
         }
@@ -186,7 +183,7 @@ public class VersionCollection {
 
     private String getGradleProjectNameFor(Version version) {
         if (version.equals(currentVersion)) {
-            throw new IllegalArgumentException("The Gradle project to build " + version + " is the current build.");
+            return ":distribution";
         }
 
         Map<Integer, List<Version>> releasedMajorGroupedByMinor = getReleasedMajorGroupedByMinor();
@@ -197,31 +194,33 @@ public class VersionCollection {
                 .collect(Collectors.toList());
             if (unreleasedStagedOrMinor.size() > 2) {
                 if (unreleasedStagedOrMinor.get(unreleasedStagedOrMinor.size() - 2).equals(version)) {
-                    return "minor";
+                    return ":distribution:bwc:minor";
                 } else{
-                    return "staged";
+                    return ":distribution:bwc:staged";
                 }
             } else {
-                return "minor";
+                return ":distribution:bwc:minor";
             }
         } else {
             if (releasedMajorGroupedByMinor
                 .getOrDefault(version.getMinor(), emptyList())
                 .contains(version)) {
-                return "bugfix";
+                return ":distribution:bwc:bugfix";
             } else {
-                return "maintenance";
+                return ":distribution:bwc:maintenance";
             }
         }
     }
 
     private String getBranchFor(Version version) {
         switch (getGradleProjectNameFor(version)) {
-            case "minor":
+            case ":distribution":
+                return "master";
+            case ":distribution:bwc:minor":
                 return version.getMajor() + ".x";
-            case "staged":
-            case "maintenance":
-            case "bugfix":
+            case ":distribution:bwc:staged":
+            case ":distribution:bwc:maintenance":
+            case ":distribution:bwc:bugfix":
                 return version.getMajor() + "." + version.getMinor();
             default:
                 throw new IllegalStateException("Unexpected Gradle project name");
@@ -320,7 +319,6 @@ public class VersionCollection {
                 groupByMajor.get(currentVersion.getMajor() - 1).stream(),
                 groupByMajor.get(currentVersion.getMajor()).stream()
             )
-                .filter(version -> version.equals(currentVersion) == false)
                 .collect(Collectors.toList())
         );
     }
@@ -337,7 +335,6 @@ public class VersionCollection {
             wireCompat.add(prevMajors.get(i));
         }
         wireCompat.addAll(groupByMajor.get(currentVersion.getMajor()));
-        wireCompat.remove(currentVersion);
         wireCompat.sort(Version::compareTo);
 
         return unmodifiableList(wireCompat);

@@ -516,3 +516,15 @@ subprojects {
     }
   }
 }
+
+['archives:windows-zip','archives:oss-windows-zip',
+ 'archives:darwin-tar','archives:oss-darwin-tar',
+ 'archives:linux-tar', 'archives:oss-linux-tar',
+ 'packages:rpm', 'packages:deb'
+].forEach { subName ->
+  Project subproject = project("${project.path}:${subName}")
+  Configuration configuration = configurations.create(subproject.name)
+  dependencies {
+    "${configuration.name}" project(subproject.path)
+  }
+}

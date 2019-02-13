@@ -197,10 +197,10 @@ class VagrantTestPlugin implements Plugin<Project> {
             // handle snapshots pointing to bwc build
             UPGRADE_FROM_ARCHIVES.each {
                 dependencies.add(project.dependencies.project(
-                        path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: it))
+                        path: "${unreleasedInfo.gradleProjectName}", configuration: it))
                 if (upgradeFromVersion.onOrAfter('6.3.0')) {
                     dependencies.add(project.dependencies.project(
-                            path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: "oss-${it}"))
+                            path: "${unreleasedInfo.gradleProjectName}", configuration: "oss-${it}"))
                 }
             }
         } else {

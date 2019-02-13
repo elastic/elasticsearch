@@ -104,8 +104,10 @@
 "Implicitly create a typeless index while there is a typed template":
 
  - skip:
-      version: " - 6.99.99"
-      reason: needs typeless index operations to work on typed indices
+    #version: " - 6.99.99"
+    #reason: needs typeless index operations to work on typed indices
+    version:  "all"
+    reason:   "muted, waiting for #38711"
 
  - do:
       indices.put_template:

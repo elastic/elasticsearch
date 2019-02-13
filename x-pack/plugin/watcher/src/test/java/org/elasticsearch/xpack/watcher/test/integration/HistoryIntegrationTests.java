@@ -17,15 +17,13 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.input.Input;
-import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
-import org.hamcrest.Matcher;
 
-import java.time.ZonedDateTime;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -175,10 +173,12 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertThat(active, is(status.state().isActive()));
 
         String timestamp = source.getValue("status.state.timestamp");
-        assertThat(timestamp, isSameDate(status.state().getTimestamp()));
+        assertThat(timestamp, WatcherTestUtils.isSameDate(status.state().getTimestamp()));
 
         String lastChecked = source.getValue("status.last_checked");
-        assertThat(lastChecked, isSameDate(status.lastChecked()));
+        assertThat(lastChecked, WatcherTestUtils.isSameDate(status.lastChecked()));
+        String lastMetCondition = source.getValue("status.last_met_condition");
+        assertThat(lastMetCondition, WatcherTestUtils.isSameDate(status.lastMetCondition()));
 
         Integer version = source.getValue("status.version");
         int expectedVersion = (int) (status.version() - 1);
@@ -201,12 +201,4 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
     }
 
 
-    private Matcher<String> isSameDate(ZonedDateTime zonedDateTime) {
-        /*
-        When comparing timestamps returned from _search/.watcher-history* the same format of date has to be used
-        during serialisation to json on index time.
-        The toString of ZonedDateTime is omitting the millisecond part when is 0. This was not the case in joda.
-         */
-        return is(WatcherDateTimeUtils.formatDate(zonedDateTime));
-    }
 }

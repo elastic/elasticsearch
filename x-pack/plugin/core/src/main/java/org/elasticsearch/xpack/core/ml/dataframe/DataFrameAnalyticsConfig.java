@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,6 +64,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static final ParseField ANALYSES = new ParseField("analyses");
     public static final ParseField CONFIG_TYPE = new ParseField("config_type");
     public static final ParseField QUERY = new ParseField("query");
+    public static final ParseField HEADERS = new ParseField("headers");
 
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -75,6 +78,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         parser.declareString(Builder::setDest, DEST);
         parser.declareObjectArray(Builder::setAnalyses, DataFrameAnalysisConfig.parser(), ANALYSES);
         parser.declareObject((builder, query) -> builder.setQuery(query, ignoreUnknownFields), (p, c) -> p.mapOrdered(), QUERY);
+        if (ignoreUnknownFields) {
+            // Headers are not parsed by the strict (config) parser, so headers supplied in the _body_ of a REST request will be rejected.
+            // (For config, headers are explicitly transferred from the auth headers by code in the put/update datafeed actions.)
+            parser.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
+        }
         return parser;
     }
 
@@ -84,9 +92,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final List<DataFrameAnalysisConfig> analyses;
     private final Map<String, Object> query;
     private final CachedSupplier<QueryBuilder> querySupplier;
+    private final Map<String, String> headers;
 
     public DataFrameAnalyticsConfig(String id, String source, String dest, List<DataFrameAnalysisConfig> analyses,
-                                    Map<String, Object> query) {
+                                    Map<String, Object> query, Map<String, String> headers) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
         this.source = ExceptionsHelper.requireNonNull(source, SOURCE);
         this.dest = ExceptionsHelper.requireNonNull(dest, DEST);
@@ -100,6 +109,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
         this.query = Collections.unmodifiableMap(query);
         this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
+        this.headers = Collections.unmodifiableMap(headers);
     }
 
     public DataFrameAnalyticsConfig(StreamInput in) throws IOException {
@@ -109,6 +119,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         analyses = in.readList(DataFrameAnalysisConfig::new);
         this.query = in.readMap();
         this.querySupplier = new CachedSupplier<>(() -> lazyQueryParser.apply(query, id, new ArrayList<>()));
+        this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
     }
 
     public String getId() {
@@ -151,6 +162,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         return deprecations;
     }
 
+    public Map<String, String> getHeaders() {
+        return headers;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -162,6 +177,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
         }
         builder.field(QUERY.getPreferredName(), query);
+        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            builder.field(HEADERS.getPreferredName(), headers);
+        }
         builder.endObject();
         return builder;
     }
@@ -173,6 +191,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         out.writeString(dest);
         out.writeList(analyses);
         out.writeMap(query);
+        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     @Override
@@ -185,12 +204,13 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             && Objects.equals(source, other.source)
             && Objects.equals(dest, other.dest)
             && Objects.equals(analyses, other.analyses)
+            && Objects.equals(headers, other.headers)
             && Objects.equals(query, other.query);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, analyses, query);
+        return Objects.hash(id, source, dest, analyses, query, headers);
     }
 
     public static String documentId(String id) {
@@ -204,9 +224,21 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         private String dest;
         private List<DataFrameAnalysisConfig> analyses;
         private Map<String, Object> query = Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap());
+        private Map<String, String> headers = Collections.emptyMap();
 
         public String getId() {
             return id;
+        }
+
+        public Builder() {}
+
+        public Builder(DataFrameAnalyticsConfig config) {
+            this.id = config.id;
+            this.source = config.source;
+            this.dest = config.dest;
+            this.analyses = new ArrayList<>(config.analyses);
+            this.query = new LinkedHashMap<>(config.query);
+            this.headers = new HashMap<>(config.headers);
         }
 
         public Builder setId(String id) {
@@ -248,8 +280,13 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setHeaders(Map<String, String> headers) {
+            this.headers = headers;
+            return this;
+        }
+
         public DataFrameAnalyticsConfig build() {
-            return new DataFrameAnalyticsConfig(id, source, dest, analyses, query);
+            return new DataFrameAnalyticsConfig(id, source, dest, analyses, query, headers);
         }
     }
 }

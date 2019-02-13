@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -29,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -40,6 +42,7 @@ public class DataFrameAnalyticsConfigProvider {
     static {
         Map<String, String> modifiable = new HashMap<>();
         modifiable.put(ToXContentParams.INCLUDE_TYPE, "true");
+        modifiable.put(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
         TO_XCONTENT_PARAMS = Collections.unmodifiableMap(modifiable);
     }
 
@@ -49,7 +52,18 @@ public class DataFrameAnalyticsConfigProvider {
         this.client = Objects.requireNonNull(client);
     }
 
-    public void put(DataFrameAnalyticsConfig config, ActionListener<IndexResponse> listener) {
+    public void put(DataFrameAnalyticsConfig config, Map<String, String> headers, ActionListener<IndexResponse> listener) {
+        String id = config.getId();
+
+        if (headers.isEmpty() == false) {
+            // Filter any values in headers that aren't security fields
+            DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(config);
+            Map<String, String> securityHeaders = headers.entrySet().stream()
+                .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            builder.setHeaders(securityHeaders);
+            config = builder.build();
+        }
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             config.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
             IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName())
@@ -62,7 +76,7 @@ public class DataFrameAnalyticsConfigProvider {
                 listener::onResponse,
                 e -> {
                     if (e instanceof VersionConflictEngineException) {
-                        listener.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(config.getId()));
+                        listener.onFailure(ExceptionsHelper.dataFrameAnalyticsAlreadyExists(id));
                     } else {
                         listener.onFailure(e);
                     }

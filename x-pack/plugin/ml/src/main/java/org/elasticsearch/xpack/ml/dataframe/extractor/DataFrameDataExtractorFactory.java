@@ -58,12 +58,15 @@ public class DataFrameDataExtractorFactory {
     private final String analyticsId;
     private final String index;
     private final ExtractedFields extractedFields;
+    private final Map<String, String> headers;
 
-    private DataFrameDataExtractorFactory(Client client, String analyticsId, String index, ExtractedFields extractedFields) {
+    private DataFrameDataExtractorFactory(Client client, String analyticsId, String index, ExtractedFields extractedFields,
+                                          Map<String, String> headers) {
         this.client = Objects.requireNonNull(client);
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.index = Objects.requireNonNull(index);
         this.extractedFields = Objects.requireNonNull(extractedFields);
+        this.headers = headers;
     }
 
     public DataFrameDataExtractor newExtractor(boolean includeSource) {
@@ -73,7 +76,7 @@ public class DataFrameDataExtractorFactory {
                 Arrays.asList(index),
                 QueryBuilders.matchAllQuery(),
                 1000,
-                Collections.emptyMap(),
+                headers,
                 includeSource
             );
         return new DataFrameDataExtractor(client, context);
@@ -96,7 +99,7 @@ public class DataFrameDataExtractorFactory {
 
         validateIndexAndExtractFields(client, headers, config.getDest(), ActionListener.wrap(
             extractedFields -> listener.onResponse(
-                new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(), extractedFields)),
+                new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(), extractedFields, config.getHeaders())),
             listener::onFailure
         ));
     }

@@ -45,6 +45,21 @@
   - match: { query: {"term" : { "user" : "Kimchy"} } }
 
 ---
+"Test put config with security headers in the body":
+  - do:
+      catch: /unknown field \[headers\], parser not found/
+      ml.put_data_frame_analytics:
+        id: "data_frame_with_header"
+        body:  >
+          {
+            "source": "source_index",
+            "dest": "dest_index",
+            "analyses": [{"outlier_detection":{}}],
+            "query": {"term" : { "user" : "Kimchy" }},
+            "headers":{ "a_security_header" : "secret" }
+          }
+
+---
 "Test put valid config with default outlier detection":
 
   - do:

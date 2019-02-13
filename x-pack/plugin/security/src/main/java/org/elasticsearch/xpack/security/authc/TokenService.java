@@ -697,8 +697,7 @@ public final class TokenService {
     }
 
     /**
-     * Uses the refresh token to refresh its associated token and returns the new token with an
-     * updated expiration date to the listener
+     * Called by the transport action in order to start the process of refreshing a token.
      */
     public void refreshToken(String refreshToken, ActionListener<Tuple<UserToken, String>> listener) {
         ensureEnabled();
@@ -808,11 +807,11 @@ public final class TokenService {
                                             final String supersedingRefreshTokenValue = (String) supersedingRefreshTokenSrc.get("token");
                                             reIssueTokens(supersedingUserTokenSource, supersedingRefreshTokenValue, listener);
                                         } else {
-                                            logger.info("could not find token document [{}] for refresh", supersedingTokenGetRequest);
+                                            logger.info("could not find token document [{}] for refresh", supersedingTokenDocId);
                                             onFailure.accept(invalidGrantException("could not refresh the requested token"));
                                         }
                                     }, e -> {
-                                        logger.info("could not find token document [{}] for refresh", supersedingTokenGetRequest);
+                                        logger.info("could not find token document [{}] for refresh", supersedingTokenDocId);
                                         onFailure.accept(invalidGrantException("could not refresh the requested token"));
                                     }), client::get);
                             } else {
@@ -845,8 +844,7 @@ public final class TokenService {
                                                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                                                 if (cause instanceof VersionConflictEngineException ||
                                                     isShardNotAvailableException(e)) {
-                                                    innerRefresh(tokenDocId, userAuth,
-                                                        listener, attemptCount);
+                                                    innerRefresh(tokenDocId, userAuth, listener, attemptCount);
                                                 } else {
                                                     onFailure.accept(e);
                                                 }
@@ -1224,7 +1222,6 @@ public final class TokenService {
      */
     private String getFromHeader(ThreadContext threadContext) {
         String header = threadContext.getHeader("Authorization");
-        logger.info(header);
         if (Strings.hasText(header) && header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())
             && header.length() > "Bearer ".length()) {
             return header.substring("Bearer ".length());

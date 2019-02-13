@@ -5,11 +5,14 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.directory.api.util.Strings;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.settings.SecureString;
@@ -23,6 +26,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
@@ -38,7 +42,13 @@ import org.junit.Before;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -362,12 +372,14 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         Instant refreshed = Instant.now();
         Instant aWhileAgo = refreshed.minus(10L, ChronoUnit.SECONDS);
         assertTrue(Instant.now().isAfter(aWhileAgo));
-        client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
+        UpdateResponse updateResponse = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
             .setDoc("refresh_token", Collections.singletonMap("refresh_time", aWhileAgo.toEpochMilli()))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setFetchSource("refresh_token", Strings.EMPTY_STRING)
             .get();
-
-
+        assertNotNull(updateResponse);
+        Map<String, Object> refreshTokenMap = (Map<String, Object>) updateResponse.getGetResult().sourceAsMap().get("refresh_token");
+        assertTrue(Instant.ofEpochMilli((long) refreshTokenMap.get("refresh_time")).isBefore(Instant.now().minus(4L, ChronoUnit.SECONDS)));
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
                 () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
         assertEquals("invalid_grant", e.getMessage());
@@ -380,31 +392,44 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
                 SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         SecurityClient securityClient = new SecurityClient(client);
+        Set<String> refreshTokens = new HashSet<>();
+        Set<String> accessTokens = new HashSet<>();
         CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
             .setGrantType("password")
             .setUsername(SecuritySettingsSource.TEST_USER_NAME)
             .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
             .get();
         assertNotNull(createTokenResponse.getRefreshToken());
+        final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
+        final int numberOfThreads = scaledRandomIntBetween((numberOfProcessors + 1) / 2, numberOfProcessors * 3);
+        List<Thread> threads = new ArrayList<>(numberOfThreads);
+        final CountDownLatch completedLatch = new CountDownLatch(numberOfThreads);
+        AtomicReference<Boolean> failed = new AtomicReference<>();
+        for (int i = 0; i < numberOfThreads; i++) {
+            threads.add(new Thread(() -> {
+                CreateTokenRequest refreshRequest = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).request();
+                securityClient.refreshToken(refreshRequest, ActionListener.wrap(result -> {
+                    accessTokens.add(result.getTokenString());
+                    refreshTokens.add(result.getRefreshToken());
+                    completedLatch.countDown();
+                }, e -> {
+                    completedLatch.countDown();
+                    logger.error("caught exception", e);
+                    failed.set(true);
+                }));
 
-        CreateTokenResponse refreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
-        assertNotNull(refreshResponse);
-        assertNotNull(refreshResponse.getRefreshToken());
-        assertNotEquals(refreshResponse.getRefreshToken(), createTokenResponse.getRefreshToken());
-        assertNotEquals(refreshResponse.getTokenString(), createTokenResponse.getTokenString());
-
-        assertNoTimeout(client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + refreshResponse.getTokenString()))
-            .admin().cluster().prepareHealth().get());
-
-        CreateTokenResponse secondRefreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
-        assertNotNull(secondRefreshResponse);
-        assertNotNull(secondRefreshResponse.getRefreshToken());
-        assertThat(secondRefreshResponse.getRefreshToken(), equalTo(refreshResponse.getRefreshToken()));
-        assertThat(secondRefreshResponse.getTokenString(), equalTo(refreshResponse.getTokenString()));
-
-        assertNoTimeout(
-            client().filterWithHeader(Collections.singletonMap("Authorization", "Bearer " + secondRefreshResponse.getTokenString()))
-                .admin().cluster().prepareHealth().get());
+            }));
+        }
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        completedLatch.await();
+        assertThat(failed, equalTo(false));
+        assertThat(accessTokens.size(), equalTo(1));
+        assertThat(refreshTokens.size(), equalTo(1));
     }
 
     public void testRefreshAsDifferentUser() {

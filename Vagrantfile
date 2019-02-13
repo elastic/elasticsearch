@@ -346,6 +346,11 @@ def sh_install_deps(config,
       echo "==> Java is not installed"
       return 1
     }
+    cat \<\<JAVA_HOME > /etc/profile.d/java_home.sh
+if [ -z "$JAVA_HOME" ]; then
+  export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+fi
+JAVA_HOME
     ensure tar
     ensure curl
     ensure unzip

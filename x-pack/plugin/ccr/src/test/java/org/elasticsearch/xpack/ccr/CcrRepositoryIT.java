@@ -37,6 +37,7 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAction;
@@ -292,7 +293,6 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38027")
     public void testIndividualActionsTimeout() throws Exception {
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
         TimeValue timeValue = TimeValue.timeValueMillis(100);
@@ -315,7 +315,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             transportServices.add(mockTransportService);
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(GetCcrRestoreFileChunkAction.NAME) == false) {
+                if (action.equals(GetCcrRestoreFileChunkAction.NAME) == false &&
+                    action.equals(TransportActionProxy.getProxyAction(GetCcrRestoreFileChunkAction.NAME)) == false) {
                     connection.sendRequest(requestId, action, request, options);
                 }
             });
@@ -337,33 +338,34 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .renameReplacement(followerIndex).masterNodeTimeout(new TimeValue(1L, TimeUnit.HOURS))
             .indexSettings(settingsBuilder);
 
-        final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
-        final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-
-        // Depending on when the timeout occurs this can fail in two ways. If it times-out when fetching
-        // metadata this will throw an exception. If it times-out when restoring a shard, the shard will
-        // be marked as failed. Either one is a success for the purpose of this test.
         try {
-            RestoreInfo restoreInfo = future.actionGet();
-            assertThat(restoreInfo.failedShards(), greaterThan(0));
-            assertThat(restoreInfo.successfulShards(), lessThan(restoreInfo.totalShards()));
-            assertEquals(numberOfPrimaryShards, restoreInfo.totalShards());
-        } catch (Exception e) {
-            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(ElasticsearchTimeoutException.class));
+            final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
+            final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
+            PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
+            restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+
+            // Depending on when the timeout occurs this can fail in two ways. If it times-out when fetching
+            // metadata this will throw an exception. If it times-out when restoring a shard, the shard will
+            // be marked as failed. Either one is a success for the purpose of this test.
+            try {
+                RestoreInfo restoreInfo = future.actionGet();
+                assertThat(restoreInfo.failedShards(), greaterThan(0));
+                assertThat(restoreInfo.successfulShards(), lessThan(restoreInfo.totalShards()));
+                assertEquals(numberOfPrimaryShards, restoreInfo.totalShards());
+            } catch (Exception e) {
+                assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(ElasticsearchTimeoutException.class));
+            }
+        } finally {
+            for (MockTransportService transportService : transportServices) {
+                transportService.clearAllRules();
+            }
+
+            settingsRequest = new ClusterUpdateSettingsRequest();
+            TimeValue defaultValue = CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
+            settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getKey(),
+                defaultValue));
+            assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
         }
-
-
-        for (MockTransportService transportService : transportServices) {
-            transportService.clearAllRules();
-        }
-
-        settingsRequest = new ClusterUpdateSettingsRequest();
-        TimeValue defaultValue = CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getDefault(Settings.EMPTY);
-        settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.INDICES_RECOVERY_ACTION_TIMEOUT_SETTING.getKey(),
-            defaultValue));
-        assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
     }
 
     public void testFollowerMappingIsUpdated() throws IOException {

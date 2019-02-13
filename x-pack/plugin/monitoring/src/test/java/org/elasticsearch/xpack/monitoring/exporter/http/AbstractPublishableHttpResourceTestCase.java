@@ -155,11 +155,13 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
      * @param resourceName The resource name (e.g., the template or pipeline name).
+     * @param parameters Map of query string parameters, if any.
      * @param bodyType The request body provider's type.
      */
     protected void assertPublishSucceeds(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
+                                         Map<String, String> parameters,
                                          final Class<? extends HttpEntity> bodyType) {
-        doPublishWithStatusCode(resource, resourceBasePath, resourceName, bodyType, successfulPublishStatus(), true);
+        doPublishWithStatusCode(resource, resourceBasePath, resourceName, parameters, bodyType, successfulPublishStatus(), true);
     }
 
     /**
@@ -168,10 +170,12 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
      *
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
+     * @param parameters Map of query string parameters, if any.
      * @param resourceName The resource name (e.g., the template or pipeline name).
      */
     protected void assertPublishWithException(final PublishableHttpResource resource,
                                               final String resourceBasePath, final String resourceName,
+                                              Map<String, String> parameters,
                                               final Class<? extends HttpEntity> bodyType) {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"));
@@ -182,11 +186,13 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
         verifyListener(null);
 
+        parameters.putAll(resource.getDefaultParameters());
+
         final ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
         verify(client).performRequestAsync(request.capture(), any(ResponseListener.class));
         assertThat(request.getValue().getMethod(), is("PUT"));
         assertThat(request.getValue().getEndpoint(), is(endpoint));
-        assertThat(request.getValue().getParameters(), is(resource.getDefaultParameters()));
+        assertThat(request.getValue().getParameters(), is(parameters));
         assertThat(request.getValue().getEntity(), instanceOf(bodyType));
     }
 
@@ -262,6 +268,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     }
 
     private void doPublishWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
+                                         Map<String, String> parameters,
                                          final Class<? extends HttpEntity> bodyType,
                                          final RestStatus status,
                                          final boolean errorFree) {
@@ -277,9 +284,11 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
         verify(client).performRequestAsync(request.capture(), any(ResponseListener.class));
 
+        parameters.putAll(resource.getDefaultParameters());
+
         assertThat(request.getValue().getMethod(), is("PUT"));
         assertThat(request.getValue().getEndpoint(), is(endpoint));
-        assertThat(request.getValue().getParameters(), is(resource.getDefaultParameters()));
+        assertThat(request.getValue().getParameters(), is(parameters));
         assertThat(request.getValue().getEntity(), instanceOf(bodyType));
     }
 

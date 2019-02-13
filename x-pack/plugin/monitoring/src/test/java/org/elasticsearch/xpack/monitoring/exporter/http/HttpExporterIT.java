@@ -287,7 +287,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                     recordedRequest = secondWebServer.takeRequest();
                     assertThat(recordedRequest.getMethod(), equalTo("PUT"));
                     assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
-                    assertMonitorVersionQueryString(recordedRequest.getUri().getQuery(), new String[]{ INCLUDE_TYPE_NAME_PARAMETER + "=true" });
+                    final String[] parameters = {INCLUDE_TYPE_NAME_PARAMETER + "=true"};
+                    assertMonitorVersionQueryString(recordedRequest.getUri().getQuery(), parameters);
                     assertThat(recordedRequest.getBody(), equalTo(template.v2()));
                 }
             }
@@ -472,14 +473,15 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
                 assertThat(putRequest.getMethod(), equalTo("PUT"));
                 assertThat(putRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-                assertMonitorVersionQueryString(putRequest.getUri().getQuery(), new String[]{ INCLUDE_TYPE_NAME_PARAMETER + "=true" });
+                final String[] parameters = {INCLUDE_TYPE_NAME_PARAMETER + "=true"};
+                assertMonitorVersionQueryString(putRequest.getUri().getQuery(), parameters);
                 assertThat(putRequest.getBody(), equalTo(resource.v2()));
                 assertHeaders(putRequest, customHeaders);
             }
         }
     }
 
-    private void assertMonitorVersionQueryString(String query, String[] parameters) {
+    private void assertMonitorVersionQueryString(String query, final String[] parameters) {
         String queryString = "";
         for (String param : parameters) {
             queryString += param + "&";

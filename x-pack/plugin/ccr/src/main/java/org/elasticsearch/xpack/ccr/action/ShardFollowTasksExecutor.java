@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -302,9 +303,21 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             if (filteredShardStats.isPresent()) {
                 final ShardStats shardStats = filteredShardStats.get();
                 final CommitStats commitStats = shardStats.getCommitStats();
-                final String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
-
+                if (commitStats == null) {
+                    // If commitStats is null then AlreadyClosedException has been thrown: TransportIndicesStatsAction#shardOperation(...)
+                    // AlreadyClosedException will be retried byShardFollowNodeTask.shouldRetry(...)
+                    errorHandler.accept(new AlreadyClosedException(shardId + " commit_stats are missing"));
+                    return;
+                }
                 final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
+                if (seqNoStats == null) {
+                    // If seqNoStats is null then AlreadyClosedException has been thrown at TransportIndicesStatsAction#shardOperation(...)
+                    // AlreadyClosedException will be retried byShardFollowNodeTask.shouldRetry(...)
+                    errorHandler.accept(new AlreadyClosedException(shardId + " seq_no_stats are missing"));
+                    return;
+                }
+
+                final String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
                 final long globalCheckpoint = seqNoStats.getGlobalCheckpoint();
                 final long maxSeqNo = seqNoStats.getMaxSeqNo();
                 handler.accept(historyUUID, globalCheckpoint, maxSeqNo);

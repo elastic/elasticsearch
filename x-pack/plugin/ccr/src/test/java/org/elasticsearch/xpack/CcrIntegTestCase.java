@@ -38,6 +38,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
@@ -451,8 +452,18 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         logger.info("--> asserting <<docId,seqNo>> between {} and {}", leaderIndex, followerIndex);
         assertBusy(() -> {
             Map<Integer, List<DocIdSeqNoAndTerm>> docsOnFollower = getDocIdAndSeqNos(clusterGroup.followerCluster, followerIndex);
-            logger.info("--> docs on the follower {}", docsOnFollower);
-            assertThat(docsOnFollower, equalTo(getDocIdAndSeqNos(clusterGroup.leaderCluster, leaderIndex)));
+            Map<Integer, List<DocIdSeqNoAndTerm>> docsOnLeader = getDocIdAndSeqNos(clusterGroup.leaderCluster, leaderIndex);
+            Map<Integer, Set<DocIdSeqNoAndTerm>> mismatchedDocs = new HashMap<>();
+            for (Map.Entry<Integer, List<DocIdSeqNoAndTerm>> fe : docsOnFollower.entrySet()) {
+                Set<DocIdSeqNoAndTerm> d1 = Sets.difference(
+                    Sets.newHashSet(fe.getValue()), Sets.newHashSet(docsOnLeader.getOrDefault(fe.getKey(), Collections.emptyList())));
+                Set<DocIdSeqNoAndTerm> d2 = Sets.difference(
+                    Sets.newHashSet(docsOnLeader.getOrDefault(fe.getKey(), Collections.emptyList())), Sets.newHashSet(fe.getValue()));
+                if (d1.isEmpty() == false || d2.isEmpty() == false) {
+                    mismatchedDocs.put(fe.getKey(), Sets.union(d1, d2));
+                }
+            }
+            assertThat("mismatched documents [" + mismatchedDocs + "]", docsOnFollower, equalTo(docsOnLeader));
         }, 120, TimeUnit.SECONDS);
 
         logger.info("--> asserting seq_no_stats between {} and {}", leaderIndex, followerIndex);
@@ -481,13 +492,15 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         Randomness.shuffle(shardRoutings);
         final Map<Integer, List<DocIdSeqNoAndTerm>> docs = new HashMap<>();
         for (ShardRouting shardRouting : shardRoutings) {
-            if (shardRouting == null || shardRouting.assignedToNode() == false || docs.containsKey(shardRouting.shardId().id())) {
+            if (shardRouting == null || shardRouting.assignedToNode() == false) {
                 continue;
             }
             IndexShard indexShard = cluster.getInstance(IndicesService.class, state.nodes().get(shardRouting.currentNodeId()).getName())
                 .indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());
             try {
-                docs.put(shardRouting.shardId().id(), IndexShardTestCase.getDocIdAndSeqNos(indexShard).stream()
+                final List<DocIdSeqNoAndTerm> docsOnShard = IndexShardTestCase.getDocIdAndSeqNos(indexShard);
+                logger.info("--> shard {} docs {} seq_no_stats {}", shardRouting, docsOnShard, indexShard.seqNoStats());
+                docs.put(shardRouting.shardId().id(), docsOnShard.stream()
                     // normalize primary term as the follower use its own term
                     .map(d -> new DocIdSeqNoAndTerm(d.getId(), d.getSeqNo(), 1L))
                     .collect(Collectors.toList()));

@@ -97,16 +97,20 @@ public class SecurityFeatureSetTests extends ESTestCase {
         final boolean transportSSLEnabled = randomBoolean();
         settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
 
-        boolean configureEnabledFlagForTokenAndApiKeyServices = randomBoolean();
+        boolean configureEnabledFlagForTokenService = randomBoolean();
         final boolean tokenServiceEnabled;
-        final boolean apiKeyServiceEnabled;
-        if (configureEnabledFlagForTokenAndApiKeyServices) {
+        if (configureEnabledFlagForTokenService) {
             tokenServiceEnabled = randomBoolean();
             settings.put("xpack.security.authc.token.enabled", tokenServiceEnabled);
+        } else {
+            tokenServiceEnabled = httpSSLEnabled;
+        }
+        boolean configureEnabledFlagForApiKeyService = randomBoolean();
+        final boolean apiKeyServiceEnabled;
+        if (configureEnabledFlagForApiKeyService) {
             apiKeyServiceEnabled = randomBoolean();
             settings.put("xpack.security.authc.api_key.enabled", apiKeyServiceEnabled);
         } else {
-            tokenServiceEnabled = httpSSLEnabled;
             apiKeyServiceEnabled = httpSSLEnabled;
         }
 

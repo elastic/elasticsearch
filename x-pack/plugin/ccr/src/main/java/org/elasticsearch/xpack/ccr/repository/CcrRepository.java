@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -103,7 +104,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private final ThreadPool threadPool;
 
     private final CounterMetric throttledTime = new CounterMetric();
-    
+
     public CcrRepository(RepositoryMetaData metadata, Client client, CcrLicenseChecker ccrLicenseChecker, Settings settings,
                          CcrSettings ccrSettings, ThreadPool threadPool) {
         this.metadata = metadata;
@@ -377,7 +378,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         protected void restoreFiles(List<FileInfo> filesToRecover, Store store) throws IOException {
             logger.trace("[{}] starting CCR restore of {} files", shardId, filesToRecover);
 
-            try (MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger, () -> {})) {
+            try (MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger, () -> {
+            })) {
                 final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
                 final AtomicReference<Tuple<StoreFileMetaData, Exception>> error = new AtomicReference<>();
 
@@ -405,8 +407,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                             logger.trace("[{}] [{}] fetching chunk for file [{}], expected offset: {}, size: {}", shardId, snapshotId,
                                 fileInfo.name(), offset, bytesRequested);
 
-                            remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request,
-                                ActionListener.wrap(
+                            TimeValue timeout = ccrSettings.getRecoveryActionTimeout();
+                            ActionListener<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> listener =
+                                ListenerTimeouts.wrapWithTimeout(threadPool, ActionListener.wrap(
                                     r -> threadPool.generic().execute(new AbstractRunnable() {
                                         @Override
                                         public void onFailure(Exception e) {
@@ -430,7 +433,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                         error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
                                         requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
                                     }
-                                ));
+                                    ), timeout, ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.NAME);
+                            remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE, request, listener);
                         } catch (Exception e) {
                             error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
                             requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);

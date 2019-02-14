@@ -125,7 +125,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * Constructs a new search request against the provided indices with the given search source.
      */
-    public SearchRequest(String[] indices, SearchSourceBuilder source) {
+    public SearchRequest(String... indices, SearchSourceBuilder source) {
         this();
         if (source == null) {
             throw new IllegalArgumentException("source must not be null");

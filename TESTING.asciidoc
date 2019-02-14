@@ -16,6 +16,15 @@ following:
 ./gradlew assemble
 -----------------------------
 
+To create a platform-specific build including the x-pack modules, use the
+following depending on your operating system:
+
+-----------------------------
+./gradlew :distribution:archives:linux-tar:assemble --parallel
+./gradlew :distribution:archives:darwin-tar:assemble --parallel
+./gradlew :distribution:archives:windows-zip:assemble --parallel
+-----------------------------
+
 === Running Elasticsearch from a checkout
 
 In order to run Elasticsearch from source without building a package, you can
@@ -384,12 +393,6 @@ The packaging tests also support Windows Server 2012R2 and Windows Server 2016.
 Unfortunately we're not able to provide boxes for them in open source use
 because of licensing issues. Any Virtualbox image that has WinRM and Powershell
 enabled for remote users should work.
-
-Testing on Windows requires the https://github.com/criteo/vagrant-winrm[vagrant-winrm] plugin.
-
-------------------------------------
-vagrant plugin install vagrant-winrm
-------------------------------------
 
 Specify the image IDs of the Windows boxes to gradle with the following project
 properties. They can be set in `~/.gradle/gradle.properties` like

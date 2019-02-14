@@ -27,7 +27,7 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
+import java.util.HashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -187,7 +187,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
         verifyListener(null);
 
-        Map <String, String> allParameters = new TreeMap<>();
+        Map <String, String> allParameters = new HashMap<>();
         allParameters.putAll(resource.getDefaultParameters());
         allParameters.putAll(parameters);
 
@@ -287,7 +287,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
         verify(client).performRequestAsync(request.capture(), any(ResponseListener.class));
 
-        Map <String, String> allParameters = new TreeMap<>();
+        Map <String, String> allParameters = new HashMap<>();
         allParameters.putAll(resource.getDefaultParameters());
         allParameters.putAll(parameters);
 

@@ -5,16 +5,19 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -250,5 +253,19 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 assertThat(source.getValue("roles"), is(nullValue()));
             }
         }
+
+        out = new BytesStreamOutput();
+        out.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_7_0, Version.V_7_0_0));
+        securityUsage.writeTo(out);
+        StreamInput input = out.bytes().streamInput();
+        input.setVersion(out.getVersion());
+        serializedUsage = new SecurityFeatureSetUsage(input);
+        XContentSource source;
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            serializedUsage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            source = new XContentSource(builder);
+        }
+        assertThat(source.getValue("token_service"), is(nullValue()));
+        assertThat(source.getValue("api_key_service"), is(nullValue()));
     }
 }

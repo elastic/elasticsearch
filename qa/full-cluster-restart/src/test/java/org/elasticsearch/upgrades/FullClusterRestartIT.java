@@ -608,11 +608,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     }
 
     int extractTotalHits(Map<?, ?> response) {
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_0_0)) {
-            return (Integer) XContentMapValues.extractValue("hits.total", response);
-        } else {
-            return (Integer) XContentMapValues.extractValue("hits.total.value", response);
-        }
+        return (Integer) XContentMapValues.extractValue("hits.total.value", response);
     }
 
     /**

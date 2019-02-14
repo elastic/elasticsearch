@@ -2578,13 +2578,7 @@ public class InternalEngine extends Engine {
                 }
                 throw e;
             }
-            return () -> {
-                try {
-                    translogRetentionLock.close();
-                } finally {
-                    softDeletesRetentionLock.close();
-                }
-            };
+            return () -> IOUtils.close(translogRetentionLock,softDeletesRetentionLock);
         } else {
             return translog.acquireRetentionLock();
         }

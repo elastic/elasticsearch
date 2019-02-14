@@ -2795,11 +2795,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void afterWriteOperation() {
         if (shouldPeriodicallyFlush() || shouldRollTranslogGeneration()) {
-            try {
-                Thread.sleep(100); // Waits for the first flush to finish
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
             if (flushOrRollRunning.compareAndSet(false, true)) {
                 /*
                  * We have to check again since otherwise there is a race when a thread passes the first check next to another thread which

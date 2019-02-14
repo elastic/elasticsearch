@@ -99,14 +99,14 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             // simulate a peer recovery which locks the soft deletes policy on the primary
-            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLockForPeerRecovery() : () -> {};
+            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLock() : () -> {};
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
             retentionLock.close();
 
             // check retention leases have been committed on the primary
             final RetentionLeases primaryCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
-                    primary.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
+                    primary.commitStats().getUserData().get(Engine.RETENTION_LEASES));
             assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(primaryCommittedRetentionLeases)));
 
             // check current retention leases have been synced to all replicas
@@ -121,7 +121,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
 
                 // check retention leases have been committed on the replica
                 final RetentionLeases replicaCommittedRetentionLeases = RetentionLeases.decodeRetentionLeases(
-                        replica.acquireLastIndexCommit(false).getIndexCommit().getUserData().get(Engine.RETENTION_LEASES));
+                        replica.commitStats().getUserData().get(Engine.RETENTION_LEASES));
                 assertThat(currentRetentionLeases, equalTo(RetentionLeases.toMap(replicaCommittedRetentionLeases)));
             }
         }
@@ -133,6 +133,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         final Settings settings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", numberOfReplicas)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                 .build();
         createIndex("index", settings);
         ensureGreen("index");
@@ -150,7 +151,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final CountDownLatch latch = new CountDownLatch(1);
             final ActionListener<ReplicationResponse> listener = ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()));
             // simulate a peer recovery which locks the soft deletes policy on the primary
-            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLockForPeerRecovery() : () -> {};
+            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLock() : () -> {};
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
             retentionLock.close();
@@ -161,7 +162,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final CountDownLatch latch = new CountDownLatch(1);
             primary.removeRetentionLease(id, ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString())));
             // simulate a peer recovery which locks the soft deletes policy on the primary
-            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLockForPeerRecovery() : () -> {};
+            final Closeable retentionLock = randomBoolean() ? primary.acquireRetentionLock() : () -> {};
             currentRetentionLeases.remove(id);
             latch.await();
             retentionLock.close();

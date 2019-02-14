@@ -149,6 +149,7 @@ public class FollowStatsIT extends CcrSingleNodeTestCase {
         assertAcked(client().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("follower1")).actionGet());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38779")
     public void testFollowStatsApiIncludeShardFollowStatsWithRemovedFollowerIndex() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));

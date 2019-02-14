@@ -31,7 +31,10 @@ import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.mockito.Mockito.mock;
 
 public class RestPutIndexTemplateActionTests extends RestActionTestCase {
@@ -57,12 +60,23 @@ public class RestPutIndexTemplateActionTests extends RestActionTestCase {
                 .endObject()
             .endObject();
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
                 .withMethod(RestRequest.Method.PUT)
                 .withPath("/_template/_some_template")
                 .withContent(BytesReference.bytes(typedContent), XContentType.JSON)
                 .build();
-        action.prepareRequest(request, mock(NodeClient.class));        
+        action.prepareRequest(deprecatedRequest, mock(NodeClient.class));
         assertWarnings(RestPutIndexTemplateAction.TYPES_DEPRECATION_MESSAGE);
+
+        Map<String, String> params = new HashMap<>();
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
+
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.PUT)
+            .withPath("/_template/_some_template")
+            .withParams(params)
+            .withContent(BytesReference.bytes(typedContent), XContentType.JSON)
+            .build();
+        action.prepareRequest(validRequest, mock(NodeClient.class));
     }    
 }

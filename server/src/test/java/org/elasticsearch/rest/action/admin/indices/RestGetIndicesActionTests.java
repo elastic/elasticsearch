@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,30 +35,24 @@ import static org.mockito.Mockito.mock;
 
 public class RestGetIndicesActionTests extends ESTestCase {
 
-    /**
-     * Test that setting no "include_type_name" or setting it to "true" raises a warning
-     */
-    public void testIncludeTypeNamesWarning() throws IOException {
+    public void testIncludeTypeName() throws IOException {
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.GET)
+            .withPath("/some_index")
+            .build();
+
+        RestGetIndicesAction handler = new RestGetIndicesAction(Settings.EMPTY, mock(RestController.class));
+        handler.prepareRequest(deprecatedRequest, mock(NodeClient.class));
+        assertWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE);
+
         Map<String, String> params = new HashMap<>();
-        if (randomBoolean()) {
-            params.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        }
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+        params.put(INCLUDE_TYPE_NAME_PARAMETER, randomFrom("true", "false"));
+
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.GET)
             .withPath("/some_index")
             .withParams(params)
             .build();
-
-        RestGetIndicesAction handler = new RestGetIndicesAction(Settings.EMPTY, mock(RestController.class));
-        handler.prepareRequest(request, mock(NodeClient.class));
-        assertWarnings(RestGetIndicesAction.TYPES_DEPRECATION_MESSAGE);
-
-        // the same request with the parameter set to "false" should pass without warning
-        request = new FakeRestRequest.Builder(xContentRegistry())
-                .withMethod(RestRequest.Method.GET)
-                .withParams(Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "false"))
-                .withPath("/some_index")
-                .build();
-        handler.prepareRequest(request, mock(NodeClient.class));
+        handler.prepareRequest(validRequest, mock(NodeClient.class));
     }
 }

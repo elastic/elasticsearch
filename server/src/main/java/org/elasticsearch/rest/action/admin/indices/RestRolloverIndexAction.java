@@ -35,9 +35,9 @@ import java.io.IOException;
 public class RestRolloverIndexAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestRolloverIndexAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The response format of rollover " +
-        "index requests will change in 7.0. Please start using the include_type_name parameter set to false " +
-        "to move to the new, typeless response format that will become the default.";    
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The parameter include_type_name " +
+        "should be explicitly specified in rollover requests to prepare for 7.0. In 7.0 include_type_name " +
+        "will default to 'false', which means requests must omit the type name in mapping definitions.";
     public RestRolloverIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover", this);
@@ -52,7 +52,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-        if (includeTypeName) {
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) == false) {
             deprecationLogger.deprecatedAndMaybeLog("index_rollover_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));

@@ -41,9 +41,9 @@ import java.util.Map;
 public class RestCreateIndexAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
         LogManager.getLogger(RestPutMappingAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in create index " +
-        "requests is deprecated. To be compatible with 7.0, the mapping definition should not be nested under " +
-        "the type name, and the parameter include_type_name must be provided and set to false.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] The parameter include_type_name " +
+        "should be explicitly specified in create index requests to prepare for 7.0. In 7.0 include_type_name " +
+        "will default to 'false', and requests are expected to omit the type name in mapping definitions.";
 
     public RestCreateIndexAction(Settings settings, RestController controller) {
         super(settings);
@@ -58,14 +58,15 @@ public class RestCreateIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
-
         boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
             DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+
         if (request.hasContent()) {
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.content(), false, request.getXContentType()).v2();
-            if (includeTypeName && sourceAsMap.containsKey("mappings")) {
+            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) == false && sourceAsMap.containsKey("mappings")) {
                 deprecationLogger.deprecatedAndMaybeLog("create_index_with_types", TYPES_DEPRECATION_MESSAGE);
             }
+
             sourceAsMap = prepareMappings(sourceAsMap, includeTypeName);
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }

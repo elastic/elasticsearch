@@ -58,12 +58,12 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RemoteClusterServiceTests extends ESTestCase {
 
@@ -690,15 +690,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         failLatch.await();
                         assertNotNull(ex.get());
                         if (ex.get() instanceof  IllegalStateException) {
-                            assertThat(ex.get().getMessage(), anyOf(equalTo("no seed node left"), startsWith
-                                ("No node available for cluster:")));
+                            assertThat(ex.get().getMessage(), equalTo("no seed node left"));
                         } else {
-                            if (ex.get() instanceof TransportException == false) {
-                                // we have an issue for this see #25301
-                                logger.error("expected TransportException but got a different one see #25301", ex.get());
-                            }
-                            assertTrue("expected TransportException but got a different one [" + ex.get().getClass().toString() + "]",
-                                ex.get() instanceof TransportException);
+                            assertThat(ex.get(),
+                                either(instanceOf(TransportException.class)).or(instanceOf(NoSuchRemoteClusterException.class)));
                         }
                     }
                 }

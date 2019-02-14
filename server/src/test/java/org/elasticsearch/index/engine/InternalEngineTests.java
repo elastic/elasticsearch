@@ -5663,13 +5663,17 @@ public class InternalEngineTests extends EngineTestCase {
         });
         rollTranslog.start();
 
-        long maxNumDocs = 1000;
         Thread indexing = new Thread(() -> {
             long seqNo = 0;
-            while (running.get() && seqNo <= maxNumDocs) {
+            while (running.get() && seqNo <= 1000) {
                 try {
-                    ParsedDocument doc = testParsedDocument(Long.toString(seqNo), null, testDocumentWithTextField(), SOURCE, null);
-                    engine.index(replicaIndexForDoc(doc, 1L, seqNo, false));
+                    String id = Long.toString(between(1, 50));
+                    if (randomBoolean()) {
+                        ParsedDocument doc = testParsedDocument(id, null, testDocumentWithTextField(), SOURCE, null);
+                        engine.index(replicaIndexForDoc(doc, 1L, seqNo, false));
+                    } else {
+                        engine.delete(replicaDeleteForDoc(id, 1L, seqNo, 0L));
+                    }
                     seqNo++;
                 } catch (IOException e) {
                     throw new AssertionError(e);
@@ -5685,14 +5689,6 @@ public class InternalEngineTests extends EngineTestCase {
         running.set(false);
         indexing.join();
         rollTranslog.join();
-        List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-        for (IndexCommit commit : commits) {
-            try (DirectoryReader reader = DirectoryReader.open(commit)) {
-                AtomicLong maxSeqNoFromDocs = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-                Lucene.scanSeqNosInReader(reader, 0, maxNumDocs, n -> maxSeqNoFromDocs.set(Math.max(n, maxSeqNoFromDocs.get())));
-                assertThat(Long.parseLong(commit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
-                    greaterThanOrEqualTo(maxSeqNoFromDocs.get()));
-            }
-        }
+        assertMaxSeqNoInCommitUserData(engine);
     }
 }

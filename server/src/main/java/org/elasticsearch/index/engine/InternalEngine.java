@@ -868,7 +868,6 @@ public class InternalEngine extends Engine {
                     indexResult = plan.earlyResultOnPreFlightError.get();
                     assert indexResult.getResultType() == Result.Type.FAILURE : indexResult.getResultType();
                 } else if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
-                    localCheckpointTracker.advanceMaxSeqNo(plan.seqNoForIndexing);
                     indexResult = indexIntoLucene(index, plan);
                 } else {
                     indexResult = new IndexResult(
@@ -954,6 +953,7 @@ public class InternalEngine extends Engine {
                 }
             }
         }
+        markSeqNoAsSeen(index.seqNo());
         return plan;
     }
 
@@ -1235,7 +1235,6 @@ public class InternalEngine extends Engine {
             if (plan.earlyResultOnPreflightError.isPresent()) {
                 deleteResult = plan.earlyResultOnPreflightError.get();
             } else if (plan.deleteFromLucene || plan.addStaleOpToLucene) {
-                localCheckpointTracker.advanceMaxSeqNo(plan.seqNoOfDeletion);
                 deleteResult = deleteInLucene(delete, plan);
             } else {
                 deleteResult = new DeleteResult(
@@ -1308,6 +1307,7 @@ public class InternalEngine extends Engine {
                     delete.seqNo(), delete.version());
             }
         }
+        markSeqNoAsSeen(delete.seqNo());
         return plan;
     }
 
@@ -1462,6 +1462,7 @@ public class InternalEngine extends Engine {
     public NoOpResult noOp(final NoOp noOp) {
         NoOpResult noOpResult;
         try (ReleasableLock ignored = readLock.acquire()) {
+            markSeqNoAsSeen(noOp.seqNo());
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {
             noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo(), e);
@@ -1481,7 +1482,6 @@ public class InternalEngine extends Engine {
             } else {
                 Exception failure = null;
                 if (softDeleteEnabled) {
-                    localCheckpointTracker.advanceMaxSeqNo(noOp.seqNo());
                     try {
                         final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc(noOp.reason());
                         tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
@@ -2440,6 +2440,13 @@ public class InternalEngine extends Engine {
     @Override
     public void waitForOpsToComplete(long seqNo) throws InterruptedException {
         localCheckpointTracker.waitForOpsToComplete(seqNo);
+    }
+
+    /**
+     * Marks the given seq_no as seen and advances the max_seq_no of this engine to at least that value.
+     */
+    protected final void markSeqNoAsSeen(long seqNo) {
+        localCheckpointTracker.advanceMaxSeqNo(seqNo);
     }
 
     /**

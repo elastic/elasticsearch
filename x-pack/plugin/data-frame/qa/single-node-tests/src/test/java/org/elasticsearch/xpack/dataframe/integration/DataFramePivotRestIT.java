@@ -10,7 +10,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.Arrays;

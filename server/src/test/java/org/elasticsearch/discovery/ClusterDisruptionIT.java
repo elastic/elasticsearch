@@ -89,21 +89,6 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         }
     }
 
-
-    // once this has proven to work out fine in all cases, we can revert this to randomly picking the conflict mode.
-    public void testAckedIndexWithCreateOpType() throws Exception {
-        testAckedIndexing(ConflictMode.create);
-    }
-
-    public void testAckedIndexWithExternalVersioning() throws Exception {
-        testAckedIndexing(ConflictMode.external);
-    }
-
-    public void testAckedIndexing() throws Exception {
-        testAckedIndexing(ConflictMode.none);
-    }
-
-
     /**
      * Test that we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
      * We also collect &amp; report the type of indexing failures that occur.
@@ -114,7 +99,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
         "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +
         "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE")
-    private void testAckedIndexing(final ConflictMode conflictMode) throws Exception {
+    public void testAckedIndexing() throws Exception {
 
         final int seconds = !(TEST_NIGHTLY && rarely()) ? 1 : 5;
         final String timeout = seconds + "s";
@@ -140,7 +125,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         final AtomicReference<CountDownLatch> countDownLatchRef = new AtomicReference<>();
         final List<Exception> exceptedExceptions = new CopyOnWriteArrayList<>();
 
-//        final ConflictMode conflictMode = ConflictMode.randomMode();
+        final ConflictMode conflictMode = ConflictMode.randomMode();
 
         logger.info("starting indexers using conflict mode " + conflictMode);
         try {

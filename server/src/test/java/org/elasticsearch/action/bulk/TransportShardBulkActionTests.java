@@ -285,8 +285,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));
 
-        // Verify that the shard "executed" the operation twice
-        verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+        // Verify that the shard "executed" the operation once
+        verify(shard, times(1)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
 
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
             .thenReturn(success);
@@ -295,9 +295,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             (update, shardId, type) -> fail("should not have had to update the mappings"), () -> {});
 
 
-        // Verify that the shard "executed" the operation only once (2 for previous invocations plus
+        // Verify that the shard "executed" the operation only once (1 for previous invocations plus
         // 1 for this execution)
-        verify(shard, times(3)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+        verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
 
 
         BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();

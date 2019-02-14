@@ -943,7 +943,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         checkSnapshot("old_snap", count, oldClusterVersion, type);
         if (false == isRunningAgainstOldCluster()) {
-            // we always expect the "_doc" type on 7.x clusters, even if the original pre-6.7 clusters type was "doc"
+            // when we takes a snapshot on the new cluster and restore it, we always expect the "_doc" type
+            // even if the template uses "doc" (which e.g. happens when the "old cluster" was before 6.6, see #setType())
             checkSnapshot("new_snap", count, Version.CURRENT, "_doc");
         }
     }

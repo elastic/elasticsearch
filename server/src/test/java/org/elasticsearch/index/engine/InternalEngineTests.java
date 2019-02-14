@@ -5653,4 +5653,46 @@ public class InternalEngineTests extends EngineTestCase {
             }
         }
     }
+
+    public void testMaxSeqNoInCommitUserData() throws Exception {
+        AtomicBoolean running = new AtomicBoolean(true);
+        Thread rollTranslog = new Thread(() -> {
+            while (running.get() && engine.getTranslog().currentFileGeneration() < 500) {
+                engine.rollTranslogGeneration(); // make adding operations to translog slower
+            }
+        });
+        rollTranslog.start();
+
+        long maxNumDocs = 1000;
+        Thread indexing = new Thread(() -> {
+            long seqNo = 0;
+            while (running.get() && seqNo <= maxNumDocs) {
+                try {
+                    ParsedDocument doc = testParsedDocument(Long.toString(seqNo), null, testDocumentWithTextField(), SOURCE, null);
+                    engine.index(replicaIndexForDoc(doc, 1L, seqNo, false));
+                    seqNo++;
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        });
+        indexing.start();
+
+        int numCommits = between(5, 20);
+        for (int i = 0; i < numCommits; i++) {
+            engine.flush(false, true);
+        }
+        running.set(false);
+        indexing.join();
+        rollTranslog.join();
+        List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+        for (IndexCommit commit : commits) {
+            try (DirectoryReader reader = DirectoryReader.open(commit)) {
+                AtomicLong maxSeqNoFromDocs = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+                Lucene.scanSeqNosInReader(reader, 0, maxNumDocs, n -> maxSeqNoFromDocs.set(Math.max(n, maxSeqNoFromDocs.get())));
+                assertThat(Long.parseLong(commit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                    greaterThanOrEqualTo(maxSeqNoFromDocs.get()));
+            }
+        }
+    }
 }

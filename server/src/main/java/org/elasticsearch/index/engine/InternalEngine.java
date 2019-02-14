@@ -868,6 +868,7 @@ public class InternalEngine extends Engine {
                     indexResult = plan.earlyResultOnPreFlightError.get();
                     assert indexResult.getResultType() == Result.Type.FAILURE : indexResult.getResultType();
                 } else if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
+                    localCheckpointTracker.advanceMaxSeqNo(plan.seqNoForIndexing);
                     indexResult = indexIntoLucene(index, plan);
                 } else {
                     indexResult = new IndexResult(
@@ -1234,6 +1235,7 @@ public class InternalEngine extends Engine {
             if (plan.earlyResultOnPreflightError.isPresent()) {
                 deleteResult = plan.earlyResultOnPreflightError.get();
             } else if (plan.deleteFromLucene || plan.addStaleOpToLucene) {
+                localCheckpointTracker.advanceMaxSeqNo(plan.seqNoOfDeletion);
                 deleteResult = deleteInLucene(delete, plan);
             } else {
                 deleteResult = new DeleteResult(
@@ -1479,6 +1481,7 @@ public class InternalEngine extends Engine {
             } else {
                 Exception failure = null;
                 if (softDeleteEnabled) {
+                    localCheckpointTracker.advanceMaxSeqNo(noOp.seqNo());
                     try {
                         final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc(noOp.reason());
                         tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());

@@ -233,6 +233,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         tokenizers.put("thai", null);
 
         // TODO drop aliases once they are moved to module
+        tokenizers.put("nGram", tokenizers.get("ngram"));
+        tokenizers.put("edgeNGram", tokenizers.get("edge_ngram"));
         tokenizers.put("PathHierarchy", tokenizers.get("path_hierarchy"));
 
         return tokenizers;

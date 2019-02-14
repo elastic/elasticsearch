@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
@@ -80,7 +79,6 @@ import static org.hamcrest.Matchers.startsWith;
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private String index;
-    private final String type = MapperService.SINGLE_MAPPING_NAME;
 
     @Before
     public void setIndex() throws IOException {
@@ -153,7 +151,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertBasicSearchWorks(count);
         assertAllSearchWorks(count);
         assertBasicAggregationWorks();
-        assertRealtimeGetWorks(type);
+        assertRealtimeGetWorks();
         assertStoredBinaryFields(count);
     }
 
@@ -439,7 +437,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"test\":\"test\"}\n");
         }
-        Request bulkRequest = new Request("POST", "/" + index + "_write/" + type + "/_bulk");
+        Request bulkRequest = new Request("POST", "/" + index + "_write/_bulk");
         bulkRequest.setJsonEntity(bulk.toString());
         bulkRequest.addParameter("refresh", "");
         bulkRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
@@ -562,7 +560,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertTotalHits(termsCount, boolTerms);
     }
 
-    void assertRealtimeGetWorks(final String typeName) throws IOException {
+    void assertRealtimeGetWorks() throws IOException {
         Request disableAutoRefresh = new Request("PUT", "/" + index + "/_settings");
         disableAutoRefresh.setJsonEntity("{ \"index\": { \"refresh_interval\" : -1 }}");
         client().performRequest(disableAutoRefresh);
@@ -573,12 +571,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Map<?, ?> hit = (Map<?, ?>) ((List<?>)(XContentMapValues.extractValue("hits.hits", searchResponse))).get(0);
         String docId = (String) hit.get("_id");
 
-        Request updateRequest = new Request("POST", "/" + index + "/" + typeName + "/" + docId + "/_update");
+        Request updateRequest = new Request("POST", "/" + index + "/_doc/" + docId + "/_update");
         updateRequest.setOptions(expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE));
         updateRequest.setJsonEntity("{ \"doc\" : { \"foo\": \"bar\"}}");
         client().performRequest(updateRequest);
 
-        Request getRequest = new Request("GET", "/" + index + "/" + typeName + "/" + docId);
+        Request getRequest = new Request("GET", "/" + index + "/_doc/" + docId);
         if (getOldClusterVersion().before(Version.V_6_7_0)) {
             getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         }
@@ -635,7 +633,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * Tests that a single document survives. Super basic smoke test.
      */
     public void testSingleDoc() throws IOException {
-        String docLocation = "/" + index + "/" + type + "/1";
+        String docLocation = "/" + index + "/_doc/1";
         String doc = "{\"test\": \"test\"}";
 
         if (isRunningAgainstOldCluster()) {
@@ -948,7 +946,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             int numDocs = between(10, 100);
             for (int i = 0; i < numDocs; i++) {
                 String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v1").endObject());
-                Request request = new Request("POST", "/" + index + "/" + type + "/" + i);
+                Request request = new Request("POST", "/" + index + "/_doc/" + i);
                 request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
                 request.setJsonEntity(doc);
                 client().performRequest(request);
@@ -960,11 +958,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             for (int i = 0; i < numDocs; i++) {
                 if (randomBoolean()) {
                     String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v2").endObject());
-                    Request request = new Request("POST", "/" + index + "/" + type + "/" + i);
+                    Request request = new Request("POST", "/" + index + "/_doc/" + i);
                     request.setJsonEntity(doc);
                     client().performRequest(request);
                 } else if (randomBoolean()) {
-                    client().performRequest(new Request("DELETE", "/" + index + "/" + type + "/" + i));
+                    client().performRequest(new Request("DELETE", "/" + index + "/_doc/" + i));
                     liveDocs--;
                 }
             }
@@ -1033,7 +1031,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             bulk.append("{\"index\":{\"_id\":\"").append(count + i).append("\"}}\n");
             bulk.append("{\"test\":\"test\"}\n");
         }
-        Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/" + type + "/_bulk");
+        Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/_bulk");
         writeToRestoredRequest.addParameter("refresh", "true");
         writeToRestoredRequest.setJsonEntity(bulk.toString());
         writeToRestoredRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
@@ -1069,13 +1067,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             expectedTemplate.put("index_patterns", singletonList("evil_*"));
         }
         expectedTemplate.put("settings", singletonMap("index", singletonMap("number_of_shards", "1")));
-        // We don't have the type in the response starting with 7.0, but we won't have it on old cluster after upgrade
-        // either so look at the response to figure out the correct assertions
-        if (isTypeInTemplateResponse(getTemplateResponse)) {
-            expectedTemplate.put("mappings", singletonMap(type, singletonMap("_source", singletonMap("enabled", true))));
-        } else {
-            expectedTemplate.put("mappings", singletonMap("_source", singletonMap("enabled", true)));
-        }
+        expectedTemplate.put("mappings", singletonMap("_source", singletonMap("enabled", true)));
 
         expectedTemplate.put("order", 0);
         Map<String, Object> aliases = new HashMap<>();

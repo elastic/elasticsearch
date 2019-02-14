@@ -91,11 +91,11 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
 
     // once this has proven to work out fine in all cases, we can revert this to randomly picking the conflict mode.
-    public void testAckedIndexCreateOnly() throws Exception {
+    public void testAckedIndexWithCreateOpType() throws Exception {
         testAckedIndexing(ConflictMode.create);
     }
 
-    public void testAckedIndexExternalVersioning() throws Exception {
+    public void testAckedIndexWithExternalVersioning() throws Exception {
         testAckedIndexing(ConflictMode.external);
     }
 
@@ -167,7 +167,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                     .setTimeout(timeout);
 
                                 if (conflictMode == ConflictMode.external) {
-                                    indexRequestBuilder.setVersion(10).setVersionType(VersionType.EXTERNAL);
+                                    indexRequestBuilder.setVersion(randomIntBetween(1,10)).setVersionType(VersionType.EXTERNAL);
                                 } else if (conflictMode == ConflictMode.create) {
                                     indexRequestBuilder.setCreate(true);
                                 }

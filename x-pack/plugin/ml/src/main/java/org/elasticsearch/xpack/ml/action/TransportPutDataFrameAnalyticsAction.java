@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -82,7 +81,8 @@ public class TransportPutDataFrameAnalyticsAction
                 .build();
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(request.getConfig().getDest())
-                .privileges(SearchAction.NAME, IndexAction.NAME, CreateIndexAction.NAME)
+                 // CreateIndexAction.NAME is more expansive than and create_index, in this instance we want at least create_index.
+                .privileges(SearchAction.NAME, IndexAction.NAME, "create_index")
                 .build();
 
             HasPrivilegesRequest privRequest = new HasPrivilegesRequest();

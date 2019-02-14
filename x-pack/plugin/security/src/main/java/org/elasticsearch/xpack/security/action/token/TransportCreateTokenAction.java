@@ -72,7 +72,11 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
             authenticationService.authenticate(CreateTokenAction.NAME, request, authToken,
                 ActionListener.wrap(authentication -> {
                     request.getPassword().close();
-                    createToken(request, authentication, originatingAuthentication, true, listener);
+                    if (authentication != null) {
+                        createToken(request, authentication, originatingAuthentication, true, listener);
+                    } else {
+                        listener.onFailure(new UnsupportedOperationException("cannot create token if authentication is not allowed"));
+                    }
                 }, e -> {
                     // clear the request password
                     request.getPassword().close();

@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.dataframe.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
 
@@ -29,6 +31,7 @@ public final class DataframeIndex {
     public static final String DOC_TYPE = "_doc";
     private static final String PROPERTIES = "properties";
     private static final String TYPE = "type";
+    private static final String META = "_meta";
 
     private DataframeIndex() {
     }
@@ -41,7 +44,7 @@ public final class DataframeIndex {
         request.settings(Settings.builder() // <1>
                 .put("index.number_of_shards", 1).put("index.number_of_replicas", 0));
 
-        request.mapping(DOC_TYPE, createMappingXContent(mappings));
+        request.mapping(DOC_TYPE, createMappingXContent(mappings, transformConfig.getId()));
 
         client.execute(CreateIndexAction.INSTANCE, request, ActionListener.wrap(createIndexResponse -> {
             listener.onResponse(true);
@@ -53,10 +56,11 @@ public final class DataframeIndex {
         }));
     }
 
-    private static XContentBuilder createMappingXContent(Map<String, String> mappings) {
+    private static XContentBuilder createMappingXContent(Map<String, String> mappings, String id) {
         try {
             XContentBuilder builder = jsonBuilder().startObject();
             builder.startObject(DOC_TYPE);
+            addMetaData(builder, id);
             builder.startObject(PROPERTIES);
             for (Entry<String, String> field : mappings.entrySet()) {
                 builder.startObject(field.getKey()).field(TYPE, field.getValue()).endObject();
@@ -67,5 +71,19 @@ public final class DataframeIndex {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static XContentBuilder addMetaData(XContentBuilder builder, String id) throws IOException {
+        builder.startObject(META);
+        builder.field(DataFrameField.CREATED_BY, DataFrameField.DATA_FRAME_SIGNATURE);
+        builder.startObject(DataFrameField.META_FIELDNAME);
+        builder.field(DataFrameField.CREATION_DATE_MILLIS, System.currentTimeMillis());
+        builder.startObject(DataFrameField.VERSION);
+        builder.field(DataFrameField.CREATED, Version.CURRENT);
+        builder.endObject();
+        builder.field(DataFrameField.TRANSFORM, id);
+        builder.endObject(); // META_FIELDNAME
+        builder.endObject(); // META
+        return builder;
     }
 }

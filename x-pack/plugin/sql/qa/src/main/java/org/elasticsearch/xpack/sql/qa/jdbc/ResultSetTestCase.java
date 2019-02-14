@@ -1262,7 +1262,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         }
     }
     
-    private void createIndex(String index) throws Exception {
+    protected static void createIndex(String index) throws Exception {
         Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
@@ -1286,7 +1286,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         client().performRequest(request);
     }
 
-    private void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws Exception {
+    protected static void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws Exception {
         Request request = new Request("PUT", "/" + index + "/_mapping/doc");
         XContentBuilder updateMapping = JsonXContent.contentBuilder().startObject();
         updateMapping.startObject("properties");
@@ -1464,7 +1464,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         return map;
     }
 
-    private void updateMappingForNumericValuesTests(String indexName) throws Exception {
+    private static void updateMappingForNumericValuesTests(String indexName) throws Exception {
         updateMapping(indexName, builder -> {
             for(String field : fieldsNames) {
                 builder.startObject(field).field("type", field.substring(5)).endObject();

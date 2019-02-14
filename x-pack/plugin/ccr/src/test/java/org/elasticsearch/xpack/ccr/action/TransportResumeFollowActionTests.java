@@ -146,9 +146,10 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("the leader index setting[{\"index.analysis.analyzer.my_analyzer.tokenizer\"" +
-                ":\"whitespace\",\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\",\"index.soft_deletes.enabled\":\"true\"}] " +
-                "and follower index settings [{\"index.analysis.analyzer.my_analyzer.tokenizer\":\"standard\"," +
-                "\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\",\"index.soft_deletes.enabled\":\"true\"}] must be identical"));
+                ":\"whitespace\",\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\"," +
+                "\"index.soft_deletes.enabled\":\"true\"}] and follower index settings [{\"index.analysis.analyzer.my_analyzer.tokenizer" +
+                "\":\"standard\",\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\"," +
+                "\"index.soft_deletes.enabled\":\"true\"}] must be identical"));
         }
         {
             // should fail because the following index does not have the following_index settings

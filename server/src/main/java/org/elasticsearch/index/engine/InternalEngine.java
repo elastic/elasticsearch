@@ -2567,10 +2567,23 @@ public class InternalEngine extends Engine {
     public Closeable acquireRetentionLock() {
         if (softDeleteEnabled) {
             final Closeable softDeletesRetentionLock = softDeletesPolicy.acquireRetentionLock();
-            final Closeable translogRetentionLock = translog.acquireRetentionLock();
+            final Closeable translogRetentionLock;
+            try {
+                translogRetentionLock = translog.acquireRetentionLock();
+            } catch (Exception e) {
+                try {
+                    softDeletesRetentionLock.close();
+                } catch (IOException ioexception) {
+                    e.addSuppressed(ioexception);
+                }
+                throw e;
+            }
             return () -> {
-                softDeletesRetentionLock.close();
-                translogRetentionLock.close();
+                try {
+                    translogRetentionLock.close();
+                } finally {
+                    softDeletesRetentionLock.close();
+                }
             };
         } else {
             return translog.acquireRetentionLock();

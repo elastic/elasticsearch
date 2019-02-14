@@ -7,19 +7,28 @@
 package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.dataframe.transforms.DataFramePreviewer;
+import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
+import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.dataframe.transforms.DataFrameIndexer.COMPOSITE_AGGREGATION_NAME;
 
 public class TransportPreviewDataFrameTransformAction extends
     HandledTransportAction<PreviewDataFrameTransformAction.Request, PreviewDataFrameTransformAction.Response> {
@@ -47,10 +56,29 @@ public class TransportPreviewDataFrameTransformAction extends
             return;
         }
 
-        DataFramePreviewer previewer = new DataFramePreviewer(request.getConfig(), threadPool.getThreadContext().getHeaders());
-        previewer.getPreview(client, ActionListener.wrap(
+        Pivot pivot = new Pivot(request.getConfig().getSource(),
+            request.getConfig().getQueryConfig().getQuery(),
+            request.getConfig().getPivotConfig());
+
+        getPreview(pivot, ActionListener.wrap(
             previewResponse -> listener.onResponse(new PreviewDataFrameTransformAction.Response(previewResponse)),
             listener::onFailure
         ));
+    }
+
+    private void getPreview(Pivot pivot, ActionListener<List<Map<String, Object>>> listener) {
+        ClientHelper.executeWithHeadersAsync(threadPool.getThreadContext().getHeaders(),
+            ClientHelper.DATA_FRAME_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            pivot.buildSearchRequest(null),
+            ActionListener.wrap(
+                r -> {
+                    final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
+                    DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
+                    listener.onResponse(pivot.extractResults(agg, stats).collect(Collectors.toList()));
+                },
+                listener::onFailure
+            ));
     }
 }

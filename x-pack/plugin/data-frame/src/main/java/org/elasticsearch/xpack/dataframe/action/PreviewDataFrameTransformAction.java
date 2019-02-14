@@ -92,10 +92,10 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
         @Override
         public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
+            if (obj == this) {
+                return true;
             }
-            if (getClass() != obj.getClass()) {
+            if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
             Request other = (Request) obj;
@@ -168,7 +168,7 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
                 return true;
             }
 
-            if (obj == null || obj.getClass() == getClass() == false) {
+            if (obj == null || obj.getClass() != getClass()) {
                 return false;
             }
 

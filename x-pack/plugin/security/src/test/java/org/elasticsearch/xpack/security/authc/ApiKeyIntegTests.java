@@ -23,6 +23,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
@@ -49,12 +50,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
@@ -251,10 +252,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testInvalidatedApiKeysDeletedByRemover() throws Exception {
-        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
-                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
-
-        awaitBusySoThatExpiredApiKeysRemoverCanBeTriggered(client);
+        Client client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
+                Collections.singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
 
         List<CreateApiKeyResponse> createdApiKeys = createApiKeys(2, null);
 
@@ -271,7 +271,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         securityClient.getApiKey(GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
         assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length, is(2));
 
-        awaitBusySoThatExpiredApiKeysRemoverCanBeTriggered(client);
+        client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
+                Collections.singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        securityClient = new SecurityClient(client);
 
         // invalidate API key to trigger remover
         listener = new PlainActionFuture<>();
@@ -291,20 +294,30 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(apiKey.isInvalidated(), is(true));
     }
 
-    private void awaitBusySoThatExpiredApiKeysRemoverCanBeTriggered(Client client) throws InterruptedException {
-        final AtomicReference<Long> ref = new AtomicReference<Long>(0L);
-        for (ApiKeyService apiKeyService : internalCluster().getInstances(ApiKeyService.class)) {
-            ref.set((apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered() > ref.get())
-                    ? apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered()
-                    : ref.get());
+    private Client waitForExpiredApiKeysRemoverTriggerReadyAndGetClient() throws Exception {
+        String nodeWithMostRecentRun = null;
+        long apiKeyLastTrigger = -1L;
+        for (String nodeName : internalCluster().getNodeNames()) {
+            ApiKeyService apiKeyService = internalCluster().getInstance(ApiKeyService.class, nodeName);
+            if (apiKeyService != null) {
+                if (apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered() > apiKeyLastTrigger) {
+                    nodeWithMostRecentRun = nodeName;
+                    apiKeyLastTrigger = apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered();
+               }
+            }
         }
-        awaitBusy(() -> (client.threadPool().relativeTimeInMillis() - ref.get() < DELETE_INTERVAL_MILLIS), 5, TimeUnit.SECONDS);
+        final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeWithMostRecentRun);
+        final long lastRunTime = apiKeyLastTrigger;
+        assertBusy(() -> {
+            assertThat(threadPool.relativeTimeInMillis() - lastRunTime, greaterThan(DELETE_INTERVAL_MILLIS));
+        });
+        return internalCluster().client(nodeWithMostRecentRun);
     }
 
     public void testExpiredApiKeysBehaviorWhenKeysExpired1WeekBeforeAnd1DayBefore() throws Exception {
-        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
-                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
-        awaitBusySoThatExpiredApiKeysRemoverCanBeTriggered(client);
+        Client client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
+                Collections.singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
 
         int noOfKeys = 4;
         List<CreateApiKeyResponse> createdApiKeys = createApiKeys(noOfKeys, null);
@@ -370,13 +383,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    private void refreshSecurityIndex() {
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
-        if (refreshResponse.getFailedShards() > 0) {
-            // retry
-            refreshResponse = client().admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
+    private void refreshSecurityIndex() throws Exception {
+        assertBusy(() -> {
+            final RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
             assertThat(refreshResponse.getFailedShards(), is(0));
-        }
+        });
     }
 
     public void testActiveApiKeysWithNoExpirationNeverGetDeletedByRemover() throws Exception {

@@ -45,7 +45,8 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging("org.elasticsearch.xpack.ccr:TRACE,org.elasticsearch.index.shard:DEBUG")
+@TestLogging("org.elasticsearch.xpack.ccr:TRACE,org.elasticsearch.xpack.ccr.action.ShardChangesAction:DEBUG,"
+    + "org.elasticsearch.index.shard:TRACE")
 public class FollowerFailOverIT extends CcrIntegTestCase {
 
     @Override
@@ -53,14 +54,15 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/38633")
     public void testFailOverOnFollower() throws Exception {
+        final String leaderIndex = "leader_test_failover";
+        final String followerIndex = "follower_test_failover";
         int numberOfReplicas = between(1, 2);
         getFollowerCluster().startMasterOnlyNode();
         getFollowerCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(1, 2));
         String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
-        assertAcked(leaderClient().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
+        assertAcked(leaderClient().admin().indices().prepareCreate(leaderIndex).setSource(leaderIndexSettings, XContentType.JSON));
         AtomicBoolean stopped = new AtomicBoolean();
         Thread[] threads = new Thread[between(1, 8)];
         AtomicInteger docID = new AtomicInteger();
@@ -77,20 +79,20 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
                     }
                     if (frequently()) {
                         String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 10)); // sometimes update
-                        IndexResponse indexResponse = leaderClient().prepareIndex("leader-index", "doc", id)
+                        IndexResponse indexResponse = leaderClient().prepareIndex(leaderIndex, "doc", id)
                             .setSource("{\"f\":" + id + "}", XContentType.JSON).get();
-                        logger.info("--> index id={} seq_no={}", indexResponse.getId(), indexResponse.getSeqNo());
+                        logger.info("--> index {} id={} seq_no={}", leaderIndex, indexResponse.getId(), indexResponse.getSeqNo());
                     } else {
                         String id = Integer.toString(between(0, docID.get()));
-                        DeleteResponse deleteResponse = leaderClient().prepareDelete("leader-index", "doc", id).get();
-                        logger.info("--> delete id={} seq_no={}", deleteResponse.getId(), deleteResponse.getSeqNo());
+                        DeleteResponse deleteResponse = leaderClient().prepareDelete(leaderIndex, "doc", id).get();
+                        logger.info("--> delete {} id={} seq_no={}", leaderIndex, deleteResponse.getId(), deleteResponse.getSeqNo());
                     }
                 }
             });
             threads[i].start();
         }
         availableDocs.release(between(100, 200));
-        PutFollowAction.Request follow = putFollow("leader-index", "follower-index");
+        PutFollowAction.Request follow = putFollow(leaderIndex, followerIndex);
         follow.getParameters().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
         follow.getParameters().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         follow.getParameters().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
@@ -99,11 +101,11 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         follow.getParameters().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         logger.info("--> follow request {}", Strings.toString(follow));
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
-        disableDelayedAllocation("follower-index");
-        ensureFollowerGreen("follower-index");
-        awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), between(30, 80));
+        disableDelayedAllocation(followerIndex);
+        ensureFollowerGreen(followerIndex);
+        awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex(followerIndex), 0), between(30, 80));
         final ClusterState clusterState = getFollowerCluster().clusterService().state();
-        for (ShardRouting shardRouting : clusterState.routingTable().allShards("follower-index")) {
+        for (ShardRouting shardRouting : clusterState.routingTable().allShards(followerIndex)) {
             if (shardRouting.primary()) {
                 DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());
                 getFollowerCluster().restartNode(assignedNode.getName(), new InternalTestCluster.RestartCallback());
@@ -111,15 +113,15 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
             }
         }
         availableDocs.release(between(50, 200));
-        ensureFollowerGreen("follower-index");
+        ensureFollowerGreen(followerIndex);
         availableDocs.release(between(50, 200));
-        awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex("follower-index"), 0), between(100, 150));
+        awaitGlobalCheckpointAtLeast(followerClient(), new ShardId(resolveFollowerIndex(followerIndex), 0), between(100, 150));
         stopped.set(true);
         for (Thread thread : threads) {
             thread.join();
         }
-        assertIndexFullyReplicatedToFollower("leader-index", "follower-index");
-        pauseFollow("follower-index");
+        assertIndexFullyReplicatedToFollower(leaderIndex, followerIndex);
+        pauseFollow(followerIndex);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33337")

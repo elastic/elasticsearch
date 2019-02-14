@@ -126,9 +126,21 @@ include-tagged::{sql-specs}/arithmetic.sql-spec[multiply]
 include-tagged::{sql-specs}/arithmetic.sql-spec[divide]
 --------------------------------------------------
 
-* https://en.wikipedia.org/wiki/Modulo_operation[Modulo] or Reminder(`%`)
+* https://en.wikipedia.org/wiki/Modulo_operation[Modulo] or Remainder(`%`)
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/arithmetic.sql-spec[mod]
+--------------------------------------------------
+
+[[sql-operators-cast]]
+=== Cast Operators
+
+* Cast (`::`)
+
+`::` provides an alternative syntax to the <<sql-functions-type-conversion-cast>> function.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[conversionStringToLongCastOperator]
 --------------------------------------------------

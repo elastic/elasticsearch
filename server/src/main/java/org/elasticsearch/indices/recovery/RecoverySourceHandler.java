@@ -155,7 +155,7 @@ public class RecoverySourceHandler {
                 assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
             }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ",
                 shard, cancellableThreads, logger);
-            final Closeable retentionLock = shard.acquireRetentionLockForPeerRecovery();
+            final Closeable retentionLock = shard.acquireRetentionLock();
             resources.add(retentionLock);
             final long startingSeqNo;
             final long requiredSeqNoRangeStart;

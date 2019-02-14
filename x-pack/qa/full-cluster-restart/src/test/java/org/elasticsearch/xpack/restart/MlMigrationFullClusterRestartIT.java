@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.restart;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -72,12 +70,11 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
                 "\"airline\": {\"type\": \"keyword\"}," +
                 "\"responsetime\": {\"type\": \"float\"}" +
                 "}}}}");
-        RequestOptions.Builder options = createTestIndex.getOptions().toBuilder();
-        options.setWarningsHandler(WarningsHandler.PERMISSIVE);
-        createTestIndex.setOptions(options);
+        createTestIndex.setOptions(allowTypesRemovalWarnings());
         client().performRequest(createTestIndex);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/36816")
     public void testMigration() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createTestIndex();

@@ -54,17 +54,20 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         }
         //clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
         return SearchRequest.withLocalReduction(request, request.indices(),
-            randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong());
+            randomAlphaOfLengthBetween(5, 10), randomNonNegativeLong(), randomBoolean());
     }
 
     public void testWithLocalReduction() {
-        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(null, Strings.EMPTY_ARRAY, "", 0));
+        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(null, Strings.EMPTY_ARRAY, "", 0, randomBoolean()));
         SearchRequest request = new SearchRequest();
-        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(request, null, "", 0));
-        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(request, new String[]{null}, "", 0));
-        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(request, Strings.EMPTY_ARRAY, null, 0));
-        expectThrows(IllegalArgumentException.class, () -> SearchRequest.withLocalReduction(request, Strings.EMPTY_ARRAY, "", -1));
-        SearchRequest searchRequest = SearchRequest.withLocalReduction(request, Strings.EMPTY_ARRAY, "", 0);
+        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(request, null, "", 0, randomBoolean()));
+        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(request,
+            new String[]{null}, "", 0, randomBoolean()));
+        expectThrows(NullPointerException.class, () -> SearchRequest.withLocalReduction(request,
+            Strings.EMPTY_ARRAY, null, 0, randomBoolean()));
+        expectThrows(IllegalArgumentException.class, () -> SearchRequest.withLocalReduction(request,
+            Strings.EMPTY_ARRAY, "", -1, randomBoolean()));
+        SearchRequest searchRequest = SearchRequest.withLocalReduction(request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
         assertNull(searchRequest.validate());
     }
 
@@ -88,9 +91,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (version.before(Version.V_6_7_0)) {
             assertNull(deserializedRequest.getLocalClusterAlias());
             assertAbsoluteStartMillisIsCurrentTime(deserializedRequest);
+            assertTrue(deserializedRequest.isFinalReduce());
         } else {
             assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
             assertEquals(searchRequest.getOrCreateAbsoluteStartMillis(), deserializedRequest.getOrCreateAbsoluteStartMillis());
+            assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
         }
     }
 
@@ -103,6 +108,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNull(searchRequest.getLocalClusterAlias());
             assertAbsoluteStartMillisIsCurrentTime(searchRequest);
             assertTrue(searchRequest.isCcsMinimizeRoundtrips());
+            assertTrue(searchRequest.isFinalReduce());
         }
     }
 

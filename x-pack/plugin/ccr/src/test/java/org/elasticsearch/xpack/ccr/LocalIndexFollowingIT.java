@@ -85,20 +85,21 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         followRequest.setFollowerIndex("follower-index");
         PutFollowAction.Request putFollowRequest = getPutFollowRequest("leader", "follower");
         putFollowRequest.setLeaderIndex("leader-index");
-        putFollowRequest.setFollowRequest(followRequest);
+        putFollowRequest.setFollowerIndex("follower-index");
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
             () -> client().execute(PutFollowAction.INSTANCE, putFollowRequest).actionGet());
         assertThat(error.getMessage(), equalTo("leader index [leader-index] does not have soft deletes enabled"));
         assertThat(client().admin().indices().prepareExists("follower-index").get().isExists(), equalTo(false));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38695")
     public void testRemoveRemoteConnection() throws Exception {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName("my_pattern");
         request.setRemoteCluster("local");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
-        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
+        request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
         assertTrue(client().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
         long previousNumberOfSuccessfulFollowedIndices = getAutoFollowStats().getNumberOfSuccessfulFollowIndices();
 

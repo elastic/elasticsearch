@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -24,7 +25,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
@@ -59,6 +59,7 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.extractLeaderShardHistoryUUIDs;
@@ -111,7 +112,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             @Override
             protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
                 final Index followerIndex = params.getFollowShardId().getIndex();
-                getIndexMetadata(minRequiredMappingVersion, 0L, params, ActionListener.wrap(
+                final Index leaderIndex = params.getLeaderShardId().getIndex();
+                final Supplier<TimeValue> timeout = () -> isStopped() ? TimeValue.MINUS_ONE : waitForMetadataTimeOut;
+                CcrRequests.getIndexMetadata(remoteClient(params), leaderIndex, minRequiredMappingVersion, 0L, timeout, ActionListener.wrap(
                     indexMetaData -> {
                         if (indexMetaData.getMappings().isEmpty()) {
                             assert indexMetaData.getMappingVersion() == 1;
@@ -246,39 +249,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         return wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders());
     }
 
-    private void getIndexMetadata(long minRequiredMappingVersion, long minRequiredMetadataVersion,
-                                  ShardFollowTask params, ActionListener<IndexMetaData> listener) {
-        final Index leaderIndex = params.getLeaderShardId().getIndex();
-        final ClusterStateRequest clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
-        if (minRequiredMetadataVersion > 0) {
-            clusterStateRequest.waitForMetaDataVersion(minRequiredMetadataVersion).waitForTimeout(waitForMetadataTimeOut);
-        }
-        try {
-            remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(
-                r -> {
-                    // if wait_for_metadata_version timeout, the response is empty
-                    if (r.getState() == null) {
-                        assert minRequiredMetadataVersion > 0;
-                        getIndexMetadata(minRequiredMappingVersion, minRequiredMetadataVersion, params, listener);
-                        return;
-                    }
-                    final MetaData metaData = r.getState().metaData();
-                    final IndexMetaData indexMetaData = metaData.getIndexSafe(leaderIndex);
-                    if (indexMetaData.getMappingVersion() < minRequiredMappingVersion) {
-                        // ask for the next version.
-                        getIndexMetadata(minRequiredMappingVersion, metaData.version() + 1, params, listener);
-                    } else {
-                        assert metaData.version() >= minRequiredMetadataVersion : metaData.version() + " < " + minRequiredMetadataVersion;
-                        listener.onResponse(indexMetaData);
-                    }
-                },
-                listener::onFailure
-            ));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
     interface FollowerStatsInfoHandler {
         void accept(String followerHistoryUUID, long globalCheckpoint, long maxSeqNo);
     }
@@ -333,9 +303,21 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             if (filteredShardStats.isPresent()) {
                 final ShardStats shardStats = filteredShardStats.get();
                 final CommitStats commitStats = shardStats.getCommitStats();
-                final String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
-
+                if (commitStats == null) {
+                    // If commitStats is null then AlreadyClosedException has been thrown: TransportIndicesStatsAction#shardOperation(...)
+                    // AlreadyClosedException will be retried byShardFollowNodeTask.shouldRetry(...)
+                    errorHandler.accept(new AlreadyClosedException(shardId + " commit_stats are missing"));
+                    return;
+                }
                 final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
+                if (seqNoStats == null) {
+                    // If seqNoStats is null then AlreadyClosedException has been thrown at TransportIndicesStatsAction#shardOperation(...)
+                    // AlreadyClosedException will be retried byShardFollowNodeTask.shouldRetry(...)
+                    errorHandler.accept(new AlreadyClosedException(shardId + " seq_no_stats are missing"));
+                    return;
+                }
+
+                final String historyUUID = commitStats.getUserData().get(Engine.HISTORY_UUID_KEY);
                 final long globalCheckpoint = seqNoStats.getGlobalCheckpoint();
                 final long maxSeqNo = seqNoStats.getMaxSeqNo();
                 handler.accept(historyUUID, globalCheckpoint, maxSeqNo);

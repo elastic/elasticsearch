@@ -52,7 +52,7 @@ public abstract class AggregateFunction extends Function {
     public AggregateFunctionAttribute toAttribute() {
         if (lazyAttribute == null) {
             // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-            lazyAttribute = new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId(), null);
+            lazyAttribute = new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId());
         }
         return lazyAttribute;
     }

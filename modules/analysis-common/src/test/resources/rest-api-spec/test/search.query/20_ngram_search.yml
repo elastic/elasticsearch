@@ -1,7 +1,6 @@
 "ngram search":
   - do:
       indices.create:
-        include_type_name: false
         index: test
         body:
           settings:
@@ -44,7 +43,6 @@
 "testNGramCopyField":
   - do:
       indices.create:
-        include_type_name: false
         index: test
         body:
           settings:

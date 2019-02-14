@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKeyFactory;
+import javax.net.ssl.SSLContext;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -97,8 +99,12 @@ public class XPackSettings {
     public static final Setting<Boolean> RESERVED_REALM_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.reserved_realm.enabled",
             true, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling the token service. Defaults to true */
+    /** Setting for enabling or disabling the token service. Defaults to the value of https being enabled */
     public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.token.enabled",
+        XPackSettings.HTTP_SSL_ENABLED::getRaw, Setting.Property.NodeScope);
+
+    /** Setting for enabling or disabling the api key service. Defaults to the value of https being enabled */
+    public static final Setting<Boolean> API_KEY_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.api_key.enabled",
         XPackSettings.HTTP_SSL_ENABLED::getRaw, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling FIPS mode. Defaults to false */
@@ -154,7 +160,20 @@ public class XPackSettings {
         }
     }, Setting.Property.NodeScope);
 
-    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1");
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
+
+    static {
+        boolean supportsTLSv13 = false;
+        try {
+            SSLContext.getInstance("TLSv1.3");
+            supportsTLSv13 = true;
+        } catch (NoSuchAlgorithmException e) {
+            LogManager.getLogger(XPackSettings.class).debug("TLSv1.3 is not supported", e);
+        }
+        DEFAULT_SUPPORTED_PROTOCOLS = supportsTLSv13 ?
+            Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1");
+    }
+
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
     public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;
     public static final VerificationMode VERIFICATION_MODE_DEFAULT = VerificationMode.FULL;
@@ -184,6 +203,7 @@ public class XPackSettings {
         settings.add(HTTP_SSL_ENABLED);
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
+        settings.add(API_KEY_SERVICE_ENABLED_SETTING);
         settings.add(SQL_ENABLED);
         settings.add(USER_SETTING);
         settings.add(ROLLUP_ENABLED);

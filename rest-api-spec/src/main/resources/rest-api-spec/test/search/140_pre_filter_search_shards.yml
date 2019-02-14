@@ -1,7 +1,6 @@
 setup:
   - do:
       indices.create:
-          include_type_name: false
           index: index_1
           body:
             settings:
@@ -13,7 +12,6 @@ setup:
                    format: "yyyy-MM-dd"
   - do:
       indices.create:
-          include_type_name: false
           index: index_2
           body:
             settings:
@@ -25,7 +23,6 @@ setup:
                    format: "yyyy-MM-dd"
   - do:
       indices.create:
-          include_type_name: false
           index: index_3
           body:
             settings:

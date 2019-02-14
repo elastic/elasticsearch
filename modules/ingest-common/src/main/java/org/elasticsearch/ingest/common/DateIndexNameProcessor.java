@@ -19,6 +19,18 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
+
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IllformedLocaleException;
@@ -26,18 +38,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
-
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.TemplateScript;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
 public final class DateIndexNameProcessor extends AbstractProcessor {
 
@@ -47,10 +47,10 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
     private final TemplateScript.Factory indexNamePrefixTemplate;
     private final TemplateScript.Factory dateRoundingTemplate;
     private final TemplateScript.Factory indexNameFormatTemplate;
-    private final DateTimeZone timezone;
-    private final List<Function<String, DateTime>> dateFormats;
+    private final ZoneId timezone;
+    private final List<Function<String, ZonedDateTime>> dateFormats;
 
-    DateIndexNameProcessor(String tag, String field, List<Function<String, DateTime>> dateFormats, DateTimeZone timezone,
+    DateIndexNameProcessor(String tag, String field, List<Function<String, ZonedDateTime>> dateFormats, ZoneId timezone,
                            TemplateScript.Factory indexNamePrefixTemplate, TemplateScript.Factory dateRoundingTemplate,
                            TemplateScript.Factory indexNameFormatTemplate) {
         super(tag);
@@ -72,9 +72,9 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
             date = obj.toString();
         }
 
-        DateTime dateTime = null;
+        ZonedDateTime dateTime = null;
         Exception lastException = null;
-        for (Function<String, DateTime> dateParser : dateFormats) {
+        for (Function<String, ZonedDateTime> dateParser : dateFormats) {
             try {
                 dateTime = dateParser.apply(date);
             } catch (Exception e) {
@@ -90,13 +90,15 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
         String indexNameFormat = ingestDocument.renderTemplate(indexNameFormatTemplate);
         String dateRounding = ingestDocument.renderTemplate(dateRoundingTemplate);
 
-        DateTimeFormatter formatter = DateTimeFormat.forPattern(indexNameFormat);
+        DateFormatter formatter = DateFormatter.forPattern(indexNameFormat);
+        // use UTC instead of Z is string representation of UTC, so behaviour is the same between 6.x and 7
+        String zone = timezone.equals(ZoneOffset.UTC) ? "UTC" : timezone.getId();
         StringBuilder builder = new StringBuilder()
                 .append('<')
                 .append(indexNamePrefix)
                     .append('{')
-                        .append(formatter.print(dateTime)).append("||/").append(dateRounding)
-                            .append('{').append(indexNameFormat).append('|').append(timezone).append('}')
+                        .append(formatter.format(dateTime)).append("||/").append(dateRounding)
+                            .append('{').append(indexNameFormat).append('|').append(zone).append('}')
                     .append('}')
                 .append('>');
         String dynamicIndexName  = builder.toString();
@@ -125,11 +127,11 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
         return indexNameFormatTemplate;
     }
 
-    DateTimeZone getTimezone() {
+    ZoneId getTimezone() {
         return timezone;
     }
 
-    List<Function<String, DateTime>> getDateFormats() {
+    List<Function<String, ZonedDateTime>> getDateFormats() {
         return dateFormats;
     }
 
@@ -146,7 +148,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
                                              Map<String, Object> config) throws Exception {
             String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "locale");
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "timezone");
-            DateTimeZone timezone = timezoneString == null ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);
+            ZoneId timezone = timezoneString == null ? ZoneOffset.UTC : ZoneId.of(timezoneString);
             Locale locale = Locale.ENGLISH;
             if (localeString != null) {
                 try {
@@ -159,7 +161,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
             if (dateFormatStrings == null) {
                 dateFormatStrings = Collections.singletonList("yyyy-MM-dd'T'HH:mm:ss.SSSXX");
             }
-            List<Function<String, DateTime>> dateFormats = new ArrayList<>(dateFormatStrings.size());
+            List<Function<String, ZonedDateTime>> dateFormats = new ArrayList<>(dateFormatStrings.size());
             for (String format : dateFormatStrings) {
                 DateFormat dateFormat = DateFormat.fromString(format);
                 dateFormats.add(dateFormat.getFunction(format, timezone, locale));

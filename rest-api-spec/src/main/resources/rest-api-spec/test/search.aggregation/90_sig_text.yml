@@ -3,7 +3,6 @@
 
   - do:
       indices.create:
-          include_type_name: false
           index:  goodbad
           body:
             settings:
@@ -79,7 +78,6 @@
 
   - do:
       indices.create:
-          include_type_name: false
           index:  goodbad
           body:
             settings:

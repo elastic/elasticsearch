@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import com.ibm.icu.text.CharsetDetector;
 import com.ibm.icu.text.CharsetMatch;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
@@ -148,6 +149,14 @@ public final class FileStructureFinderManager {
                 Math.max(MIN_SAMPLE_LINE_COUNT, idealSampleLineCount), timeoutChecker);
 
             return makeBestStructureFinder(explanation, sampleInfo.v1(), charsetName, sampleInfo.v2(), overrides, timeoutChecker);
+        } catch (Exception e) {
+            // Add a dummy exception containing the explanation so far - this can be invaluable for troubleshooting as incorrect
+            // decisions made early on in the structure analysis can result in seemingly crazy decisions or timeouts later on
+            if (explanation.isEmpty() == false) {
+                e.addSuppressed(
+                    new ElasticsearchException(explanation.stream().collect(Collectors.joining("]\n[", "Explanation so far:\n[", "]\n"))));
+            }
+            throw e;
         }
     }
 

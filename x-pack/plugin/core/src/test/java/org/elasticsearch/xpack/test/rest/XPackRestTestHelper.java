@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.rest.ESRestTestCase.allowTypesRemovalWarnings;
+
 public final class XPackRestTestHelper {
 
     public static final List<String> ML_PRE_V660_TEMPLATES = Collections.unmodifiableList(
@@ -76,7 +78,9 @@ public final class XPackRestTestHelper {
             ESTestCase.awaitBusy(() -> {
                 Map<?, ?> response;
                 try {
-                    String string = EntityUtils.toString(client.performRequest(new Request("GET", "/_template/" + template)).getEntity());
+                    final Request getRequest = new Request("GET", "_template/" + template);
+                    getRequest.setOptions(allowTypesRemovalWarnings());
+                    String string = EntityUtils.toString(client.performRequest(getRequest).getEntity());
                     response = XContentHelper.convertToMap(JsonXContent.jsonXContent, string, false);
                 } catch (ResponseException e) {
                     if (e.getResponse().getStatusLine().getStatusCode() == 404) {

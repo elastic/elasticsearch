@@ -3,8 +3,6 @@
 [[sql-functions-conditional]]
 === Conditional Functions
 
-beta[]
-
 Functions that return one of their arguments by evaluating in an if-else manner.
 
 [[sql-functions-conditional-coalesce]]

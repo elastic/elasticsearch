@@ -24,13 +24,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -105,26 +100,6 @@ public class RetentionLeaseTests extends ESTestCase {
         final String source = randomAlphaOfLength(8);
         final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
         assertThat(RetentionLease.decodeRetentionLease(RetentionLease.encodeRetentionLease(retentionLease)), equalTo(retentionLease));
-    }
-
-    public void testRetentionLeasesEncoding() {
-        final int length = randomIntBetween(0, 8);
-        final List<RetentionLease> retentionLeases = new ArrayList<>(length);
-        for (int i = 0; i < length; i++) {
-            final String id = randomAlphaOfLength(8);
-            final long retainingSequenceNumber = randomNonNegativeLong();
-            final long timestamp = randomNonNegativeLong();
-            final String source = randomAlphaOfLength(8);
-            final RetentionLease retentionLease = new RetentionLease(id, retainingSequenceNumber, timestamp, source);
-            retentionLeases.add(retentionLease);
-        }
-        final Collection<RetentionLease> decodedRetentionLeases =
-                RetentionLease.decodeRetentionLeases(RetentionLease.encodeRetentionLeases(retentionLeases));
-        if (length == 0) {
-            assertThat(decodedRetentionLeases, empty());
-        } else {
-            assertThat(decodedRetentionLeases, contains(retentionLeases.toArray(new RetentionLease[0])));
-        }
     }
 
 }

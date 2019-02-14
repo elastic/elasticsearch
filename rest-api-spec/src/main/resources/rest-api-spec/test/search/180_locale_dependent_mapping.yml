@@ -5,7 +5,6 @@
       reason: JDK9 only supports this with a special sysproperty added in 6.2.0
   - do:
       indices.create:
-          include_type_name: false
           index: test_index
           body:
               settings:

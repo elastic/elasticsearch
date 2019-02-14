@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -96,10 +95,8 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
             status = WatchStatus.read(in);
             source = XContentSource.readFrom(in);
             version = in.readZLong();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                seqNo = in.readZLong();
-                primaryTerm = in.readVLong();
-            }
+            seqNo = in.readZLong();
+            primaryTerm = in.readVLong();
         } else {
             status = null;
             source = null;
@@ -118,10 +115,8 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
             status.writeTo(out);
             XContentSource.writeTo(source, out);
             out.writeZLong(version);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeZLong(seqNo);
-                out.writeVLong(primaryTerm);
-            }
+            out.writeZLong(seqNo);
+            out.writeVLong(primaryTerm);
         }
     }
 

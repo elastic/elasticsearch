@@ -36,8 +36,17 @@ import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskState;
 
 import java.io.File;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class TestClustersPlugin implements Plugin<Project> {
@@ -108,7 +117,12 @@ public class TestClustersPlugin implements Plugin<Project> {
             // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
             // the build.
             rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, Sync.class, sync -> {
-                sync.from((Callable<List<FileTree>>) () -> helperConfiguration.getFiles().stream().map(project::zipTree).collect(Collectors.toList()));
+                sync.from((Callable<List<FileTree>>) () ->
+                    helperConfiguration.getFiles()
+                        .stream()
+                        .map(project::zipTree)
+                        .collect(Collectors.toList())
+                );
                 sync.into(new File(getTestClustersConfigurationExtractDir(project), "zip"));
             });
 

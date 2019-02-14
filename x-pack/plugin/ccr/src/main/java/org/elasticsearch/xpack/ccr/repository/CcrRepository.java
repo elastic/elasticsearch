@@ -386,7 +386,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 for (FileInfo fileInfo : filesToRecover) {
                     final long fileLength = fileInfo.length();
                     long offset = 0;
-                    while (offset < fileLength && error.get() != null) {
+                    while (offset < fileLength && error.get() == null) {
                         final long requestSeqId = requestSeqIdTracker.generateSeqNo();
                         try {
                             requestSeqIdTracker.waitForOpsToComplete(requestSeqId - ccrSettings.getMaxConcurrentFileChunks());

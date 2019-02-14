@@ -341,4 +341,25 @@ public class TransportSearchActionTests extends ESTestCase {
         return new OriginalIndices(localIndices, IndicesOptions.fromOptions(randomBoolean(),
                 randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
     }
+
+    public void testSetMaxConcurrentShardRequests() {
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            int value = randomIntBetween(1, Integer.MAX_VALUE);
+            searchRequest.setMaxConcurrentShardRequests(value);
+            TransportSearchAction.setMaxConcurrentShardRequests(searchRequest, randomIntBetween(0, Integer.MAX_VALUE));
+            assertEquals(value, searchRequest.getMaxConcurrentShardRequests());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            int nodeCount = randomIntBetween(1, 1000000);
+            TransportSearchAction.setMaxConcurrentShardRequests(searchRequest, nodeCount);
+            assertEquals(Math.min(256, nodeCount * 5), searchRequest.getMaxConcurrentShardRequests());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            TransportSearchAction.setMaxConcurrentShardRequests(searchRequest, 0);
+            assertEquals(5, searchRequest.getMaxConcurrentShardRequests());
+        }
+    }
 }

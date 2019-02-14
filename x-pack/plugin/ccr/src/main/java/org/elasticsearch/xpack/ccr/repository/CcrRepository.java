@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -341,8 +342,16 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         // schedule renewals to run during the restore
         final Scheduler.Cancellable renewable = threadPool.scheduleWithFixedDelay(
                 () -> {
-                    logger.trace("{} background renewing retention lease during restore", shardId);
-                    renewRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
+                    final ThreadContext threadContext = threadPool.getThreadContext();
+                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                        // we have to execute under the system context so that if security is enabled the renewal is authorized
+                        threadContext.markAsSystemContext();
+                        logger.trace("{} background renewal of retention lease during restore", shardId);
+                        renewRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
+                    } catch (final Exception e) {
+                        logger.warn(new ParameterizedMessage("{} background renewal of retention lease failed during restore", shardId), e);
+                        throw e;
+                    }
                 },
                 RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(indexShard.indexSettings().getSettings()),
                 Ccr.CCR_THREAD_POOL_NAME);
@@ -356,7 +365,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         } catch (Exception e) {
             throw new IndexShardRestoreFailedException(indexShard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
         } finally {
-            logger.trace("{} stopping background retention lease renewing at the end of recovery", shardId);
+            logger.trace("{} canceling background renewal of retention lease at the end of restore", shardId);
             renewable.cancel();
         }
     }

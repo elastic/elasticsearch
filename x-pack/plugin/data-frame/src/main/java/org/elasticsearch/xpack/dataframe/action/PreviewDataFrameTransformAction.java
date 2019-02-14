@@ -10,12 +10,12 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.collect.HppcMaps;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,9 +49,7 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
             this.setConfig(config);
         }
 
-        public Request() {
-
-        }
+        public Request() { }
 
         public static Request fromXContent(final XContentParser parser) throws IOException {
             return new Request(DataFrameTransformConfig.fromXContent(parser, null, false));
@@ -116,7 +113,12 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private List<Map<String, Object>> docs;
+        public static ParseField DATA_FRAME_PREVIEW = new ParseField("data_frame_preview");
 
+        static ObjectParser<Response, Void> PARSER = new ObjectParser<>("data_frame_transform_preview", Response::new);
+        static {
+            PARSER.declareObjectArray(Response::setDocs, (p, c) -> p.mapOrdered(), DATA_FRAME_PREVIEW);
+        }
         public Response() {}
 
         public Response(StreamInput in) throws IOException {
@@ -148,16 +150,39 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(docs.size());
             for (Map<String, Object> doc : docs) {
-                out.writeMap(doc);
+                out.writeMapWithConsistentOrder(doc);
             }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("data_frame_preview", docs);
+            builder.field(DATA_FRAME_PREVIEW.getPreferredName(), docs);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) {
+                return true;
+            }
+
+            if (obj == null || obj.getClass() == getClass() == false) {
+                return false;
+            }
+
+            Response other = (Response) obj;
+            return Objects.equals(other.docs, docs);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(docs);
+        }
+
+        public static Response fromXContent(final XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
         }
     }
 }

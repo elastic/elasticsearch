@@ -230,7 +230,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPreviewTransform() throws Exception {
-        final Request createPreviewRequest = new Request("POST", DATAFRAME_ENDPOINT + "/_preview");
+        final Request createPreviewRequest = new Request("POST", DATAFRAME_ENDPOINT + "_preview");
 
         String config = "{"
             + " \"source\": \"reviews\","
@@ -238,10 +238,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + " \"dest\": \"doesnot-matter\",";
 
         config += " \"pivot\": {"
-            + "   \"group_by\": [ {"
+            + "   \"group_by\": ["
             + "     {\"reviewer\": {\"terms\": { \"field\": \"user_id\" }}},"
-            + "     {\"by_day\": {\"date_histogram\": "
-            + "       {\"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"} } } ],"
+            + "     {\"by_day\": {\"date_histogram\": {\"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"}}}],"
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
             + "       \"avg\": {"
@@ -250,8 +249,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "}";
         createPreviewRequest.setJsonEntity(config);
         Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
-        List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
-        assertThat(preview.size(), equalTo(10));
+        List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("data_frame_preview");
+        assertThat(preview.size(), equalTo(393));
         Set<String> expectedFields = new HashSet<>(Arrays.asList("reviewer", "by_day", "avg_rating"));
         preview.forEach(p -> {
             Set<String> keys = p.keySet();

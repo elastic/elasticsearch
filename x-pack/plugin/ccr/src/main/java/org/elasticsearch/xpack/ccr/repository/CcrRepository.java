@@ -383,20 +383,18 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
                 final AtomicReference<Tuple<StoreFileMetaData, Exception>> error = new AtomicReference<>();
 
-                outer: for (FileInfo fileInfo : filesToRecover) {
-                    if (error.get() != null) {
-                        break outer;
-                    }
-
+                for (FileInfo fileInfo : filesToRecover) {
                     final long fileLength = fileInfo.length();
                     long offset = 0;
-                    while (offset < fileLength) {
-                        if (error.get() != null) {
-                            break outer;
-                        }
+                    while (offset < fileLength && error.get() != null) {
                         final long requestSeqId = requestSeqIdTracker.generateSeqNo();
                         try {
                             requestSeqIdTracker.waitForOpsToComplete(requestSeqId - ccrSettings.getMaxConcurrentFileChunks());
+
+                            if (error.get() != null) {
+                                requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
+                                break;
+                            }
 
                             final int bytesRequested = Math.toIntExact(
                                 Math.min(ccrSettings.getChunkSize().getBytes(), fileLength - offset));
@@ -438,7 +436,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                         } catch (Exception e) {
                             error.compareAndSet(null, Tuple.tuple(fileInfo.metadata(), e));
                             requestSeqIdTracker.markSeqNoAsCompleted(requestSeqId);
-                            break outer;
                         }
                     }
                 }

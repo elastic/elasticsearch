@@ -18,6 +18,15 @@ task bwcTest {
 
 for (Version version : bwcVersions.wireCompatible) {
     String taskPrefix = "v${version}"
+    if (version.before('6.6.0')) {
+        if (project.bwc_tests_enabled) {
+            // Need to add dummy task:
+            Task versionBwcTest = tasks.create(name: "${taskPrefix}#bwcTest") {}
+            bwcTest.dependsOn(versionBwcTest)
+        }
+        continue
+    }
+
 
     // ============================================================================================
     // Create leader cluster
@@ -41,6 +50,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
     Task leaderClusterTestRunner = tasks.getByName("${taskPrefix}#leader#clusterTestRunner")
     leaderClusterTestRunner.configure {
+        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
         systemProperty 'tests.rest.upgrade_state', 'none'
         systemProperty 'tests.rest.cluster_name', 'leader'
 
@@ -71,6 +81,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
     Task followerClusterTestRunner = tasks.getByName("${taskPrefix}#follower#clusterTestRunner")
     followerClusterTestRunner.configure {
+        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
         systemProperty 'tests.rest.upgrade_state', 'none'
         systemProperty 'tests.rest.cluster_name', 'follower'
 
@@ -92,7 +103,6 @@ for (Version version : bwcVersions.wireCompatible) {
             clusterName = cluster
             otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
             minimumMasterNodes = { 2 }
-            autoSetInitialMasterNodes = false
             /* Override the data directory so the new node always gets the node we
             * just stopped's data directory. */
             dataDir = { nodeNumber -> clusterTest.nodes[stopNode].dataDir }
@@ -115,6 +125,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
     Task followerOneThirdUpgradedTestRunner = tasks.getByName("${taskPrefix}#follower#oneThirdUpgradedTestRunner")
     followerOneThirdUpgradedTestRunner.configure {
+        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
         systemProperty 'tests.rest.upgrade_state', 'one_third'
         systemProperty 'tests.rest.cluster_name', 'follower'
 
@@ -135,6 +146,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
     Task followerTwoThirdsUpgradedTestRunner = tasks.getByName("${taskPrefix}#follower#twoThirdsUpgradedTestRunner")
     followerTwoThirdsUpgradedTestRunner.configure {
+        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
         systemProperty 'tests.rest.upgrade_state', 'two_third'
         systemProperty 'tests.rest.cluster_name', 'follower'
 
@@ -155,6 +167,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
     Task followerUpgradedClusterTestRunner = tasks.getByName("${taskPrefix}#follower#upgradedClusterTestRunner")
     followerUpgradedClusterTestRunner.configure {
+        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
         systemProperty 'tests.rest.upgrade_state', 'all'
         systemProperty 'tests.rest.cluster_name', 'follower'
 
@@ -181,6 +194,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
     Task leaderOneThirdUpgradedTestRunner = tasks.getByName("${taskPrefix}#leader#oneThirdUpgradedTestRunner")
     leaderOneThirdUpgradedTestRunner.configure {
+        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
         systemProperty 'tests.rest.upgrade_state', 'one_third'
         systemProperty 'tests.rest.cluster_name', 'leader'
 
@@ -201,6 +215,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
     Task leaderTwoThirdsUpgradedTestRunner = tasks.getByName("${taskPrefix}#leader#twoThirdsUpgradedTestRunner")
     leaderTwoThirdsUpgradedTestRunner.configure {
+        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
         systemProperty 'tests.rest.upgrade_state', 'two_third'
         systemProperty 'tests.rest.cluster_name', 'leader'
 
@@ -221,6 +236,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
     Task leaderUpgradedClusterTestRunner = tasks.getByName("${taskPrefix}#leader#upgradedClusterTestRunner")
     leaderUpgradedClusterTestRunner.configure {
+        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
         systemProperty 'tests.rest.upgrade_state', 'all'
         systemProperty 'tests.rest.cluster_name', 'leader'
 

@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -172,6 +173,13 @@ public final class PutFollowAction extends Action<
             super(in);
             this.remoteCluster = in.readString();
             this.leaderIndex = in.readString();
+            // Prior to 6.7.0 this request class used ResumeFollowAction.Request class to encapsulate followerIndex and
+            // followParameters fields. Now we need read and ignore fields that exist in super classes of ResumeFollowAction.Request
+            if (in.getVersion().before(Version.V_6_7_0)) {
+                TaskId.readFromStream(in); // TransportRequest.parentTaskId field
+                in.readTimeValue(); // MasterNodeRequest.masterNodeTimeout field
+                in.readTimeValue(); // AcknowledgedRequest.timeout field
+            }
             this.followerIndex = in.readString();
             this.parameters = new FollowParameters(in);
             if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
@@ -184,6 +192,13 @@ public final class PutFollowAction extends Action<
             super.writeTo(out);
             out.writeString(remoteCluster);
             out.writeString(leaderIndex);
+            // Prior to 6.7.0 this request class used ResumeFollowAction.Request class to encapsulate followerIndex and
+            // followParameters fields. Now we need write fields that exist in super classes of ResumeFollowAction.Request
+            if (out.getVersion().before(Version.V_6_7_0)) {
+                TaskId.EMPTY_TASK_ID.writeTo(out); // TransportRequest.parentTaskId field
+                out.writeTimeValue(DEFAULT_MASTER_NODE_TIMEOUT); // MasterNodeRequest.masterNodeTimeout field
+                out.writeTimeValue(DEFAULT_ACK_TIMEOUT); // AcknowledgedRequest.timeout field
+            }
             out.writeString(followerIndex);
             parameters.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_6_7_0)) {

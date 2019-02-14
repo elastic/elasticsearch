@@ -5,17 +5,19 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -89,7 +91,10 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     public void testCannotFollowLeaderInUpgradedCluster() throws Exception {
+        logger.info("VERSION={}", UPGRADE_FROM_VERSION);
         assumeTrue("Tests only runs with upgrade_state [all]", upgradeState == UpgradeState.ALL);
+        assumeTrue("Put follow api does not restore from ccr repository before 6.7.0",
+            UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_7_0));
 
         if (clusterName == ClusterName.FOLLOWER) {
             // At this point the leader cluster has not been upgraded, but follower cluster has been upgrade.
@@ -128,7 +133,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     private static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
+        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
         request.setJsonEntity("{\"remote_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex +
             "\", \"read_poll_timeout\": \"10ms\"}");
         assertOK(client.performRequest(request));
@@ -148,6 +153,12 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     private static void assertTotalHitCount(final String index,
                                             final int expectedTotalHits,
                                             final RestClient client) throws Exception {
+        // In versions prior to 6.7.0, the put follow apis doesn't support the wait_for_active_shards query string parameter,
+        // So instead wait here for the follower index to be created:
+        assertBusy(() -> {
+            Response response = client.performRequest(new Request("HEAD", "/" + index));
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        });
         assertOK(client.performRequest(new Request("POST", "/" + index + "/_refresh")));
         assertBusy(() -> verifyTotalHitCount(index, expectedTotalHits, client));
     }
@@ -156,7 +167,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                                             final int expectedTotalHits,
                                             final RestClient client) throws IOException {
         final Request request = new Request("GET", "/" + index + "/_search");
-        request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         Map<?, ?> response = toMap(client.performRequest(request));
         final int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
         assertThat(totalHits, equalTo(expectedTotalHits));

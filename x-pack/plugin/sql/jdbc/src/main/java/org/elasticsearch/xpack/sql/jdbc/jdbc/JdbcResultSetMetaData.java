@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
 class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
@@ -72,7 +73,8 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public String getColumnLabel(int column) throws SQLException {
-        return column(column).label;
+        ColumnInfo info = column(column);
+        return true == EMPTY.equals(info.label) ? info.name : info.label;
     }
 
     @Override

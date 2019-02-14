@@ -385,12 +385,6 @@ Unfortunately we're not able to provide boxes for them in open source use
 because of licensing issues. Any Virtualbox image that has WinRM and Powershell
 enabled for remote users should work.
 
-Testing on Windows requires the https://github.com/criteo/vagrant-winrm[vagrant-winrm] plugin.
-
-------------------------------------
-vagrant plugin install vagrant-winrm
-------------------------------------
-
 Specify the image IDs of the Windows boxes to gradle with the following project
 properties. They can be set in `~/.gradle/gradle.properties` like
 

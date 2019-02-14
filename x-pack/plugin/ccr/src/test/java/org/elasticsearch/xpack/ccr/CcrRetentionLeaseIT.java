@@ -157,15 +157,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
             assertNotNull(stats.getShards());
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
-            final List<ShardStats> shardStats = Arrays.stream(stats.getShards())
-                    .sorted((s, t) -> {
-                        if (s.getShardRouting().shardId().id() == t.getShardRouting().shardId().id()) {
-                            return Boolean.compare(s.getShardRouting().primary(), t.getShardRouting().primary());
-                        } else {
-                            return Integer.compare(s.getShardRouting().shardId().id(), t.getShardRouting().shardId().id());
-                        }
-                    })
-                    .collect(Collectors.toList());
+            final List<ShardStats> shardStats = getShardStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 final RetentionLeases currentRetentionLeases = shardStats.get(i).getRetentionLeaseStats().retentionLeases();
                 assertThat(currentRetentionLeases.leases(), hasSize(1));
@@ -242,15 +234,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                         leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
                 assertNotNull(stats.getShards());
                 assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
-                final List<ShardStats> shardStats = Arrays.stream(stats.getShards())
-                        .sorted((s, t) -> {
-                            if (s.getShardRouting().shardId().id() == t.getShardRouting().shardId().id()) {
-                                return Boolean.compare(s.getShardRouting().primary(), t.getShardRouting().primary());
-                            } else {
-                                return Integer.compare(s.getShardRouting().shardId().id(), t.getShardRouting().shardId().id());
-                            }
-                        })
-                        .collect(Collectors.toList());
+                final List<ShardStats> shardStats = getShardStats(stats);
                 for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                     final RetentionLeases currentRetentionLeases = shardStats.get(i).getRetentionLeaseStats().retentionLeases();
                     assertThat(currentRetentionLeases.leases(), hasSize(1));
@@ -270,15 +254,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                         leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
                 assertNotNull(stats.getShards());
                 assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
-                final List<ShardStats> shardStats = Arrays.stream(stats.getShards())
-                        .sorted((s, t) -> {
-                            if (s.getShardRouting().shardId().id() == t.getShardRouting().shardId().id()) {
-                                return Boolean.compare(s.getShardRouting().primary(), t.getShardRouting().primary());
-                            } else {
-                                return Integer.compare(s.getShardRouting().shardId().id(), t.getShardRouting().shardId().id());
-                            }
-                        })
-                        .collect(Collectors.toList());
+                final List<ShardStats> shardStats = getShardStats(stats);
                 for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                     final RetentionLeases currentRetentionLeases = shardStats.get(i).getRetentionLeaseStats().retentionLeases();
                     assertThat(currentRetentionLeases.leases(), hasSize(1));
@@ -343,15 +319,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
             assertNotNull(stats.getShards());
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
-            final List<ShardStats> shardStats = Arrays.stream(stats.getShards())
-                    .sorted((s, t) -> {
-                        if (s.getShardRouting().shardId().id() == t.getShardRouting().shardId().id()) {
-                            return Boolean.compare(s.getShardRouting().primary(), t.getShardRouting().primary());
-                        } else {
-                            return Integer.compare(s.getShardRouting().shardId().id(), t.getShardRouting().shardId().id());
-                        }
-                    })
-                    .collect(Collectors.toList());
+            final List<ShardStats> shardStats = getShardStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 final RetentionLeases currentRetentionLeases = shardStats.get(i).getRetentionLeaseStats().retentionLeases();
                 assertThat(currentRetentionLeases.leases(), hasSize(1));
@@ -381,15 +349,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().indices(leaderIndex)).actionGet();
             assertNotNull(stats.getShards());
             assertThat(stats.getShards(), arrayWithSize(numberOfShards * (1 + numberOfReplicas)));
-            final List<ShardStats> shardStats = Arrays.stream(stats.getShards())
-                    .sorted((s, t) -> {
-                        if (s.getShardRouting().shardId().id() == t.getShardRouting().shardId().id()) {
-                            return Boolean.compare(s.getShardRouting().primary(), t.getShardRouting().primary());
-                        } else {
-                            return Integer.compare(s.getShardRouting().shardId().id(), t.getShardRouting().shardId().id());
-                        }
-                    })
-                    .collect(Collectors.toList());
+            final List<ShardStats> shardStats = getShardStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 final RetentionLeases currentRetentionLeases = shardStats.get(i).getRetentionLeaseStats().retentionLeases();
                 assertThat(currentRetentionLeases.leases(), hasSize(1));
@@ -409,6 +369,25 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         for (int i = 0; i < numberOfDocuments; ++i) {
             assertExpectedDocument(followerIndex, i);
         }
+    }
+
+    /**
+     * Extract the shard stats from an indices stats response, with the stats ordered by shard ID with primaries first. This is to have a
+     * consistent ordering when comparing two responses.
+     *
+     * @param stats the indices stats
+     * @return the shard stats in sorted order with (shard ID, primary) as the sort key
+     */
+    private List<ShardStats> getShardStats(final IndicesStatsResponse stats) {
+        return Arrays.stream(stats.getShards())
+                .sorted((s, t) -> {
+                    if (s.getShardRouting().shardId().id() == t.getShardRouting().shardId().id()) {
+                        return Boolean.compare(s.getShardRouting().primary(), t.getShardRouting().primary());
+                    } else {
+                        return Integer.compare(s.getShardRouting().shardId().id(), t.getShardRouting().shardId().id());
+                    }
+                })
+                .collect(Collectors.toList());
     }
 
     private String getRetentionLeaseId(String followerIndex, String followerUUID, String leaderIndex, String leaderUUID) {

@@ -489,11 +489,13 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             kvParams.add(param.getKey() + "=" + param.getValue());
         }
         String queryString = String.join("&", kvParams);
-        if (queryString != "") {
-            queryString += "&" + resourceVersionQueryString();
+
+        String completeQueryString = resourceVersionQueryString();
+        if (queryString.length() > 0) {
+            completeQueryString = queryString + "&" + completeQueryString;
         }
 
-        assertThat(query, equalTo(queryString));
+        assertThat(query, equalTo(completeQueryString));
     }
 
     private void assertMonitorWatches(final MockWebServer webServer,

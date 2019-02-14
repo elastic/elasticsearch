@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockRequest;
@@ -484,18 +485,17 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private void assertMonitorVersionQueryString(String query, final Map<String, String> parameters) {
-        List <String> kvParams = new ArrayList<>();
-        for (Map.Entry<String, String> param : parameters.entrySet()) {
-            kvParams.add(param.getKey() + "=" + param.getValue());
-        }
-        String queryString = String.join("&", kvParams);
+        Map<String, String> expectedQueryStringMap = new HashMap<>();
+        RestUtils.decodeQueryString(query, 0, expectedQueryStringMap);
 
-        String completeQueryString = resourceVersionQueryString();
-        if (queryString.length() > 0) {
-            completeQueryString = queryString + "&" + completeQueryString;
-        }
+        Map<String, String> resourceVersionQueryStringMap = new HashMap<>();
+        RestUtils.decodeQueryString(resourceVersionQueryString(), 0, resourceVersionQueryStringMap);
 
-        assertThat(query, equalTo(completeQueryString));
+        Map<String, String> actualQueryStringMap = new HashMap<>();
+        actualQueryStringMap.putAll(resourceVersionQueryStringMap);
+        actualQueryStringMap.putAll(parameters);
+
+        assertEquals(expectedQueryStringMap, actualQueryStringMap);
     }
 
     private void assertMonitorWatches(final MockWebServer webServer,

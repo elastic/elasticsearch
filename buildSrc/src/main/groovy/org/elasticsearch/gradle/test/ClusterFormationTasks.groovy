@@ -39,6 +39,7 @@ import org.gradle.api.logging.Logger
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
+import org.gradle.internal.os.OperatingSystem
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
@@ -224,7 +225,7 @@ class ClusterFormationTasks {
                 classifier = "" // for bwc, before we had classifiers
             }
             // group does not matter as it is not used when we pull from the ivy repo that points to the download service
-            dependency = "dnm:${artifactName}:${elasticsearchVersion}${classifier}@${packaging}"
+            dependency = "dnm:${artifactName}:${elasticsearchVersion}-${classifier}@${packaging}"
         }
         project.dependencies.add(configuration.name, dependency)
     }
@@ -350,7 +351,7 @@ class ClusterFormationTasks {
           the elasticsearch source tree then this should be the version of elasticsearch built by the source tree.
           If it isn't then Bad Things(TM) will happen. */
         Task extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
-            if (getOs().equals("windows")) {
+            if (getOs().equals("windows") || node.config.distribution == "integ-test-zip") {
                 from {
                     project.zipTree(configuration.singleFile)
                 }
@@ -971,9 +972,9 @@ class ClusterFormationTasks {
     /** Find the current OS */
     static String getOs() {
         String os = "linux"
-        if (Os.FAMILY_WINDOWS) {
+        if (OperatingSystem.current().isWindows()) {
             os = "windows"
-        } else if (Os.FAMILY_MAC) {
+        } else if (OperatingSystem.current().isMacOsX()) {
             os = "darwin"
         }
         return os

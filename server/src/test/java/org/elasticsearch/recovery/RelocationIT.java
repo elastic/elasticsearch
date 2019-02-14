@@ -110,6 +110,13 @@ public class RelocationIT extends ESIntegTestCase {
         internalCluster().assertSameDocIdsOnShards();
     }
 
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder().put(super.indexSettings())
+            // sync global checkpoint quickly so we can verify seq_no_stats aligned between all copies after tests.
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s").build();
+    }
+
     public void testSimpleRelocationNoIndexing() {
         logger.info("--> starting [node1] ...");
         final String node_1 = internalCluster().startNode();

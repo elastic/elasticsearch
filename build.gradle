@@ -159,8 +159,10 @@ task verifyVersions {
  * the enabled state of every bwc task. It should be set back to true
  * after the backport of the backcompat code is complete.
  */
-final boolean bwc_tests_enabled = false
+
+boolean bwc_tests_enabled = false
 final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/38687" /* place a PR link here when committing bwc changes */
+
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -170,6 +172,17 @@ if (bwc_tests_enabled == false) {
   println "See ${bwc_tests_disabled_issue}"
   println "==========================================================="
 }
+if (project.gradle.startParameter.taskNames.find { it.startsWith("checkPart") } != null) {
+  // Disable BWC tests for checkPart* tasks as it's expected that this will run un it's own check
+  bwc_tests_enabled = false
+}
+if (project.gradle.startParameter.taskNames.contains("bwcTestSnapshots") && bwc_tests_enabled == false) {
+  throw new GradleException("BWC tests are disabled. " +
+          "This can happen if a branch happened to be created when they were disabled and can be solved by mergin at" +
+          "least to the commit on the parent branch that re-enabled them"
+  )
+}
+
 subprojects {
   ext.bwc_tests_enabled = bwc_tests_enabled
 }

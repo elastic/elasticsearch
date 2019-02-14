@@ -840,7 +840,7 @@ buildRestTests.setups['sensor_prefab_data'] = '''
 '''
 buildRestTests.setups['sample_job'] = '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "sample_job"
         body:  >
           {

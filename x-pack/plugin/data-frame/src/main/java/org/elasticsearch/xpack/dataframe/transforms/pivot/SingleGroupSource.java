@@ -45,6 +45,10 @@ public abstract class SingleGroupSource<AB extends SingleGroupSource<AB>> implem
             switch (id) {
             case 0:
                 return TERMS;
+            case 1:
+                return HISTOGRAM;
+            case 2:
+                return DATE_HISTOGRAM;
             default:
                 throw new IllegalArgumentException("unknown type");
             }
@@ -88,6 +92,8 @@ public abstract class SingleGroupSource<AB extends SingleGroupSource<AB>> implem
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(field);
     }
+
+    public abstract Type getType();
 
     public String getField() {
         return field;

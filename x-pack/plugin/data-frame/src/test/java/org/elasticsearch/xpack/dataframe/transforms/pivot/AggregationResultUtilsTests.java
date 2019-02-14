@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -54,7 +55,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.dataframe.transforms.pivot.SingleGroupSource.Type.TERMS;
 
 public class AggregationResultUtilsTests extends ESTestCase {
 
@@ -93,9 +93,10 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testExtractCompositeAggregationResults() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        List<GroupConfig> sources = Collections.singletonList(
-                new GroupConfig(targetField, TERMS, new TermsGroupSource("doesn't_matter_for_this_test"))
-                );
+        GroupConfig groupBy = parseGroupConfig("{ \"" + targetField + "\" : {"
+                + "\"terms\" : {"
+                + "   \"field\" : \"doesn't_matter_for_this_test\""
+                + "} } }");
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -139,17 +140,23 @@ public class AggregationResultUtilsTests extends ESTestCase {
                         )
                 );
 
-        executeTest(sources, aggregationBuilders, input, expected, 20);
+        executeTest(groupBy, aggregationBuilders, input, expected, 20);
     }
 
     public void testExtractCompositeAggregationResultsMultiSources() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        List<GroupConfig> sources = asList(
-                new GroupConfig(targetField, TERMS, new TermsGroupSource("doesn't_matter_for_this_test")),
-                new GroupConfig(targetField2, TERMS, new TermsGroupSource("doesn't_matter_for_this_test"))
-                );
+        GroupConfig groupBy = parseGroupConfig("{"
+                + "\"" + targetField + "\" : {"
+                + "  \"terms\" : {"
+                + "     \"field\" : \"doesn't_matter_for_this_test\""
+                + "  } },"
+                + "\"" + targetField2 + "\" : {"
+                + "  \"terms\" : {"
+                + "     \"field\" : \"doesn't_matter_for_this_test\""
+                + "  } }"
+                + "}");
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -214,15 +221,16 @@ public class AggregationResultUtilsTests extends ESTestCase {
                         aggName, 12.55
                         )
                 );
-        executeTest(sources, aggregationBuilders, input, expected, 10);
+        executeTest(groupBy, aggregationBuilders, input, expected, 10);
     }
 
     public void testExtractCompositeAggregationResultsMultiAggregations() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        List<GroupConfig> sources = Collections.singletonList(
-                new GroupConfig(targetField, TERMS, new TermsGroupSource("doesn't_matter_for_this_test"))
-                );
+        GroupConfig groupBy = parseGroupConfig("{\"" + targetField + "\" : {"
+                + "\"terms\" : {"
+                + "   \"field\" : \"doesn't_matter_for_this_test\""
+                + "} } }");
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -278,10 +286,10 @@ public class AggregationResultUtilsTests extends ESTestCase {
                         aggName2, -2.44
                         )
                 );
-        executeTest(sources, aggregationBuilders, input, expected, 200);
+        executeTest(groupBy, aggregationBuilders, input, expected, 200);
     }
 
-    private void executeTest(Iterable<GroupConfig> sources, Collection<AggregationBuilder> aggregationBuilders, Map<String, Object> input,
+    private void executeTest(GroupConfig groups, Collection<AggregationBuilder> aggregationBuilders, Map<String, Object> input,
             List<Map<String, Object>> expected, long expectedDocCounts) throws IOException {
         DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -290,11 +298,17 @@ public class AggregationResultUtilsTests extends ESTestCase {
         try (XContentParser parser = createParser(builder)) {
             CompositeAggregation agg = ParsedComposite.fromXContent(parser, "my_feature");
             List<Map<String, Object>> result = AggregationResultUtils
-                    .extractCompositeAggregationResults(agg, sources, aggregationBuilders, stats).collect(Collectors.toList());
+                    .extractCompositeAggregationResults(agg, groups, aggregationBuilders, stats).collect(Collectors.toList());
 
             assertEquals(expected, result);
             assertEquals(expectedDocCounts, stats.getNumDocuments());
         }
+    }
+
+    private GroupConfig parseGroupConfig(String json) throws IOException {
+        final XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(),
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+        return GroupConfig.fromXContent(parser, false);
     }
 
     static Map<String, Object> asMap(Object... fields) {

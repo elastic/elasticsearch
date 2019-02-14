@@ -6,17 +6,29 @@
 
 package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.SingleGroupSource.Type;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -26,58 +38,53 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class GroupConfig implements Writeable, ToXContentObject {
 
-    private final String destinationFieldName;
-    private final SingleGroupSource.Type groupType;
-    private final SingleGroupSource<?> groupSource;
+    private static final Logger logger = LogManager.getLogger(GroupConfig.class);
 
-    public GroupConfig(final String destinationFieldName, final SingleGroupSource.Type groupType, final SingleGroupSource<?> groupSource) {
-        this.destinationFieldName = Objects.requireNonNull(destinationFieldName);
-        this.groupType = Objects.requireNonNull(groupType);
-        this.groupSource = Objects.requireNonNull(groupSource);
+    private final Map<String, Object> source;
+    private final Map<String, SingleGroupSource<?>> groups;
+
+    public GroupConfig(final Map<String, Object> source, final Map<String, SingleGroupSource<?>> groups) {
+        this.source = ExceptionsHelper.requireNonNull(source, DataFrameField.GROUP_BY.getPreferredName());
+        this.groups = groups;
     }
 
     public GroupConfig(StreamInput in) throws IOException {
-        destinationFieldName = in.readString();
-        groupType = Type.fromId(in.readByte());
-        switch (groupType) {
-        case TERMS:
-            groupSource = in.readOptionalWriteable(TermsGroupSource::new);
-            break;
-        case HISTOGRAM:
-            groupSource = in.readOptionalWriteable(HistogramGroupSource::new);
-            break;
-        case DATE_HISTOGRAM:
-            groupSource = in.readOptionalWriteable(DateHistogramGroupSource::new);
-            break;
-        default:
-            throw new IOException("Unknown group type");
-        }
+        source = in.readMap();
+        groups = in.readMap(StreamInput::readString, (stream) -> {
+            Type groupType = Type.fromId(stream.readByte());
+            switch (groupType) {
+            case TERMS:
+                return new TermsGroupSource(stream);
+            case HISTOGRAM:
+                return new HistogramGroupSource(stream);
+            case DATE_HISTOGRAM:
+                return new DateHistogramGroupSource(stream);
+            default:
+                throw new IOException("Unknown group type");
+            }
+        });
+    }
+
+    public Map <String, SingleGroupSource<?>> getGroups() {
+        return groups;
+    }
+
+    public boolean isValid() {
+        return this.groups != null;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(destinationFieldName);
-        out.writeByte(groupType.getId());
-        out.writeOptionalWriteable(groupSource);
+        out.writeMap(source);
+        out.writeMap(groups, StreamOutput::writeString, (stream, value) -> {
+            stream.writeByte(value.getType().getId());
+            value.writeTo(stream);
+        });
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.startObject(destinationFieldName);
-
-        builder.field(groupType.value(), groupSource);
-        builder.endObject();
-        builder.endObject();
-        return builder;
-    }
-
-    public String getDestinationFieldName() {
-        return destinationFieldName;
-    }
-
-    public SingleGroupSource<?> getGroupSource() {
-        return groupSource;
+        return builder.map(source);
     }
 
     @Override
@@ -92,19 +99,44 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
         final GroupConfig that = (GroupConfig) other;
 
-        return Objects.equals(this.destinationFieldName, that.destinationFieldName) && Objects.equals(this.groupType, that.groupType)
-                && Objects.equals(this.groupSource, that.groupSource);
+        return Objects.equals(this.source, that.source) && Objects.equals(this.groups, that.groups);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(destinationFieldName, groupType, groupSource);
+        return Objects.hash(source, groups);
     }
 
     public static GroupConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
-        String destinationFieldName;
-        Type groupType;
-        SingleGroupSource<?> groupSource;
+        NamedXContentRegistry registry = parser.getXContentRegistry();
+        Map<String, Object> source = parser.mapOrdered();
+        Map<String, SingleGroupSource<?>> groups = null;
+
+        if (source.isEmpty()) {
+            if (lenient) {
+                logger.warn(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY);
+            } else {
+                throw new IllegalArgumentException(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY);
+            }
+        } else {
+            try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
+                    XContentParser sourceParser = XContentType.JSON.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE,
+                            BytesReference.bytes(xContentBuilder).streamInput())) {
+                groups = parseGroupConfig(sourceParser, lenient);
+            } catch (Exception e) {
+                if (lenient) {
+                    logger.warn(DataFrameMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_GROUP_BY, e);
+                } else {
+                    throw e;
+                }
+            }
+        }
+        return new GroupConfig(source, groups);
+    }
+
+    private static Map<String, SingleGroupSource<?>> parseGroupConfig(final XContentParser parser,
+            boolean lenient) throws IOException {
+        LinkedHashMap<String, SingleGroupSource<?>> groups = new LinkedHashMap<>();
 
         // be parsing friendly, whether the token needs to be advanced or not (similar to what ObjectParser does)
         XContentParser.Token token;
@@ -116,19 +148,21 @@ public class GroupConfig implements Writeable, ToXContentObject {
                 throw new ParsingException(parser.getTokenLocation(), "Failed to parse object: Expected START_OBJECT but was: " + token);
             }
         }
-        token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-        destinationFieldName = parser.currentName();
-        token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-        token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-        groupType =  SingleGroupSource.Type.valueOf(parser.currentName().toUpperCase(Locale.ROOT));
 
-        token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
 
-        switch (groupType) {
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            String destinationFieldName = parser.currentName();
+            token = parser.nextToken();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+            token = parser.nextToken();
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            Type groupType = SingleGroupSource.Type.valueOf(parser.currentName().toUpperCase(Locale.ROOT));
+
+            token = parser.nextToken();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+            SingleGroupSource<?> groupSource;
+            switch (groupType) {
             case TERMS:
                 groupSource = TermsGroupSource.fromXContent(parser, lenient);
                 break;
@@ -140,11 +174,12 @@ public class GroupConfig implements Writeable, ToXContentObject {
                 break;
             default:
                 throw new ParsingException(parser.getTokenLocation(), "invalid grouping type: " + groupType);
+            }
+
+            parser.nextToken();
+
+            groups.put(destinationFieldName, groupSource);
         }
-
-        parser.nextToken();
-        parser.nextToken();
-
-        return new GroupConfig(destinationFieldName, groupType, groupSource);
+        return groups;
     }
 }

@@ -87,11 +87,11 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
 
         config += " \"pivot\": {"
-            + "   \"group_by\": [ {"
+            + "   \"group_by\": {"
             + "     \"every_2\": {"
             + "       \"histogram\": {"
             + "         \"interval\": 2,\"field\":\"stars\""
-            + " } } } ],"
+            + " } } },"
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
             + "       \"avg\": {"
@@ -125,11 +125,11 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
 
         config += " \"pivot\": {"
-                + "   \"group_by\": [ {"
+                + "   \"group_by\": {"
                 + "     \"reviewer\": {"
                 + "       \"terms\": {"
                 + "         \"field\": \"user_id\""
-                + " } } } ],"
+                + " } } },"
                 + "   \"aggregations\": {"
                 + "     \"avg_rating\": {"
                 + "       \"avg\": {"
@@ -199,11 +199,11 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
 
         config += " \"pivot\": {"
-            + "   \"group_by\": [ {"
+            + "   \"group_by\": {"
             + "     \"by_day\": {"
             + "       \"date_histogram\": {"
             + "         \"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\""
-            + " } } } ],"
+            + " } } },"
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
             + "       \"avg\": {"

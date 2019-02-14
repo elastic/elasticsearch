@@ -33,6 +33,10 @@ public class DataFrameMessages {
             "Failed to parse transform configuration for data frame transform [{0}]";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_NO_TRANSFORM =
             "Data frame transform configuration must specify exactly 1 function";
+    public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY =
+            "Data frame pivot transform configuration must specify at least 1 group_by";
+    public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION =
+            "Data frame pivot transform configuration must specify at least 1 aggregation";
     public static final String DATA_FRAME_TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION =
             "Failed to create composite aggregation from pivot function";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_INVALID =
@@ -40,6 +44,8 @@ public class DataFrameMessages {
 
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_QUERY =
             "Failed to parse query for data frame transform";
+    public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_GROUP_BY =
+            "Failed to parse group_by for data frame pivot transform";
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION =
             "Failed to parse aggregation for data frame pivot transform";
 

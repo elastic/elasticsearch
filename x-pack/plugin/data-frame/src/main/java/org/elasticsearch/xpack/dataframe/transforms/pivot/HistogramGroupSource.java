@@ -49,6 +49,11 @@ public class HistogramGroupSource extends SingleGroupSource<HistogramGroupSource
         return parser;
     }
 
+    @Override
+    public Type getType() {
+        return Type.HISTOGRAM;
+    }
+
     public static HistogramGroupSource fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }

@@ -70,19 +70,27 @@ public class AggregationConfig implements Writeable, ToXContentObject {
         NamedXContentRegistry registry = parser.getXContentRegistry();
         Map<String, Object> source =  parser.mapOrdered();
         AggregatorFactories.Builder aggregations = null;
-        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-                XContentParser sourceParser = XContentType.JSON.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE,
-                        BytesReference.bytes(xContentBuilder).streamInput())) {
-            sourceParser.nextToken();
-            aggregations = AggregatorFactories.parseAggregators(sourceParser);
-        } catch (Exception e) {
+
+        if (source.isEmpty()) {
             if (lenient) {
-                logger.warn(DataFrameMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION, e);
+                logger.warn(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION);
             } else {
-                throw e;
+                throw new IllegalArgumentException(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION);
+            }
+        } else {
+            try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
+                    XContentParser sourceParser = XContentType.JSON.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE,
+                            BytesReference.bytes(xContentBuilder).streamInput())) {
+                sourceParser.nextToken();
+                aggregations = AggregatorFactories.parseAggregators(sourceParser);
+            } catch (Exception e) {
+                if (lenient) {
+                    logger.warn(DataFrameMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION, e);
+                } else {
+                    throw e;
+                }
             }
         }
-
         return new AggregationConfig(source, aggregations);
     }
 

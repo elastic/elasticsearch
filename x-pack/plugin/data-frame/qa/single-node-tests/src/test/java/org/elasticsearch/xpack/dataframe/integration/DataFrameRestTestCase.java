@@ -125,11 +125,11 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         }
 
         config += " \"pivot\": {"
-                + "   \"group_by\": [ {"
+                + "   \"group_by\": {"
                 + "     \"reviewer\": {"
                 + "       \"terms\": {"
                 + "         \"field\": \"user_id\""
-                + " } } } ],"
+                + " } } },"
                 + "   \"aggregations\": {"
                 + "     \"avg_rating\": {"
                 + "       \"avg\": {"

@@ -27,22 +27,22 @@ final class AggregationResultUtils {
      * Extracts aggregation results from a composite aggregation and puts it into a map.
      *
      * @param agg The aggregation result
-     * @param sources The original sources used for querying
+     * @param groups The original groupings used for querying
      * @param aggregationBuilders the aggregation used for querying
      * @param dataFrameIndexerTransformStats stats collector
      * @return a map containing the results of the aggregation in a consumable way
      */
     public static Stream<Map<String, Object>> extractCompositeAggregationResults(CompositeAggregation agg,
-            Iterable<GroupConfig> sources, Collection<AggregationBuilder> aggregationBuilders,
+            GroupConfig groups, Collection<AggregationBuilder> aggregationBuilders,
             DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
         return agg.getBuckets().stream().map(bucket -> {
             dataFrameIndexerTransformStats.incrementNumDocuments(bucket.getDocCount());
 
             Map<String, Object> document = new HashMap<>();
-            for (GroupConfig source : sources) {
-                String destinationFieldName = source.getDestinationFieldName();
+            groups.getGroups().keySet().forEach(destinationFieldName -> {
                 document.put(destinationFieldName, bucket.getKey().get(destinationFieldName));
-            }
+            });
+
             for (AggregationBuilder aggregationBuilder : aggregationBuilders) {
                 String aggName = aggregationBuilder.getName();
 

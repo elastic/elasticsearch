@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -15,10 +14,11 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Map.Entry;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -27,12 +27,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class PivotConfig implements Writeable, ToXContentObject {
 
     private static final String NAME = "data_frame_transform_pivot";
-    private static final ParseField GROUP_BY = new ParseField("group_by");
-    private static final ParseField AGGREGATIONS = new ParseField("aggregations");
-    private static final ParseField AGGS = new ParseField("aggs");
-
-
-    private final List<GroupConfig> groups;
+    private final GroupConfig groups;
     private final AggregationConfig aggregationConfig;
 
     private static final ConstructingObjectParser<PivotConfig, Void> STRICT_PARSER = createParser(false);
@@ -41,8 +36,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
     private static ConstructingObjectParser<PivotConfig, Void> createParser(boolean lenient) {
         ConstructingObjectParser<PivotConfig, Void> parser = new ConstructingObjectParser<>(NAME, lenient,
                 args -> {
-                    @SuppressWarnings("unchecked")
-                    List<GroupConfig> groups = (List<GroupConfig>) args[0];
+                    GroupConfig groups = (GroupConfig) args[0];
 
                     // allow "aggs" and "aggregations" but require one to be specified
                     // if somebody specifies both: throw
@@ -64,30 +58,30 @@ public class PivotConfig implements Writeable, ToXContentObject {
                     return new PivotConfig(groups, aggregationConfig);
                 });
 
-        parser.declareObjectArray(constructorArg(),
-                (p, c) -> (GroupConfig.fromXContent(p, lenient)), GROUP_BY);
+        parser.declareObject(constructorArg(),
+                (p, c) -> (GroupConfig.fromXContent(p, lenient)), DataFrameField.GROUP_BY);
 
-        parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), AGGREGATIONS);
-        parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), AGGS);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), DataFrameField.AGGREGATIONS);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), DataFrameField.AGGS);
 
         return parser;
     }
 
-    public PivotConfig(final List<GroupConfig> groups, final AggregationConfig aggregationConfig) {
-        this.groups = ExceptionsHelper.requireNonNull(groups, GROUP_BY.getPreferredName());
-        this.aggregationConfig = ExceptionsHelper.requireNonNull(aggregationConfig, AGGREGATIONS.getPreferredName());
+    public PivotConfig(final GroupConfig groups, final AggregationConfig aggregationConfig) {
+        this.groups = ExceptionsHelper.requireNonNull(groups, DataFrameField.GROUP_BY.getPreferredName());
+        this.aggregationConfig = ExceptionsHelper.requireNonNull(aggregationConfig, DataFrameField.AGGREGATIONS.getPreferredName());
     }
 
     public PivotConfig(StreamInput in) throws IOException {
-        this.groups = in.readList(GroupConfig::new);
+        this.groups = new GroupConfig(in);
         this.aggregationConfig = new AggregationConfig(in);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(GROUP_BY.getPreferredName(), groups);
-        builder.field(AGGREGATIONS.getPreferredName(), aggregationConfig);
+        builder.field(DataFrameField.GROUP_BY.getPreferredName(), groups);
+        builder.field(DataFrameField.AGGREGATIONS.getPreferredName(), aggregationConfig);
         builder.endObject();
         return builder;
     }
@@ -96,16 +90,22 @@ public class PivotConfig implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
         builder.startArray();
-        for (GroupConfig group : groups) {
-            group.toXContent(builder, params);
+
+        for (Entry<String, SingleGroupSource<?>> groupBy : groups.getGroups().entrySet()) {
+            builder.startObject();
+            builder.startObject(groupBy.getKey());
+            builder.field(groupBy.getValue().getType().value(), groupBy.getValue());
+            builder.endObject();
+            builder.endObject();
         }
+
         builder.endArray();
         builder.endObject(); // sources
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(groups);
+        groups.writeTo(out);
         aggregationConfig.writeTo(out);
     }
 
@@ -113,7 +113,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return aggregationConfig;
     }
 
-    public Iterable<GroupConfig> getGroups() {
+    public GroupConfig getGroupConfig() {
         return groups;
     }
 
@@ -138,7 +138,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
     }
 
     public boolean isValid() {
-        return aggregationConfig.isValid();
+        return groups.isValid() && aggregationConfig.isValid();
     }
 
     public static PivotConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {

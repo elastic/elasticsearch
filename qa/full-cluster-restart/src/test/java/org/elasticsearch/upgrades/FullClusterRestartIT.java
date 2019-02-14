@@ -504,10 +504,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // the 'string' field has a boost of 4 in the mappings so it should get a payload boost
         String stringValue = (String) XContentMapValues.extractValue("_source.string", bestHit);
         assertNotNull(stringValue);
-        String type = (String) bestHit.get("_type");
         String id = (String) bestHit.get("_id");
 
-        Request explainRequest = new Request("GET", "/" + index + "/" + type + "/" + id + "/_explain");
+        Request explainRequest = new Request("GET", "/" + index + "/_explain/" + id);
         explainRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
         String explanation = toStr(client().performRequest(explainRequest));
         assertFalse("Could not find payload boost in explanation\n" + explanation, explanation.contains("payloadBoost"));
@@ -559,7 +558,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Map<?, ?> hit = (Map<?, ?>) ((List<?>)(XContentMapValues.extractValue("hits.hits", searchResponse))).get(0);
         String docId = (String) hit.get("_id");
 
-        Request updateRequest = new Request("POST", "/" + index + "/_doc/" + docId + "/_update");
+        Request updateRequest = new Request("POST", "/" + index + "/_update/" + docId);
         updateRequest.setJsonEntity("{ \"doc\" : { \"foo\": \"bar\"}}");
         client().performRequest(updateRequest);
 

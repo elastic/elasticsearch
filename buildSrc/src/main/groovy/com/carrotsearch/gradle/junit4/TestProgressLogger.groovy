@@ -170,7 +170,7 @@ class TestProgressLogger implements AggregatedEventListener {
     private static String testName(Description description) {
         String className = simpleName(description)
         if (description == null) {
-            return className
+            return className + "." + "<unknownMethod>"
         }
         return className + "." + description.methodName
     }
@@ -183,7 +183,7 @@ class TestProgressLogger implements AggregatedEventListener {
      */
     private static String simpleName(Description description) {
         if (description == null) {
-            return "<unknown>"
+            return "<unknownClass>"
         }
         return description.className.substring(description.className.lastIndexOf('.') + 1)
     }

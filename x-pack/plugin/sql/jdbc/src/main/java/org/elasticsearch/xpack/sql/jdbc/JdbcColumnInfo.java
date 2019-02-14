@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
+
 class JdbcColumnInfo {
     public final String catalog;
     public final String schema;
@@ -52,17 +54,17 @@ class JdbcColumnInfo {
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
-        if (false == "".equals(table)) {
+        if (false == EMPTY.equals(table)) {
             b.append(table).append('.');
         }
         b.append(name).append("<type=[").append(type).append(']');
-        if (false == "".equals(catalog)) {
+        if (false == EMPTY.equals(catalog)) {
             b.append(" catalog=[").append(catalog).append(']');
         }
-        if (false == "".equals(schema)) {
+        if (false == EMPTY.equals(schema)) {
             b.append(" schema=[").append(schema).append(']');
         }
-        if (false == "".equals(label)) {
+        if (false == EMPTY.equals(label)) {
             b.append(" label=[").append(label).append(']');
         }
         return b.append('>').toString();

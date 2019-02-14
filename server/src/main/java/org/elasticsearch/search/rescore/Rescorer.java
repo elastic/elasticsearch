@@ -22,7 +22,6 @@ package org.elasticsearch.search.rescore;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.action.search.SearchType;
 
 import java.io.IOException;
 
@@ -59,10 +58,4 @@ public interface Rescorer {
     Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext,
                         Explanation sourceExplanation) throws IOException;
 
-    /**
-     * Extracts all terms needed to execute this {@link Rescorer}. This method
-     * is executed in a distributed frequency collection roundtrip for
-     * {@link SearchType#DFS_QUERY_THEN_FETCH}
-     */
-    void extractTerms(IndexSearcher searcher, RescoreContext rescoreContext) throws IOException;
 }

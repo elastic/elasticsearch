@@ -24,6 +24,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.HppcMaps;
@@ -79,7 +80,9 @@ public class DfsPhase implements SearchPhase {
 
             searcher.createWeight(context.searcher().rewrite(context.query()), ScoreMode.COMPLETE, 1);
             for (RescoreContext rescoreContext : context.rescore()) {
-                rescoreContext.rescorer().extractTerms(searcher, rescoreContext);
+                for (Query query : rescoreContext.getQueries()) {
+                    searcher.createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1);
+                }
             }
 
             Term[] terms = stats.keySet().toArray(new Term[0]);

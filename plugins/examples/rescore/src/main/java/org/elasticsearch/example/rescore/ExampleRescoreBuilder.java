@@ -222,9 +222,5 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
             return Explanation.match(context.factor, "test", singletonList(sourceExplanation));
         }
 
-        @Override
-        public void extractTerms(IndexSearcher searcher, RescoreContext rescoreContext) {
-            // Since we don't use queries there are no terms to extract.
-        }
     }
 }

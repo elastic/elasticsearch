@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
@@ -78,10 +79,11 @@ public interface ServerTransportFilter {
         private final DestructiveOperations destructiveOperations;
         private final boolean reservedRealmEnabled;
         private final SecurityContext securityContext;
+        private final XPackLicenseState licenseState;
 
         NodeProfile(AuthenticationService authcService, AuthorizationService authzService,
                     ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                    boolean reservedRealmEnabled, SecurityContext securityContext) {
+                    boolean reservedRealmEnabled, SecurityContext securityContext, XPackLicenseState licenseState) {
             this.authcService = authcService;
             this.authzService = authzService;
             this.threadContext = threadContext;
@@ -89,6 +91,7 @@ public interface ServerTransportFilter {
             this.destructiveOperations = destructiveOperations;
             this.reservedRealmEnabled = reservedRealmEnabled;
             this.securityContext = securityContext;
+            this.licenseState = licenseState;
         }
 
         @Override
@@ -129,6 +132,7 @@ public interface ServerTransportFilter {
 
             final Version version = transportChannel.getVersion().equals(Version.V_5_4_0) ? Version.CURRENT : transportChannel.getVersion();
             authcService.authenticate(securityAction, request, (User)null, ActionListener.wrap((authentication) -> {
+                if (authentication != null) {
                     if (reservedRealmEnabled && authentication.getVersion().before(Version.V_5_2_0) &&
                         KibanaUser.NAME.equals(authentication.getUser().authenticatedUser().principal())) {
                         executeAsCurrentVersionKibanaUser(securityAction, request, transportChannel, listener, authentication);
@@ -156,7 +160,12 @@ public interface ServerTransportFilter {
                                 });
                         asyncAuthorizer.authorize(authzService);
                     }
-                }, listener::onFailure));
+                } else if (licenseState.isAuthAllowed() == false) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                }
+            }, listener::onFailure));
         }
 
         private void executeAsCurrentVersionKibanaUser(String securityAction, TransportRequest request, TransportChannel transportChannel,
@@ -220,9 +229,9 @@ public interface ServerTransportFilter {
 
         ClientProfile(AuthenticationService authcService, AuthorizationService authzService,
                              ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                             boolean reservedRealmEnabled, SecurityContext securityContext) {
+                             boolean reservedRealmEnabled, SecurityContext securityContext, XPackLicenseState licenseState) {
             super(authcService, authzService, threadContext, extractClientCert, destructiveOperations, reservedRealmEnabled,
-                    securityContext);
+                securityContext, licenseState);
         }
 
         @Override

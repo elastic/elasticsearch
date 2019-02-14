@@ -135,8 +135,9 @@ public class AuthenticationService extends AbstractComponent {
 
         private final AuditableRequest request;
         private final User fallbackUser;
-
+        private final List<Realm> defaultOrderedRealmList;
         private final ActionListener<Authentication> listener;
+
         private RealmRef authenticatedBy = null;
         private RealmRef lookedupBy = null;
         private AuthenticationToken authenticationToken = null;
@@ -154,6 +155,7 @@ public class AuthenticationService extends AbstractComponent {
         private Authenticator(AuditableRequest auditableRequest, User fallbackUser, ActionListener<Authentication> listener) {
             this.request = auditableRequest;
             this.fallbackUser = fallbackUser;
+            this.defaultOrderedRealmList = realms.asList();
             this.listener = listener;
         }
 
@@ -172,27 +174,33 @@ public class AuthenticationService extends AbstractComponent {
          * </ol>
          */
         private void authenticateAsync() {
-            lookForExistingAuthentication((authentication) -> {
-                if (authentication != null) {
-                    listener.onResponse(authentication);
-                } else {
-                    tokenService.getAndValidateToken(threadContext, ActionListener.wrap(userToken -> {
-                        if (userToken != null) {
-                            writeAuthToContext(userToken.getAuthentication());
-                        } else {
-                            extractToken(this::consumeToken);
-                        }
-                    }, e -> {
-                        if (e instanceof ElasticsearchSecurityException &&
+            if (defaultOrderedRealmList.isEmpty()) {
+                // this happens when the license state changes between the call to authenticate and the actual invocation
+                // to get the realm list
+                listener.onResponse(null);
+            } else {
+                lookForExistingAuthentication((authentication) -> {
+                    if (authentication != null) {
+                        listener.onResponse(authentication);
+                    } else {
+                        tokenService.getAndValidateToken(threadContext, ActionListener.wrap(userToken -> {
+                            if (userToken != null) {
+                                writeAuthToContext(userToken.getAuthentication());
+                            } else {
+                                extractToken(this::consumeToken);
+                            }
+                        }, e -> {
+                            if (e instanceof ElasticsearchSecurityException &&
                                 tokenService.isExpiredTokenException((ElasticsearchSecurityException) e) == false) {
-                            // intentionally ignore the returned exception; we call this primarily
-                            // for the auditing as we already have a purpose built exception
-                            request.tamperedRequest();
-                        }
-                        listener.onFailure(e);
-                    }));
-                }
-            });
+                                // intentionally ignore the returned exception; we call this primarily
+                                // for the auditing as we already have a purpose built exception
+                                request.tamperedRequest();
+                            }
+                            listener.onFailure(e);
+                        }));
+                    }
+                });
+            }
         }
 
         /**
@@ -233,7 +241,7 @@ public class AuthenticationService extends AbstractComponent {
                 if (authenticationToken != null) {
                     action = () -> consumer.accept(authenticationToken);
                 } else {
-                    for (Realm realm : realms) {
+                    for (Realm realm : defaultOrderedRealmList) {
                         final AuthenticationToken token = realm.token(threadContext);
                         if (token != null) {
                             action = () -> consumer.accept(token);
@@ -260,7 +268,6 @@ public class AuthenticationService extends AbstractComponent {
                 handleNullToken();
             } else {
                 authenticationToken = token;
-                final List<Realm> realmsList = realms.asList();
                 final Map<Realm, Tuple<String, Exception>> messages = new LinkedHashMap<>();
                 final BiConsumer<Realm, ActionListener<User>> realmAuthenticatingConsumer = (realm, userListener) -> {
                     if (realm.supports(authenticationToken)) {
@@ -297,11 +304,12 @@ public class AuthenticationService extends AbstractComponent {
                         userListener.onResponse(null);
                     }
                 };
+
                 final IteratingActionListener<User, Realm> authenticatingListener =
                     new IteratingActionListener<>(ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(
                         (user) -> consumeUser(user, messages),
                         (e) -> listener.onFailure(request.exceptionProcessingRequest(e, token))), threadContext),
-                        realmAuthenticatingConsumer, realmsList, threadContext);
+                        realmAuthenticatingConsumer, defaultOrderedRealmList, threadContext);
                 try {
                     authenticatingListener.run();
                 } catch (Exception e) {
@@ -388,7 +396,7 @@ public class AuthenticationService extends AbstractComponent {
          * names of users that exist using a timing attack
          */
         private void lookupRunAsUser(final User user, String runAsUsername, Consumer<User> userConsumer) {
-            final RealmUserLookup lookup = new RealmUserLookup(realms.asList(), threadContext);
+            final RealmUserLookup lookup = new RealmUserLookup(defaultOrderedRealmList, threadContext);
             lookup.lookup(runAsUsername, ActionListener.wrap(tuple -> {
                 if (tuple == null) {
                     // the user does not exist, but we still create a User object, which will later be rejected by authz

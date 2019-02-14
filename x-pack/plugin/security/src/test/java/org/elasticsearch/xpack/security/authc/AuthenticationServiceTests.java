@@ -109,6 +109,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -159,9 +160,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.allowedRealmType()).thenReturn(XPackLicenseState.AllowedRealmType.ALL);
         when(licenseState.isAuthAllowed()).thenReturn(true);
-        realms = new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings), Collections.<String, Realm.Factory>emptyMap(),
+        realms = spy(new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings), Collections.<String, Realm.Factory>emptyMap(),
                 licenseState, threadContext, mock(ReservedRealm.class), Arrays.asList(firstRealm, secondRealm),
-                Collections.singletonList(firstRealm));
+                Collections.singletonList(firstRealm)));
 
         auditTrail = mock(AuditTrailService.class);
         client = mock(Client.class);
@@ -264,6 +265,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
         assertTrue(completed.get());
         verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", message);
+        verify(realms).asList();
+        verifyNoMoreInteractions(realms);
     }
 
     public void testAuthenticateFirstNotSupportingSecondSucceeds() throws Exception {

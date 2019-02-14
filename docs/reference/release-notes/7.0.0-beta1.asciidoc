@@ -1,8 +1,6 @@
 [[release-notes-7.0.0-beta1]]
 == 7.0.0-beta1 Release Notes
 
-coming[7.0.0-beta1]
-
 Also see <<breaking-changes-7.0>>.
 
 [[breaking-7.0.0-beta1]]
@@ -686,6 +684,3 @@ Engine::
 
 Machine Learning::
 * [ML] No need to add state doc mapping on job open in 7.x {pull}37759[#37759]
-
-
-

@@ -18,7 +18,7 @@ task bwcTest {
 
 for (Version version : bwcVersions.wireCompatible) {
     String taskPrefix = "v${version}"
-    if (version.before('6.6.0')) {
+    if (version.before('6.5.0')) {
         if (project.bwc_tests_enabled) {
             // Need to add dummy task:
             Task versionBwcTest = tasks.create(name: "${taskPrefix}#bwcTest") {}

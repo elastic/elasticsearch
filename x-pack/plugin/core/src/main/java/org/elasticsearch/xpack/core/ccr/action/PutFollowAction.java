@@ -178,7 +178,6 @@ public final class PutFollowAction extends Action<
             if (in.getVersion().before(Version.V_6_7_0)) {
                 TaskId.readFromStream(in); // TransportRequest.parentTaskId field
                 in.readTimeValue(); // MasterNodeRequest.masterNodeTimeout field
-                in.readTimeValue(); // AcknowledgedRequest.timeout field
             }
             this.followerIndex = in.readString();
             this.parameters = new FollowParameters(in);
@@ -197,7 +196,6 @@ public final class PutFollowAction extends Action<
             if (out.getVersion().before(Version.V_6_7_0)) {
                 TaskId.EMPTY_TASK_ID.writeTo(out); // TransportRequest.parentTaskId field
                 out.writeTimeValue(DEFAULT_MASTER_NODE_TIMEOUT); // MasterNodeRequest.masterNodeTimeout field
-                out.writeTimeValue(DEFAULT_ACK_TIMEOUT); // AcknowledgedRequest.timeout field
             }
             out.writeString(followerIndex);
             parameters.writeTo(out);

@@ -91,7 +91,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     public void testCannotFollowLeaderInUpgradedCluster() throws Exception {
-        logger.info("VERSION={}", UPGRADE_FROM_VERSION);
         assumeTrue("Tests only runs with upgrade_state [all]", upgradeState == UpgradeState.ALL);
         assumeTrue("Put follow api does not restore from ccr repository before 6.7.0",
             UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_7_0));

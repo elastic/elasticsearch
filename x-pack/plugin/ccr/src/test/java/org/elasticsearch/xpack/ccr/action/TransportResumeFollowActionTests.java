@@ -146,9 +146,9 @@ public class TransportResumeFollowActionTests extends ESTestCase {
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").build(), customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
             assertThat(e.getMessage(), equalTo("the leader index setting[{\"index.analysis.analyzer.my_analyzer.tokenizer\"" +
-                ":\"whitespace\",\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\"}] " +
+                ":\"whitespace\",\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\",\"index.soft_deletes.enabled\":\"true\"}] " +
                 "and follower index settings [{\"index.analysis.analyzer.my_analyzer.tokenizer\":\"standard\"," +
-                "\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\"}] must be identical"));
+                "\"index.analysis.analyzer.my_analyzer.type\":\"custom\",\"index.number_of_shards\":\"5\",\"index.soft_deletes.enabled\":\"true\"}] must be identical"));
         }
         {
             // should fail because the following index does not have the following_index settings
@@ -242,7 +242,6 @@ public class TransportResumeFollowActionTests extends ESTestCase {
     public void testFilter() {
         Settings.Builder settings = Settings.builder();
         settings.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "");
-        settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "");
         settings.put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), "");
         settings.put(IndexMetaData.SETTING_INDEX_UUID, "");
         settings.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, "");

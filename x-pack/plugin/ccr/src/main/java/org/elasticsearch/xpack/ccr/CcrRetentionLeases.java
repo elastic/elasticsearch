@@ -17,8 +17,22 @@ public class CcrRetentionLeases {
      * @param leaderUUID   the leader index UUID
      * @return the retention lease ID
      */
-    public static String retentionLeaseId(final String followerUUID, final String leaderUUID) {
-        return String.format(Locale.ROOT, "%s-following-%s", followerUUID, leaderUUID);
+    public static String retentionLeaseId(
+            final String localClusterName,
+            final String remoteClusterName,
+            final String followerIndexName,
+            final String followerUUID,
+            final String leaderIndexName,
+            final String leaderUUID) {
+        return String.format(
+                Locale.ROOT,
+                "%s/%s/%s-following-%s/%s/%s",
+                localClusterName,
+                followerIndexName,
+                followerUUID,
+                remoteClusterName,
+                leaderIndexName,
+                leaderUUID);
     }
 
 }

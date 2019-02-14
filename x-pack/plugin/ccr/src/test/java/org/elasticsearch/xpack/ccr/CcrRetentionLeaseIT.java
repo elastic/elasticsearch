@@ -174,7 +174,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
                 final RetentionLease retentionLease =
                         currentRetentionLeases.leases().iterator().next();
-                assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
+                assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID)));
             }
         });
 
@@ -259,7 +259,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
                     final RetentionLease retentionLease =
                             currentRetentionLeases.leases().iterator().next();
-                    assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
+                    assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID)));
                     retentionLeases.add(currentRetentionLeases);
                 }
             });
@@ -287,7 +287,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
                     final RetentionLease retentionLease =
                             currentRetentionLeases.leases().iterator().next();
-                    assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
+                    assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID)));
                     // we assert that retention leases are being renewed by an increase in the timestamp
                     assertThat(retentionLease.timestamp(), greaterThan(retentionLeases.get(i).leases().iterator().next().timestamp()));
                 }
@@ -360,7 +360,14 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
                 final RetentionLease retentionLease =
                         currentRetentionLeases.leases().iterator().next();
-                assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
+                final String expectedRetentionLeaseId = retentionLeaseId(
+                        getFollowerCluster().getClusterName(),
+                        getLeaderCluster().getClusterName(),
+                        followerIndex,
+                        followerUUID,
+                        leaderIndex,
+                        leaderUUID);
+                assertThat(retentionLease.id(), equalTo(expectedRetentionLeaseId));
                 retentionLeases.add(currentRetentionLeases);
             }
         });
@@ -391,7 +398,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
                 final RetentionLease retentionLease =
                         currentRetentionLeases.leases().iterator().next();
-                assertThat(retentionLease.id(), equalTo(retentionLeaseId(followerUUID, leaderUUID)));
+                assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID)));
                 // we assert that retention leases are being renewed by an increase in the timestamp
                 assertThat(retentionLease.timestamp(), equalTo(retentionLeases.get(i).leases().iterator().next().timestamp()));
             }
@@ -402,6 +409,16 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         for (int i = 0; i < numberOfDocuments; ++i) {
             assertExpectedDocument(followerIndex, i);
         }
+    }
+
+    private String getRetentionLeaseId(String followerIndex, String followerUUID, String leaderIndex, String leaderUUID) {
+        return retentionLeaseId(
+                            getFollowerCluster().getClusterName(),
+                            getLeaderCluster().getClusterName(),
+                            followerIndex,
+                            followerUUID,
+                            leaderIndex,
+                            leaderUUID);
     }
 
     private void assertExpectedDocument(final String followerIndex, final int value) {

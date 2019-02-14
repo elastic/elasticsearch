@@ -27,12 +27,20 @@ import java.text.ParseException;
 public class CircleTests extends BaseGeometryTestCase<Circle> {
     @Override
     protected Circle createTestInstance() {
-        return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDoubleBetween(0, 100, false));
+        if (randomBoolean()) {
+            return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDoubleBetween(0, 100, false));
+        } else {
+            return new Circle(randomDoubleBetween(-90, 90, true), randomDoubleBetween(-180, 180, true), randomDoubleBetween(0, 100, false),
+                randomDouble());
+        }
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
         assertEquals("circle (20.0 10.0 15.0)", WellKnownText.toWKT(new Circle(10, 20, 15)));
         assertEquals(new Circle(10, 20, 15), WellKnownText.fromWKT("circle (20.0 10.0 15.0)"));
+
+        assertEquals("circle (20.0 10.0 15.0 25.0)", WellKnownText.toWKT(new Circle(10, 20, 15, 25)));
+        assertEquals(new Circle(10, 20, 15, 25), WellKnownText.fromWKT("circle (20.0 10.0 15.0 25.0)"));
 
         assertEquals("circle EMPTY", WellKnownText.toWKT(Circle.EMPTY));
         assertEquals(Circle.EMPTY, WellKnownText.fromWKT("circle EMPTY)"));

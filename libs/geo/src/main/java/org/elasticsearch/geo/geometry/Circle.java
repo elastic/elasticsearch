@@ -26,18 +26,25 @@ public class Circle implements Geometry {
     public static final Circle EMPTY = new Circle();
     private final double lat;
     private final double lon;
+    private final double alt;
     private final double radiusMeters;
 
     private Circle() {
         lat = 0;
         lon = 0;
+        alt = Double.NaN;
         radiusMeters = -1;
     }
 
     public Circle(final double lat, final double lon, final double radiusMeters) {
+        this(lat, lon, radiusMeters, Double.NaN);
+    }
+
+    public Circle(final double lat, final double lon, final double radiusMeters, final double alt) {
         this.lat = lat;
         this.lon = lon;
         this.radiusMeters = radiusMeters;
+        this.alt = alt;
         if (radiusMeters < 0 ) {
             throw new IllegalArgumentException("Circle radius [" + radiusMeters + "] cannot be negative");
         }
@@ -62,6 +69,10 @@ public class Circle implements Geometry {
         return radiusMeters;
     }
 
+    public double getAlt() {
+        return alt;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -70,7 +81,8 @@ public class Circle implements Geometry {
         Circle circle = (Circle) o;
         if (Double.compare(circle.lat, lat) != 0) return false;
         if (Double.compare(circle.lon, lon) != 0) return false;
-        return (Double.compare(circle.radiusMeters, radiusMeters) == 0);
+        if (Double.compare(circle.radiusMeters, radiusMeters) != 0) return false;
+        return (Double.compare(circle.alt, alt) == 0);
     }
 
     @Override
@@ -82,6 +94,8 @@ public class Circle implements Geometry {
         temp = Double.doubleToLongBits(lon);
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         temp = Double.doubleToLongBits(radiusMeters);
+        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        temp = Double.doubleToLongBits(alt);
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         return result;
     }
@@ -98,7 +112,11 @@ public class Circle implements Geometry {
 
     @Override
     public String toString() {
-        return "lat=" + lat + ", lon=" + lon + ", radius=" + radiusMeters;
+        return "lat=" + lat + ", lon=" + lon + ", radius=" + radiusMeters + (Double.isNaN(alt) ? ", alt=" + alt : "");
     }
 
+    @Override
+    public boolean hasAlt() {
+        return Double.isNaN(alt) == false;
+    }
 }

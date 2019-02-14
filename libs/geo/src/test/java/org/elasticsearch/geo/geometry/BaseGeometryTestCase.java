@@ -132,18 +132,37 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
     }
 
     public static Line randomLine() {
+        return randomLine(randomBoolean());
+    }
+
+    public static Line randomLine(boolean hasAlts) {
         int size = randomIntBetween(2, 10);
         double[] lats = new double[size];
         double[] lons = new double[size];
+        double[] alts = hasAlts ? new double[size] : null;
         for (int i = 0; i < size; i++) {
             lats[i] = randomLat();
             lons[i] = randomLon();
+            if (hasAlts) {
+                alts[i] = randomDouble();
+            }
+        }
+        if (hasAlts) {
+            return new Line(lats, lons, alts);
         }
         return new Line(lats, lons);
     }
 
     public static Point randomPoint() {
-        return new Point(randomLat(), randomLon());
+        return randomPoint(randomBoolean());
+    }
+
+    public static Point randomPoint(boolean hasAlt) {
+        if (hasAlt) {
+            return new Point(randomLat(), randomLon(), randomDouble());
+        } else {
+            return new Point(randomLat(), randomLon());
+        }
     }
 
     public static LinearRing randomLinearRing() {

@@ -31,7 +31,11 @@ public class LinearRing extends Line {
     }
 
     public LinearRing(double[] lats, double[] lons) {
-        super(lats, lons);
+        this(lats, lons, null);
+    }
+
+    public LinearRing(double[] lats, double[] lons, double[] alts) {
+        super(lats, lons, alts);
         if (lats.length < 2) {
             throw new IllegalArgumentException("linear ring cannot contain less than 2 points, found " + lats.length);
         }

@@ -36,6 +36,11 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
         assertEquals(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3})),
             WellKnownText.fromWKT("polygon ((3 1, 4 2, 5 3, 3 1))"));
 
+        assertEquals("polygon ((3.0 1.0 5.0, 4.0 2.0 4.0, 5.0 3.0 3.0, 3.0 1.0 2.0))",
+            WellKnownText.toWKT(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{5, 4, 3, 2}))));
+        assertEquals(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{5, 4, 3, 2})),
+            WellKnownText.fromWKT("polygon ((3 1 5, 4 2 4, 5 3 3, 3 1 2))"));
+
         assertEquals("polygon EMPTY", WellKnownText.toWKT(Polygon.EMPTY));
         assertEquals(Polygon.EMPTY, WellKnownText.fromWKT("polygon EMPTY)"));
     }

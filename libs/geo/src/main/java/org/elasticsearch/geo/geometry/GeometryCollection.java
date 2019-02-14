@@ -21,6 +21,7 @@ package org.elasticsearch.geo.geometry;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -81,5 +82,24 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
     @Override
     public Iterator<G> iterator() {
         return shapes.iterator();
+    }
+
+    @Override
+    public boolean hasAlt() {
+        for (G g : shapes) {
+            if (g.hasAlt()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(type().name().toLowerCase(Locale.ROOT)).append("(shapes=");
+        sb.append(shapes);
+        sb.append(")");
+        return sb.toString();
     }
 }

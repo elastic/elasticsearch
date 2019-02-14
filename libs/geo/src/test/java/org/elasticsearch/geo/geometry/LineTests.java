@@ -34,6 +34,11 @@ public class LineTests extends BaseGeometryTestCase<Line> {
         assertEquals("linestring (3.0 1.0, 4.0 2.0)", WellKnownText.toWKT(new Line(new double[]{1, 2}, new double[]{3, 4})));
         assertEquals(new Line(new double[]{1, 2}, new double[]{3, 4}), WellKnownText.fromWKT("linestring (3 1, 4 2)"));
 
+        assertEquals("linestring (3.0 1.0 5.0, 4.0 2.0 6.0)", WellKnownText.toWKT(new Line(new double[]{1, 2}, new double[]{3, 4},
+            new double[]{5, 6})));
+        assertEquals(new Line(new double[]{1, 2}, new double[]{3, 4}, new double[]{6, 5}),
+            WellKnownText.fromWKT("linestring (3 1 6, 4 2 5)"));
+
         assertEquals("linestring EMPTY", WellKnownText.toWKT(Line.EMPTY));
         assertEquals(Line.EMPTY, WellKnownText.fromWKT("linestring EMPTY)"));
     }

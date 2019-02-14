@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+import static org.elasticsearch.rest.BaseRestHandler.SUPPRESS_TYPES_WARNINGS_PARAMETER;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.indexName;
@@ -288,8 +289,12 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                     recordedRequest = secondWebServer.takeRequest();
                     assertThat(recordedRequest.getMethod(), equalTo("PUT"));
                     assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
-                    final Map<String, String> parameters = Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true");
+
+                    Map<String, String> parameters = new HashMap<>();
+                    parameters.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+                    parameters.put(SUPPRESS_TYPES_WARNINGS_PARAMETER, "true");
                     assertMonitorVersionQueryString(recordedRequest.getUri().getQuery(), parameters);
+
                     assertThat(recordedRequest.getBody(), equalTo(template.v2()));
                 }
             }
@@ -474,10 +479,14 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
                 assertThat(putRequest.getMethod(), equalTo("PUT"));
                 assertThat(putRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-                Map<String, String> parameters = resourcePrefix.startsWith("/_template")
-                    ? Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true")
-                    : Collections.emptyMap();
+
+                Map<String, String> parameters = new HashMap<>();
+                if (resourcePrefix.startsWith("/_template")) {
+                    parameters.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+                    parameters.put(SUPPRESS_TYPES_WARNINGS_PARAMETER, "true");
+                }
                 assertMonitorVersionQueryString(putRequest.getUri().getQuery(), parameters);
+
                 assertThat(putRequest.getBody(), equalTo(resource.v2()));
                 assertHeaders(putRequest, customHeaders);
             }

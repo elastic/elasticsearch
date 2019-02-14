@@ -18,12 +18,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+import static org.elasticsearch.rest.BaseRestHandler.SUPPRESS_TYPES_WARNINGS_PARAMETER;
 
 /**
  * {@code TemplateHttpResource}s allow the checking and uploading of templates to a remote cluster.
@@ -87,7 +89,10 @@ public class TemplateHttpResource extends PublishableHttpResource {
      */
     @Override
     protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
-        Map<String, String> parameters = Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        parameters.put(SUPPRESS_TYPES_WARNINGS_PARAMETER, "true");
+
         putResource(client, listener, logger,
                     "/_template", templateName, parameters, this::templateToHttpEntity, "monitoring template",
                     resourceOwnerName, "monitoring cluster");

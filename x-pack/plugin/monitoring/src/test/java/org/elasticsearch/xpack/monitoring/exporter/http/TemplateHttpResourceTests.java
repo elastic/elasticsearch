@@ -13,11 +13,12 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+import static org.elasticsearch.rest.BaseRestHandler.SUPPRESS_TYPES_WARNINGS_PARAMETER;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -80,12 +81,16 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void testDoPublishTrue() {
-        Map<String, String> parameters = Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        parameters.put(SUPPRESS_TYPES_WARNINGS_PARAMETER, "true");
         assertPublishSucceeds(resource, "/_template", templateName, parameters, StringEntity.class);
     }
 
     public void testDoPublishFalseWithException() {
-        Map<String, String> parameters = Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        Map<String, String> parameters = new HashMap<>();
+        parameters.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
+        parameters.put(SUPPRESS_TYPES_WARNINGS_PARAMETER, "true");
         assertPublishWithException(resource, "/_template", templateName, parameters, StringEntity.class);
     }
 

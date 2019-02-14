@@ -32,6 +32,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
+import static org.elasticsearch.rest.BaseRestHandler.SUPPRESS_TYPES_WARNINGS_PARAMETER;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockBooleanActionListener;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_DOES_NOT_EXIST;
@@ -225,6 +226,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
         if (parameters.containsKey(INCLUDE_TYPE_NAME_PARAMETER)) {
             assertThat(parameters.remove(INCLUDE_TYPE_NAME_PARAMETER), is("true"));
+        }
+        if (parameters.containsKey(SUPPRESS_TYPES_WARNINGS_PARAMETER)) {
+            assertThat(parameters.remove(SUPPRESS_TYPES_WARNINGS_PARAMETER), is("true"));
         }
 
         assertThat(parameters.isEmpty(), is(true));

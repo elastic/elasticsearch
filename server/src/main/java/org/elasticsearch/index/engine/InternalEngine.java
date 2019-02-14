@@ -893,6 +893,15 @@ public class InternalEngine extends Engine {
                         new IndexVersionValue(translogLocation, plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
                 }
                 if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    if (indexResult.getSeqNo() == 1L) {
+                        // delay the advancement of the local checkpoint so "shouldPeriodicallyFlush" can be true twice
+                        // (1) when two uncommitted operations are in translog and (2) when the local checkpoint is advanced to 1L.
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
                     localCheckpointTracker.markSeqNoAsCompleted(indexResult.getSeqNo());
                 }
                 indexResult.setTook(System.nanoTime() - index.startTime());

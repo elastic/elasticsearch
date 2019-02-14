@@ -25,24 +25,19 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.component.ComponentArtifactIdentifier;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
+import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskState;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 public class TestClustersPlugin implements Plugin<Project> {
@@ -87,6 +82,20 @@ public class TestClustersPlugin implements Plugin<Project> {
                 "Internal helper configuration used by cluster configuration to download " +
                     "ES distributions and plugins."
             );
+            helperConfiguration.getIncoming().afterResolve(resolvableDependencies -> {
+                Set<ComponentArtifactIdentifier> nonZipComponents = resolvableDependencies.getArtifacts()
+                    .getArtifacts()
+                    .stream()
+                    .filter(artifact -> artifact.getFile().getName().endsWith(".zip") == false)
+                    .map(artifact -> artifact.getId())
+                    .collect(Collectors.toSet());
+
+                if(nonZipComponents.isEmpty() == false) {
+                    throw new IllegalStateException("Dependencies with non-zip artifacts found in configuration '" +
+                        TestClustersPlugin.HELPER_CONFIGURATION_NAME + "': " + nonZipComponents
+                    );
+                }
+            });
 
             // When running in the Daemon it's possible for this to hold references to past
             usedClusters.clear();
@@ -98,7 +107,10 @@ public class TestClustersPlugin implements Plugin<Project> {
             // the clusters will look for artifacts there based on the naming conventions.
             // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
             // the build.
-            rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, SyncTestClustersConfiguration.class);
+            rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, Sync.class, sync -> {
+                sync.from((Callable<List<FileTree>>) () -> helperConfiguration.getFiles().stream().map(project::zipTree).collect(Collectors.toList()));
+                sync.into(new File(getTestClustersConfigurationExtractDir(project), "zip"));
+            });
 
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
             // that are defined in the build script and the ones that will actually be used in this invocation of gradle
@@ -129,7 +141,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 project.getPath(),
                 name,
                 GradleServicesAdapter.getInstance(project),
-                SyncTestClustersConfiguration.getTestClustersConfigurationExtractDir(project),
+                getTestClustersConfigurationExtractDir(project),
                 new File(project.getBuildDir(), "testclusters")
             )
         );
@@ -249,8 +261,8 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    static File getTestClustersBuildDir(Project project) {
-        return new File(project.getRootProject().getBuildDir(), "testclusters");
+    static File getTestClustersConfigurationExtractDir(Project project) {
+        return new File(project.getRootProject().getBuildDir(), "testclusters/extract");
     }
 
     /**

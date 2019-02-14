@@ -17,12 +17,14 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.PivotConfig;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -57,7 +59,16 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                     String id = args[0] != null ? (String) args[0] : optionalId;
                     String source = (String) args[1];
                     String dest = (String) args[2];
-                    QueryConfig queryConfig = (QueryConfig) args[3];
+
+                    // default handling: if the user does not specify a query, we default to match_all
+                    QueryConfig queryConfig = null;
+                    if (args[3] == null) {
+                        queryConfig = new QueryConfig(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap()),
+                                new MatchAllQueryBuilder());
+                    } else {
+                        queryConfig = (QueryConfig) args[3];
+                    }
+
                     PivotConfig pivotConfig = (PivotConfig) args[4];
                     return new DataFrameTransformConfig(id, source, dest, queryConfig, pivotConfig);
                 });
@@ -83,7 +94,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
         this.source = ExceptionsHelper.requireNonNull(source, SOURCE.getPreferredName());
         this.dest = ExceptionsHelper.requireNonNull(dest, DESTINATION.getPreferredName());
-        this.queryConfig = queryConfig;
+        this.queryConfig = ExceptionsHelper.requireNonNull(queryConfig, QUERY.getPreferredName());
         this.pivotConfig = pivotConfig;
 
         // at least one function must be defined

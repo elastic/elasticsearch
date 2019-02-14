@@ -12,7 +12,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
@@ -46,8 +45,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     @Override
     protected void onStartJob(long now) {
-        QueryConfig queryConfig = getConfig().getQueryConfig();
-        QueryBuilder queryBuilder = queryConfig != null ? queryConfig.getQuery() : new MatchAllQueryBuilder();
+        QueryBuilder queryBuilder = getConfig().getQueryConfig().getQuery();
 
         pivot = new Pivot(getConfig().getSource(), queryBuilder, getConfig().getPivotConfig());
     }

@@ -385,7 +385,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private void refreshSecurityIndex() throws Exception {
         assertBusy(() -> {
-            final RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
+            final RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME)
+                    .get();
             assertThat(refreshResponse.getFailedShards(), is(0));
         });
     }

@@ -34,11 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.rest.action.document.RestBulkAction;
-import org.elasticsearch.rest.action.document.RestGetAction;
-import org.elasticsearch.rest.action.document.RestIndexAction;
-import org.elasticsearch.rest.action.document.RestUpdateAction;
-import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -122,7 +117,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
-            createIndex.setOptions(allowTypesRemovalWarnings());
             client().performRequest(createIndex);
 
             count = randomIntBetween(2000, 3000);
@@ -180,7 +174,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
-            createIndex.setOptions(allowTypesRemovalWarnings());
             client().performRequest(createIndex);
 
             int numDocs = randomIntBetween(2000, 3000);
@@ -290,7 +283,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
-            createIndex.setOptions(allowTypesRemovalWarnings());
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
@@ -361,7 +353,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             Request createIndex = new Request("PUT", "/" + index);
             createIndex.setJsonEntity(Strings.toString(mappingsAndSettings));
-            createIndex.setOptions(allowTypesRemovalWarnings());
             client().performRequest(createIndex);
 
             numDocs = randomIntBetween(512, 1024);
@@ -440,12 +431,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request bulkRequest = new Request("POST", "/" + index + "_write/_bulk");
         bulkRequest.setJsonEntity(bulk.toString());
         bulkRequest.addParameter("refresh", "");
-        bulkRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(EntityUtils.toString(client().performRequest(bulkRequest).getEntity()), containsString("\"errors\":false"));
 
         if (isRunningAgainstOldCluster()) {
             Request rolloverRequest = new Request("POST", "/" + index + "_write/_rollover");
-            rolloverRequest.setOptions(allowTypesRemovalWarnings());
             rolloverRequest.setJsonEntity("{"
                     + "  \"conditions\": {"
                     + "    \"max_docs\": 5"
@@ -520,7 +509,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         Request explainRequest = new Request("GET", "/" + index + "/" + type + "/" + id + "/_explain");
         explainRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
-        explainRequest.setOptions(expectWarnings(RestExplainAction.TYPES_DEPRECATION_MESSAGE));
         String explanation = toStr(client().performRequest(explainRequest));
         assertFalse("Could not find payload boost in explanation\n" + explanation, explanation.contains("payloadBoost"));
 
@@ -572,13 +560,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         String docId = (String) hit.get("_id");
 
         Request updateRequest = new Request("POST", "/" + index + "/_doc/" + docId + "/_update");
-        updateRequest.setOptions(expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE));
         updateRequest.setJsonEntity("{ \"doc\" : { \"foo\": \"bar\"}}");
         client().performRequest(updateRequest);
 
         Request getRequest = new Request("GET", "/" + index + "/_doc/" + docId);
         if (getOldClusterVersion().before(Version.V_6_7_0)) {
-            getRequest.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
         }
         Map<String, Object> getRsp = entityAsMap(client().performRequest(getRequest));
         Map<?, ?> source = (Map<?, ?>) getRsp.get("_source");
@@ -644,9 +630,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
 
         Request request = new Request("GET", docLocation);
-        if (getOldClusterVersion().before(Version.V_6_7_0)) {
-            request.setOptions(expectWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE));
-        }
         assertThat(toStr(client().performRequest(request)), containsString(doc));
     }
 
@@ -855,7 +838,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         templateBuilder.endObject().endObject();
         Request createTemplateRequest = new Request("PUT", "/_template/test_template");
         createTemplateRequest.setJsonEntity(Strings.toString(templateBuilder));
-        createTemplateRequest.setOptions(allowTypesRemovalWarnings());
 
         client().performRequest(createTemplateRequest);
 
@@ -947,7 +929,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             for (int i = 0; i < numDocs; i++) {
                 String doc = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v1").endObject());
                 Request request = new Request("POST", "/" + index + "/_doc/" + i);
-                request.setOptions(expectWarnings(RestIndexAction.TYPES_DEPRECATION_MESSAGE));
                 request.setJsonEntity(doc);
                 client().performRequest(request);
                 refresh();
@@ -1034,7 +1015,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request writeToRestoredRequest = new Request("POST", "/restored_" + index + "/_bulk");
         writeToRestoredRequest.addParameter("refresh", "true");
         writeToRestoredRequest.setJsonEntity(bulk.toString());
-        writeToRestoredRequest.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         assertThat(EntityUtils.toString(client().performRequest(writeToRestoredRequest).getEntity()), containsString("\"errors\":false"));
 
         // And count to make sure the add worked
@@ -1057,7 +1037,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Check that the template was restored successfully
         Request getTemplateRequest = new Request("GET", "/_template/test_template");
-        getTemplateRequest.setOptions(allowTypesRemovalWarnings());
 
         Map<String, Object> getTemplateResponse = entityAsMap(client().performRequest(getTemplateRequest));
         Map<String, Object> expectedTemplate = new HashMap<>();
@@ -1081,13 +1060,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             logger.info("expected: {}\nactual:{}", expectedTemplate, getTemplateResponse);
             fail("template doesn't match:\n" + builder.toString());
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private boolean isTypeInTemplateResponse(Map<String, Object> getTemplateResponse) {
-        return ( (Map<String, Object>) (
-            (Map<String, Object>) getTemplateResponse.getOrDefault("test_template", emptyMap())
-        ).get("mappings")).get("_source") == null;
     }
 
     // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.

@@ -161,7 +161,6 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         return client.getRemoteClusterClient(remoteClusterAlias);
     }
 
-
     @Override
     public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
         assert SNAPSHOT_ID.equals(snapshotId) : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId";

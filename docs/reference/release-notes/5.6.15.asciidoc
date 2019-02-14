@@ -1,0 +1,6 @@
+[[release-notes-5.6.15]]
+== 5.6.15 Release Notes
+
+Also see <<breaking-changes-5.6>>.
+
+There are no changes for 5.6.15

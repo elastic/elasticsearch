@@ -16,6 +16,15 @@ following:
 ./gradlew assemble
 -----------------------------
 
+To create a platform-specific build including the x-pack modules, use the
+following depending on your operating system:
+
+-----------------------------
+./gradlew :distribution:archives:linux-tar:assemble --parallel
+./gradlew :distribution:archives:darwin-tar:assemble --parallel
+./gradlew :distribution:archives:windows-zip:assemble --parallel
+-----------------------------
+
 === Running Elasticsearch from a checkout
 
 In order to run Elasticsearch from source without building a package, you can

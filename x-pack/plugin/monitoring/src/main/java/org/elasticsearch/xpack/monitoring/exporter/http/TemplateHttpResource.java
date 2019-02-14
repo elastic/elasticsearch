@@ -13,12 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -36,14 +35,10 @@ public class TemplateHttpResource extends PublishableHttpResource {
 
     private static final Logger logger = LogManager.getLogger(TemplateHttpResource.class);
 
-    private static final Map<String, String> PARAMETERS;
-
-    static {
-        Map<String, String> parameters = new HashMap<>(
-            PublishableHttpResource.RESOURCE_VERSION_PARAMETERS);
-        parameters.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        PARAMETERS = Collections.unmodifiableMap(parameters);
-    }
+    private static final Map<String, String> PARAMETERS = MapBuilder.<String, String>newMapBuilder()
+            .putAll(PublishableHttpResource.RESOURCE_VERSION_PARAMETERS)
+            .put(INCLUDE_TYPE_NAME_PARAMETER, "true")
+            .immutableMap();
 
     /**
      * The name of the template that is sent to the remote cluster.

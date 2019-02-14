@@ -75,7 +75,7 @@ public class NioTransport extends TcpTransport {
     }
 
     @Override
-    protected NioTcpChannel initiateChannel(DiscoveryNode node) throws IOException {
+    protected NioTcpChannel initiateChannel(DiscoveryNode node, boolean retry) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         return nioGroup.openChannel(address, clientChannelFactory.apply(node));
     }

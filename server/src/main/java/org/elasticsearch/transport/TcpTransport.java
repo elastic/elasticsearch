@@ -305,7 +305,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         for (int i = 0; i < numConnections; ++i) {
             try {
-                TcpChannel channel = initiateChannel(node);
+                TcpChannel channel = initiateChannel(node, false);
                 logger.trace(() -> new ParameterizedMessage("Tcp transport client channel opened: {}", channel));
                 channels.add(channel);
             } catch (ConnectTransportException e) {
@@ -652,10 +652,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * Initiate a single tcp socket channel.
      *
      * @param node for the initiated connection
+     * @param retry if this is a retry
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract TcpChannel initiateChannel(DiscoveryNode node) throws IOException;
+    protected abstract TcpChannel initiateChannel(DiscoveryNode node, boolean retry) throws IOException;
+
+    protected boolean supportRetry() {
+        return false;
+    }
 
     /**
      * Called to tear down internal resources

@@ -108,6 +108,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
+    protected boolean supportRetry() {
+        return true;
+    }
+
+    @Override
     public final ChannelHandler getServerChannelInitializer(String name) {
         if (sslEnabled) {
             SSLConfiguration configuration = profileConfiguration.get(name);
@@ -125,8 +130,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
-    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node) {
-        return new SecurityClientChannelInitializer(node);
+    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node, boolean retry) {
+        return new SecurityClientChannelInitializer(node, retry);
     }
 
     @Override
@@ -188,9 +193,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
         private final boolean hostnameVerificationEnabled;
         private final SNIHostName serverName;
+        private final boolean retry;
 
-        SecurityClientChannelInitializer(DiscoveryNode node) {
+        SecurityClientChannelInitializer(DiscoveryNode node, boolean retry) {
             this.hostnameVerificationEnabled = sslEnabled && sslConfiguration.verificationMode().isHostnameVerificationEnabled();
+            this.retry = retry;
             String configuredServerName = node.getAttributes().get("server_name");
             if (configuredServerName != null) {
                 try {
@@ -206,7 +213,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
-            if (sslEnabled) {
+            if (sslEnabled && retry == false) {
                 ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled,
                     serverName));
             }

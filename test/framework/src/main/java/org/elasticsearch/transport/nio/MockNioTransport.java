@@ -85,7 +85,7 @@ public class MockNioTransport extends TcpTransport {
     }
 
     @Override
-    protected MockSocketChannel initiateChannel(DiscoveryNode node) throws IOException {
+    protected MockSocketChannel initiateChannel(DiscoveryNode node, boolean retry) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         return nioGroup.openChannel(address, clientChannelFactory);
     }

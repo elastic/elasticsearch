@@ -342,11 +342,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         // schedule renewals to run during the restore
         final Scheduler.Cancellable renewable = threadPool.scheduleWithFixedDelay(
                 () -> {
+                    logger.trace("{} background renewal of retention lease during restore", shardId);
                     final ThreadContext threadContext = threadPool.getThreadContext();
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                         // we have to execute under the system context so that if security is enabled the renewal is authorized
                         threadContext.markAsSystemContext();
-                        logger.trace("{} background renewal of retention lease during restore", shardId);
                         renewRetentionLease(leaderShardId, retentionLeaseId, remoteClient);
                     } catch (final Exception e) {
                         logger.warn(new ParameterizedMessage("{} background renewal of retention lease failed during restore", shardId), e);

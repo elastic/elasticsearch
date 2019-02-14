@@ -281,13 +281,13 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 MockRequest recordedRequest = secondWebServer.takeRequest();
                 assertThat(recordedRequest.getMethod(), equalTo("GET"));
                 assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
-                assertMonitorVersionQueryString(recordedRequest.getUri().getQuery(), new String[0]);
+                assertMonitorVersionQueryString(recordedRequest.getUri().getQuery(), Collections.emptyMap());
 
                 if (missingTemplate.equals(template.v1())) {
                     recordedRequest = secondWebServer.takeRequest();
                     assertThat(recordedRequest.getMethod(), equalTo("PUT"));
                     assertThat(recordedRequest.getUri().getPath(), equalTo(resourcePrefix + template.v1()));
-                    final String[] parameters = {INCLUDE_TYPE_NAME_PARAMETER + "=true"};
+                    final Map<String, String> parameters = Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true");
                     assertMonitorVersionQueryString(recordedRequest.getUri().getQuery(), parameters);
                     assertThat(recordedRequest.getBody(), equalTo(template.v2()));
                 }
@@ -465,7 +465,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
             assertThat(getRequest.getMethod(), equalTo("GET"));
             assertThat(getRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-            assertMonitorVersionQueryString(getRequest.getUri().getQuery(), new String[0]);
+            assertMonitorVersionQueryString(getRequest.getUri().getQuery(), Collections.emptyMap());
             assertHeaders(getRequest, customHeaders);
 
             if (alreadyExists == false) {
@@ -473,9 +473,9 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
                 assertThat(putRequest.getMethod(), equalTo("PUT"));
                 assertThat(putRequest.getUri().getPath(), equalTo(pathPrefix + resourcePrefix + resource.v1()));
-                final String[] parameters = resourcePrefix.startsWith("/_template")
-                    ? new String[]{INCLUDE_TYPE_NAME_PARAMETER + "=true"}
-                    : new String[0];
+                Map<String, String> parameters = resourcePrefix.startsWith("/_template")
+                    ? Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true")
+                    : Collections.emptyMap();
                 assertMonitorVersionQueryString(putRequest.getUri().getQuery(), parameters);
                 assertThat(putRequest.getBody(), equalTo(resource.v2()));
                 assertHeaders(putRequest, customHeaders);
@@ -483,12 +483,15 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         }
     }
 
-    private void assertMonitorVersionQueryString(String query, final String[] parameters) {
-        String queryString = "";
-        for (String param : parameters) {
-            queryString += param + "&";
+    private void assertMonitorVersionQueryString(String query, final Map<String, String> parameters) {
+        List <String> kvParams = new ArrayList<>();
+        for (Map.Entry<String, String> param : parameters.entrySet()) {
+            kvParams.add(param.getKey() + "=" + param.getValue());
         }
-        queryString += resourceVersionQueryString();
+        String queryString = String.join("&", kvParams);
+        if (queryString != "") {
+            queryString += "&" + resourceVersionQueryString();
+        }
 
         assertThat(query, equalTo(queryString));
     }

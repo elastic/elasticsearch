@@ -92,6 +92,30 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         skipUnavailable = input.readBoolean();
     }
 
+    public List<String> getSeedNodes() {
+        return seedNodes;
+    }
+
+    public int getConnectionsPerCluster() {
+        return connectionsPerCluster;
+    }
+
+    public TimeValue getInitialConnectionTimeout() {
+        return initialConnectionTimeout;
+    }
+
+    public int getNumNodesConnected() {
+        return numNodesConnected;
+    }
+
+    public String getClusterAlias() {
+        return clusterAlias;
+    }
+
+    public boolean isSkipUnavailable() {
+        return skipUnavailable;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {

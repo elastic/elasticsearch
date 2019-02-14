@@ -1031,12 +1031,12 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     /**
      * Runs a fall behind test. In this test, we construct a situation where a follower is paused. While the follower is paused we index
-     * more documents that was causes soft deletes into the leader, flush them, and run a force merge. This is to set up a situation where
-     * the operations will not necessarily be there. With retention leases in place, we would actually expect the operations to be there.
-     * After pausing the follower, the specified callback is executed. This gives a test an opportunity to set up assumptions. For example,
-     * a test might remove all the retention leases on the leader to set up a situation where the follower will fall behind when it is
-     * resumed because the operations will no longer be held on the leader. The specified exceptions callback is invoked after resuming the
-     * follower to give a test an opportunity to assert on the resource not found exceptions (either present or not present).
+     * more documents that causes soft deletes on the leader, flush them, and run a force merge. This is to set up a situation where the
+     * operations will not necessarily be there. With retention leases in place, we would actually expect the operations to be there. After
+     * pausing the follower, the specified callback is executed. This gives a test an opportunity to set up assumptions. For example, a test
+     * might remove all the retention leases on the leader to set up a situation where the follower will fall behind when it is resumed
+     * because the operations will no longer be held on the leader. The specified exceptions callback is invoked after resuming the follower
+     * to give a test an opportunity to assert on the resource not found exceptions (either present or not present).
      *
      * @param afterPausingFollower the callback to run after pausing the follower
      * @param exceptionConsumer    the callback to run on a collection of resource not found exceptions after resuming the follower

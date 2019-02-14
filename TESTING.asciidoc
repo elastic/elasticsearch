@@ -366,8 +366,8 @@ These are the linux flavors supported, all of which we provide images for
 * debian-9 aka stretch, the current debian stable distribution
 * centos-6
 * centos-7
-* fedora-27
 * fedora-28
+* fedora-29
 * oel-6 aka Oracle Enterprise Linux 6
 * oel-7 aka Oracle Enterprise Linux 7
 * sles-12
@@ -384,12 +384,6 @@ The packaging tests also support Windows Server 2012R2 and Windows Server 2016.
 Unfortunately we're not able to provide boxes for them in open source use
 because of licensing issues. Any Virtualbox image that has WinRM and Powershell
 enabled for remote users should work.
-
-Testing on Windows requires the https://github.com/criteo/vagrant-winrm[vagrant-winrm] plugin.
-
-------------------------------------
-vagrant plugin install vagrant-winrm
-------------------------------------
 
 Specify the image IDs of the Windows boxes to gradle with the following project
 properties. They can be set in `~/.gradle/gradle.properties` like

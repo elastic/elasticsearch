@@ -875,7 +875,7 @@ public class IndicesService extends AbstractLifecycleComponent
             try {
                 metaData = metaStateService.loadIndexState(index);
                 if (metaData == null) {
-                    throw new IllegalStateException("Index state does not exist.");
+                    return null;
                 }
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, " +

@@ -1009,10 +1009,16 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                             .getState()
                             .routingTable();
 
-                    final String retentionLeaseId =
-                            retentionLeaseId(getFollowerCluster().getClusterName(), getLeaderCluster().getClusterName(), "index2", followerUUID, "index1", leaderUUID);
+                    final String retentionLeaseId = retentionLeaseId(
+                            getFollowerCluster().getClusterName(),
+                            getLeaderCluster().getClusterName(),
+                            "index2",
+                            followerUUID,
+                            "index1",
+                            leaderUUID);
 
-                    for (ObjectCursor<IndexShardRoutingTable> shardRoutingTable : leaderRoutingTable.index("index1").shards().values()) {
+                    for (final ObjectCursor<IndexShardRoutingTable> shardRoutingTable
+                            : leaderRoutingTable.index("index1").shards().values()) {
                         final ShardId shardId = shardRoutingTable.value.shardId();
                         leaderClient().execute(
                                 RetentionLeaseActions.Remove.INSTANCE,

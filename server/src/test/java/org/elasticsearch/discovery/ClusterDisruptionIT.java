@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -63,6 +65,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -71,6 +74,18 @@ import static org.hamcrest.Matchers.not;
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
+
+    private enum ConflictMode {
+        none,
+        external,
+        create;
+
+
+        static ConflictMode randomMode() {
+            ConflictMode[] values = values();
+            return values[randomInt(values.length-1)];
+        }
+    }
 
     /**
      * Test that we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
@@ -108,7 +123,9 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         final AtomicReference<CountDownLatch> countDownLatchRef = new AtomicReference<>();
         final List<Exception> exceptedExceptions = new CopyOnWriteArrayList<>();
 
-        logger.info("starting indexers");
+        final ConflictMode conflictMode = ConflictMode.randomMode();
+
+        logger.info("starting indexers using conflict mode " + conflictMode);
         try {
             for (final String node : nodes) {
                 final Semaphore semaphore = new Semaphore(0);
@@ -128,12 +145,18 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 id = Integer.toString(idGenerator.incrementAndGet());
                                 int shard = Math.floorMod(Murmur3HashFunction.hash(id), numPrimaries);
                                 logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
-                                IndexResponse response =
-                                        client.prepareIndex("test", "type", id)
-                                                .setSource("{}", XContentType.JSON)
-                                                .setTimeout(timeout)
-                                                .get(timeout);
-                                assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
+                                IndexRequestBuilder indexRequestBuilder = client.prepareIndex("test", "type", id)
+                                    .setSource("{}", XContentType.JSON)
+                                    .setTimeout(timeout);
+
+                                if (conflictMode == ConflictMode.external) {
+                                    indexRequestBuilder.setVersion(randomIntBetween(1,10)).setVersionType(VersionType.EXTERNAL);
+                                } else if (conflictMode == ConflictMode.create) {
+                                    indexRequestBuilder.setCreate(true);
+                                }
+
+                                IndexResponse response = indexRequestBuilder.get(timeout);
+                                assertThat(response.getResult(), isOneOf(DocWriteResponse.Result.CREATED, DocWriteResponse.Result.UPDATED));
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}], response [{}]", name, id, node, response);
                             } catch (ElasticsearchException e) {

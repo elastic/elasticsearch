@@ -326,18 +326,13 @@ public class NioSelector implements Closeable {
         SocketChannelContext context = writeOperation.getChannel();
         // If the channel does not currently have anything that is ready to flush, we should flush after
         // the write operation is queued.
-        boolean shouldFlushAfterQueuing = context.readyForFlush() == false;
-        try {
-            SelectionKeyUtils.setWriteInterested(context.getSelectionKey());
-            context.queueWriteOperation(writeOperation);
-        } catch (Exception e) {
-            shouldFlushAfterQueuing = false;
-            executeFailedListener(writeOperation.getListener(), e);
-        }
-
+        final boolean shouldFlushAfterQueuing = context.readyForFlush() == false;
+        context.queueWriteOperation(writeOperation);
         if (shouldFlushAfterQueuing) {
             handleWrite(context);
             eventHandler.postHandling(context);
+        } else {
+            assert SelectionKeyUtils.isWriteInterested(context.getSelectionKey());
         }
     }
 

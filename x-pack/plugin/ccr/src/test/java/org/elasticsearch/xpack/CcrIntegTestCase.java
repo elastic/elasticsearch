@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -62,6 +63,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.NodeConfigurationSource;
@@ -125,7 +127,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         stopClusters();
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(ESIntegTestCase.TestSeedPlugin.class,
             MockHttpTransport.TestPlugin.class, MockTransportService.TestPlugin.class,
-            MockNioTransportPlugin.class);
+            MockNioTransportPlugin.class, InternalSettingsPlugin.class);
 
         InternalTestCluster leaderCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
             numberOfNodesPerCluster(), "leader_cluster", createNodeConfigurationSource(null), 0, "leader", mockPlugins,
@@ -390,6 +392,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 builder.startObject("settings");
                 {
                     builder.field(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
+                    builder.field(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s");
                     builder.field("index.number_of_shards", numberOfShards);
                     builder.field("index.number_of_replicas", numberOfReplicas);
                     for (final Map.Entry<String, String> additionalSetting : additionalIndexSettings.entrySet()) {

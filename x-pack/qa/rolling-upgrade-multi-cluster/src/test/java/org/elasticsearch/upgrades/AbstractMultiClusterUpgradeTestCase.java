@@ -7,6 +7,7 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -70,6 +71,9 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
     }
 
     protected final ClusterName clusterName = ClusterName.parse(System.getProperty("tests.rest.cluster_name"));
+
+    protected static final Version UPGRADE_FROM_VERSION =
+        Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     private static RestClient leaderClient;
     private static RestClient followerClient;

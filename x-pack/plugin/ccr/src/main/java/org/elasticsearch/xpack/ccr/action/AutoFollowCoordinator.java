@@ -526,7 +526,7 @@ public class AutoFollowCoordinator implements ClusterStateListener {
             request.getParameters().setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
             request.getParameters().setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
             request.getParameters().setMaxRetryDelay(pattern.getMaxRetryDelay());
-            request.getParameters().setReadPollTimeout(pattern.getPollTimeout());
+            request.getParameters().setReadPollTimeout(pattern.getReadPollTimeout());
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {

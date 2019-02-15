@@ -102,7 +102,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             );
 
             assertThat(runResult.exitCode, is(1));
-            assertThat(runResult.stderr, containsString("could not find java; set JAVA_HOME or ensure java is in PATH"));
+            assertThat(runResult.stderr, containsString("could not find java; set JAVA_HOME"));
         });
 
         Platforms.onLinux(() -> {
@@ -112,7 +112,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 sh.run("chmod -x '" + javaPath + "'");
                 final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString());
                 assertThat(runResult.exitCode, is(1));
-                assertThat(runResult.stderr, containsString("could not find java; set JAVA_HOME or ensure java is in PATH"));
+                assertThat(runResult.stderr, containsString("could not find java; set JAVA_HOME"));
             } finally {
                 sh.run("chmod +x '" + javaPath + "'");
             }

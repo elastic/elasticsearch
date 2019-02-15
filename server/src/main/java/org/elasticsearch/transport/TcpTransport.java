@@ -298,6 +298,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private List<TcpChannel> initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
                                                 ActionListener<Transport.Connection> listener) {
+        RetryListener retryListener = new RetryListener(node, connectionProfile, listener, supportRetry());
+        return initiateConnection(node, connectionProfile, retryListener, false);
+    }
+
+    private List<TcpChannel> initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                                ActionListener<Transport.Connection> listener, boolean isRetry) {
+        assert isRetry == false || supportRetry() : "Attempted retry however transport does not support retries";
+
         int numConnections = connectionProfile.getNumConnections();
         assert numConnections > 0 : "A connection profile must be configured with at least one connection";
 
@@ -1241,16 +1249,46 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return requestHandlers.get(action);
     }
 
+    private final class RetryListener implements ActionListener<Connection> {
+
+        private final DiscoveryNode node;
+        private final ConnectionProfile connectionProfile;
+        private final ActionListener<Connection> listener;
+        private final boolean retry;
+
+        private RetryListener(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Connection> listener,
+                              boolean retry) {
+            this.node = node;
+            this.connectionProfile = connectionProfile;
+            this.listener = listener;
+            this.retry = retry;
+        }
+
+        @Override
+        public void onResponse(Connection connection) {
+            listener.onResponse(connection);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            if (retry && e.getMessage().contains("connect_timeout") == false) {
+                initiateConnection(node, connectionProfile, this, true);
+            } else {
+                listener.onFailure(e);
+            }
+        }
+    }
+
     private final class ChannelsConnectedListener implements ActionListener<Void> {
 
         private final DiscoveryNode node;
         private final ConnectionProfile connectionProfile;
         private final List<TcpChannel> channels;
-        private final ActionListener<Transport.Connection> listener;
+        private final ActionListener<Connection> listener;
         private final CountDown countDown;
 
         private ChannelsConnectedListener(DiscoveryNode node, ConnectionProfile connectionProfile, List<TcpChannel> channels,
-                                          ActionListener<Transport.Connection> listener) {
+                                          ActionListener<Connection> listener) {
             this.node = node;
             this.connectionProfile = connectionProfile;
             this.channels = channels;

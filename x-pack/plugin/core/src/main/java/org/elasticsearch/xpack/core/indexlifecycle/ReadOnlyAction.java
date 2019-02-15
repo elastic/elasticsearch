@@ -25,7 +25,6 @@ import java.util.List;
  */
 public class ReadOnlyAction implements LifecycleAction {
     public static final String NAME = "readonly";
-    public static final ReadOnlyAction INSTANCE = new ReadOnlyAction();
 
     private static final ObjectParser<ReadOnlyAction, Void> PARSER = new ObjectParser<>(NAME, false, ReadOnlyAction::new);
 

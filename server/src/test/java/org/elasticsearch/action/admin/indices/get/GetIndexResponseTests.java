@@ -31,9 +31,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.junit.Assert;
 
@@ -73,10 +74,6 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
 
     @Override
     protected GetIndexResponse createTestInstance() {
-        return createTestInstance(randomBoolean());
-    }
-
-    private GetIndexResponse createTestInstance(boolean randomTypeName) {
         String[] indices = generateRandomStringArray(5, 5, false, false);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
@@ -87,7 +84,7 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         for (String index: indices) {
             // rarely have no types
             int typeCount = rarely() ? 0 : 1;
-            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount, randomTypeName));
+            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount, true));
 
             List<AliasMetaData> aliasMetaDataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);
@@ -108,12 +105,6 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         return new GetIndexResponse(
             indices, mappings.build(), aliases.build(), settings.build(), defaultSettings.build()
         );
-    }
-
-    @Override
-    protected GetIndexResponse createXContextTestInstance(XContentType xContentType) {
-        // don't use random type names for XContent roundtrip tests because we cannot parse them back anymore
-        return createTestInstance(false);
     }
 
     @Override
@@ -202,5 +193,14 @@ public class GetIndexResponseTests extends AbstractStreamableXContentTestCase<Ge
         String base64OfResponse = Base64.getEncoder().encodeToString(BytesReference.toBytes(bso.bytes()));
 
         Assert.assertEquals(TEST_6_3_0_RESPONSE_BYTES, base64OfResponse);
+    }
+
+    /**
+     * For xContent roundtrip testing we force the xContent output to still contain types because the parser still expects them.
+     * The new typeless parsing is implemented in the client side GetIndexResponse.
+     */
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "true"));
     }
 }

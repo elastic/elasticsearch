@@ -111,15 +111,12 @@ import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
-import org.joda.time.DateTime;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.DateTimeFormatterBuilder;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.time.Duration;
+import java.time.LocalTime;
 import java.time.Period;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAmount;
 import java.util.EnumSet;
 import java.util.List;
@@ -127,9 +124,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
+import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
+import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
+import static org.elasticsearch.xpack.sql.util.DateUtils.ofEscapedLiteral;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
 
@@ -423,7 +423,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case "ip":
                 return DataType.IP;
             default:
-                throw new ParsingException(source(ctx), "Does not recognize type {}", type);
+                throw new ParsingException(source(ctx), "Does not recognize type [{}]", ctx.getText());
         }
     }
 
@@ -443,7 +443,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 dataType = DataType.fromOdbcType(convertDataType);
                 if (dataType == null) {
                     throw new ParsingException(source(convertTc.dataType()), "Invalid data type [{}] provided", convertDataType);
-    }
+                }
             } else {
                 try {
                     dataType = DataType.valueOf(convertDataType);
@@ -456,6 +456,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Object visitCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx) {
+        return new Cast(source(ctx), expression(ctx.valueExpression()), typedParsing(ctx.dataType(), DataType.class));
+    }
+
+    @Override
     public Function visitExtractExpression(ExtractExpressionContext ctx) {
         ExtractTemplateContext template = ctx.extractTemplate();
         String fieldString = visitIdentifier(template.field);
@@ -465,7 +470,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitBuiltinDateTimeFunction(BuiltinDateTimeFunctionContext ctx) {
-        // maps current_XXX to their respective functions
+        // maps CURRENT_XXX to its respective function e.g: CURRENT_TIMESTAMP()
         // since the functions need access to the Configuration, the parser only registers the definition and not the actual function
         Source source = source(ctx);
         Literal p = null;
@@ -484,13 +489,15 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         
         String functionName = ctx.name.getText();
-        
+
         switch (ctx.name.getType()) {
+            case SqlBaseLexer.CURRENT_DATE:
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             case SqlBaseLexer.CURRENT_TIMESTAMP:
                 return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, p != null ? singletonList(p) : emptyList());
+            default:
+                throw new ParsingException(source, "Unknown function [{}]", functionName);
         }
-
-        throw new ParsingException(source, "Unknown function [{}]", functionName);
     }
 
     @Override
@@ -789,13 +796,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         String string = string(ctx.string());
         Source source = source(ctx);
         // parse yyyy-MM-dd
-        DateTime dt = null;
         try {
-            dt = ISODateTimeFormat.date().parseDateTime(string);
-        } catch(IllegalArgumentException ex) {
+            return new Literal(source, asDateOnly(string), DataType.DATE);
+        } catch(DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid date received; {}", ex.getMessage());
         }
-        return new Literal(source, DateUtils.asDateOnly(dt), DataType.DATE);
     }
 
     @Override
@@ -804,10 +809,10 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
 
         // parse HH:mm:ss
-        DateTime dt = null;
+        LocalTime lt = null;
         try {
-            dt = ISODateTimeFormat.hourMinuteSecond().parseDateTime(string);
-        } catch (IllegalArgumentException ex) {
+            lt = LocalTime.parse(string, ISO_LOCAL_TIME);
+        } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid time received; {}", ex.getMessage());
         }
 
@@ -820,18 +825,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         Source source = source(ctx);
         // parse yyyy-mm-dd hh:mm:ss(.f...)
-        DateTime dt = null;
         try {
-            DateTimeFormatter formatter = new DateTimeFormatterBuilder()
-                    .append(ISODateTimeFormat.date())
-                    .appendLiteral(" ")
-                    .append(ISODateTimeFormat.hourMinuteSecondFraction())
-                    .toFormatter();
-            dt = formatter.parseDateTime(string);
-        } catch (IllegalArgumentException ex) {
+            return new Literal(source, ofEscapedLiteral(string), DataType.DATETIME);
+        } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid timestamp received; {}", ex.getMessage());
         }
-        return new Literal(source, DateUtils.asDateTime(dt), DataType.DATETIME);
     }
 
     @Override

@@ -312,7 +312,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             in.readBoolean(); // updateAllTypes
         }
         concreteIndex = in.readOptionalWriteable(Index::new);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
             origin = in.readOptionalString();
         } else {
             origin = null;
@@ -330,7 +330,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             out.writeBoolean(true); // updateAllTypes
         }
         out.writeOptionalWriteable(concreteIndex);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             out.writeOptionalString(origin);
         }
     }

@@ -75,7 +75,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
-import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
@@ -476,6 +476,11 @@ public class InternalEngine extends Engine {
         return translog;
     }
 
+    // Package private for testing purposes only
+    boolean hasSnapshottedCommits() {
+        return combinedDeletionPolicy.hasSnapshottedCommits();
+    }
+
     @Override
     public boolean isTranslogSyncNeeded() {
         return getTranslog().syncNeeded();
@@ -497,16 +502,11 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Creates a new history snapshot for reading operations since the provided seqno.
-     * The returned snapshot can be retrieved from either Lucene index or translog files.
+     * Creates a new history snapshot for reading operations since the provided seqno from the translog.
      */
     @Override
     public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            return newChangesSnapshot(source, mapperService, Math.max(0, startingSeqNo), Long.MAX_VALUE, false);
-        } else {
-            return getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
-        }
+        return getTranslog().newSnapshotFromMinSeqNo(startingSeqNo);
     }
 
     /**
@@ -623,6 +623,12 @@ public class InternalEngine extends Engine {
                     if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                             get.versionType().explainConflictForReads(versionValue.version, get.version()));
+                    }
+                    if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+                        get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term
+                        )) {
+                        throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                            get.getIfSeqNo(), get.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
                     }
                     if (get.isReadFromTranslog()) {
                         // this is only used for updates - API _GET calls will always read form a reader for consistency
@@ -2342,9 +2348,9 @@ public class InternalEngine extends Engine {
                      * We sample these from the policy (which occurs under a lock) to ensure that we have a consistent view of the minimum
                      * retained sequence number, and the retention leases.
                      */
-                    final Tuple<Long, Collection<RetentionLease>> retentionPolicy = softDeletesPolicy.getRetentionPolicy();
+                    final Tuple<Long, RetentionLeases> retentionPolicy = softDeletesPolicy.getRetentionPolicy();
                     commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(retentionPolicy.v1()));
-                    commitData.put(Engine.RETENTION_LEASES, RetentionLease.encodeRetentionLeases(retentionPolicy.v2()));
+                    commitData.put(Engine.RETENTION_LEASES, RetentionLeases.encodeRetentionLeases(retentionPolicy.v2()));
                 }
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
@@ -2535,36 +2541,40 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
-            return getMinRetainedSeqNo() <= startingSeqNo;
-        } else {
-            final long currentLocalCheckpoint = getLocalCheckpointTracker().getCheckpoint();
-            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
-            try (Translog.Snapshot snapshot = getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
-                Translog.Operation operation;
-                while ((operation = snapshot.next()) != null) {
-                    if (operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                        tracker.markSeqNoAsCompleted(operation.seqNo());
-                    }
+        final long currentLocalCheckpoint = getLocalCheckpointTracker().getCheckpoint();
+        final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
+        try (Translog.Snapshot snapshot = getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
+            Translog.Operation operation;
+            while ((operation = snapshot.next()) != null) {
+                if (operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    tracker.markSeqNoAsCompleted(operation.seqNo());
                 }
             }
-            return tracker.getCheckpoint() >= currentLocalCheckpoint;
         }
+        return tracker.getCheckpoint() >= currentLocalCheckpoint;
     }
 
     /**
      * Returns the minimum seqno that is retained in the Lucene index.
      * Operations whose seq# are at least this value should exist in the Lucene index.
      */
-    final long getMinRetainedSeqNo() {
+    public final long getMinRetainedSeqNo() {
         assert softDeleteEnabled : Thread.currentThread().getName();
         return softDeletesPolicy.getMinRetainedSeqNo();
     }
 
     @Override
-    public Closeable acquireRetentionLockForPeerRecovery() {
+    public Closeable acquireRetentionLock() {
         if (softDeleteEnabled) {
-            return softDeletesPolicy.acquireRetentionLock();
+            final Releasable softDeletesRetentionLock = softDeletesPolicy.acquireRetentionLock();
+            final Closeable translogRetentionLock;
+            try {
+                translogRetentionLock = translog.acquireRetentionLock();
+            } catch (Exception e) {
+                softDeletesRetentionLock.close();
+                throw e;
+            }
+            return () -> IOUtils.close(translogRetentionLock, softDeletesRetentionLock);
         } else {
             return translog.acquireRetentionLock();
         }

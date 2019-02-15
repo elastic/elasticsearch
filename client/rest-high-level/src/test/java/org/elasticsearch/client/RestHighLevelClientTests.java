@@ -744,6 +744,14 @@ public class RestHighLevelClientTests extends ESTestCase {
                 .collect(Collectors.groupingBy(Tuple::v1,
                     Collectors.mapping(Tuple::v2, Collectors.toSet())));
 
+        // TODO remove in 8.0 - we will undeprecate indices.get_template because the current getIndexTemplate
+        // impl will replace the existing getTemplate method. 
+        // The above general-purpose code ignores all deprecated methods which in this case leaves `getTemplate`
+        // looking like it doesn't have a valid implementatation when it does. 
+        apiUnsupported.remove("indices.get_template");
+        
+        
+
         for (Map.Entry<String, Set<Method>> entry : methods.entrySet()) {
             String apiName = entry.getKey();
 
@@ -776,7 +784,10 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("security.") == false &&
                                 apiName.startsWith("index_lifecycle.") == false &&
                                 apiName.startsWith("ccr.") == false &&
-                                apiName.endsWith("freeze") == false) {
+                                apiName.endsWith("freeze") == false &&
+                                // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we 
+                                // can get rid of 7.0's deprecated "getTemplate"
+                                apiName.equals("indices.get_index_template") == false) {
                                 apiNotFound.add(apiName);
                             }
                         }

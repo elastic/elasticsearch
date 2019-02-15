@@ -134,7 +134,7 @@ public class PutMappingRequestTests extends ESTestCase {
 
         String type = randomAlphaOfLength(5);
         request.type(type);
-        request.source(RandomCreateIndexGenerator.randomMapping());
+        request.source(RandomCreateIndexGenerator.randomMapping(type));
 
         return request;
     }

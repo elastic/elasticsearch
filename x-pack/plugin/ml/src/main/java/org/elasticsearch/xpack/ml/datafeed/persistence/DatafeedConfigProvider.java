@@ -19,6 +19,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -44,7 +45,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
@@ -198,7 +198,7 @@ public class DatafeedConfigProvider {
     public void findDatafeedsForJobIds(Collection<String> jobIds, ActionListener<Set<String>> listener) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedJobIdsQuery(jobIds));
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), null);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -266,8 +266,8 @@ public class DatafeedConfigProvider {
      * @param updatedConfigListener Updated datafeed config listener
      */
     public void updateDatefeedConfig(String datafeedId, DatafeedUpdate update, Map<String, String> headers,
-                          BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
-                          ActionListener<DatafeedConfig> updatedConfigListener) {
+                                     BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
+                                     ActionListener<DatafeedConfig> updatedConfigListener) {
         GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(datafeedId));
 
@@ -278,7 +278,9 @@ public class DatafeedConfigProvider {
                     updatedConfigListener.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
                     return;
                 }
-                long version = getResponse.getVersion();
+                final long version = getResponse.getVersion();
+                final long seqNo = getResponse.getSeqNo();
+                final long primaryTerm = getResponse.getPrimaryTerm();
                 BytesReference source = getResponse.getSourceAsBytesRef();
                 DatafeedConfig.Builder configBuilder;
                 try {
@@ -299,7 +301,7 @@ public class DatafeedConfigProvider {
 
                 ActionListener<Boolean> validatedListener = ActionListener.wrap(
                         ok -> {
-                            indexUpdatedConfig(updatedConfig, version, ActionListener.wrap(
+                            indexUpdatedConfig(updatedConfig, seqNo, primaryTerm, ActionListener.wrap(
                                     indexResponse -> {
                                         assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
                                         updatedConfigListener.onResponse(updatedConfig);
@@ -319,17 +321,19 @@ public class DatafeedConfigProvider {
         });
     }
 
-    private void indexUpdatedConfig(DatafeedConfig updatedConfig, long version, ActionListener<IndexResponse> listener) {
+    private void indexUpdatedConfig(DatafeedConfig updatedConfig, long seqNo, long primaryTerm,
+                                    ActionListener<IndexResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
+            IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
                     ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(updatedConfig.getId()))
                     .setSource(updatedSource)
-                    .setVersion(version)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .request();
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
+            indexRequest.setIfSeqNo(seqNo);
+            indexRequest.setIfPrimaryTerm(primaryTerm);
+
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest.request(), listener);
 
         } catch (IOException e) {
             listener.onFailure(
@@ -366,7 +370,7 @@ public class DatafeedConfigProvider {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
         sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), null);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())

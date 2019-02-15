@@ -43,7 +43,7 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
     @Override
     protected TypeResolution resolveType() {
         if (!value.foldable()) {
-            return new TypeResolution(format(null, "2nd argument of PERCENTILE_RANK must be a constant, received [{}]",
+            return new TypeResolution(format(null, "Second argument of PERCENTILE_RANK must be a constant, received [{}]",
                 Expressions.name(value)));
         }
 

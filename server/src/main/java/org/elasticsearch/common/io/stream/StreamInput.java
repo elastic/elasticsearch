@@ -205,6 +205,16 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional {@link Integer}.
+     */
+    public Integer readOptionalInt() throws IOException {
+        if (readBoolean()) {
+            return readInt();
+        }
+        return null;
+    }
+
+    /**
      * Reads an int stored in variable-length format.  Reads between one and
      * five bytes.  Smaller values take fewer bytes.  Negative numbers
      * will always use all 5 bytes and are therefore better serialized
@@ -576,6 +586,23 @@ public abstract class StreamInput extends InputStream {
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
+    }
+
+    /**
+     * Read an {@link Instant} from the stream with nanosecond resolution
+     */
+    public final Instant readInstant() throws IOException {
+        return Instant.ofEpochSecond(readLong(), readInt());
+    }
+
+    /**
+     * Read an optional {@link Instant} from the stream. Returns <code>null</code> when
+     * no instant is present.
+     */
+    @Nullable
+    public final Instant readOptionalInstant() throws IOException {
+        final boolean present = readBoolean();
+        return present ? readInstant() : null;
     }
 
     @SuppressWarnings("unchecked")
@@ -999,7 +1026,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads an enum with type E that was serialized based on the value of it's ordinal
+     * Reads an enum with type E that was serialized based on the value of its ordinal
      */
     public <E extends Enum<E>> E readEnum(Class<E> enumClass) throws IOException {
         int ordinal = readVInt();

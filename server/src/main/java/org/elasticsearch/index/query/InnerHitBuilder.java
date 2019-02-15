@@ -156,7 +156,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         size = in.readVInt();
         explain = in.readBoolean();
         version = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)){
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)){
             seqNoAndPrimaryTerm = in.readBoolean();
         } else {
             seqNoAndPrimaryTerm = false;
@@ -205,7 +205,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeVInt(size);
         out.writeBoolean(explain);
         out.writeBoolean(version);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             out.writeBoolean(seqNoAndPrimaryTerm);
         }
         out.writeBoolean(trackScores);

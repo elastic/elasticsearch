@@ -21,10 +21,8 @@ package org.elasticsearch.test.disruption;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -72,7 +70,6 @@ public abstract class DisruptableMockTransport extends MockTransport {
         if (action.equals(HANDSHAKE_ACTION_NAME)) {
             runnable.run();
         } else {
-
             execute(runnable);
         }
     }
@@ -116,7 +113,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
         assert destinationTransport.getLocalNode().equals(getLocalNode()) == false :
             "non-local message from " + getLocalNode() + " to itself";
 
-        execute(action, new Runnable() {
+        destinationTransport.execute(action, new Runnable() {
             @Override
             public void run() {
                 switch (getConnectionStatus(destinationTransport.getLocalNode())) {
@@ -252,10 +249,6 @@ public abstract class DisruptableMockTransport extends MockTransport {
                 logger.warn("failed to send failure", e);
             }
         }
-    }
-
-    private NamedWriteableRegistry writeableRegistry() {
-        return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
     }
 
     public enum ConnectionStatus {

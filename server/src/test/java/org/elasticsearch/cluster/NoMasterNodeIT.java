@@ -28,11 +28,11 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -73,7 +73,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
     public void testNoMasterActions() throws Exception {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true)
-            .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all")
+            .put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all")
             .build();
 
         final TimeValue timeout = TimeValue.timeValueMillis(10);
@@ -93,7 +93,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true)
                 .execute().actionGet().getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID));
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
         assertThrows(clientToMasterlessNode.prepareGet("test", "type1", "1"),
@@ -192,11 +192,10 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37823")
     public void testNoMasterActionsWriteMasterBlock() throws Exception {
         Settings settings = Settings.builder()
             .put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false)
-            .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "write")
+            .put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "write")
             .build();
 
         final List<String> nodes = internalCluster().startNodes(3, settings);
@@ -224,7 +223,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         assertTrue(awaitBusy(() -> {
                 ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
-                return state.blocks().hasGlobalBlockWithId(DiscoverySettings.NO_MASTER_BLOCK_ID);
+                return state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID);
             }
         ));
 

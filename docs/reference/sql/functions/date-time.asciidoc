@@ -3,8 +3,6 @@
 [[sql-functions-datetime]]
 === Date/Time and Interval Functions and Operators
 
-beta[]
-
 {es-sql} offers a wide range of facilities for performing date/time manipulations.
 
 [[sql-functions-datetime-interval]]
@@ -91,7 +89,49 @@ include-tagged::{sql-specs}/docs.csv-spec[dtIntervalMul]
 
 ==== Functions
 
-beta[]
+Functions that target date/time.
+
+[[sql-functions-current-date]]
+==== `CURRENT_DATE/CURDATE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+CURRENT_DATE
+CURRENT_DATE()
+--------------------------------------------------
+
+*Input*: _none_
+
+*Output*: date
+
+.Description:
+
+Returns the date (no time part) when the current query reached the server.
+It can be used both as a keyword: `CURRENT_DATE` or as a function with no arguments: `CURRENT_DATE()`.
+
+[NOTE]
+Unlike CURRENT_DATE, `CURDATE()` can only be used as a function with no arguments and not as a keyword.
+
+This method always returns the same value for its every occurrence within the same query.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[curDate]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[curDateFunction]
+--------------------------------------------------
+
+Typically, this function (as well as its twin <<sql-functions-today,TODAY())>> function
+is used for relative date filtering:
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[filterToday]
+--------------------------------------------------
 
 [[sql-functions-current-timestamp]]
 ==== `CURRENT_TIMESTAMP`
@@ -115,7 +155,7 @@ Returns the date/time when the current query reached the server.
 As a function, `CURRENT_TIMESTAMP()` accepts _precision_ as an optional
 parameter for rounding the second fractional digits (nanoseconds).
 
-This method always returns the same value within a query.
+This method always returns the same value for its every occurrence within the same query.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -422,7 +462,8 @@ NOW()
 .Description:
 
 This function offers the same functionality as <<sql-functions-current-timestamp,CURRENT_TIMESTAMP()>> function: returns
-the datetime when the current query reached the server. This method always returns the same value within a query.
+the datetime when the current query reached the server. This method always returns the same value for its every
+occurrence within the same query.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -483,6 +524,38 @@ Extract the year quarter the date/datetime falls in.
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs.csv-spec[quarter]
+--------------------------------------------------
+
+[[sql-functions-today]]
+==== `TODAY`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+TODAY()
+--------------------------------------------------
+
+*Input*: _none_
+
+*Output*: date
+
+.Description:
+
+This function offers the same functionality as <<sql-functions-current-date,CURRENT_DATE()>> function: returns
+the date when the current query reached the server. This method always returns the same value for its every occurrence
+within the same query.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[todayFunction]
+--------------------------------------------------
+
+Typically, this function (as well as its twin <<sql-functions-current-timestamp,CURRENT_TIMESTAMP())>> function is used
+for relative date filtering:
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs.csv-spec[filterToday]
 --------------------------------------------------
 
 [[sql-functions-datetime-week]]

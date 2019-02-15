@@ -14,7 +14,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -87,7 +86,7 @@ public class FieldHitExtractor implements HitExtractor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeOptionalString(dataType == null ? null : dataType.esType);
+        out.writeOptionalString(dataType == null ? null : dataType.typeName);
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
     }
@@ -131,10 +130,6 @@ public class FieldHitExtractor implements HitExtractor {
         if (dataType == DataType.DATETIME) {
             if (values instanceof String) {
                 return DateUtils.asDateTime(Long.parseLong(values.toString()));
-            }
-            // returned by nested types...
-            if (values instanceof DateTime) {
-                return DateUtils.asDateTime((DateTime) values);
             }
         }
         if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {

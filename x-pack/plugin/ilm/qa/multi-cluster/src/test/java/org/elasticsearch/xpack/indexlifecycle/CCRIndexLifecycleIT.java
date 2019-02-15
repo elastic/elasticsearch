@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.ESCCRRestTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
@@ -61,6 +62,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // Policy with the same name must exist in follower cluster too:
             putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24));
             followIndex(indexName, indexName);
+            ensureGreen(indexName);
             // Aliases are not copied from leader index, so we need to add that for the rollover action in follower cluster:
             client().performRequest(new Request("PUT", "/" + indexName + "/_alias/logs"));
 
@@ -116,6 +118,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         } else if ("follow".equals(targetCluster)) {
             createNewSingletonPolicy("unfollow-only", "hot", new UnfollowAction(), TimeValue.ZERO);
             followIndex(indexName, indexName);
+            ensureGreen(indexName);
 
             // Create the repository before taking the snapshot.
             Request request = new Request("PUT", "/_snapshot/repo");
@@ -207,10 +210,10 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 // Create an index on the leader using the template set up above
                 Request createIndexRequest = new Request("PUT", "/" + indexName);
                 createIndexRequest.setJsonEntity("{" +
-                    "\"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}, " +
+                    "\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}, " +
                     "\"aliases\": {\"" + alias + "\":  {\"is_write_index\":  true}} }");
                 assertOK(leaderClient.performRequest(createIndexRequest));
-                // Check that the new index is creeg
+                // Check that the new index is created
                 Request checkIndexRequest = new Request("GET", "/_cluster/health/" + indexName);
                 checkIndexRequest.addParameter("wait_for_status", "green");
                 checkIndexRequest.addParameter("timeout", "70s");
@@ -226,6 +229,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 index(leaderClient, indexName, "1");
                 assertDocumentExists(leaderClient, indexName, "1");
 
+                ensureGreen(indexName);
                 assertBusy(() -> {
                     assertDocumentExists(client(), indexName, "1");
                     // Sanity check that following_index setting has been set, so that we can verify later that this setting has been unset:
@@ -274,6 +278,124 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
     }
 
+    public void testUnfollowInjectedBeforeShrink() throws Exception {
+        final String indexName = "shrink-test";
+        final String shrunkenIndexName = "shrink-" + indexName;
+        final String policyName = "shrink-test-policy";
+
+        if ("leader".equals(targetCluster)) {
+            Settings indexSettings = Settings.builder()
+                .put("index.soft_deletes.enabled", true)
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 0)
+                .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
+                .build();
+            createIndex(indexName, indexSettings, "", "");
+            ensureGreen(indexName);
+        } else if ("follow".equals(targetCluster)) {
+            // Create a policy with just a Shrink action on the follower
+            putShrinkOnlyPolicy(client(), policyName);
+
+            // Follow the index
+            followIndex(indexName, indexName);
+            // Make sure it actually took
+            assertBusy(() -> assertTrue(indexExists(indexName)));
+            // This should now be in the "warm" phase waiting for the index to be ready to unfollow
+            assertBusy(() -> assertILMPolicy(client(), indexName, policyName, "warm", "unfollow", "wait-for-indexing-complete"));
+
+            // Set the indexing_complete flag on the leader so the index will actually unfollow
+            try (RestClient leaderClient = buildLeaderClient()) {
+                updateIndexSettings(leaderClient, indexName, Settings.builder()
+                    .put("index.lifecycle.indexing_complete", true)
+                    .build()
+                );
+            }
+
+            // Wait for the setting to get replicated
+            assertBusy(() -> assertThat(getIndexSetting(client(), indexName, "index.lifecycle.indexing_complete"), equalTo("true")));
+
+            // We can't reliably check that the index is unfollowed, because ILM
+            // moves through the unfollow and shrink actions so fast that the
+            // index often disappears between assertBusy checks
+
+            // Wait for the index to continue with its lifecycle and be shrunk
+            assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)));
+
+            // Wait for the index to complete its policy
+            assertBusy(() -> assertILMPolicy(client(), shrunkenIndexName, policyName, "completed", "completed", "completed"));
+        }
+    }
+
+    // Specifically, this is waiting for this bullet to be complete:
+    // - integrate shard history retention leases with cross-cluster replication
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37165")
+    public void testCannotShrinkLeaderIndex() throws Exception {
+        String indexName = "shrink-leader-test";
+        String shrunkenIndexName = "shrink-" + indexName;
+
+        String policyName = "shrink-leader-test-policy";
+        if ("leader".equals(targetCluster)) {
+            // Set up the policy and index, but don't attach the policy yet,
+            // otherwise it'll proceed through shrink before we can set up the
+            // follower
+            putShrinkOnlyPolicy(client(), policyName);
+            Settings indexSettings = Settings.builder()
+                .put("index.soft_deletes.enabled", true)
+                .put("index.number_of_shards", 2)
+                .put("index.number_of_replicas", 0)
+                .build();
+            createIndex(indexName, indexSettings, "", "");
+            ensureGreen(indexName);
+        } else if ("follow".equals(targetCluster)) {
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                // Policy with the same name must exist in follower cluster too:
+                putUnfollowOnlyPolicy(client(), policyName);
+                followIndex(indexName, indexName);
+                ensureGreen(indexName);
+
+                // Now we can set up the leader to use the policy
+                Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
+                final StringEntity changePolicyEntity = new StringEntity("{ \"index.lifecycle.name\": \"" + policyName + "\" }",
+                    ContentType.APPLICATION_JSON);
+                changePolicyRequest.setEntity(changePolicyEntity);
+                assertOK(leaderClient.performRequest(changePolicyRequest));
+
+                index(leaderClient, indexName, "1");
+                assertDocumentExists(leaderClient, indexName, "1");
+
+                assertBusy(() -> {
+                    assertDocumentExists(client(), indexName, "1");
+                    // Sanity check that following_index setting has been set, so that we can verify later that this setting has been unset:
+                    assertThat(getIndexSetting(client(), indexName, "index.xpack.ccr.following_index"), equalTo("true"));
+
+                    // We should get into a state with these policies where both leader and followers are waiting on each other
+                    assertILMPolicy(leaderClient, indexName, policyName, "warm", "shrink", "wait-for-shard-history-leases");
+                    assertILMPolicy(client(), indexName, policyName, "hot", "unfollow", "wait-for-indexing-complete");
+                });
+
+                // Manually set this to kick the process
+                updateIndexSettings(leaderClient, indexName, Settings.builder()
+                    .put("index.lifecycle.indexing_complete", true)
+                    .build()
+                );
+
+                assertBusy(() -> {
+                    // The shrunken index should now be created on the leader...
+                    Response shrunkenIndexExistsResponse = leaderClient.performRequest(new Request("HEAD", "/" + shrunkenIndexName));
+                    assertEquals(RestStatus.OK.getStatus(), shrunkenIndexExistsResponse.getStatusLine().getStatusCode());
+
+                    // And both of these should now finish their policies
+                    assertILMPolicy(leaderClient, shrunkenIndexName, policyName, "completed");
+                    assertILMPolicy(client(), indexName, policyName, "completed");
+                });
+            }
+        } else {
+            fail("unexpected target cluster [" + targetCluster + "]");
+        }
+
+    }
+
     private static void putILMPolicy(String name, String maxSize, Integer maxDocs, TimeValue maxAge) throws IOException {
         final Request request = new Request("PUT", "_ilm/policy/" + name);
         XContentBuilder builder = jsonBuilder();
@@ -299,7 +421,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                             }
                             builder.endObject();
                         }
-                        {
+                        if (randomBoolean()) {
                             builder.startObject("unfollow");
                             builder.endObject();
                         }
@@ -310,6 +432,11 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     {
                         builder.startObject("actions");
                         {
+                            // Sometimes throw in an extraneous unfollow just to check it doesn't break anything
+                            if (randomBoolean()) {
+                                builder.startObject("unfollow");
+                                builder.endObject();
+                            }
                             builder.startObject("readonly");
                             builder.endObject();
                         }
@@ -337,14 +464,104 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         assertOK(client().performRequest(request));
     }
 
+    private void putShrinkOnlyPolicy(RestClient client, String policyName) throws IOException {
+        final XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        {
+            builder.startObject("policy");
+            {
+                builder.startObject("phases");
+                {
+                    builder.startObject("warm");
+                    {
+                        builder.startObject("actions");
+                        {
+                            builder.startObject("shrink");
+                            {
+                                builder.field("number_of_shards", 1);
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    // Sometimes throw in an extraneous unfollow just to check it doesn't break anything
+                    if (randomBoolean()) {
+                        builder.startObject("cold");
+                        {
+                            builder.startObject("actions");
+                            {
+                                builder.startObject("unfollow");
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
+        final Request request = new Request("PUT", "_ilm/policy/" + policyName);
+        request.setJsonEntity(Strings.toString(builder));
+        assertOK(client.performRequest(request));
+    }
+
+    private void putUnfollowOnlyPolicy(RestClient client, String policyName) throws Exception {
+        final XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        {
+            builder.startObject("policy");
+            {
+                builder.startObject("phases");
+                {
+                    builder.startObject("hot");
+                    {
+                        builder.startObject("actions");
+                        {
+                            builder.startObject("unfollow");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
+        final Request request = new Request("PUT", "_ilm/policy/" + policyName);
+        request.setJsonEntity(Strings.toString(builder));
+        assertOK(client.performRequest(request));
+    }
+
     private static void assertILMPolicy(RestClient client, String index, String policy, String expectedPhase) throws IOException {
+        assertILMPolicy(client, index, policy, expectedPhase, null, null);
+    }
+
+    private static void assertILMPolicy(RestClient client, String index, String policy, String expectedPhase,
+                                        String expectedAction, String expectedStep) throws IOException {
         final Request request = new Request("GET", "/" + index + "/_ilm/explain");
         Map<String, Object> response = toMap(client.performRequest(request));
         LOGGER.info("response={}", response);
         Map<?, ?> explanation = (Map<?, ?>) ((Map<?, ?>) response.get("indices")).get(index);
         assertThat(explanation.get("managed"), is(true));
         assertThat(explanation.get("policy"), equalTo(policy));
-        assertThat(explanation.get("phase"), equalTo(expectedPhase));
+        if (expectedPhase != null) {
+            assertThat(explanation.get("phase"), equalTo(expectedPhase));
+        }
+        if (expectedAction != null) {
+            assertThat(explanation.get("action"), equalTo(expectedAction));
+        }
+        if (expectedStep != null) {
+            assertThat(explanation.get("step"), equalTo(expectedStep));
+        }
     }
 
     private static void updateIndexSettings(RestClient client, String index, Settings settings) throws IOException {

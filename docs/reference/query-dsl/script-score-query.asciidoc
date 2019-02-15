@@ -211,7 +211,7 @@ There are faster alternative query types that can efficiently skip
 non-competitive hits:
 
 * If you want to boost documents on some static fields, use
- <<query-dsl-feature-query, Feature Query>>.
+ <<query-dsl-rank-feature-query, Rank Feature Query>>.
 
 
 ==== Transition from Function Score Query

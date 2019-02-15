@@ -24,10 +24,6 @@ setup:
 
 ---
 "sequence numbers are returned if requested from body":
-  - skip:
-      version: " - 6.99.99"
-      reason: sequence numbers were added in 7.0.0
-
   - do:
       search:
         index: _all
@@ -37,16 +33,11 @@ setup:
               foo: bar
           seq_no_primary_term: true
 
-  - match: {hits.total.value: 1}
   - match: {hits.hits.0._seq_no: 1}
   - gte: {hits.hits.0._primary_term: 1}
 
 ---
 "sequence numbers are returned if requested from url":
-  - skip:
-      version: " - 6.99.99"
-      reason: sequence numbers were added in 7.0.0
-
   - do:
       search:
         index: _all
@@ -56,7 +47,6 @@ setup:
               foo: bar
         seq_no_primary_term: true
 
-  - match: {hits.total.value: 1}
   - match: {hits.hits.0._seq_no: 1}
   - gte: {hits.hits.0._primary_term: 1}
 

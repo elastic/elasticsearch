@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -126,7 +126,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         verifyZeroInteractions(parser);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38581")
     public void testPreIndex() throws Exception {
         when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(operation.id()).thenReturn(randomAlphaOfLength(10));
@@ -140,8 +139,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         Engine.Index returnedOperation = listener.preIndex(shardId, operation);
         assertThat(returnedOperation, is(operation));
-
-        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
+        ZonedDateTime now = DateUtils.nowWithMillisResolution(clock);
         verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), anyObject(), anyLong(), anyLong());
 
         if (isNewWatch) {

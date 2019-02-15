@@ -997,8 +997,9 @@ public abstract class EngineTestCase extends ESTestCase {
                     }
                 }
             }
-            docs.sort(Comparator.comparing(DocIdSeqNoAndTerm::getId)
-                .thenComparingLong(DocIdSeqNoAndTerm::getSeqNo).thenComparingLong(DocIdSeqNoAndTerm::getPrimaryTerm));
+            docs.sort(Comparator.comparingLong(DocIdSeqNoAndTerm::getSeqNo)
+                .thenComparingLong(DocIdSeqNoAndTerm::getPrimaryTerm)
+                .thenComparing((DocIdSeqNoAndTerm::getId)));
             return docs;
         }
     }

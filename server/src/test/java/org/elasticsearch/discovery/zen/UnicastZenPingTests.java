@@ -839,7 +839,7 @@ public class UnicastZenPingTests extends ESTestCase {
             markTaskAsStarted("send pings");
             markTaskAsStarted("send pings");
             final AtomicReference<PingCollection> response = new AtomicReference<>();
-            ping(response::set, TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(1));
+            ping(response::set, TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(30));
             pingingRoundClosed.await();
             final PingCollection result = response.get();
             assertNotNull("pinging didn't complete",  result);

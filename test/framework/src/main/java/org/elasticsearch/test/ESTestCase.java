@@ -888,7 +888,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return terminated;
     }
 
-    public static boolean terminate(ThreadPool threadPool) throws InterruptedException {
+    public static boolean terminate(ThreadPool threadPool) {
         return ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 

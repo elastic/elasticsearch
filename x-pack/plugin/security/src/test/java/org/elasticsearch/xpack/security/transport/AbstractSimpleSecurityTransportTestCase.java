@@ -29,7 +29,6 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TestProfiles;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.MockNioTransport;
@@ -66,19 +65,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSimpleTransportTestCase {
-
-    private static final ConnectionProfile SINGLE_CHANNEL_PROFILE;
-
-    static {
-        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-        builder.addConnections(1,
-            TransportRequestOptions.Type.BULK,
-            TransportRequestOptions.Type.PING,
-            TransportRequestOptions.Type.RECOVERY,
-            TransportRequestOptions.Type.REG,
-            TransportRequestOptions.Type.STATE);
-        SINGLE_CHANNEL_PROFILE = builder.build();
-    }
 
     protected SSLService createSSLService() {
         return createSSLService(Settings.EMPTY);
@@ -317,18 +303,22 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         }
     }
 
-    public void testDualTLSStack() throws Exception {
+    public void testDualTLSStackSupport() throws Exception {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Version expectedVersion = serviceA.getLocalNode().getVersion();
 
         MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
             new MockPageCacheRecycler(Settings.EMPTY), namedWriteableRegistry, new NoneCircuitBreakerService());
 
-        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, expectedVersion, threadPool,
-            null, Collections.emptySet())) {
-            service.start();
-            service.acceptIncomingRequests();
-            try (Transport.Connection connection = service.openConnection(serviceA.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
+        try (MockTransportService plainTextService = MockTransportService.createNewService(Settings.EMPTY, transport, expectedVersion,
+            threadPool, null, Collections.emptySet())) {
+            plainTextService.start();
+            plainTextService.acceptIncomingRequests();
+            try (Transport.Connection connection = plainTextService.openConnection(serviceA.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
+                // Would throw if failed
+            }
+
+            try (Transport.Connection connection = serviceA.openConnection(plainTextService.getLocalNode(), TestProfiles.LIGHT_PROFILE)) {
                 // Would throw if failed
             }
         }

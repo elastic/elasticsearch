@@ -289,21 +289,23 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         closeLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
             ensureOpen();
-            List<TcpChannel> pendingChannels = initiateConnection(node, finalProfile, listener);
-            return () -> CloseableChannel.closeChannels(pendingChannels, false);
+            ConnectionContext pendingChannels = initiateConnection(node, finalProfile, listener);
+            return pendingChannels::cancel;
         } finally {
             closeLock.readLock().unlock();
         }
     }
 
-    private List<TcpChannel> initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                                ActionListener<Transport.Connection> listener) {
-        RetryListener retryListener = new RetryListener(node, connectionProfile, listener, supportRetry());
-        return initiateConnection(node, connectionProfile, retryListener, false);
+    private ConnectionContext initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                                 ActionListener<Transport.Connection> listener) {
+        ConnectionContext context = new ConnectionContext(node, connectionProfile, listener, supportRetry());
+        List<TcpChannel> pendingChannels = initiateConnection(node, connectionProfile, context, false);
+        context.setPendingChannels(pendingChannels);
+        return context;
     }
 
     private List<TcpChannel> initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                                ActionListener<Transport.Connection> listener, boolean isRetry) {
+                                                ConnectionContext context, boolean isRetry) {
         assert isRetry == false || supportRetry() : "Attempted retry however transport does not support retries";
 
         int numConnections = connectionProfile.getNumConnections();
@@ -313,28 +315,28 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         for (int i = 0; i < numConnections; ++i) {
             try {
-                TcpChannel channel = initiateChannel(node, false);
+                TcpChannel channel = initiateChannel(node, isRetry);
                 logger.trace(() -> new ParameterizedMessage("Tcp transport client channel opened: {}", channel));
                 channels.add(channel);
             } catch (ConnectTransportException e) {
                 CloseableChannel.closeChannels(channels, false);
-                listener.onFailure(e);
+                context.onFailure(e);
                 return channels;
             } catch (Exception e) {
                 CloseableChannel.closeChannels(channels, false);
-                listener.onFailure(new ConnectTransportException(node, "general node connection failure", e));
+                context.onFailure(new ConnectTransportException(node, "general node connection failure", e));
                 return channels;
             }
         }
 
-        ChannelsConnectedListener channelsConnectedListener = new ChannelsConnectedListener(node, connectionProfile, channels, listener);
+        ActionListener<Void> channelsConnectedListener = new ChannelsConnectedListener(node, connectionProfile, channels, context);
 
         for (TcpChannel channel : channels) {
             channel.addConnectListener(channelsConnectedListener);
         }
 
         TimeValue connectTimeout = connectionProfile.getConnectTimeout();
-        threadPool.schedule(channelsConnectedListener::onTimeout, connectTimeout, ThreadPool.Names.GENERIC);
+        threadPool.schedule(context::onTimeout, connectTimeout, ThreadPool.Names.GENERIC);
         return channels;
     }
 
@@ -660,11 +662,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * Initiate a single tcp socket channel.
      *
      * @param node for the initiated connection
-     * @param retry if this is a retry
+     * @param isRetry if this is a retry
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract TcpChannel initiateChannel(DiscoveryNode node, boolean retry) throws IOException;
+    protected abstract TcpChannel initiateChannel(DiscoveryNode node, boolean isRetry) throws IOException;
 
     protected boolean supportRetry() {
         return false;
@@ -1249,33 +1251,72 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return requestHandlers.get(action);
     }
 
-    private final class RetryListener implements ActionListener<Connection> {
+    private final class ConnectionContext implements ActionListener<Version> {
 
         private final DiscoveryNode node;
         private final ConnectionProfile connectionProfile;
         private final ActionListener<Connection> listener;
-        private final boolean retry;
 
-        private RetryListener(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Connection> listener,
-                              boolean retry) {
+        private final AtomicBoolean retry;
+        private final AtomicBoolean isDone = new AtomicBoolean(false);
+        private volatile List<TcpChannel> channels = Collections.emptyList();
+
+        private ConnectionContext(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Connection> listener,
+                                  boolean retry) {
             this.node = node;
             this.connectionProfile = connectionProfile;
             this.listener = listener;
-            this.retry = retry;
+            this.retry = new AtomicBoolean(retry);
         }
 
         @Override
-        public void onResponse(Connection connection) {
-            listener.onResponse(connection);
+        public void onResponse(Version version) {
+            if (isDone.compareAndSet(false, true)) {
+                NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
+                long relativeMillisTime = threadPool.relativeTimeInMillis();
+                nodeChannels.channels.forEach(ch -> {
+                    // Mark the channel init time
+                    ch.getChannelStats().markAccessed(relativeMillisTime);
+                    ch.addCloseListener(ActionListener.wrap(nodeChannels::close));
+                });
+                keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
+                listener.onResponse(nodeChannels);
+            }
         }
 
         @Override
         public void onFailure(Exception e) {
-            if (retry && e.getMessage().contains("connect_timeout") == false) {
-                initiateConnection(node, connectionProfile, this, true);
-            } else {
+            if (retry.compareAndSet(true, false) && isDone.get() == false) {
+                closePendingChannels();
+                setPendingChannels(initiateConnection(node, connectionProfile, this, true));
+            } else if (isDone.compareAndSet(false, true)) {
                 listener.onFailure(e);
             }
+        }
+
+        private void onTimeout() {
+            if (isDone.compareAndSet(false, true)) {
+                closePendingChannels();
+                listener.onFailure(new ConnectTransportException(node, "connect_timeout[" + connectionProfile.getConnectTimeout() + "]"));
+            }
+        }
+
+        private void cancel() {
+            if (isDone.compareAndSet(false, true)) {
+                closePendingChannels();
+                listener.onFailure(new ElasticsearchException("connection process cancelled"));
+            }
+        }
+
+        private void setPendingChannels(List<TcpChannel> channels) {
+            this.channels = channels;
+            if (isDone.get()) {
+                closePendingChannels();
+            }
+        }
+
+        private void closePendingChannels() {
+            CloseableChannel.closeChannels(channels, false);
         }
     }
 
@@ -1283,15 +1324,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         private final DiscoveryNode node;
         private final ConnectionProfile connectionProfile;
-        private final List<TcpChannel> channels;
-        private final ActionListener<Connection> listener;
+        private final TcpChannel handshakeChannel;
+        private final ActionListener<Version> listener;
         private final CountDown countDown;
 
         private ChannelsConnectedListener(DiscoveryNode node, ConnectionProfile connectionProfile, List<TcpChannel> channels,
-                                          ActionListener<Connection> listener) {
+                                          ActionListener<Version> listener) {
             this.node = node;
             this.connectionProfile = connectionProfile;
-            this.channels = channels;
+            this.handshakeChannel = channels.get(0);
             this.listener = listener;
             this.countDown = new CountDown(channels.size());
         }
@@ -1300,26 +1341,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         public void onResponse(Void v) {
             // Returns true if all connections have completed successfully
             if (countDown.countDown()) {
-                final TcpChannel handshakeChannel = channels.get(0);
                 try {
                     executeHandshake(node, handshakeChannel, connectionProfile, new ActionListener<Version>() {
                         @Override
                         public void onResponse(Version version) {
-                            NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
-                            long relativeMillisTime = threadPool.relativeTimeInMillis();
-                            nodeChannels.channels.forEach(ch -> {
-                                // Mark the channel init time
-                                ch.getChannelStats().markAccessed(relativeMillisTime);
-                                ch.addCloseListener(ActionListener.wrap(nodeChannels::close));
-                            });
-                            keepAlive.registerNodeConnection(nodeChannels.channels, connectionProfile);
-                            listener.onResponse(nodeChannels);
+                            listener.onResponse(version);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            CloseableChannel.closeChannels(channels, false);
-
                             if (e instanceof ConnectTransportException) {
                                 listener.onFailure(e);
                             } else {
@@ -1328,7 +1358,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         }
                     });
                 } catch (Exception ex) {
-                    CloseableChannel.closeChannels(channels, false);
                     listener.onFailure(ex);
                 }
             }
@@ -1337,15 +1366,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void onFailure(Exception ex) {
             if (countDown.fastForward()) {
-                CloseableChannel.closeChannels(channels, false);
                 listener.onFailure(new ConnectTransportException(node, "connect_exception", ex));
-            }
-        }
-
-        public void onTimeout() {
-            if (countDown.fastForward()) {
-                CloseableChannel.closeChannels(channels, false);
-                listener.onFailure(new ConnectTransportException(node, "connect_timeout[" + connectionProfile.getConnectTimeout() + "]"));
             }
         }
     }

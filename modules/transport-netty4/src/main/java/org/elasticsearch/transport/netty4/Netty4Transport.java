@@ -212,7 +212,7 @@ public class Netty4Transport extends TcpTransport {
         return new ServerChannelInitializer(name);
     }
 
-    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node, boolean retry) {
+    protected ChannelHandler getClientChannelInitializer(DiscoveryNode node, boolean isRetry) {
         return new ClientChannelInitializer();
     }
 
@@ -220,10 +220,10 @@ public class Netty4Transport extends TcpTransport {
     static final AttributeKey<Netty4TcpServerChannel> SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-server-channel");
 
     @Override
-    protected Netty4TcpChannel initiateChannel(DiscoveryNode node, boolean retry) throws IOException {
+    protected Netty4TcpChannel initiateChannel(DiscoveryNode node, boolean isRetry) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         Bootstrap bootstrapWithHandler = clientBootstrap.clone();
-        bootstrapWithHandler.handler(getClientChannelInitializer(node, retry));
+        bootstrapWithHandler.handler(getClientChannelInitializer(node, isRetry));
         bootstrapWithHandler.remoteAddress(address);
         ChannelFuture connectFuture = bootstrapWithHandler.connect();
 

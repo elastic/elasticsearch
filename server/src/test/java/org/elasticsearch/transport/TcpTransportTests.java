@@ -173,7 +173,7 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected FakeTcpChannel initiateChannel(DiscoveryNode node, boolean retry) throws IOException {
+                protected FakeTcpChannel initiateChannel(DiscoveryNode node, boolean isRetry) throws IOException {
                     return new FakeTcpChannel(false);
                 }
 

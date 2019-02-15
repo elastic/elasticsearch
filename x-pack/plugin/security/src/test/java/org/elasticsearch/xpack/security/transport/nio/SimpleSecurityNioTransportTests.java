@@ -66,4 +66,9 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleSecurityTrans
         transportService.start();
         return transportService;
     }
+
+    @Override
+    public void testDualTLSStackSupport() throws Exception {
+        // Do not currently support dual stack for security nio transport
+    }
 }

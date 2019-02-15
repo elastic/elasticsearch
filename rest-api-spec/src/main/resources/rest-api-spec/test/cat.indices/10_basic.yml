@@ -63,10 +63,10 @@
                   ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
                          \s+
                          \s+
-                         \s+
-                         \s+
-                         \s+
-                         \s*
+                  0?      \s+                     # replicated closed indices report docs stats
+                  0?      \s+                     # replicated closed indices report docs stats
+                  ((\d+|\d+[.]\d+)(kb|b))? \s+    # replicated closed indices can report store stats
+                  ((\d+|\d+[.]\d+)(kb|b))? \s*    # replicated closed indices can report store stats
                 )
                 $/
 

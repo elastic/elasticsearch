@@ -78,7 +78,7 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
         XContentParseException ex = expectThrows(XContentParseException.class,
             () -> GeoDistanceAggregationBuilder.parse("aggregationName", parser));
-        assertThat(ex.getMessage(), containsString("badField"));
+        assertThat(ex.getMessage(), containsString("failed to parse field"));
     }
 
     /**

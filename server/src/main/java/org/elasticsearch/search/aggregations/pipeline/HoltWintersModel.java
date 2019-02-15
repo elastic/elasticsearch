@@ -308,8 +308,6 @@ public class HoltWintersModel extends MovAvgModel {
             double gamma = parseDoubleParam(settings, "gamma", DEFAULT_GAMMA);
             int period = parseIntegerParam(settings, "period", DEFAULT_PERIOD);
 
-            validateHWParams(period, windowSize);
-
             SeasonalityType seasonalityType = DEFAULT_SEASONALITY_TYPE;
 
             if (settings != null) {
@@ -337,14 +335,9 @@ public class HoltWintersModel extends MovAvgModel {
      * This is verified in the XContent parsing, but transport clients need these checks since they
      * skirt XContent parsing
      */
-    static void validateHWParams(MovAvgModel modelToValidate, int window) {
-        if (modelToValidate instanceof HoltWintersModel) {
-            int period = ((HoltWintersModel)modelToValidate).getPeriod();
-            validateHWParams(period, window);
-        }
-    }
-
-    private static void validateHWParams(int period, int window) {
+    @Override
+    protected void validate(long window) {
+        super.validate(window);
         if (window < 2 * period) {
             throw new IllegalArgumentException("Field [window] must be at least twice as large as the period when " +
                 "using Holt-Winters.  Value provided was [" + window + "], which is less than (2*period) == "

@@ -844,7 +844,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
     public void testHoltWintersNotEnoughData() {
         Client client = client();
-        expectThrows(IllegalArgumentException.class, () -> client.prepareSearch("idx")
+        expectThrows(SearchPhaseExecutionException.class, () -> client.prepareSearch("idx")
             .addAggregation(
                 histogram("histo").field(INTERVAL_FIELD).interval(interval)
                     .extendedBounds(0L, interval * (numBuckets - 1))

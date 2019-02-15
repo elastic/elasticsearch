@@ -100,6 +100,15 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContentFragment 
     protected abstract double[] doPredict(Collection<Double> values, int numPredictions);
 
     /**
+     * This method allows models to validate the window size if required
+     */
+    protected void validate(long window) {
+        if (window <= 0) {
+            throw new IllegalArgumentException("[window] must be a positive integer.");
+        }
+    }
+
+    /**
      * Returns an empty set of predictions, filled with NaNs
      * @param numPredictions Number of empty predictions to generate
      */

@@ -208,11 +208,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
 
         private long readFileBytes(String fileName, BytesReference reference) throws IOException {
-            Releasable lock = keyedLock.tryAcquire(fileName);
-            if (lock == null) {
-                throw new IllegalStateException("can't read from the same file on the same session concurrently");
-            }
-            try (Releasable releasable = lock) {
+            try (Releasable ignored = keyedLock.acquire(fileName)) {
                 final IndexInput indexInput = cachedInputs.computeIfAbsent(fileName, f -> {
                     try {
                         return commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE);
